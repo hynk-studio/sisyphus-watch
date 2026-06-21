@@ -232,11 +232,24 @@
         "news_card": { "$ref": "#/$defs/news_card" }
       },
       "additionalProperties": true
+    },
+    "record_set": {
+      "type": "object",
+      "required": ["mode", "record_set_id", "generated_at", "source_records_path", "news_card"],
+      "properties": {
+        "mode": { "type": "string" },
+        "record_set_id": { "type": "string", "pattern": "^record_set_" },
+        "generated_at": { "type": "string" },
+        "source_records_path": { "type": "string" },
+        "news_card": { "$ref": "#/$defs/news_card" }
+      },
+      "additionalProperties": true
     }
   },
   "oneOf": [
     { "$ref": "#/$defs/source_record" },
     { "$ref": "#/$defs/news_card" },
-    { "$ref": "#/$defs/agent_packet" }
+    { "$ref": "#/$defs/agent_packet" },
+    { "$ref": "#/$defs/record_set" }
   ]
 }

@@ -65,12 +65,22 @@ python3 -m py_compile src/sisyphus_watch_demo.py
 python3 - <<'PY'
 import sys
 sys.path.insert(0, "src")
-from sisyphus_watch_demo import load_demo_sources, load_precomputed_records, run_quality_checks
+from sisyphus_watch_demo import (
+    find_project_root,
+    load_demo_sources,
+    load_precomputed_records,
+    run_negative_validation_self_test,
+    run_quality_checks,
+)
+root = find_project_root()
 sources = load_demo_sources()
 card = load_precomputed_records()["news_card"]
 checks = run_quality_checks(card)
+negative = run_negative_validation_self_test(card)
+print(f"root={root}")
 print(f"sources={len(sources)}")
 print(checks)
+print(negative)
 assert all(row["status"] == "PASS" for row in checks)
 PY
 ```
@@ -86,9 +96,13 @@ The notebook defaults to demo mode and requires no API key.
 ## Use in Kaggle Code
 
 1. Create a new Kaggle notebook.
-2. Upload this repository folder, or upload the `data/`, `src/`, `schemas/`, `examples/`, and `notebooks/` files as notebook inputs.
+2. Use one of the common upload patterns:
+   - Copy the notebook into Kaggle and upload `data/`, `src/`, `schemas/`, and `examples/` as inputs.
+   - Attach the full repository folder as a Kaggle dataset/input, for example under `/kaggle/input/<dataset-name>/`.
 3. Open or copy `notebooks/sisyphus_watch_kaggle_demo.ipynb`.
 4. Run all cells.
+
+The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
 The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
 
@@ -118,6 +132,7 @@ Live mode treats source text as untrusted data, asks for JSON only, and normaliz
 `schemas/sisyphus_schema.json` documents the record shapes for:
 
 - `source_record`
+- `record_set`
 - `news_card`
 - `fact`
 - `actor_claim`

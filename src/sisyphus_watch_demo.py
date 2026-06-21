@@ -37,6 +37,70 @@ WORKFLOW_STEPS = [
 ]
 
 
+def find_project_root(start: Path | None = None) -> Path:
+    """Find the Sisyphus Watch project root across local and Kaggle layouts."""
+    marker = Path("src") / "sisyphus_watch_demo.py"
+    checked: list[Path] = []
+
+    def check(candidate: Path) -> Path | None:
+        resolved = candidate.expanduser().resolve()
+        if resolved not in checked:
+            checked.append(resolved)
+        if (resolved / marker).exists():
+            return resolved
+        return None
+
+    def check_with_parents(candidate: Path) -> Path | None:
+        resolved = candidate.expanduser().resolve()
+        if resolved.is_file():
+            resolved = resolved.parent
+        for path in [resolved, *resolved.parents]:
+            found = check(path)
+            if found:
+                return found
+        return None
+
+    if start is not None:
+        found = check_with_parents(Path(start))
+        if found:
+            return found
+
+    cwd = Path.cwd()
+    found = check(cwd)
+    if found:
+        return found
+
+    for parent in cwd.parents:
+        found = check(parent)
+        if found:
+            return found
+
+    kaggle_working = Path("/kaggle/working")
+    if kaggle_working.exists():
+        found = check(kaggle_working)
+        if found:
+            return found
+
+    kaggle_input = Path("/kaggle/input")
+    if kaggle_input.exists():
+        for module_path in kaggle_input.glob("**/src/sisyphus_watch_demo.py"):
+            found = check(module_path.parents[1])
+            if found:
+                return found
+
+    layouts = [
+        "repo root with src/sisyphus_watch_demo.py",
+        "notebook inside notebooks/ with ../src/sisyphus_watch_demo.py",
+        "Kaggle input dataset containing src/sisyphus_watch_demo.py",
+    ]
+    checked_preview = "\n".join(f"- {path}" for path in checked[:12])
+    raise FileNotFoundError(
+        "Could not find Sisyphus Watch project root. Expected one of:\n"
+        + "\n".join(f"- {layout}" for layout in layouts)
+        + ("\nChecked:\n" + checked_preview if checked_preview else "")
+    )
+
+
 def _read_json(path: str | Path) -> Any:
     with Path(path).open("r", encoding="utf-8") as handle:
         return json.load(handle)
@@ -52,6 +116,45 @@ def _as_list(value: Any) -> list[Any]:
 
 def _ids(records: list[dict[str, Any]], key: str) -> set[str]:
     return {record.get(key, "") for record in records if isinstance(record, dict)}
+
+
+def _require_prefix(errors: list[str], object_name: str, value: Any, prefix: str) -> None:
+    if not isinstance(value, str) or not value:
+        errors.append(f"{object_name} missing ID")
+    elif not value.startswith(prefix):
+        errors.append(f"{object_name} {value} must start with {prefix}")
+
+
+def _check_source_refs(
+    errors: list[str],
+    object_name: str,
+    object_id: Any,
+    refs: Any,
+    source_ids: set[str],
+) -> None:
+    ref_list = _as_list(refs)
+    if not ref_list:
+        errors.append(f"{object_name} {object_id or '<unknown>'} missing source_ids")
+        return
+    for source_id in ref_list:
+        if source_id not in source_ids:
+            errors.append(f"{object_name} {object_id} references unknown source {source_id}")
+
+
+def _check_evidence_refs(
+    errors: list[str],
+    object_name: str,
+    object_id: Any,
+    refs: Any,
+    known_evidence_ids: set[str],
+) -> None:
+    ref_list = _as_list(refs)
+    if not ref_list:
+        errors.append(f"{object_name} {object_id or '<unknown>'} missing evidence_ids")
+        return
+    unknown = set(ref_list) - known_evidence_ids
+    if unknown:
+        errors.append(f"{object_name} {object_id} references unknown evidence IDs: {sorted(unknown)}")
 
 
 def load_demo_sources(path: str | Path | None = None) -> list[dict[str, Any]]:
@@ -104,8 +207,7 @@ def validate_source_record(record: dict[str, Any]) -> list[str]:
             errors.append(f"missing {field}")
     if record.get("is_synthetic_demo_fixture") is not True:
         errors.append("is_synthetic_demo_fixture must be true")
-    if not str(record.get("source_id", "")).startswith("src_"):
-        errors.append("source_id should start with src_")
+    _require_prefix(errors, "source_id", record.get("source_id"), "src_")
     if len(str(record.get("text", "")).strip()) < 80:
         errors.append("text is too short to demonstrate extraction")
     return errors
@@ -167,53 +269,89 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
     if len(_as_list(news_card.get("summary_3_line"))) != 3:
         errors.append("summary_3_line must contain exactly 3 lines")
 
+    _require_prefix(errors, "card_id", news_card.get("card_id"), "news_")
+
     for fact in facts:
-        if not fact.get("fact_id"):
-            errors.append("fact missing fact_id")
-        if not fact.get("source_ids"):
-            errors.append(f"fact {fact.get('fact_id', '<unknown>')} missing source_ids")
-        for source_id in _as_list(fact.get("source_ids")):
-            if source_id not in source_ids:
-                errors.append(f"fact {fact.get('fact_id')} references unknown source {source_id}")
+        if not isinstance(fact, dict):
+            errors.append("fact must be an object")
+            continue
+        _require_prefix(errors, "fact_id", fact.get("fact_id"), "fact_")
+        _check_source_refs(errors, "fact", fact.get("fact_id"), fact.get("source_ids"), source_ids)
 
     for claim in actor_claims:
-        if not claim.get("claim_id"):
-            errors.append("actor_claim missing claim_id")
-        if not claim.get("source_ids"):
-            errors.append(f"actor_claim {claim.get('claim_id', '<unknown>')} missing source_ids")
+        if not isinstance(claim, dict):
+            errors.append("actor_claim must be an object")
+            continue
+        _require_prefix(errors, "claim_id", claim.get("claim_id"), "claim_")
+        _check_source_refs(errors, "actor_claim", claim.get("claim_id"), claim.get("source_ids"), source_ids)
 
     for action in actions:
-        if not action.get("action_id"):
-            errors.append("action missing action_id")
-        if not action.get("source_ids"):
-            errors.append(f"action {action.get('action_id', '<unknown>')} missing source_ids")
+        if not isinstance(action, dict):
+            errors.append("action must be an object")
+            continue
+        _require_prefix(errors, "action_id", action.get("action_id"), "action_")
+        _check_source_refs(errors, "action", action.get("action_id"), action.get("source_ids"), source_ids)
 
     for interpretation in interpretations:
-        evidence_ids = set(_as_list(interpretation.get("evidence_ids")))
-        if not interpretation.get("interpretation_id"):
-            errors.append("interpretation missing interpretation_id")
-        if not evidence_ids:
-            errors.append(f"interpretation {interpretation.get('interpretation_id', '<unknown>')} missing evidence_ids")
-        unknown = evidence_ids - known_evidence_ids
-        if unknown:
-            errors.append(
-                f"interpretation {interpretation.get('interpretation_id')} references unknown evidence IDs: {sorted(unknown)}"
-            )
+        if not isinstance(interpretation, dict):
+            errors.append("interpretation must be an object")
+            continue
+        _require_prefix(errors, "interpretation_id", interpretation.get("interpretation_id"), "interp_")
+        _check_evidence_refs(
+            errors,
+            "interpretation",
+            interpretation.get("interpretation_id"),
+            interpretation.get("evidence_ids"),
+            known_evidence_ids,
+        )
 
     for counter in counter_branches:
+        if not isinstance(counter, dict):
+            errors.append("counter_branch must be an object")
+            continue
         target_id = counter.get("target_id")
-        if not counter.get("counter_branch_id"):
-            errors.append("counter_branch missing counter_branch_id")
+        _require_prefix(errors, "counter_branch_id", counter.get("counter_branch_id"), "counter_")
         if target_id not in interpretation_ids and target_id not in claim_ids:
             errors.append(f"counter_branch {counter.get('counter_branch_id')} targets unknown ID {target_id}")
+        _check_evidence_refs(
+            errors,
+            "counter_branch",
+            counter.get("counter_branch_id"),
+            counter.get("evidence_ids"),
+            known_evidence_ids,
+        )
+
+    for bias_note in bias_notes:
+        if not isinstance(bias_note, dict):
+            errors.append("bias_note must be an object")
+            continue
+        _require_prefix(errors, "bias_note_id", bias_note.get("bias_note_id"), "bias_")
+        source_id = bias_note.get("source_id")
+        if source_id not in source_ids:
+            errors.append(f"bias_note {bias_note.get('bias_note_id')} references unknown source {source_id}")
 
     version_diff = news_card.get("version_diff", {})
-    if not isinstance(version_diff, dict) or not version_diff.get("diff_id"):
-        errors.append("version_diff must include diff_id")
-    if not version_diff.get("previous_judgment") or not version_diff.get("updated_judgment"):
-        errors.append("version_diff must include previous_judgment and updated_judgment")
-    if not version_diff.get("confidence_delta"):
-        errors.append("version_diff must include confidence_delta")
+    if not isinstance(version_diff, dict):
+        errors.append("version_diff must be an object")
+    else:
+        _require_prefix(errors, "version_diff.diff_id", version_diff.get("diff_id"), "diff_")
+        if not version_diff.get("previous_judgment") or not version_diff.get("updated_judgment"):
+            errors.append("version_diff must include previous_judgment and updated_judgment")
+        if not version_diff.get("confidence_delta"):
+            errors.append("version_diff must include confidence_delta")
+        _check_evidence_refs(
+            errors,
+            "version_diff",
+            version_diff.get("diff_id"),
+            version_diff.get("new_evidence_ids"),
+            known_evidence_ids,
+        )
+
+    editorial_verdict = news_card.get("editorial_verdict", {})
+    if not isinstance(editorial_verdict, dict):
+        errors.append("editorial_verdict must be an object")
+    else:
+        _require_prefix(errors, "editorial_verdict.verdict_id", editorial_verdict.get("verdict_id"), "verdict_")
 
     image_prompt = news_card.get("image_prompt", {})
     if not isinstance(image_prompt, dict) or not image_prompt.get("prompt"):
@@ -222,6 +360,28 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
         errors.append("image_prompt label must be 'Generated visual summary, not evidence'")
 
     return errors
+
+
+def run_negative_validation_self_test(news_card: dict[str, Any] | None = None) -> dict[str, list[str]]:
+    """Exercise graph-integrity failures without adding a test framework."""
+    card = deepcopy(news_card) if news_card is not None else deepcopy(load_precomputed_records()["news_card"])
+
+    bad_counter = deepcopy(card)
+    bad_counter["counter_branches"][0]["evidence_ids"] = ["fact_does_not_exist"]
+    counter_errors = validate_news_card(bad_counter)
+    if not counter_errors:
+        raise AssertionError("Expected counter_branch.evidence_ids validation to fail")
+
+    bad_diff = deepcopy(card)
+    bad_diff["version_diff"]["new_evidence_ids"] = ["claim_does_not_exist"]
+    diff_errors = validate_news_card(bad_diff)
+    if not diff_errors:
+        raise AssertionError("Expected version_diff.new_evidence_ids validation to fail")
+
+    return {
+        "counter_branch_unknown_evidence": counter_errors,
+        "version_diff_unknown_evidence": diff_errors,
+    }
 
 
 def fallback_to_demo_records(reason: str) -> dict[str, Any]:
@@ -253,10 +413,17 @@ def maybe_run_live_extraction(
     prompt = _build_live_prompt(source_records)
     try:
         client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=os.environ.get("SISYPHUS_GEMINI_MODEL", "gemini-2.5-flash"),
-            contents=prompt,
-        )
+        kwargs = {
+            "model": os.environ.get("SISYPHUS_GEMINI_MODEL", "gemini-2.5-flash"),
+            "contents": prompt,
+        }
+        try:
+            from google.genai import types  # type: ignore
+
+            kwargs["config"] = types.GenerateContentConfig(response_mime_type="application/json")
+        except Exception:
+            pass
+        response = client.models.generate_content(**kwargs)
         text = getattr(response, "text", "") or ""
         payload = _extract_json_payload(text)
         news_card = payload.get("news_card", payload)
