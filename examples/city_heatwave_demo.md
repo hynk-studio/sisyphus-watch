@@ -70,6 +70,17 @@ This is labeled as metaphor and opinion, not evidence.
 - `deliberate_overclaim_hypothesis`: low -> medium_low
 - `remediation_hypothesis`: unknown -> medium_high
 
+## Version Timeline
+
+- `v00` on `2026-06-10`: The city announced 50 cooling centers were open; accessibility was still unknown.
+- `v01` on `2026-06-12`: Community observations reported closed sites, limited hours, weak signage, and access barriers.
+- `v02` on `2026-06-14`: The city corrected the list, clarified hours, removed unavailable sites, and added transport support.
+
+## Claim Drift
+
+- `claim_city_all_centers_open_2026_06_10_001`: weakened from an unverified initial claim to a partially challenged availability claim after community access observations.
+- `claim_city_list_will_update_2026_06_10_001`: strengthened from an unverified process commitment to a supported update commitment after corrected hours and removed unavailable locations.
+
 ## Editorial Verdict
 
 This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.

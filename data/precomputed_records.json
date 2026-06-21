@@ -223,6 +223,82 @@
         "Whether the city has a durable process for future emergency updates."
       ]
     },
+    "version_timeline": [
+      {
+        "version_id": "version_city_heatwave_v00_initial_claim_2026_06_10",
+        "version_label": "v00",
+        "date": "2026-06-10",
+        "trigger": "initial_public_claim",
+        "summary": "The fictional city announced that 50 cooling centers would be open.",
+        "evidence_ids": [
+          "claim_city_all_centers_open_2026_06_10_001"
+        ],
+        "judgment_at_version": "Adequate on paper; real-world accessibility unknown.",
+        "confidence_at_version": "low",
+        "open_questions": [
+          "Were all listed centers actually open and reachable?"
+        ]
+      },
+      {
+        "version_id": "version_city_heatwave_v01_access_observation_2026_06_12",
+        "version_label": "v01",
+        "date": "2026-06-12",
+        "trigger": "community_observation",
+        "summary": "Community observations reported closed sites, limited hours, weak signage, and access barriers.",
+        "evidence_ids": [
+          "claim_community_access_gap_2026_06_12_001"
+        ],
+        "judgment_at_version": "The broad availability claim is plausibly weakened by street-level access reports.",
+        "confidence_at_version": "medium_high",
+        "open_questions": [
+          "How representative were the observed access gaps across all listed centers?"
+        ]
+      },
+      {
+        "version_id": "version_city_heatwave_v02_city_update_2026_06_14",
+        "version_label": "v02",
+        "date": "2026-06-14",
+        "trigger": "actor_update_or_correction",
+        "summary": "The city corrected the list, clarified hours, removed unavailable sites, and added transport support.",
+        "evidence_ids": [
+          "action_city_updates_cooling_center_hours_2026_06_14_001",
+          "action_city_removes_unavailable_locations_2026_06_14_001",
+          "action_city_adds_transport_support_2026_06_14_001"
+        ],
+        "judgment_at_version": "Partially corrected implementation gap; remediation is plausible but impact remains unmeasured.",
+        "confidence_at_version": "medium_high",
+        "open_questions": [
+          "Did the correction and transport support reach the most vulnerable residents in time?"
+        ]
+      }
+    ],
+    "claim_drift": [
+      {
+        "drift_id": "drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+        "target_claim_id": "claim_city_all_centers_open_2026_06_10_001",
+        "from_status": "unverified_initial_claim",
+        "to_status": "partially_challenged_by_later_observation",
+        "direction": "weakened",
+        "driver_evidence_ids": [
+          "claim_community_access_gap_2026_06_12_001"
+        ],
+        "drift_summary": "The broad availability claim weakened after community observations reported inaccessible listed sites.",
+        "current_handling": "Keep the claim, but mark it as partially challenged rather than false."
+      },
+      {
+        "drift_id": "drift_city_list_update_commitment_to_supported_update_2026_06_15",
+        "target_claim_id": "claim_city_list_will_update_2026_06_10_001",
+        "from_status": "process_commitment_unverified",
+        "to_status": "supported_by_later_update",
+        "direction": "strengthened",
+        "driver_evidence_ids": [
+          "action_city_updates_cooling_center_hours_2026_06_14_001",
+          "action_city_removes_unavailable_locations_2026_06_14_001"
+        ],
+        "drift_summary": "The update commitment strengthened after the city published corrected hours and removed unavailable locations.",
+        "current_handling": "Treat the process commitment as supported while keeping access impact unresolved."
+      }
+    ],
     "editorial_verdict": {
       "verdict_id": "verdict_city_heatwave_cooling_centers_2026_06_15_v01",
       "short_label": "Public communication failure with partial remediation",
@@ -462,6 +538,82 @@
           "Whether the city has a durable process for future emergency updates."
         ]
       },
+      "version_timeline": [
+        {
+          "version_id": "version_city_heatwave_v00_initial_claim_2026_06_10",
+          "version_label": "v00",
+          "date": "2026-06-10",
+          "trigger": "initial_public_claim",
+          "summary": "The fictional city announced that 50 cooling centers would be open.",
+          "evidence_ids": [
+            "claim_city_all_centers_open_2026_06_10_001"
+          ],
+          "judgment_at_version": "Adequate on paper; real-world accessibility unknown.",
+          "confidence_at_version": "low",
+          "open_questions": [
+            "Were all listed centers actually open and reachable?"
+          ]
+        },
+        {
+          "version_id": "version_city_heatwave_v01_access_observation_2026_06_12",
+          "version_label": "v01",
+          "date": "2026-06-12",
+          "trigger": "community_observation",
+          "summary": "Community observations reported closed sites, limited hours, weak signage, and access barriers.",
+          "evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001"
+          ],
+          "judgment_at_version": "The broad availability claim is plausibly weakened by street-level access reports.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "How representative were the observed access gaps across all listed centers?"
+          ]
+        },
+        {
+          "version_id": "version_city_heatwave_v02_city_update_2026_06_14",
+          "version_label": "v02",
+          "date": "2026-06-14",
+          "trigger": "actor_update_or_correction",
+          "summary": "The city corrected the list, clarified hours, removed unavailable sites, and added transport support.",
+          "evidence_ids": [
+            "action_city_updates_cooling_center_hours_2026_06_14_001",
+            "action_city_removes_unavailable_locations_2026_06_14_001",
+            "action_city_adds_transport_support_2026_06_14_001"
+          ],
+          "judgment_at_version": "Partially corrected implementation gap; remediation is plausible but impact remains unmeasured.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "Did the correction and transport support reach the most vulnerable residents in time?"
+          ]
+        }
+      ],
+      "claim_drift": [
+        {
+          "drift_id": "drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+          "target_claim_id": "claim_city_all_centers_open_2026_06_10_001",
+          "from_status": "unverified_initial_claim",
+          "to_status": "partially_challenged_by_later_observation",
+          "direction": "weakened",
+          "driver_evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001"
+          ],
+          "drift_summary": "The broad availability claim weakened after community observations reported inaccessible listed sites.",
+          "current_handling": "Keep the claim, but mark it as partially challenged rather than false."
+        },
+        {
+          "drift_id": "drift_city_list_update_commitment_to_supported_update_2026_06_15",
+          "target_claim_id": "claim_city_list_will_update_2026_06_10_001",
+          "from_status": "process_commitment_unverified",
+          "to_status": "supported_by_later_update",
+          "direction": "strengthened",
+          "driver_evidence_ids": [
+            "action_city_updates_cooling_center_hours_2026_06_14_001",
+            "action_city_removes_unavailable_locations_2026_06_14_001"
+          ],
+          "drift_summary": "The update commitment strengthened after the city published corrected hours and removed unavailable locations.",
+          "current_handling": "Treat the process commitment as supported while keeping access impact unresolved."
+        }
+      ],
       "editorial_verdict": {
         "verdict_id": "verdict_city_heatwave_cooling_centers_2026_06_15_v01",
         "short_label": "Public communication failure with partial remediation",
@@ -705,6 +857,83 @@
           "Whether app and station update lag was fixed durably for future disruptions."
         ]
       },
+      "version_timeline": [
+        {
+          "version_id": "version_transit_delay_v00_initial_status_2026_06_11",
+          "version_label": "v00",
+          "date": "2026-06-11",
+          "trigger": "initial_public_claim",
+          "summary": "The fictional transit agency said most service was normal after a signal issue.",
+          "evidence_ids": [
+            "claim_transit_most_service_normal_2026_06_11_001"
+          ],
+          "judgment_at_version": "Mostly normal service on paper; rider-facing conditions unknown.",
+          "confidence_at_version": "low",
+          "open_questions": [
+            "Did line-level rider conditions match the network-level status claim?"
+          ]
+        },
+        {
+          "version_id": "version_transit_delay_v01_commuter_observation_2026_06_12",
+          "version_label": "v01",
+          "date": "2026-06-12",
+          "trigger": "commuter_observation",
+          "summary": "Commuters reported severe delays, unclear station notices, and app/status mismatches.",
+          "evidence_ids": [
+            "claim_commuters_severe_delay_gap_2026_06_12_001",
+            "fact_app_status_lag_reported_2026_06_12_001"
+          ],
+          "judgment_at_version": "The agency status claim is weakened for affected riders and needs line-level correction.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "Were the commuter reports concentrated in a few stations or broadly distributed?"
+          ]
+        },
+        {
+          "version_id": "version_transit_delay_v02_agency_correction_2026_06_13",
+          "version_label": "v02",
+          "date": "2026-06-13",
+          "trigger": "actor_update_or_correction",
+          "summary": "The agency named affected lines, added replacement buses, and acknowledged app data lag.",
+          "evidence_ids": [
+            "action_transit_publishes_corrected_service_update_2026_06_13_001",
+            "action_transit_adds_replacement_bus_support_2026_06_13_001",
+            "claim_transit_app_lag_explained_2026_06_13_001"
+          ],
+          "judgment_at_version": "Partially corrected communication failure; mitigation is visible but rider impact remains uncertain.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "Did corrected app and station messages reach riders before delays cleared?"
+          ]
+        }
+      ],
+      "claim_drift": [
+        {
+          "drift_id": "drift_transit_most_service_normal_to_partially_challenged_2026_06_14",
+          "target_claim_id": "claim_transit_most_service_normal_2026_06_11_001",
+          "from_status": "unverified_initial_claim",
+          "to_status": "partially_challenged_by_later_rider_reports",
+          "direction": "weakened",
+          "driver_evidence_ids": [
+            "claim_commuters_severe_delay_gap_2026_06_12_001"
+          ],
+          "drift_summary": "The broad normal-service claim weakened after riders reported severe line-level delays.",
+          "current_handling": "Keep the claim as an agency statement, but do not treat it as rider-level reality for affected lines."
+        },
+        {
+          "drift_id": "drift_transit_minor_delays_to_narrowed_affected_lines_2026_06_14",
+          "target_claim_id": "claim_transit_minor_residual_delays_2026_06_11_001",
+          "from_status": "broad_minor_delay_claim",
+          "to_status": "narrowed_by_corrected_affected_line_list",
+          "direction": "narrowed",
+          "driver_evidence_ids": [
+            "fact_transit_corrects_affected_lines_2026_06_13_001",
+            "action_transit_publishes_corrected_service_update_2026_06_13_001"
+          ],
+          "drift_summary": "The minor-delay framing narrowed after the agency named specific lines with severe residual delays.",
+          "current_handling": "Treat minor delay as not applicable to the named affected lines during the disruption window."
+        }
+      ],
       "editorial_verdict": {
         "verdict_id": "verdict_transit_delay_communication_2026_06_14_v01",
         "short_label": "Transit communication failure with partial remediation",
