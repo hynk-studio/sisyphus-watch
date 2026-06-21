@@ -494,6 +494,22 @@ def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) -> dict[str, Path]:
+    """Write reviewer-friendly export artifacts for Kaggle download links."""
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    packet = build_agent_packet(news_card)
+    paths = {
+        "news_card": output_path / "sisyphus_news_card.json",
+        "records_jsonl": output_path / "sisyphus_records.jsonl",
+        "agent_packet": output_path / "sisyphus_agent_packet.json",
+    }
+    paths["news_card"].write_text(json.dumps(news_card, indent=2, ensure_ascii=False), encoding="utf-8")
+    paths["records_jsonl"].write_text(to_jsonl([news_card, packet]) + "\n", encoding="utf-8")
+    paths["agent_packet"].write_text(json.dumps(packet, indent=2, ensure_ascii=False), encoding="utf-8")
+    return paths
+
+
 def to_jsonl(records: list[dict[str, Any]] | dict[str, Any]) -> str:
     """Serialize one record or a list of records as JSON Lines."""
     if isinstance(records, dict):
@@ -581,25 +597,90 @@ def run_quality_checks(news_card: dict[str, Any]) -> list[dict[str, str]]:
     ]
 
 
+def render_intro_hero_html() -> str:
+    """Render the first-screen Kaggle submission hero."""
+    return _wrap_html(
+        "intro-hero",
+        """
+        <section class="intro-panel">
+          <div class="intro-copy">
+            <div class="eyebrow">Kaggle Agents for Good</div>
+            <h1>Sisyphus Watch</h1>
+            <p class="lede">Sisyphus Watch is version control for public claims.</p>
+            <div class="badge-row">
+              <span class="badge">Agents for Good</span>
+              <span class="badge">Synthetic demo</span>
+              <span class="badge">No API key required</span>
+              <span class="badge">Human-readable + agent-reusable</span>
+            </div>
+          </div>
+          <div class="comparison-card">
+            <div class="comparison-block">
+              <span>Normal Summary</span>
+              <p>"The city opened cooling centers, but some were inaccessible."</p>
+            </div>
+            <div class="comparison-block strong">
+              <span>Sisyphus Watch</span>
+              <p>Claim -> Observation -> Counter-branch -> Version Diff -> Agent JSON</p>
+            </div>
+          </div>
+        </section>
+        """,
+    )
+
+
+def render_evaluation_summary_html(checks: list[dict[str, str]], news_card: dict[str, Any]) -> str:
+    """Render a compact reviewer-facing status summary before the detailed checks."""
+    pass_count = sum(1 for row in checks if row["status"] == "PASS")
+    total_count = len(checks)
+    schema_row = next((row for row in checks if row["check"] == "Schema-like validation"), None)
+    graph_status = schema_row["status"] if schema_row else "UNKNOWN"
+    json_ready = "PASS" if to_jsonl([news_card, build_agent_packet(news_card)]) else "FAIL"
+    cards = [
+        ("Demo checks", f"{pass_count}/{total_count} PASS", pass_count == total_count),
+        ("Graph integrity", graph_status, graph_status == "PASS"),
+        ("No API key required", "PASS", True),
+        ("JSON/JSONL export", json_ready, json_ready == "PASS"),
+    ]
+    rendered_cards = "".join(
+        f"""
+        <div class="summary-card {'ok' if ok else 'warn'}">
+          <span>{escape(label)}</span>
+          <strong>{escape(value)}</strong>
+        </div>
+        """
+        for label, value, ok in cards
+    )
+    return _wrap_html(
+        "evaluation-summary",
+        f"""
+        <h3>Evaluation Summary</h3>
+        <div class="summary-grid">{rendered_cards}</div>
+        """,
+    )
+
+
 def render_sources_table_html(source_records: list[dict[str, Any]]) -> str:
     rows = []
     for source in source_records:
+        full_text = escape(source["text"])
         rows.append(
             "<tr>"
             f"<td><code>{escape(source['source_id'])}</code></td>"
             f"<td>{escape(source['source_type'])}</td>"
             f"<td>{escape(source['actor'])}</td>"
-            f"<td>{escape(source['published_at'])}</td>"
+            f"<td>{escape(source['title'])}</td>"
             f"<td>{escape(source['reliability_note'])}</td>"
+            f"<td><details><summary>Full text</summary><p>{full_text}</p></details></td>"
             "</tr>"
         )
     return _wrap_html(
         "source-table",
         f"""
         <h3>Demo Source Fixtures</h3>
-        <p class="muted">Synthetic public-interest fixtures. These are not real news and do not describe a real city.</p>
+        <p class="warning-note">Synthetic public-interest fixtures. These are not real news and do not describe a real city.</p>
         <table>
-          <thead><tr><th>Source ID</th><th>Type</th><th>Actor</th><th>Published</th><th>Reliability note</th></tr></thead>
+          <thead><tr><th>Source ID</th><th>Type</th><th>Actor</th><th>Title</th><th>Reliability note</th><th>Text</th></tr></thead>
           <tbody>{''.join(rows)}</tbody>
         </table>
         """,
@@ -609,7 +690,7 @@ def render_sources_table_html(source_records: list[dict[str, Any]]) -> str:
 def render_card_html(news_card: dict[str, Any]) -> str:
     """Render a polished human card view for notebook display."""
     summary = "".join(f"<li>{escape(line)}</li>" for line in news_card["summary_3_line"])
-    sources = "".join(f"<code>{escape(source_id)}</code>" for source_id in news_card["source_ids"])
+    sources = "".join(f"<li><code>{escape(source_id)}</code></li>" for source_id in news_card["source_ids"])
     facts = _render_items(news_card["facts"], "fact_id", "text", "fact")
     claims = _render_items(news_card["actor_claims"], "claim_id", "claim_text", "claim")
     actions = _render_items(news_card["actions"], "action_id", "action_text", "action")
@@ -628,30 +709,27 @@ def render_card_html(news_card: dict[str, Any]) -> str:
     return _wrap_html(
         "sisyphus-card",
         f"""
-        <section class="hero">
-          <div>
-            <div class="eyebrow">Sisyphus Watch Claim Card</div>
-            <h2>{escape(news_card['title'])}</h2>
-            <div class="badge-row">
-              <span class="badge">{escape(news_card['card_type'])}</span>
-              <span class="badge">version {escape(news_card['version'])}</span>
-              <span class="badge">confidence: {escape(news_card.get('confidence', 'review'))}</span>
-            </div>
-          </div>
-          <div class="visual-prompt">
-            <strong>{escape(news_card['image_prompt']['label'])}</strong>
-            <p>{escape(news_card['image_prompt']['prompt'])}</p>
+        <section class="card-header">
+          <div class="verdict-badge">{escape(verdict['short_label'])}</div>
+          <h2>{escape(news_card['title'])}</h2>
+          <div class="badge-row">
+            <span class="badge">confidence: {escape(news_card.get('confidence', 'review'))}</span>
+            <span class="badge">version {escape(news_card['version'])}</span>
+            <span class="badge">synthetic fixture</span>
+            <span class="badge">{escape(news_card['image_prompt']['label'])}</span>
           </div>
         </section>
         <section class="summary">
           <h3>3-line Summary</h3>
           <ol>{summary}</ol>
         </section>
-        <section>
-          <h3>Sources</h3>
-          <div class="source-list">{sources}</div>
+        <details class="metadata-details">
+          <summary>Card metadata and source IDs</summary>
+          <p><strong>Card ID:</strong> <code>{escape(news_card['card_id'])}</code></p>
           <p class="muted">{escape(news_card['source_hygiene_note'])}</p>
-        </section>
+          <ul class="source-list">{sources}</ul>
+          <p><strong>Visual prompt:</strong> {escape(news_card['image_prompt']['prompt'])}</p>
+        </details>
         <div class="grid two">
           <section><h3>Fact Layer</h3>{facts}</section>
           <section><h3>Actor Claim Layer</h3>{claims}</section>
@@ -689,15 +767,16 @@ def render_branch_view_html(news_card: dict[str, Any]) -> str:
         f"""
         <h3>Branch View</h3>
         <div class="branch-row">
-          <div class="branch-node"><span>News Card</span><strong>{escape(news_card['title'])}</strong></div>
+          <div class="branch-node"><span>News Card</span><strong>Cooling center claim card</strong></div>
           <div class="arrow">-&gt;</div>
-          <div class="branch-node"><span>Interpretation Branch</span><strong>{escape(interpretation['title'])}</strong></div>
+          <div class="branch-node"><span>Interpretation Branch</span><strong>Implementation gap</strong></div>
           <div class="arrow">-&gt;</div>
-          <div class="branch-node"><span>Counter Branch</span><strong>{escape(counter['title'])}</strong></div>
+          <div class="branch-node"><span>Counter Branch</span><strong>Emergency constraints</strong></div>
           <div class="arrow">-&gt;</div>
           <div class="branch-node verdict-node"><span>Verdict Card</span><strong>{escape(verdict['short_label'])}</strong></div>
         </div>
-        <p class="muted">Counter-branch targets <code>{escape(counter['target_id'])}</code>, keeping alternatives visible before stronger claims are accepted.</p>
+        <p class="muted">Interpretation: {escape(interpretation['title'])}</p>
+        <p class="muted">Counter-branch target: <code>{escape(counter['target_id'])}</code></p>
         """,
     )
 
@@ -711,16 +790,17 @@ def render_json_export(news_card: dict[str, Any]) -> str:
         "json-export",
         f"""
         <h3>Agent JSON Export</h3>
-        <details open>
-          <summary>Pretty JSON view of <code>news_card</code></summary>
+        <p class="muted">Structured exports are collapsed by default so reviewers see the card first and can inspect machine-readable records when needed.</p>
+        <details>
+          <summary>Canonical <code>news_card</code> JSON</summary>
           <pre>{escape(pretty_json)}</pre>
         </details>
         <details>
-          <summary>JSONL export preview</summary>
+          <summary>JSONL agent record</summary>
           <pre>{escape(jsonl_preview)}</pre>
         </details>
         <details>
-          <summary>Agent packet preview</summary>
+          <summary>Agent packet</summary>
           <pre>{escape(packet_preview)}</pre>
         </details>
         """,
@@ -759,13 +839,17 @@ def _render_items(items: list[dict[str, Any]], id_key: str, text_key: str, layer
         for key in ["actor", "confidence", "status", "bias_type", "target_id"]:
             if item.get(key):
                 meta.append(f"<span class='mini'>{escape(key)}: {escape(str(item[key]))}</span>")
+        item_id = str(item.get(id_key, "unknown"))
         rendered.append(
             f"""
             <article class="layer-item {escape(layer)}">
-              <div class="item-id">{escape(str(item.get(id_key, 'unknown')))}</div>
               <p>{escape(str(item.get(text_key, '')))}</p>
               <div class="meta">{''.join(meta)}</div>
-              <div class="evidence">{source_text}</div>
+              <details class="id-details">
+                <summary>IDs and evidence</summary>
+                <div><strong>ID:</strong> <code>{escape(item_id)}</code></div>
+                <div class="evidence">{source_text}</div>
+              </details>
             </article>
             """
         )
@@ -775,11 +859,11 @@ def _render_items(items: list[dict[str, Any]], id_key: str, text_key: str, layer
 def _wrap_html(class_name: str, body: str) -> str:
     return f"""
     <style>
-      .{class_name}, .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table {{
+      .{class_name}, .intro-hero, .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table, .evaluation-summary {{
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: #17211f;
       }}
-      .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table {{
+      .intro-hero, .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table, .evaluation-summary {{
         border: 1px solid #d7e1dc;
         border-radius: 8px;
         background: #fbfcfa;
@@ -787,15 +871,19 @@ def _wrap_html(class_name: str, body: str) -> str:
         margin: 14px 0;
         box-shadow: 0 1px 2px rgba(23, 33, 31, 0.06);
       }}
-      .hero {{
+      .intro-panel, .card-header {{
         display: grid;
-        grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+        grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
         gap: 16px;
         align-items: stretch;
         background: linear-gradient(135deg, #163832, #28536b 58%, #c9972d);
         color: white;
         border-radius: 8px;
         padding: 18px;
+      }}
+      .card-header {{
+        display: block;
+        background: linear-gradient(135deg, #183b35, #28536b);
       }}
       .eyebrow {{
         text-transform: uppercase;
@@ -804,20 +892,51 @@ def _wrap_html(class_name: str, body: str) -> str:
         font-weight: 700;
         opacity: 0.85;
       }}
-      .hero h2 {{
+      .intro-panel h1, .card-header h2 {{
         margin: 8px 0 12px;
-        font-size: 30px;
+        font-size: 32px;
         line-height: 1.12;
         letter-spacing: 0;
       }}
-      .visual-prompt {{
+      .lede {{
+        font-size: 18px;
+        margin: 0 0 14px;
+      }}
+      .comparison-card {{
         border: 1px solid rgba(255,255,255,0.32);
         background: rgba(255,255,255,0.12);
         border-radius: 8px;
         padding: 14px;
       }}
-      .visual-prompt p {{
-        margin: 8px 0 0;
+      .comparison-block {{
+        padding: 10px 0;
+      }}
+      .comparison-block + .comparison-block {{
+        border-top: 1px solid rgba(255,255,255,0.28);
+      }}
+      .comparison-block span {{
+        display: block;
+        font-size: 12px;
+        font-weight: 800;
+        opacity: 0.86;
+        text-transform: uppercase;
+      }}
+      .comparison-block p {{
+        margin: 5px 0 0;
+      }}
+      .comparison-block.strong p {{
+        font-weight: 800;
+      }}
+      .verdict-badge {{
+        display: inline-flex;
+        max-width: 100%;
+        border-radius: 999px;
+        background: #f4d06f;
+        color: #17211f;
+        padding: 6px 10px;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.2;
       }}
       .badge-row, .source-list, .meta, .evidence {{
         display: flex;
@@ -834,9 +953,19 @@ def _wrap_html(class_name: str, body: str) -> str:
         color: #15312d;
         background: #dceee7;
       }}
+      .card-header .badge {{
+        background: rgba(255,255,255,0.9);
+      }}
       .mini {{
         color: #29423d;
         background: #e8f0ec;
+      }}
+      .warning-note {{
+        border-left: 4px solid #c9972d;
+        background: #fff7df;
+        border-radius: 6px;
+        padding: 10px 12px;
+        color: #4d4325;
       }}
       section {{
         margin-top: 16px;
@@ -856,12 +985,23 @@ def _wrap_html(class_name: str, body: str) -> str:
       .muted {{
         color: #5d6b68;
       }}
+      .source-list {{
+        padding-left: 0;
+        list-style: none;
+      }}
       code {{
         background: #eef4f1;
         border: 1px solid #d7e1dc;
         border-radius: 6px;
         padding: 2px 5px;
         font-size: 12px;
+      }}
+      .metadata-details, .id-details {{
+        border: 1px solid #dfe7e3;
+        border-radius: 8px;
+        background: #f8fbf9;
+        padding: 8px 10px;
+        margin-top: 10px;
       }}
       .grid {{
         display: grid;
@@ -899,6 +1039,34 @@ def _wrap_html(class_name: str, body: str) -> str:
         background: #f2f6f4;
         border-radius: 8px;
         padding: 14px;
+      }}
+      .summary-grid {{
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }}
+      .summary-card {{
+        border: 1px solid #d7e1dc;
+        border-radius: 8px;
+        background: white;
+        padding: 12px;
+      }}
+      .summary-card span {{
+        display: block;
+        color: #62706c;
+        font-size: 12px;
+        font-weight: 800;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+      }}
+      .summary-card strong {{
+        font-size: 18px;
+      }}
+      .summary-card.ok strong {{
+        color: #135f38;
+      }}
+      .summary-card.warn strong {{
+        color: #8c1f28;
       }}
       .branch-row {{
         display: grid;
@@ -965,7 +1133,7 @@ def _wrap_html(class_name: str, body: str) -> str:
         margin: 10px 0;
       }}
       @media (max-width: 780px) {{
-        .hero, .grid.two, .branch-row {{
+        .intro-panel, .card-header, .grid.two, .branch-row, .summary-grid {{
           grid-template-columns: 1fr;
         }}
         .arrow {{
