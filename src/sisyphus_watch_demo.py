@@ -821,6 +821,407 @@ def validate_claim_graph(news_card: dict[str, Any]) -> list[str]:
     return errors
 
 
+def get_claim_graph(news_card: dict[str, Any]) -> dict[str, Any]:
+    """Return the stored claim graph, or rebuild it without mutating the card."""
+    graph = news_card.get("claim_graph")
+    return graph if isinstance(graph, dict) else build_claim_graph(news_card)
+
+
+def get_graph_node(graph: dict[str, Any], node_or_ref_id: str) -> dict[str, Any] | None:
+    """Find a graph node by node_id or ref_id."""
+    for node in _as_list(graph.get("nodes")):
+        if not isinstance(node, dict):
+            continue
+        if node.get("node_id") == node_or_ref_id or node.get("ref_id") == node_or_ref_id:
+            return node
+    return None
+
+
+def _edge_allowed(edge: dict[str, Any], edge_types: list[str] | None) -> bool:
+    return edge_types is None or edge.get("edge_type") in set(edge_types)
+
+
+def _graph_node_by_id(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        str(node.get("node_id")): node
+        for node in _as_list(graph.get("nodes"))
+        if isinstance(node, dict) and node.get("node_id")
+    }
+
+
+def _normalize_graph_path(graph: dict[str, Any], path: dict[str, Any]) -> dict[str, Any]:
+    node_by_id = _graph_node_by_id(graph)
+    edge_by_id = {
+        str(edge.get("edge_id")): edge
+        for edge in _as_list(graph.get("edges"))
+        if isinstance(edge, dict) and edge.get("edge_id")
+    }
+    node_ids = [str(node_id) for node_id in _as_list(path.get("node_ids"))]
+    edge_ids = [str(edge_id) for edge_id in _as_list(path.get("edge_ids"))]
+    return {
+        "path_id": str(path.get("path_id", "path_graph_primary")),
+        "start_node_id": node_ids[0] if node_ids else None,
+        "end_node_id": node_ids[-1] if node_ids else None,
+        "node_ids": node_ids,
+        "edge_ids": edge_ids,
+        "node_labels": [
+            str(node_by_id.get(node_id, {}).get("label") or node_by_id.get(node_id, {}).get("ref_id") or node_id)
+            for node_id in node_ids
+        ],
+        "edge_types": [str(edge_by_id.get(edge_id, {}).get("edge_type", "")) for edge_id in edge_ids],
+    }
+
+
+def get_graph_neighbors(
+    graph: dict[str, Any],
+    node_or_ref_id: str,
+    direction: str = "both",
+    edge_types: list[str] | None = None,
+) -> dict[str, Any]:
+    """Return incoming and outgoing graph context around a node or ref ID."""
+    resolved_node = get_graph_node(graph, node_or_ref_id)
+    if direction not in {"out", "in", "both"}:
+        direction = "both"
+    if not resolved_node:
+        return {
+            "query_id": f"neighbors_unresolved_{node_or_ref_id}",
+            "resolved_node": None,
+            "incoming_edges": [],
+            "outgoing_edges": [],
+            "neighbor_nodes": [],
+            "edge_type_counts": {},
+        }
+
+    node_id = str(resolved_node["node_id"])
+    node_by_id = _graph_node_by_id(graph)
+    incoming_edges: list[dict[str, Any]] = []
+    outgoing_edges: list[dict[str, Any]] = []
+    neighbor_node_ids: list[str] = []
+
+    for edge in _as_list(graph.get("edges")):
+        if not isinstance(edge, dict) or not _edge_allowed(edge, edge_types):
+            continue
+        if edge.get("target_node_id") == node_id and direction in {"in", "both"}:
+            incoming_edges.append(edge)
+            neighbor_node_ids.append(str(edge.get("source_node_id")))
+        if edge.get("source_node_id") == node_id and direction in {"out", "both"}:
+            outgoing_edges.append(edge)
+            neighbor_node_ids.append(str(edge.get("target_node_id")))
+
+    seen: set[str] = set()
+    neighbor_nodes = []
+    for neighbor_id in neighbor_node_ids:
+        if neighbor_id in seen or neighbor_id not in node_by_id:
+            continue
+        seen.add(neighbor_id)
+        neighbor_nodes.append(node_by_id[neighbor_id])
+
+    return {
+        "query_id": f"neighbors_{node_id}_{direction}",
+        "resolved_node": resolved_node,
+        "incoming_edges": incoming_edges,
+        "outgoing_edges": outgoing_edges,
+        "neighbor_nodes": neighbor_nodes,
+        "edge_type_counts": _count_by_key(incoming_edges + outgoing_edges, "edge_type"),
+    }
+
+
+def get_paths_to_verdict(
+    graph: dict[str, Any],
+    start_id: str | None = None,
+    max_depth: int = 6,
+) -> list[dict[str, Any]]:
+    """Return deterministic directed paths from a node/ref to verdict nodes."""
+    if start_id is None:
+        primary_paths = _as_list(graph.get("primary_paths"))
+        if primary_paths:
+            return [
+                _normalize_graph_path(graph, path)
+                for path in primary_paths
+                if isinstance(path, dict)
+            ]
+
+    node_by_id = _graph_node_by_id(graph)
+    verdict_node_ids = {
+        node_id for node_id, node in node_by_id.items() if node.get("node_type") == "verdict"
+    }
+    if not verdict_node_ids:
+        return []
+
+    if start_id is not None:
+        start_node = get_graph_node(graph, start_id)
+        if not start_node:
+            return []
+        start_node_ids = [str(start_node["node_id"])]
+    else:
+        start_node_ids = [
+            node_id
+            for node_id, node in node_by_id.items()
+            if node.get("node_type") in {"source", "actor_claim", "interpretation", "counter_branch"}
+        ]
+
+    outgoing: dict[str, list[dict[str, Any]]] = {}
+    for edge in _as_list(graph.get("edges")):
+        if not isinstance(edge, dict):
+            continue
+        outgoing.setdefault(str(edge.get("source_node_id")), []).append(edge)
+
+    paths: list[dict[str, Any]] = []
+    depth_limit = max(1, int(max_depth))
+    for start_node_id in start_node_ids:
+        queue: list[tuple[str, list[str], list[str]]] = [(start_node_id, [start_node_id], [])]
+        while queue:
+            current_node_id, node_path, edge_path = queue.pop(0)
+            if len(edge_path) > depth_limit:
+                continue
+            if current_node_id in verdict_node_ids and edge_path:
+                path = {
+                    "path_id": f"path_query_{start_node_id}_to_{current_node_id}_{len(paths) + 1:02d}",
+                    "node_ids": node_path,
+                    "edge_ids": edge_path,
+                }
+                paths.append(_normalize_graph_path(graph, path))
+                break
+            if len(edge_path) == depth_limit:
+                continue
+            for edge in outgoing.get(current_node_id, []):
+                next_node_id = str(edge.get("target_node_id"))
+                if next_node_id in node_path:
+                    continue
+                queue.append((next_node_id, [*node_path, next_node_id], [*edge_path, str(edge.get("edge_id"))]))
+    return paths
+
+
+def get_selected_claim_subgraph(news_card: dict[str, Any], claim_id: str, radius: int = 2) -> dict[str, Any]:
+    """Return a compact radius-limited subgraph centered on a claim/ref."""
+    graph = get_claim_graph(news_card)
+    center_node = get_graph_node(graph, claim_id)
+    safe_radius = max(0, int(radius))
+    subgraph_id = f"subgraph_{claim_id}_r{safe_radius}"
+    if not center_node:
+        return {
+            "subgraph_id": subgraph_id,
+            "center_ref_id": claim_id,
+            "radius": safe_radius,
+            "nodes": [],
+            "edges": [],
+            "summary": f"No graph node found for {claim_id}.",
+            "included_ref_ids": [],
+            "node_type_counts": {},
+            "edge_type_counts": {},
+            "excluded_node_count": len(_as_list(graph.get("nodes"))),
+            "excluded_edge_count": len(_as_list(graph.get("edges"))),
+            "error": "center_not_found",
+        }
+
+    all_edges = [edge for edge in _as_list(graph.get("edges")) if isinstance(edge, dict)]
+    node_by_id = _graph_node_by_id(graph)
+    included_node_ids = {str(center_node["node_id"])}
+    frontier = {str(center_node["node_id"])}
+
+    for _step in range(safe_radius):
+        next_frontier: set[str] = set()
+        for edge in all_edges:
+            source_node_id = str(edge.get("source_node_id"))
+            target_node_id = str(edge.get("target_node_id"))
+            if source_node_id in frontier and target_node_id not in included_node_ids:
+                next_frontier.add(target_node_id)
+            if target_node_id in frontier and source_node_id not in included_node_ids:
+                next_frontier.add(source_node_id)
+        included_node_ids.update(next_frontier)
+        frontier = next_frontier
+        if not frontier:
+            break
+
+    nodes = [
+        node for node_id, node in node_by_id.items() if node_id in included_node_ids
+    ]
+    edges = [
+        edge
+        for edge in all_edges
+        if edge.get("source_node_id") in included_node_ids and edge.get("target_node_id") in included_node_ids
+    ]
+    return {
+        "subgraph_id": subgraph_id,
+        "center_ref_id": claim_id,
+        "radius": safe_radius,
+        "nodes": nodes,
+        "edges": edges,
+        "summary": (
+            f"Radius-{safe_radius} subgraph around {claim_id} includes {len(nodes)} nodes "
+            f"and {len(edges)} edges."
+        ),
+        "included_ref_ids": [str(node.get("ref_id")) for node in nodes if node.get("ref_id")],
+        "node_type_counts": _count_by_key(nodes, "node_type"),
+        "edge_type_counts": _count_by_key(edges, "edge_type"),
+        "excluded_node_count": max(0, len(node_by_id) - len(nodes)),
+        "excluded_edge_count": max(0, len(all_edges) - len(edges)),
+    }
+
+
+def validate_graph_packet(packet: dict[str, Any]) -> list[str]:
+    """Return validation errors for graph-focused agent packets."""
+    errors: list[str] = []
+    if not isinstance(packet, dict):
+        return ["graph packet must be an object"]
+    _require_prefix(errors, "graph_packet.packet_id", packet.get("packet_id"), "graph_packet_")
+    if packet.get("packet_version") != "0.5":
+        errors.append("graph packet packet_version must be 0.5")
+    if packet.get("packet_type") != "sisyphus_graph_packet":
+        errors.append("graph packet packet_type must be sisyphus_graph_packet")
+    _require_prefix(errors, "graph_packet.graph_id", packet.get("graph_id"), "graph_")
+    for field in ["node_count", "edge_count"]:
+        if not isinstance(packet.get(field), int) or packet.get(field) < 0:
+            errors.append(f"graph packet {field} must be a non-negative integer")
+
+    subgraph = packet.get("selected_subgraph")
+    if subgraph is not None:
+        if not isinstance(subgraph, dict):
+            errors.append("selected_subgraph must be an object or null")
+        else:
+            nodes = [node for node in _as_list(subgraph.get("nodes")) if isinstance(node, dict)]
+            edges = [edge for edge in _as_list(subgraph.get("edges")) if isinstance(edge, dict)]
+            node_ids = {node.get("node_id") for node in nodes}
+            for edge in edges:
+                if edge.get("source_node_id") not in node_ids:
+                    errors.append(f"selected_subgraph edge {edge.get('edge_id')} has unknown source node")
+                if edge.get("target_node_id") not in node_ids:
+                    errors.append(f"selected_subgraph edge {edge.get('edge_id')} has unknown target node")
+    return errors
+
+
+def export_agent_graph_packet(
+    news_card: dict[str, Any],
+    focus_ref_id: str | None = None,
+    radius: int = 2,
+) -> dict[str, Any]:
+    """Build a graph-focused packet for downstream AI agents."""
+    graph = get_claim_graph(news_card)
+    nodes = _as_list(graph.get("nodes"))
+    edges = _as_list(graph.get("edges"))
+    selected_subgraph = (
+        get_selected_claim_subgraph(news_card, focus_ref_id, radius=radius)
+        if focus_ref_id
+        else None
+    )
+    focus_suffix = f"_{focus_ref_id}" if focus_ref_id else ""
+    packet = {
+        "packet_id": f"graph_packet_{news_card.get('card_id', 'unknown')}{focus_suffix}",
+        "packet_version": "0.5",
+        "packet_type": "sisyphus_graph_packet",
+        "canonical_card_id": news_card.get("card_id"),
+        "focus_ref_id": focus_ref_id,
+        "graph_id": graph.get("graph_id"),
+        "graph_summary": graph.get("graph_summary", ""),
+        "primary_paths": get_paths_to_verdict(graph),
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "node_type_counts": _count_by_key(nodes, "node_type"),
+        "edge_type_counts": _count_by_key(edges, "edge_type"),
+        "selected_subgraph": selected_subgraph,
+        "reuse_guidance": [
+            "Use this packet to inspect graph context around source-bound public claims.",
+            "Treat graph edges as structured references back to the card, not independent verification.",
+            "Prefer selected_subgraph for focused reuse and primary_paths for verdict provenance.",
+        ],
+        "limitations": [
+            "Graph traversal is deterministic and local; it does not query a database or external graph service.",
+            "Synthetic demo fixtures are not real-world evidence.",
+            "Missing paths should be read as absent graph connectivity, not as proof that no relationship exists.",
+        ],
+    }
+    packet_errors = validate_graph_packet(packet)
+    if packet_errors:
+        packet["validation_errors"] = packet_errors
+    return packet
+
+
+def summarize_graph_for_agent(news_card: dict[str, Any]) -> dict[str, Any]:
+    """Return a compact machine-readable brief for the card graph."""
+    graph = get_claim_graph(news_card)
+    nodes = _as_list(graph.get("nodes"))
+    node_type_counts = _count_by_key(nodes, "node_type")
+    verdict_nodes = [node for node in nodes if isinstance(node, dict) and node.get("node_type") == "verdict"]
+    claim_nodes = [node for node in nodes if isinstance(node, dict) and node.get("node_type") == "actor_claim"]
+    unresolved_nodes = [
+        node for node in nodes if isinstance(node, dict) and node.get("node_type") == "unresolved_question"
+    ]
+    high_value_claim_ids = [
+        str(node.get("ref_id"))
+        for node in claim_nodes
+        if str(node.get("ref_id")) in {
+            evidence_id
+            for edge in _as_list(graph.get("edges"))
+            for evidence_id in _as_list(edge.get("evidence_ids") if isinstance(edge, dict) else [])
+        }
+    ]
+    if not high_value_claim_ids:
+        high_value_claim_ids = [str(node.get("ref_id")) for node in claim_nodes[:3] if node.get("ref_id")]
+    return {
+        "card_id": news_card.get("card_id"),
+        "graph_id": graph.get("graph_id"),
+        "claim_count": node_type_counts.get("actor_claim", 0),
+        "evidence_node_count": sum(node_type_counts.get(node_type, 0) for node_type in ["fact", "actor_claim", "action"]),
+        "counter_branch_count": node_type_counts.get("counter_branch", 0),
+        "unresolved_question_count": node_type_counts.get("unresolved_question", 0),
+        "primary_path_count": len(_as_list(graph.get("primary_paths"))),
+        "main_verdict_ref_id": verdict_nodes[0].get("ref_id") if verdict_nodes else None,
+        "high_value_claim_ids": high_value_claim_ids,
+        "unresolved_question_ref_ids": [str(node.get("ref_id")) for node in unresolved_nodes if node.get("ref_id")],
+    }
+
+
+def get_evidence_for_ref(news_card: dict[str, Any], ref_id: str) -> dict[str, Any]:
+    """Resolve evidence IDs for graph-linked card objects."""
+    evidence_records: dict[str, dict[str, Any]] = {}
+    for fact in _as_list(news_card.get("facts")):
+        if isinstance(fact, dict) and fact.get("fact_id"):
+            evidence_records[str(fact["fact_id"])] = fact
+    for claim in _as_list(news_card.get("actor_claims")):
+        if isinstance(claim, dict) and claim.get("claim_id"):
+            evidence_records[str(claim["claim_id"])] = claim
+    for action in _as_list(news_card.get("actions")):
+        if isinstance(action, dict) and action.get("action_id"):
+            evidence_records[str(action["action_id"])] = action
+
+    evidence_ids: list[str] = []
+    object_type = "unknown"
+    for interpretation in _as_list(news_card.get("interpretations")):
+        if isinstance(interpretation, dict) and interpretation.get("interpretation_id") == ref_id:
+            evidence_ids = [str(item) for item in _as_list(interpretation.get("evidence_ids"))]
+            object_type = "interpretation"
+    for counter in _as_list(news_card.get("counter_branches")):
+        if isinstance(counter, dict) and counter.get("counter_branch_id") == ref_id:
+            evidence_ids = [str(item) for item in _as_list(counter.get("evidence_ids"))]
+            object_type = "counter_branch"
+    for event in _as_list(news_card.get("version_timeline")):
+        if isinstance(event, dict) and event.get("version_id") == ref_id:
+            evidence_ids = [str(item) for item in _as_list(event.get("evidence_ids"))]
+            object_type = "version_event"
+    for drift in _as_list(news_card.get("claim_drift")):
+        if isinstance(drift, dict) and drift.get("drift_id") == ref_id:
+            evidence_ids = [str(item) for item in _as_list(drift.get("driver_evidence_ids"))]
+            object_type = "claim_drift"
+    version_diff = news_card.get("version_diff", {})
+    if isinstance(version_diff, dict) and version_diff.get("diff_id") == ref_id:
+        evidence_ids = [str(item) for item in _as_list(version_diff.get("new_evidence_ids"))]
+        object_type = "version_diff"
+
+    return {
+        "ref_id": ref_id,
+        "object_type": object_type,
+        "evidence_ids": evidence_ids,
+        "evidence_records": [
+            evidence_records[evidence_id]
+            for evidence_id in evidence_ids
+            if evidence_id in evidence_records
+        ],
+        "missing_evidence_ids": [
+            evidence_id for evidence_id in evidence_ids if evidence_id not in evidence_records
+        ],
+    }
+
+
 def load_demo_sources(path: str | Path | None = None) -> list[dict[str, Any]]:
     """Load synthetic source fixtures and validate their basic shape."""
     source_path = Path(path) if path else DEFAULT_SOURCE_PATH
@@ -1414,14 +1815,21 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     packet = build_agent_packet(news_card)
+    focus_claim_id = None
+    claims = _as_list(news_card.get("actor_claims"))
+    if claims and isinstance(claims[0], dict):
+        focus_claim_id = claims[0].get("claim_id")
+    graph_packet = export_agent_graph_packet(news_card, focus_ref_id=focus_claim_id)
     paths = {
         "news_card": output_path / "sisyphus_news_card.json",
         "records_jsonl": output_path / "sisyphus_records.jsonl",
         "agent_packet": output_path / "sisyphus_agent_packet.json",
+        "graph_packet": output_path / "sisyphus_graph_packet.json",
     }
     paths["news_card"].write_text(json.dumps(news_card, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["records_jsonl"].write_text(to_jsonl([news_card, packet]) + "\n", encoding="utf-8")
     paths["agent_packet"].write_text(json.dumps(packet, indent=2, ensure_ascii=False), encoding="utf-8")
+    paths["graph_packet"].write_text(json.dumps(graph_packet, indent=2, ensure_ascii=False), encoding="utf-8")
     return paths
 
 
@@ -1455,6 +1863,7 @@ def run_quality_checks(news_card: dict[str, Any]) -> list[dict[str, str]]:
     graph_nodes = _as_list(claim_graph.get("nodes")) if isinstance(claim_graph, dict) else []
     graph_edges = _as_list(claim_graph.get("edges")) if isinstance(claim_graph, dict) else []
     graph_errors = validate_claim_graph(news_card)
+    graph_packet = export_agent_graph_packet(news_card)
     summary = _as_list(news_card.get("summary_3_line"))
     image_prompt = news_card.get("image_prompt", {})
 
@@ -1523,6 +1932,11 @@ def run_quality_checks(news_card: dict[str, Any]) -> list[dict[str, str]]:
             "Claim graph references are valid",
             len(graph_errors) == 0,
             "all graph references valid" if not graph_errors else "; ".join(graph_errors[:4]),
+        ),
+        (
+            "Graph packet export works",
+            graph_packet.get("packet_version") == "0.5" and not graph_packet.get("validation_errors"),
+            "packet_version 0.5" if not graph_packet.get("validation_errors") else "; ".join(graph_packet["validation_errors"][:4]),
         ),
         (
             "3-line summary exists",
@@ -1869,6 +2283,102 @@ def render_claim_graph_html(news_card: dict[str, Any]) -> str:
         <details>
           <summary>Full graph edges</summary>
           <pre>{escape(json.dumps(edges, indent=2, ensure_ascii=False))}</pre>
+        </details>
+        """,
+    )
+
+
+def render_graph_query_preview_html(news_card: dict[str, Any]) -> str:
+    """Render compact examples of graph query/export helpers."""
+    claims = _as_list(news_card.get("actor_claims"))
+    claim_id = None
+    if claims and isinstance(claims[0], dict):
+        claim_id = claims[0].get("claim_id")
+    if not claim_id:
+        return _wrap_html(
+            "graph-query-preview",
+            "<h3>Graph Query Preview</h3><p class='muted'>No actor claim is available for graph query preview.</p>",
+        )
+
+    graph = get_claim_graph(news_card)
+    neighbors = get_graph_neighbors(graph, str(claim_id))
+    paths = get_paths_to_verdict(graph, str(claim_id))
+    subgraph = get_selected_claim_subgraph(news_card, str(claim_id), radius=2)
+    graph_packet = export_agent_graph_packet(news_card, focus_ref_id=str(claim_id), radius=2)
+
+    def node_list(nodes: list[dict[str, Any]]) -> str:
+        if not nodes:
+            return "<tr><td colspan='3' class='muted'>No adjacent nodes found.</td></tr>"
+        return "".join(
+            f"""
+            <tr>
+              <td><code>{escape(str(node.get('ref_id', '')))}</code></td>
+              <td>{escape(str(node.get('node_type', '')))}</td>
+              <td>{escape(str(node.get('label', '')))}</td>
+            </tr>
+            """
+            for node in nodes[:8]
+        )
+
+    def path_cards(path_records: list[dict[str, Any]]) -> str:
+        if not path_records:
+            return "<p class='muted'>No directed path to a verdict was found for this claim.</p>"
+        cards = []
+        for path in path_records[:3]:
+            cards.append(
+                f"""
+                <article class="graph-path">
+                  <strong>{escape(str(path.get('path_id', 'path')))}</strong>
+                  <p>{escape(' -> '.join(str(label) for label in _as_list(path.get('node_labels'))))}</p>
+                  <p class="muted">{escape(', '.join(str(edge_type) for edge_type in _as_list(path.get('edge_types'))))}</p>
+                </article>
+                """
+            )
+        return "".join(cards)
+
+    edge_count_rows = "".join(
+        f"<tr><td>{escape(edge_type)}</td><td>{count}</td></tr>"
+        for edge_type, count in neighbors.get("edge_type_counts", {}).items()
+    ) or "<tr><td colspan='2' class='muted'>No adjacent edge types found.</td></tr>"
+    return _wrap_html(
+        "graph-query-preview",
+        f"""
+        <h3>Graph Query Preview</h3>
+        <p class="muted">Central claim: <code>{escape(str(claim_id))}</code></p>
+        <div class="graph-metrics">
+          <div class="summary-card ok"><span>Incoming</span><strong>{len(neighbors.get('incoming_edges', []))}</strong></div>
+          <div class="summary-card ok"><span>Outgoing</span><strong>{len(neighbors.get('outgoing_edges', []))}</strong></div>
+          <div class="summary-card ok"><span>Neighbors</span><strong>{len(neighbors.get('neighbor_nodes', []))}</strong></div>
+          <div class="summary-card ok"><span>Subgraph</span><strong>{len(subgraph.get('nodes', []))}/{len(subgraph.get('edges', []))}</strong></div>
+        </div>
+        <div class="grid two">
+          <section>
+            <h4>Neighbor nodes</h4>
+            <table>
+              <thead><tr><th>Ref ID</th><th>Type</th><th>Label</th></tr></thead>
+              <tbody>{node_list(neighbors.get('neighbor_nodes', []))}</tbody>
+            </table>
+          </section>
+          <section>
+            <h4>Neighbor edge types</h4>
+            <table>
+              <thead><tr><th>Edge type</th><th>Count</th></tr></thead>
+              <tbody>{edge_count_rows}</tbody>
+            </table>
+          </section>
+        </div>
+        <section>
+          <h4>Paths to verdict</h4>
+          <div class="graph-path-list">{path_cards(paths)}</div>
+        </section>
+        <section>
+          <h4>Selected claim subgraph</h4>
+          <p>{escape(str(subgraph.get('summary', '')))}</p>
+          <p class="muted">Included refs: {escape(', '.join(subgraph.get('included_ref_ids', [])[:10]))}</p>
+        </section>
+        <details>
+          <summary>Graph packet preview</summary>
+          <pre>{escape(json.dumps(graph_packet, indent=2, ensure_ascii=False))}</pre>
         </details>
         """,
     )
