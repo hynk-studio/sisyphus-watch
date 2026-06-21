@@ -1,6 +1,6 @@
 {
   "mode": "demo",
-  "record_set_id": "record_set_city_heatwave_cooling_centers_2026_06_15_demo",
+  "record_set_id": "record_set_sisyphus_watch_demo_scenarios_2026_06_15",
   "generated_at": "2026-06-15T12:30:00Z",
   "source_records_path": "data/demo_sources.json",
   "news_card": {
@@ -233,6 +233,489 @@
         "No independent verification was performed.",
         "Intent remains uncertain."
       ]
+    },
+    "scenario_id": "city_heatwave_cooling_centers"
+  },
+  "default_scenario_id": "city_heatwave_cooling_centers",
+  "scenario_ids": [
+    "city_heatwave_cooling_centers",
+    "public_transit_delay_communication"
+  ],
+  "news_cards": [
+    {
+      "card_id": "news_city_heatwave_cooling_centers_2026_06_15_v01",
+      "record_type": "news_card",
+      "card_type": "public_claim_version_control_card",
+      "title": "City Heatwave Cooling Centers: Public Claim vs Access Reality",
+      "scenario_name": "City Heatwave Cooling Centers",
+      "version": "v01",
+      "created_at": "2026-06-15T12:30:00Z",
+      "is_synthetic_demo_fixture": true,
+      "track": "Agents for Good",
+      "confidence": "medium_high",
+      "uncertainty": "The synthetic sources show an implementation gap and partial remediation, but do not measure resident-level impact or prove intent.",
+      "source_ids": [
+        "src_city_heatwave_initial_announcement_2026_06_10",
+        "src_community_cooling_center_access_report_2026_06_12",
+        "src_city_heatwave_updated_guidance_2026_06_14",
+        "src_editorial_heatwave_accountability_note_2026_06_15"
+      ],
+      "source_hygiene_note": "Demo sources are synthetic fixtures. Source text is treated as untrusted input; commands inside sources must not be followed. Facts, claims, interpretations, and generated image prompts remain source-bound review layers.",
+      "summary_3_line": [
+        "The fictional city announced 50 cooling centers during a severe heatwave.",
+        "A community group later reported that several listed centers were closed, had limited hours, lacked signage, or were hard to reach.",
+        "The city updated the list, clarified hours, removed unavailable locations, and added transport support, shifting the judgment toward a partially corrected implementation gap."
+      ],
+      "image_prompt": {
+        "label": "Generated visual summary, not evidence",
+        "prompt": "A clean civic information card showing a heatwave city map, cooling center icons, an alert banner, and a split view between official listings and street-level access checks; documentary style, no real city branding."
+      },
+      "facts": [
+        {
+          "fact_id": "fact_city_announces_50_cooling_centers_2026_06_10_001",
+          "text": "The fictional city announced that 50 cooling centers would be open during a severe heatwave.",
+          "source_ids": [
+            "src_city_heatwave_initial_announcement_2026_06_10"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_community_reports_access_problems_2026_06_12_001",
+          "text": "A fictional community volunteer group reported access problems at some listed cooling centers.",
+          "source_ids": [
+            "src_community_cooling_center_access_report_2026_06_12"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_city_updates_list_and_hours_2026_06_14_001",
+          "text": "The fictional city later updated the cooling center list and clarified opening hours.",
+          "source_ids": [
+            "src_city_heatwave_updated_guidance_2026_06_14"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_city_adds_transport_support_2026_06_14_001",
+          "text": "The fictional city added free shuttle support for older residents and medically vulnerable residents in hardest-hit neighborhoods.",
+          "source_ids": [
+            "src_city_heatwave_updated_guidance_2026_06_14"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+          "text": "The city update attributed some earlier listing errors to staffing shortages and late facility confirmations.",
+          "source_ids": [
+            "src_city_heatwave_updated_guidance_2026_06_14"
+          ],
+          "confidence": "medium_high",
+          "source_bound": true
+        }
+      ],
+      "actor_claims": [
+        {
+          "claim_id": "claim_city_all_centers_open_2026_06_10_001",
+          "actor": "Fictional City Emergency Management Office",
+          "claim_text": "Residents could find safe, air-conditioned spaces across the city.",
+          "source_ids": [
+            "src_city_heatwave_initial_announcement_2026_06_10"
+          ],
+          "claim_type": "public_service_availability",
+          "status": "partially_challenged_by_later_observation"
+        },
+        {
+          "claim_id": "claim_city_list_will_update_2026_06_10_001",
+          "actor": "Fictional City Emergency Management Office",
+          "claim_text": "The cooling center list would be updated as conditions changed.",
+          "source_ids": [
+            "src_city_heatwave_initial_announcement_2026_06_10"
+          ],
+          "claim_type": "process_commitment",
+          "status": "supported_by_later_update"
+        },
+        {
+          "claim_id": "claim_community_access_gap_2026_06_12_001",
+          "actor": "Fictional Neighborhood Volunteer Network",
+          "claim_text": "Several listed cooling centers were not practically accessible because some were closed, had limited hours, lacked signage, or were difficult for older residents to reach.",
+          "source_ids": [
+            "src_community_cooling_center_access_report_2026_06_12"
+          ],
+          "claim_type": "field_observation",
+          "status": "partially_addressed_by_city_update"
+        },
+        {
+          "claim_id": "claim_city_update_corrected_errors_2026_06_14_001",
+          "actor": "Fictional City Emergency Management Office",
+          "claim_text": "The updated guidance corrected listing errors and improved access through clarified hours, removed unavailable sites, corrected addresses, and added transport support.",
+          "source_ids": [
+            "src_city_heatwave_updated_guidance_2026_06_14"
+          ],
+          "claim_type": "remediation_claim",
+          "status": "plausible_but_not_independently_verified"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "action_city_updates_cooling_center_hours_2026_06_14_001",
+          "actor": "Fictional City Emergency Management Office",
+          "action_text": "Published an updated cooling center list and clarified opening hours.",
+          "source_ids": [
+            "src_city_heatwave_updated_guidance_2026_06_14"
+          ],
+          "action_type": "public_guidance_update",
+          "date": "2026-06-14"
+        },
+        {
+          "action_id": "action_city_removes_unavailable_locations_2026_06_14_001",
+          "actor": "Fictional City Emergency Management Office",
+          "action_text": "Removed unavailable locations and corrected addresses for several facilities.",
+          "source_ids": [
+            "src_city_heatwave_updated_guidance_2026_06_14"
+          ],
+          "action_type": "listing_correction",
+          "date": "2026-06-14"
+        },
+        {
+          "action_id": "action_city_adds_transport_support_2026_06_14_001",
+          "actor": "Fictional City Emergency Management Office",
+          "action_text": "Added free shuttle support for older and medically vulnerable residents in hardest-hit neighborhoods.",
+          "source_ids": [
+            "src_city_heatwave_updated_guidance_2026_06_14"
+          ],
+          "action_type": "access_support",
+          "date": "2026-06-14"
+        }
+      ],
+      "interpretations": [
+        {
+          "interpretation_id": "interp_emergency_service_implementation_gap_2026_06_15_001",
+          "title": "Implementation gap in emergency public-service communication",
+          "interpretation_text": "The case suggests an implementation gap between emergency-service public claims and real-world accessibility. The later update reduces concern about a simple bad-faith overclaim but increases the importance of versioned public communication during emergencies.",
+          "evidence_ids": [
+            "fact_city_announces_50_cooling_centers_2026_06_10_001",
+            "claim_community_access_gap_2026_06_12_001",
+            "action_city_updates_cooling_center_hours_2026_06_14_001",
+            "action_city_adds_transport_support_2026_06_14_001"
+          ],
+          "alternative_interpretations": [
+            "The original list may have been accurate when published but decayed quickly under emergency conditions.",
+            "The community report may reflect a partial sample rather than the whole citywide system."
+          ],
+          "risk_notes": [
+            "Do not infer deliberate deception without direct evidence of intent.",
+            "Do not treat the city update as proof that all access issues were resolved."
+          ],
+          "confidence": "high"
+        }
+      ],
+      "counter_branches": [
+        {
+          "counter_branch_id": "counter_fast_changing_conditions_2026_06_15_001",
+          "title": "Outdated listings and staffing constraints may explain part of the access gap",
+          "counter_text": "The initial gap may reflect fast-changing emergency conditions, staffing constraints, and late facility confirmations rather than deliberate exaggeration. The update and transport support indicate partial correction.",
+          "target_id": "interp_emergency_service_implementation_gap_2026_06_15_001",
+          "target_type": "interpretation",
+          "evidence_ids": [
+            "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+            "claim_city_list_will_update_2026_06_10_001",
+            "action_city_removes_unavailable_locations_2026_06_14_001"
+          ],
+          "confidence": "medium_high",
+          "what_would_change_this": "Resident-level access data after the update, timestamped center availability logs, or evidence that officials knew the original list was inaccurate before publication."
+        }
+      ],
+      "bias_notes": [
+        {
+          "bias_note_id": "bias_public_accountability_metaphor_2026_06_15_001",
+          "source_id": "src_editorial_heatwave_accountability_note_2026_06_15",
+          "bias_type": "metaphor_opinion",
+          "note_text": "An emergency map that works only on paper is a cardboard umbrella in a heatwave.",
+          "why_labeled": "This is a rhetorical metaphor expressing public accountability judgment, not direct factual evidence.",
+          "evidence_value": "Useful as an opinion signal; excluded from fact extraction."
+        }
+      ],
+      "version_diff": {
+        "diff_id": "diff_city_heatwave_v00_to_v01_2026_06_15",
+        "from_version": "v00_initial_announcement_only",
+        "to_version": "v01_after_community_report_and_city_update",
+        "previous_judgment": "The announcement sounded adequate based on the city's initial statement, but real-world accessibility was unknown.",
+        "updated_judgment": "Concern shifted from possible overclaim to partially corrected implementation gap after updated guidance and transport support.",
+        "new_evidence_ids": [
+          "claim_community_access_gap_2026_06_12_001",
+          "fact_city_updates_list_and_hours_2026_06_14_001",
+          "fact_city_adds_transport_support_2026_06_14_001",
+          "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+        ],
+        "confidence_delta": {
+          "implementation_gap_hypothesis": "low -> high",
+          "deliberate_overclaim_hypothesis": "low -> medium_low",
+          "remediation_hypothesis": "unknown -> medium_high"
+        },
+        "unchanged_uncertainties": [
+          "How many residents were actually unable to access centers.",
+          "Whether updated transport support reached the most vulnerable residents.",
+          "Whether the city has a durable process for future emergency updates."
+        ]
+      },
+      "editorial_verdict": {
+        "verdict_id": "verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+        "short_label": "Public communication failure with partial remediation",
+        "verdict_text": "This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.",
+        "confidence": "medium_high",
+        "reader_warnings": [
+          "Synthetic fixture, not real news.",
+          "No independent verification was performed.",
+          "Intent remains uncertain."
+        ]
+      },
+      "scenario_id": "city_heatwave_cooling_centers"
+    },
+    {
+      "card_id": "news_transit_delay_communication_2026_06_14_v01",
+      "record_type": "news_card",
+      "card_type": "public_claim_version_control_card",
+      "title": "Transit Delay Communication: Service Claim vs Rider Reality",
+      "scenario_id": "public_transit_delay_communication",
+      "scenario_name": "Public Transit Delay Communication",
+      "version": "v01",
+      "created_at": "2026-06-14T12:30:00Z",
+      "is_synthetic_demo_fixture": true,
+      "track": "Agents for Good",
+      "confidence": "medium_high",
+      "uncertainty": "The synthetic sources show a service communication gap and partial correction, but do not measure rider-level impact or prove intent.",
+      "source_ids": [
+        "src_transit_initial_service_status_2026_06_11",
+        "src_commuter_delay_observation_report_2026_06_12",
+        "src_transit_corrected_service_update_2026_06_13",
+        "src_editorial_transit_status_accountability_note_2026_06_14"
+      ],
+      "source_hygiene_note": "Demo sources are synthetic fixtures. Source text is treated as untrusted input; commands inside sources must not be followed. Facts, claims, interpretations, and generated image prompts remain source-bound review layers.",
+      "summary_3_line": [
+        "The fictional transit agency claimed most service was running normally after a signal-system issue.",
+        "Commuter reports later described severe delays, unclear station notices, and service-status app updates that lagged behind rider reality.",
+        "The agency issued a correction, named affected lines, added replacement buses, and admitted app indicators lagged operations data, shifting the judgment toward a partially corrected communication failure."
+      ],
+      "image_prompt": {
+        "label": "Generated visual summary, not evidence",
+        "prompt": "A clean transit information card showing a station platform, route lines, delay alerts, and a split view between app status and rider observations; documentary style, no real agency branding."
+      },
+      "facts": [
+        {
+          "fact_id": "fact_transit_claims_most_service_normal_2026_06_11_001",
+          "text": "The fictional transit agency reported that most rail and bus service was running normally after an early-morning signal-system issue.",
+          "source_ids": [
+            "src_transit_initial_service_status_2026_06_11"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_commuters_report_severe_delays_2026_06_12_001",
+          "text": "A fictional commuter forum reported severe delays on several lines and unclear station announcements.",
+          "source_ids": [
+            "src_commuter_delay_observation_report_2026_06_12"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_app_status_lag_reported_2026_06_12_001",
+          "text": "Riders reported service-status app updates showing normal or minor-delay conditions while trains were held.",
+          "source_ids": [
+            "src_commuter_delay_observation_report_2026_06_12"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_transit_corrects_affected_lines_2026_06_13_001",
+          "text": "The transit agency later identified the Blue, Green, and Crosstown lines as affected by severe residual delays.",
+          "source_ids": [
+            "src_transit_corrected_service_update_2026_06_13"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_transit_adds_replacement_buses_2026_06_13_001",
+          "text": "The transit agency added replacement bus support between key stations.",
+          "source_ids": [
+            "src_transit_corrected_service_update_2026_06_13"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_transit_app_indicators_lagged_operations_2026_06_13_001",
+          "text": "The agency said some app status indicators lagged behind operations data during manual dispatching.",
+          "source_ids": [
+            "src_transit_corrected_service_update_2026_06_13"
+          ],
+          "confidence": "medium_high",
+          "source_bound": true
+        }
+      ],
+      "actor_claims": [
+        {
+          "claim_id": "claim_transit_most_service_normal_2026_06_11_001",
+          "actor": "Fictional Metropolitan Transit Agency",
+          "claim_text": "Most rail and bus service was running normally after the signal-system issue.",
+          "source_ids": [
+            "src_transit_initial_service_status_2026_06_11"
+          ],
+          "claim_type": "service_status_claim",
+          "status": "partially_challenged_by_later_rider_reports"
+        },
+        {
+          "claim_id": "claim_transit_minor_residual_delays_2026_06_11_001",
+          "actor": "Fictional Metropolitan Transit Agency",
+          "claim_text": "Riders should see only minor residual delays as operations stabilized.",
+          "source_ids": [
+            "src_transit_initial_service_status_2026_06_11"
+          ],
+          "claim_type": "service_impact_claim",
+          "status": "challenged_by_commuter_observations"
+        },
+        {
+          "claim_id": "claim_commuters_severe_delay_gap_2026_06_12_001",
+          "actor": "Fictional Commuter Riders Forum",
+          "claim_text": "Several lines still had severe delays, unclear station notices, crowded platforms, and inconsistent service app updates.",
+          "source_ids": [
+            "src_commuter_delay_observation_report_2026_06_12"
+          ],
+          "claim_type": "field_observation",
+          "status": "partially_addressed_by_agency_correction"
+        },
+        {
+          "claim_id": "claim_transit_app_lag_explained_2026_06_13_001",
+          "actor": "Fictional Metropolitan Transit Agency",
+          "claim_text": "Some app status indicators lagged behind operations data during manual dispatching.",
+          "source_ids": [
+            "src_transit_corrected_service_update_2026_06_13"
+          ],
+          "claim_type": "technical_explanation_claim",
+          "status": "plausible_but_not_independently_verified"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "action_transit_publishes_corrected_service_update_2026_06_13_001",
+          "actor": "Fictional Metropolitan Transit Agency",
+          "action_text": "Published a corrected service update naming the affected Blue, Green, and Crosstown lines.",
+          "source_ids": [
+            "src_transit_corrected_service_update_2026_06_13"
+          ],
+          "action_type": "public_status_correction",
+          "date": "2026-06-13"
+        },
+        {
+          "action_id": "action_transit_adds_replacement_bus_support_2026_06_13_001",
+          "actor": "Fictional Metropolitan Transit Agency",
+          "action_text": "Added replacement bus support between key stations.",
+          "source_ids": [
+            "src_transit_corrected_service_update_2026_06_13"
+          ],
+          "action_type": "service_mitigation",
+          "date": "2026-06-13"
+        },
+        {
+          "action_id": "action_transit_updates_station_staff_script_2026_06_13_001",
+          "actor": "Fictional Metropolitan Transit Agency",
+          "action_text": "Said station staff would receive a direct update script for future signal disruptions.",
+          "source_ids": [
+            "src_transit_corrected_service_update_2026_06_13"
+          ],
+          "action_type": "communication_process_update",
+          "date": "2026-06-13"
+        }
+      ],
+      "interpretations": [
+        {
+          "interpretation_id": "interp_transit_service_communication_gap_2026_06_14_001",
+          "title": "Implementation gap in real-time transit service communication",
+          "interpretation_text": "The case suggests a communication implementation gap between the agency status claim and rider-facing conditions. The correction weakens a simple deliberate-deception framing but strengthens the need for versioned service status during disruptions.",
+          "evidence_ids": [
+            "claim_transit_most_service_normal_2026_06_11_001",
+            "claim_commuters_severe_delay_gap_2026_06_12_001",
+            "action_transit_publishes_corrected_service_update_2026_06_13_001",
+            "action_transit_adds_replacement_bus_support_2026_06_13_001"
+          ],
+          "alternative_interpretations": [
+            "The initial status may have reflected network-level averages while line-level conditions were changing quickly.",
+            "Rider reports may overrepresent the most disrupted stations rather than the entire transit network."
+          ],
+          "risk_notes": [
+            "Do not infer deliberate deception without direct evidence of intent.",
+            "Do not treat replacement bus support as proof that rider harm was fully mitigated."
+          ],
+          "confidence": "high"
+        }
+      ],
+      "counter_branches": [
+        {
+          "counter_branch_id": "counter_transit_data_lag_operations_2026_06_14_001",
+          "title": "Fast-changing operations and app data lag may explain part of the gap",
+          "counter_text": "The service-status gap may reflect fast-changing signal recovery, manual dispatching, and lagging app indicators rather than deliberate deception. The corrected update and replacement buses indicate partial correction.",
+          "target_id": "interp_transit_service_communication_gap_2026_06_14_001",
+          "target_type": "interpretation",
+          "evidence_ids": [
+            "fact_transit_app_indicators_lagged_operations_2026_06_13_001",
+            "claim_transit_app_lag_explained_2026_06_13_001",
+            "action_transit_updates_station_staff_script_2026_06_13_001"
+          ],
+          "confidence": "medium_high",
+          "what_would_change_this": "Timestamped operations logs, app status history, station announcement records, and rider wait-time data before and after the corrected update."
+        }
+      ],
+      "bias_notes": [
+        {
+          "bias_note_id": "bias_transit_status_wallpaper_metaphor_2026_06_14_001",
+          "source_id": "src_editorial_transit_status_accountability_note_2026_06_14",
+          "bias_type": "metaphor_opinion",
+          "note_text": "A status board that says 'normal service' while platforms fill with stranded riders is not information; it is decorative wallpaper.",
+          "why_labeled": "This is a rhetorical metaphor expressing accountability judgment, not direct factual evidence.",
+          "evidence_value": "Useful as an opinion signal; excluded from fact extraction."
+        }
+      ],
+      "version_diff": {
+        "diff_id": "diff_transit_delay_v00_to_v01_2026_06_14",
+        "from_version": "v00_initial_service_status_only",
+        "to_version": "v01_after_commuter_reports_and_agency_correction",
+        "previous_judgment": "The initial agency status suggested mostly normal service with minor residual delays, but rider-facing conditions were unknown.",
+        "updated_judgment": "Concern shifted from mostly normal service to partially corrected communication failure after rider reports, a corrected affected-line list, and replacement bus support.",
+        "new_evidence_ids": [
+          "claim_commuters_severe_delay_gap_2026_06_12_001",
+          "fact_transit_corrects_affected_lines_2026_06_13_001",
+          "fact_transit_adds_replacement_buses_2026_06_13_001",
+          "fact_transit_app_indicators_lagged_operations_2026_06_13_001"
+        ],
+        "confidence_delta": {
+          "communication_gap_hypothesis": "low -> high",
+          "deliberate_deception_hypothesis": "low -> medium_low",
+          "partial_remediation_hypothesis": "unknown -> medium_high"
+        },
+        "unchanged_uncertainties": [
+          "How many riders were delayed and for how long.",
+          "Whether replacement buses met actual rider demand.",
+          "Whether app and station update lag was fixed durably for future disruptions."
+        ]
+      },
+      "editorial_verdict": {
+        "verdict_id": "verdict_transit_delay_communication_2026_06_14_v01",
+        "short_label": "Transit communication failure with partial remediation",
+        "verdict_text": "This case is best treated as a real-time service communication and implementation-gap case. The agency initial claim was not reliable for riders on affected platforms, but the later correction and replacement buses weaken a simple bad-faith framing. Readers should inspect facts, counter-branches, and unresolved service-impact questions before accepting a stronger accusation.",
+        "confidence": "medium_high",
+        "reader_warnings": [
+          "Synthetic fixture, not real news.",
+          "No independent verification was performed.",
+          "Intent remains uncertain."
+        ]
+      }
     }
-  }
+  ]
 }

@@ -176,13 +176,47 @@ def load_precomputed_records(path: str | Path | None = None) -> dict[str, Any]:
     """Load the deterministic demo record used when live mode is unavailable."""
     record_path = Path(path) if path else DEFAULT_RECORD_PATH
     records = _read_json(record_path)
-    if not isinstance(records, dict) or "news_card" not in records:
-        raise ValueError("precomputed_records.json must contain a top-level news_card")
+    if not isinstance(records, dict) or ("news_card" not in records and "news_cards" not in records):
+        raise ValueError("precomputed_records.json must contain news_card or news_cards")
 
-    errors = validate_news_card(records["news_card"])
+    errors: list[str] = []
+    for card in get_news_cards(records):
+        errors.extend(f"{card.get('card_id', '<unknown>')}: {error}" for error in validate_news_card(card))
     if errors:
-        raise ValueError("Invalid precomputed news_card:\n" + "\n".join(errors))
+        raise ValueError("Invalid precomputed news_card records:\n" + "\n".join(errors))
     return records
+
+
+def get_news_cards(records: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return deterministic news cards from either old or multi-card record sets."""
+    cards = records.get("news_cards")
+    if isinstance(cards, list):
+        return cards
+    card = records.get("news_card")
+    return [card] if isinstance(card, dict) else []
+
+
+def select_news_card(records: dict[str, Any], scenario_id: str | None = None) -> dict[str, Any]:
+    """Select one card by scenario_id, preserving the heatwave default."""
+    cards = get_news_cards(records)
+    if not cards:
+        raise ValueError("No news cards are available in precomputed records")
+
+    selected_id = scenario_id or records.get("default_scenario_id") or cards[0].get("scenario_id")
+    for card in cards:
+        if card.get("scenario_id") == selected_id or card.get("card_id") == selected_id:
+            return card
+
+    available = [card.get("scenario_id", card.get("card_id", "<unknown>")) for card in cards]
+    raise ValueError(f"Unknown SCENARIO_ID {selected_id!r}. Available scenarios: {available}")
+
+
+def filter_sources_for_card(
+    source_records: list[dict[str, Any]], news_card: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Return source fixtures referenced by the selected card."""
+    source_ids = set(news_card.get("source_ids", []))
+    return [source for source in source_records if source.get("source_id") in source_ids]
 
 
 def validate_source_record(record: dict[str, Any]) -> list[str]:
@@ -364,7 +398,7 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
 
 def run_negative_validation_self_test(news_card: dict[str, Any] | None = None) -> dict[str, list[str]]:
     """Exercise graph-integrity failures without adding a test framework."""
-    card = deepcopy(news_card) if news_card is not None else deepcopy(load_precomputed_records()["news_card"])
+    card = deepcopy(news_card) if news_card is not None else deepcopy(select_news_card(load_precomputed_records()))
 
     bad_counter = deepcopy(card)
     bad_counter["counter_branches"][0]["evidence_ids"] = ["fact_does_not_exist"]
@@ -470,14 +504,62 @@ def _extract_json_payload(text: str) -> dict[str, Any]:
 
 def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
     """Build an agent-readable packet around the canonical card."""
+    facts = news_card.get("facts", [])
+    claims = news_card.get("actor_claims", [])
+    actions = news_card.get("actions", [])
+    version_diff = news_card.get("version_diff", {})
+    verdict = news_card.get("editorial_verdict", {})
+    counter_branches = news_card.get("counter_branches", [])
+    interpretation = news_card.get("interpretations", [{}])[0] if news_card.get("interpretations") else {}
+    uncertainties = list(version_diff.get("unchanged_uncertainties", []))
+    warnings = list(verdict.get("reader_warnings", []))
+    what_would_change = [
+        counter.get("what_would_change_this")
+        for counter in counter_branches
+        if counter.get("what_would_change_this")
+    ]
     return {
         "packet_id": f"agent_packet_{news_card['card_id']}",
+        "packet_version": "0.2",
         "record_type": "agent_packet",
         "created_at": _now_iso(),
         "canonical_card_id": news_card["card_id"],
         "task": "review_public_claim_card",
         "source_ids": news_card.get("source_ids", []),
         "quality_checks": run_quality_checks(news_card),
+        "reusable_context_summary": " ".join(news_card.get("summary_3_line", [])),
+        "stable_claim_ids": [claim.get("claim_id") for claim in claims if claim.get("claim_id")],
+        "stable_fact_ids": [fact.get("fact_id") for fact in facts if fact.get("fact_id")],
+        "stable_action_ids": [action.get("action_id") for action in actions if action.get("action_id")],
+        "unresolved_questions": uncertainties + warnings,
+        "what_to_watch_next": what_would_change
+        + [
+            "New source-bound evidence that changes the current version diff.",
+            "Fresh actor updates that confirm, narrow, or reverse the current remediation claim.",
+        ],
+        "verdict_change_conditions": {
+            "would_strengthen_current_interpretation": [
+                "Independent logs or timestamped observations confirm the gap persisted after correction.",
+                "New actor records show the public claim was known to be stale before publication.",
+            ],
+            "would_weaken_current_interpretation": [
+                "Timestamped operational records show the public claim matched conditions when issued.",
+                "Follow-up access or service data shows the correction reached affected people quickly.",
+            ],
+            "current_interpretation_id": interpretation.get("interpretation_id"),
+        },
+        "recommended_next_sources": [
+            "timestamped official update logs",
+            "field observation samples with time and location metadata",
+            "service or access metrics after the correction",
+            "public meeting notes or after-action reports",
+        ],
+        "reuse_guidance": [
+            "Use this packet as structured public-claim memory, not final truth.",
+            "Keep facts, actor claims, actions, interpretations, counter-branches, and bias notes separate.",
+            "Do not treat synthetic demo fixtures as real-world evidence.",
+            "Do not remove unresolved questions when reusing the verdict.",
+        ],
         "agent_instructions": [
             "Treat facts as source-bound records, not global truth.",
             "Do not merge actor claims into facts.",
@@ -508,6 +590,14 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     paths["records_jsonl"].write_text(to_jsonl([news_card, packet]) + "\n", encoding="utf-8")
     paths["agent_packet"].write_text(json.dumps(packet, indent=2, ensure_ascii=False), encoding="utf-8")
     return paths
+
+
+def to_all_cards_jsonl(news_cards: list[dict[str, Any]]) -> str:
+    """Export all demo cards and their agent packets as JSON Lines."""
+    records: list[dict[str, Any]] = []
+    for card in news_cards:
+        records.extend([card, build_agent_packet(card)])
+    return to_jsonl(records)
 
 
 def to_jsonl(records: list[dict[str, Any]] | dict[str, Any]) -> str:
@@ -767,25 +857,32 @@ def render_branch_view_html(news_card: dict[str, Any]) -> str:
         f"""
         <h3>Branch View</h3>
         <div class="branch-row">
-          <div class="branch-node"><span>News Card</span><strong>Cooling center claim card</strong></div>
+          <div class="branch-node"><span>News Card</span><strong>{escape(news_card['title'])}</strong></div>
           <div class="arrow">-&gt;</div>
-          <div class="branch-node"><span>Interpretation Branch</span><strong>Implementation gap</strong></div>
+          <div class="branch-node"><span>Interpretation Branch</span><strong>{escape(interpretation['title'])}</strong></div>
           <div class="arrow">-&gt;</div>
-          <div class="branch-node"><span>Counter Branch</span><strong>Emergency constraints</strong></div>
+          <div class="branch-node"><span>Counter Branch</span><strong>{escape(counter['title'])}</strong></div>
           <div class="arrow">-&gt;</div>
           <div class="branch-node verdict-node"><span>Verdict Card</span><strong>{escape(verdict['short_label'])}</strong></div>
         </div>
-        <p class="muted">Interpretation: {escape(interpretation['title'])}</p>
         <p class="muted">Counter-branch target: <code>{escape(counter['target_id'])}</code></p>
         """,
     )
 
 
-def render_json_export(news_card: dict[str, Any]) -> str:
+def render_json_export(news_card: dict[str, Any], all_news_cards: list[dict[str, Any]] | None = None) -> str:
     packet = build_agent_packet(news_card)
     pretty_json = json.dumps(news_card, indent=2, ensure_ascii=False)
     jsonl_preview = to_jsonl(news_card)
     packet_preview = json.dumps(packet, indent=2, ensure_ascii=False)
+    all_cards_section = ""
+    if all_news_cards:
+        all_cards_section = f"""
+        <details>
+          <summary>All demo cards JSONL</summary>
+          <pre>{escape(to_all_cards_jsonl(all_news_cards))}</pre>
+        </details>
+        """
     return _wrap_html(
         "json-export",
         f"""
@@ -803,6 +900,7 @@ def render_json_export(news_card: dict[str, Any]) -> str:
           <summary>Agent packet</summary>
           <pre>{escape(packet_preview)}</pre>
         </details>
+        {all_cards_section}
         """,
     )
 
