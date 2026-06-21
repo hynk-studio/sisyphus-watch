@@ -183,6 +183,17 @@ Live mode treats source text as untrusted data, asks for JSON only, and normaliz
 
 Each deterministic card includes an in-card `claim_graph` relation map. The graph is built from existing card IDs and records source/fact/claim/action/interpretation/counter/timeline/drift/diff/verdict relationships as nodes and edges. It is plain JSON; no database, graph service, network library, or external API is used.
 
+## Graph Query Helpers v0.5
+
+The graph is queryable without external dependencies:
+
+- `get_graph_neighbors()` returns incoming/outgoing graph context around a node or card ref ID.
+- `get_paths_to_verdict()` returns deterministic directed paths from a source, claim, interpretation, or counter-branch to a verdict.
+- `get_selected_claim_subgraph()` returns a compact claim-centered subgraph for downstream reuse.
+- `export_agent_graph_packet()` emits `packet_version: "0.5"` graph packets for downstream AI agents.
+
+Graph packets are plain JSON and are designed to reuse compact claim context. No graph database, external graph service, crawler, or web API is used.
+
 ## Schema
 
 `schemas/sisyphus_schema.json` documents the record shapes for:
@@ -202,6 +213,7 @@ Each deterministic card includes an in-card `claim_graph` relation map. The grap
 - `graph_node`
 - `graph_edge`
 - `claim_graph`
+- `graph_packet`
 - `editorial_verdict`
 - `agent_packet`
 

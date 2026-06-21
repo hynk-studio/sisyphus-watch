@@ -91,6 +91,16 @@ This is labeled as metaphor and opinion, not evidence.
 
 **Why this matters:** the card can be reused as a relation map instead of a set of independent lists, while still keeping every graph edge tied back to source-bound IDs.
 
+## Graph Query Example
+
+**Central claim:** `claim_city_all_centers_open_2026_06_10_001`
+
+**Neighbor summary:** the claim connects to the initial city announcement source, the `v00` version event, and a claim drift entry that later weakens the broad availability claim.
+
+**Path to verdict:** `Fictional City Emergency Management Office` -> `v00` -> `v01_after_community_report_and_city_update` -> `Public communication failure with partial remediation`
+
+**Selected subgraph use:** a radius-2 subgraph around this claim includes the source, nearby claim drift, timeline, version diff, and related evidence nodes. This gives another AI agent compact claim context without handing over the entire card graph.
+
 ## Editorial Verdict
 
 This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.
