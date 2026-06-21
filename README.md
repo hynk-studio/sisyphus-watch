@@ -2,7 +2,7 @@
 
 **Kaggle-facing title:** Sisyphus Watch: Version Control for Public Claims
 
-Sisyphus Watch is an AI-agent demo that turns public news-like sources into versioned claim cards. It separates facts, actor claims, actions, interpretations, counter-branches, bias notes, and version diffs so people and AI agents can reason beyond the news cycle.
+Sisyphus Watch is an AI-agent demo that turns public news-like sources into versioned claim cards. It separates facts, actor claims, actions, interpretations, counter-branches, bias notes, version timelines, claim drift, and version diffs so people and AI agents can reason beyond the news cycle.
 
 This first build is a Kaggle Code-native vertical slice for the Kaggle 5-Day AI Agents Intensive Vibe Coding Course with Google. It is not a production news platform.
 
@@ -17,6 +17,8 @@ Sisyphus Watch is claim-version-control for public reasoning. It takes messy pub
 - evidence-linked interpretations
 - counter-branches that keep alternatives visible
 - bias, opinion, and metaphor notes
+- version timelines that track public claims from initial statement to observation to correction or update
+- claim drift records that show whether specific claims were weakened, strengthened, narrowed, corrected, or remain unresolved
 - version diffs that show how judgment changes over time
 - human-readable card rendering
 - agent-readable JSON and JSONL records
@@ -44,6 +46,7 @@ The demo shows the claim-version-control flow:
 ```text
 initial public claim
 -> observed implementation gap
+-> claim drift
 -> counter-explanation
 -> updated action
 -> revised judgment
@@ -92,7 +95,7 @@ for card in cards:
     packet = build_agent_packet(card)
     print(card["card_id"], checks, negative.keys(), packet["packet_version"])
     assert all(row["status"] == "PASS" for row in checks)
-    assert packet["packet_version"] == "0.2"
+    assert packet["packet_version"] == "0.3"
 PY
 ```
 
@@ -115,7 +118,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
+The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
 
 To switch scenarios in the notebook, change:
 
@@ -147,10 +150,13 @@ Demo mode loads:
 
 It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path. The deterministic record set includes both demo cards while preserving the heatwave card as the default.
 
-## Agent Packet v0.2
+## Agent Packet v0.3
 
-`build_agent_packet()` now emits `packet_version: "0.2"` with reusable context for downstream agents:
+`build_agent_packet()` now emits `packet_version: "0.3"` with reusable context for downstream agents:
 
+- compact version timeline and claim drift summaries
+- latest version label and current verdict ID
+- changed, weakened, strengthened, and unresolved claim ID buckets
 - stable fact, claim, and action IDs
 - unresolved questions
 - what to watch next
@@ -184,6 +190,8 @@ Live mode treats source text as untrusted data, asks for JSON only, and normaliz
 - `counter_branch`
 - `bias_note`
 - `version_diff`
+- `version_event`
+- `claim_drift`
 - `editorial_verdict`
 - `agent_packet`
 

@@ -151,6 +151,59 @@
       },
       "additionalProperties": true
     },
+    "version_event": {
+      "type": "object",
+      "required": [
+        "version_id",
+        "version_label",
+        "date",
+        "trigger",
+        "summary",
+        "evidence_ids",
+        "judgment_at_version",
+        "confidence_at_version",
+        "open_questions"
+      ],
+      "properties": {
+        "version_id": { "type": "string", "pattern": "^version_" },
+        "version_label": { "type": "string" },
+        "date": { "type": "string" },
+        "trigger": { "type": "string" },
+        "summary": { "type": "string" },
+        "evidence_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "judgment_at_version": { "type": "string" },
+        "confidence_at_version": { "type": "string" },
+        "open_questions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "claim_drift": {
+      "type": "object",
+      "required": [
+        "drift_id",
+        "target_claim_id",
+        "from_status",
+        "to_status",
+        "direction",
+        "driver_evidence_ids",
+        "drift_summary",
+        "current_handling"
+      ],
+      "properties": {
+        "drift_id": { "type": "string", "pattern": "^drift_" },
+        "target_claim_id": { "type": "string", "pattern": "^claim_" },
+        "from_status": { "type": "string" },
+        "to_status": { "type": "string" },
+        "direction": {
+          "type": "string",
+          "enum": ["strengthened", "weakened", "narrowed", "corrected", "unresolved"]
+        },
+        "driver_evidence_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "drift_summary": { "type": "string" },
+        "current_handling": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
     "editorial_verdict": {
       "type": "object",
       "required": ["verdict_id", "short_label", "verdict_text", "confidence", "reader_warnings"],
@@ -185,6 +238,8 @@
         "counter_branches",
         "bias_notes",
         "version_diff",
+        "version_timeline",
+        "claim_drift",
         "editorial_verdict"
       ],
       "properties": {
@@ -215,6 +270,8 @@
         "counter_branches": { "type": "array", "items": { "$ref": "#/$defs/counter_branch" }, "minItems": 1 },
         "bias_notes": { "type": "array", "items": { "$ref": "#/$defs/bias_note" }, "minItems": 1 },
         "version_diff": { "$ref": "#/$defs/version_diff" },
+        "version_timeline": { "type": "array", "items": { "$ref": "#/$defs/version_event" }, "minItems": 2 },
+        "claim_drift": { "type": "array", "items": { "$ref": "#/$defs/claim_drift" }, "minItems": 1 },
         "editorial_verdict": { "$ref": "#/$defs/editorial_verdict" }
       },
       "additionalProperties": true
@@ -230,6 +287,14 @@
         "source_ids",
         "quality_checks",
         "reusable_context_summary",
+        "version_timeline_summary",
+        "claim_drift_summary",
+        "latest_version_label",
+        "current_verdict_id",
+        "changed_claim_ids",
+        "weakened_claim_ids",
+        "strengthened_claim_ids",
+        "unresolved_claim_ids",
         "stable_claim_ids",
         "stable_fact_ids",
         "stable_action_ids",
@@ -242,13 +307,21 @@
       ],
       "properties": {
         "packet_id": { "type": "string", "pattern": "^agent_packet_" },
-        "packet_version": { "const": "0.2" },
+        "packet_version": { "const": "0.3" },
         "record_type": { "const": "agent_packet" },
         "canonical_card_id": { "type": "string" },
         "task": { "type": "string" },
         "source_ids": { "type": "array", "items": { "type": "string" } },
         "quality_checks": { "type": "array", "items": { "type": "object" } },
         "reusable_context_summary": { "type": "string" },
+        "version_timeline_summary": { "type": "string" },
+        "claim_drift_summary": { "type": "string" },
+        "latest_version_label": { "type": "string" },
+        "current_verdict_id": { "type": "string", "pattern": "^verdict_" },
+        "changed_claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim_" } },
+        "weakened_claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim_" } },
+        "strengthened_claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim_" } },
+        "unresolved_claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim_" } },
         "stable_claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim_" } },
         "stable_fact_ids": { "type": "array", "items": { "type": "string", "pattern": "^fact_" } },
         "stable_action_ids": { "type": "array", "items": { "type": "string", "pattern": "^action_" } },

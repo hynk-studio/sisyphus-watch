@@ -31,10 +31,14 @@ WORKFLOW_STEPS = [
     "Interpretation generation",
     "Counter-branch generation",
     "Bias layer separation",
+    "Version timeline construction",
+    "Claim drift analysis",
     "Version diff",
     "Human card rendering",
     "Agent JSON export",
 ]
+
+DRIFT_DIRECTIONS = {"strengthened", "weakened", "narrowed", "corrected", "unresolved"}
 
 
 def find_project_root(start: Path | None = None) -> Path:
@@ -265,6 +269,8 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
         "counter_branches",
         "bias_notes",
         "version_diff",
+        "version_timeline",
+        "claim_drift",
         "editorial_verdict",
     ]
     errors: list[str] = []
@@ -280,6 +286,8 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
     interpretations = _as_list(news_card.get("interpretations"))
     counter_branches = _as_list(news_card.get("counter_branches"))
     bias_notes = _as_list(news_card.get("bias_notes"))
+    version_timeline = _as_list(news_card.get("version_timeline"))
+    claim_drift = _as_list(news_card.get("claim_drift"))
     source_ids = set(_as_list(news_card.get("source_ids")))
 
     fact_ids = _ids(facts, "fact_id")
@@ -300,6 +308,10 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
         errors.append("news_card must include at least 1 counter branch")
     if len(bias_notes) < 1:
         errors.append("news_card must include at least 1 bias note")
+    if len(version_timeline) < 2:
+        errors.append("news_card must include at least 2 version timeline entries")
+    if len(claim_drift) < 1:
+        errors.append("news_card must include at least 1 claim drift entry")
     if len(_as_list(news_card.get("summary_3_line"))) != 3:
         errors.append("summary_3_line must contain exactly 3 lines")
 
@@ -381,6 +393,69 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
             known_evidence_ids,
         )
 
+    required_version_fields = [
+        "version_id",
+        "version_label",
+        "date",
+        "trigger",
+        "summary",
+        "evidence_ids",
+        "judgment_at_version",
+        "confidence_at_version",
+        "open_questions",
+    ]
+    for index, version_event in enumerate(version_timeline):
+        if not isinstance(version_event, dict):
+            errors.append(f"version_timeline[{index}] must be an object")
+            continue
+        missing = [field for field in required_version_fields if field not in version_event]
+        if missing:
+            errors.append(f"version_timeline[{index}] missing fields: {missing}")
+        _require_prefix(errors, "version_event.version_id", version_event.get("version_id"), "version_")
+        _check_evidence_refs(
+            errors,
+            "version_event",
+            version_event.get("version_id"),
+            version_event.get("evidence_ids"),
+            known_evidence_ids,
+        )
+        if not isinstance(version_event.get("open_questions"), list):
+            errors.append(f"version_event {version_event.get('version_id')} open_questions must be a list")
+
+    required_drift_fields = [
+        "drift_id",
+        "target_claim_id",
+        "from_status",
+        "to_status",
+        "direction",
+        "driver_evidence_ids",
+        "drift_summary",
+        "current_handling",
+    ]
+    for index, drift in enumerate(claim_drift):
+        if not isinstance(drift, dict):
+            errors.append(f"claim_drift[{index}] must be an object")
+            continue
+        missing = [field for field in required_drift_fields if field not in drift]
+        if missing:
+            errors.append(f"claim_drift[{index}] missing fields: {missing}")
+        _require_prefix(errors, "claim_drift.drift_id", drift.get("drift_id"), "drift_")
+        target_claim_id = drift.get("target_claim_id")
+        if target_claim_id not in claim_ids:
+            errors.append(f"claim_drift {drift.get('drift_id')} targets unknown claim {target_claim_id}")
+        direction = drift.get("direction")
+        if direction not in DRIFT_DIRECTIONS:
+            errors.append(
+                f"claim_drift {drift.get('drift_id')} direction must be one of {sorted(DRIFT_DIRECTIONS)}"
+            )
+        _check_evidence_refs(
+            errors,
+            "claim_drift",
+            drift.get("drift_id"),
+            drift.get("driver_evidence_ids"),
+            known_evidence_ids,
+        )
+
     editorial_verdict = news_card.get("editorial_verdict", {})
     if not isinstance(editorial_verdict, dict):
         errors.append("editorial_verdict must be an object")
@@ -412,9 +487,23 @@ def run_negative_validation_self_test(news_card: dict[str, Any] | None = None) -
     if not diff_errors:
         raise AssertionError("Expected version_diff.new_evidence_ids validation to fail")
 
+    bad_timeline = deepcopy(card)
+    bad_timeline["version_timeline"][0]["evidence_ids"] = ["interp_not_allowed_as_evidence"]
+    timeline_errors = validate_news_card(bad_timeline)
+    if not timeline_errors:
+        raise AssertionError("Expected version_timeline.evidence_ids validation to fail")
+
+    bad_drift = deepcopy(card)
+    bad_drift["claim_drift"][0]["driver_evidence_ids"] = ["counter_not_allowed_as_evidence"]
+    drift_errors = validate_news_card(bad_drift)
+    if not drift_errors:
+        raise AssertionError("Expected claim_drift.driver_evidence_ids validation to fail")
+
     return {
         "counter_branch_unknown_evidence": counter_errors,
         "version_diff_unknown_evidence": diff_errors,
+        "version_timeline_unknown_evidence": timeline_errors,
+        "claim_drift_unknown_evidence": drift_errors,
     }
 
 
@@ -484,7 +573,7 @@ def _build_live_prompt(source_records: list[dict[str, Any]]) -> str:
         "Return JSON only with a top-level news_card object matching the Sisyphus Watch schema.\n\n"
         "Required news_card fields: card_id, card_type, title, version, summary_3_line, image_prompt, source_ids, "
         "source_hygiene_note, facts, actor_claims, actions, interpretations, counter_branches, bias_notes, "
-        "version_diff, editorial_verdict.\n\n"
+        "version_diff, version_timeline, claim_drift, editorial_verdict.\n\n"
         "Synthetic source records:\n"
         f"{json.dumps(source_records, indent=2, ensure_ascii=False)}"
     )
@@ -508,11 +597,49 @@ def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
     claims = news_card.get("actor_claims", [])
     actions = news_card.get("actions", [])
     version_diff = news_card.get("version_diff", {})
+    version_timeline = _as_list(news_card.get("version_timeline"))
+    claim_drift = _as_list(news_card.get("claim_drift"))
     verdict = news_card.get("editorial_verdict", {})
     counter_branches = news_card.get("counter_branches", [])
     interpretation = news_card.get("interpretations", [{}])[0] if news_card.get("interpretations") else {}
     uncertainties = list(version_diff.get("unchanged_uncertainties", []))
     warnings = list(verdict.get("reader_warnings", []))
+    latest_version_label = (
+        str(version_timeline[-1].get("version_label"))
+        if version_timeline and version_timeline[-1].get("version_label")
+        else str(version_diff.get("to_version", "current"))
+    )
+    changed_claim_ids = [
+        drift.get("target_claim_id") for drift in claim_drift if drift.get("target_claim_id")
+    ]
+    weakened_claim_ids = [
+        drift.get("target_claim_id")
+        for drift in claim_drift
+        if drift.get("direction") == "weakened" and drift.get("target_claim_id")
+    ]
+    strengthened_claim_ids = [
+        drift.get("target_claim_id")
+        for drift in claim_drift
+        if drift.get("direction") == "strengthened" and drift.get("target_claim_id")
+    ]
+    unresolved_claim_ids = [
+        drift.get("target_claim_id")
+        for drift in claim_drift
+        if drift.get("direction") == "unresolved" and drift.get("target_claim_id")
+    ]
+    version_timeline_summary = " -> ".join(
+        f"{event.get('version_label', 'version')}: {event.get('summary', '')}"
+        for event in version_timeline
+        if isinstance(event, dict)
+    )
+    claim_drift_summary = "; ".join(
+        (
+            f"{drift.get('target_claim_id', 'claim')}: {drift.get('direction', 'changed')} "
+            f"from {drift.get('from_status', 'unknown')} to {drift.get('to_status', 'unknown')}"
+        )
+        for drift in claim_drift
+        if isinstance(drift, dict)
+    )
     what_would_change = [
         counter.get("what_would_change_this")
         for counter in counter_branches
@@ -520,7 +647,7 @@ def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
     ]
     return {
         "packet_id": f"agent_packet_{news_card['card_id']}",
-        "packet_version": "0.2",
+        "packet_version": "0.3",
         "record_type": "agent_packet",
         "created_at": _now_iso(),
         "canonical_card_id": news_card["card_id"],
@@ -528,6 +655,14 @@ def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
         "source_ids": news_card.get("source_ids", []),
         "quality_checks": run_quality_checks(news_card),
         "reusable_context_summary": " ".join(news_card.get("summary_3_line", [])),
+        "version_timeline_summary": version_timeline_summary,
+        "claim_drift_summary": claim_drift_summary,
+        "latest_version_label": latest_version_label,
+        "current_verdict_id": verdict.get("verdict_id"),
+        "changed_claim_ids": changed_claim_ids,
+        "weakened_claim_ids": weakened_claim_ids,
+        "strengthened_claim_ids": strengthened_claim_ids,
+        "unresolved_claim_ids": unresolved_claim_ids,
         "stable_claim_ids": [claim.get("claim_id") for claim in claims if claim.get("claim_id")],
         "stable_fact_ids": [fact.get("fact_id") for fact in facts if fact.get("fact_id")],
         "stable_action_ids": [action.get("action_id") for action in actions if action.get("action_id")],
@@ -616,6 +751,8 @@ def run_quality_checks(news_card: dict[str, Any]) -> list[dict[str, str]]:
     counters = _as_list(news_card.get("counter_branches"))
     bias_notes = _as_list(news_card.get("bias_notes"))
     version_diff = news_card.get("version_diff")
+    version_timeline = _as_list(news_card.get("version_timeline"))
+    claim_drift = _as_list(news_card.get("claim_drift"))
     summary = _as_list(news_card.get("summary_3_line"))
     image_prompt = news_card.get("image_prompt", {})
 
@@ -654,6 +791,16 @@ def run_quality_checks(news_card: dict[str, Any]) -> list[dict[str, str]]:
             "Version diff exists",
             isinstance(version_diff, dict) and bool(version_diff.get("diff_id")),
             "diff_id present" if isinstance(version_diff, dict) else "missing",
+        ),
+        (
+            "Version timeline exists",
+            len(version_timeline) >= 2 and all(item.get("version_id") for item in version_timeline),
+            f"{len(version_timeline)} version events",
+        ),
+        (
+            "Claim drift exists",
+            len(claim_drift) >= 1 and all(item.get("drift_id") for item in claim_drift),
+            f"{len(claim_drift)} drift entries",
         ),
         (
             "3-line summary exists",
@@ -711,7 +858,7 @@ def render_intro_hero_html() -> str:
             </div>
             <div class="comparison-block strong">
               <span>Sisyphus Watch</span>
-              <p>Claim -> Observation -> Counter-branch -> Version Diff -> Agent JSON</p>
+              <p>Claim -> Timeline -> Drift -> Version Diff -> Agent JSON</p>
             </div>
           </div>
         </section>
@@ -848,6 +995,93 @@ def render_card_html(news_card: dict[str, Any]) -> str:
     )
 
 
+def render_version_timeline_html(news_card: dict[str, Any]) -> str:
+    """Render the card's public-claim version timeline."""
+    events = _as_list(news_card.get("version_timeline"))
+    rendered_events = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        evidence = " ".join(
+            f"<code>{escape(str(evidence_id))}</code>"
+            for evidence_id in _as_list(event.get("evidence_ids"))
+        )
+        open_questions = "".join(
+            f"<li>{escape(str(question))}</li>"
+            for question in _as_list(event.get("open_questions"))
+        )
+        rendered_events.append(
+            f"""
+            <article class="timeline-item">
+              <div class="timeline-topline">
+                <span class="version-pill">{escape(str(event.get('version_label', 'version')))}</span>
+                <span class="muted">{escape(str(event.get('date', '')))}</span>
+                <span class="mini">trigger: {escape(str(event.get('trigger', '')))}</span>
+              </div>
+              <p>{escape(str(event.get('summary', '')))}</p>
+              <p><strong>Judgment:</strong> {escape(str(event.get('judgment_at_version', '')))}</p>
+              <p class="muted">Confidence: {escape(str(event.get('confidence_at_version', '')))}</p>
+              <details class="id-details">
+                <summary>Evidence and open questions</summary>
+                <div class="evidence">{evidence}</div>
+                <ul>{open_questions}</ul>
+              </details>
+            </article>
+            """
+        )
+    return _wrap_html(
+        "version-timeline",
+        f"""
+        <h3>Version Timeline</h3>
+        <div class="timeline-list">{''.join(rendered_events)}</div>
+        """,
+    )
+
+
+def render_claim_drift_html(news_card: dict[str, Any]) -> str:
+    """Render claim drift entries that describe changed handling over time."""
+    claim_text_by_id = {
+        claim.get("claim_id"): claim.get("claim_text", "")
+        for claim in _as_list(news_card.get("actor_claims"))
+        if isinstance(claim, dict)
+    }
+    rendered_drifts = []
+    for drift in _as_list(news_card.get("claim_drift")):
+        if not isinstance(drift, dict):
+            continue
+        evidence = " ".join(
+            f"<code>{escape(str(evidence_id))}</code>"
+            for evidence_id in _as_list(drift.get("driver_evidence_ids"))
+        )
+        target_claim_id = str(drift.get("target_claim_id", ""))
+        target_text = claim_text_by_id.get(target_claim_id, "")
+        rendered_drifts.append(
+            f"""
+            <article class="drift-item">
+              <div class="timeline-topline">
+                <span class="direction-badge">{escape(str(drift.get('direction', 'changed')))}</span>
+                <code>{escape(target_claim_id)}</code>
+              </div>
+              <p>{escape(target_text)}</p>
+              <p><strong>Status:</strong> {escape(str(drift.get('from_status', '')))} -&gt; {escape(str(drift.get('to_status', '')))}</p>
+              <p>{escape(str(drift.get('drift_summary', '')))}</p>
+              <p class="muted"><strong>Current handling:</strong> {escape(str(drift.get('current_handling', '')))}</p>
+              <details class="id-details">
+                <summary>Driver evidence IDs</summary>
+                <div class="evidence">{evidence}</div>
+              </details>
+            </article>
+            """
+        )
+    return _wrap_html(
+        "claim-drift",
+        f"""
+        <h3>Claim Drift</h3>
+        <div class="drift-list">{''.join(rendered_drifts)}</div>
+        """,
+    )
+
+
 def render_branch_view_html(news_card: dict[str, Any]) -> str:
     interpretation = news_card["interpretations"][0]
     counter = news_card["counter_branches"][0]
@@ -961,7 +1195,7 @@ def _wrap_html(class_name: str, body: str) -> str:
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: #17211f;
       }}
-      .intro-hero, .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table, .evaluation-summary {{
+      .{class_name}, .intro-hero, .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table, .evaluation-summary {{
         border: 1px solid #d7e1dc;
         border-radius: 8px;
         background: #fbfcfa;
@@ -1058,6 +1292,22 @@ def _wrap_html(class_name: str, body: str) -> str:
         color: #29423d;
         background: #e8f0ec;
       }}
+      .version-pill, .direction-badge {{
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 12px;
+        font-weight: 800;
+      }}
+      .version-pill {{
+        color: #15312d;
+        background: #cfe5dc;
+      }}
+      .direction-badge {{
+        color: #17211f;
+        background: #f4d06f;
+      }}
       .warning-note {{
         border-left: 4px solid #c9972d;
         background: #fff7df;
@@ -1132,6 +1382,25 @@ def _wrap_html(class_name: str, body: str) -> str:
       }}
       .layer-item p {{
         margin: 6px 0 10px;
+      }}
+      .timeline-list, .drift-list {{
+        display: grid;
+        gap: 10px;
+      }}
+      .timeline-item, .drift-item {{
+        border: 1px solid #dce5e0;
+        border-radius: 8px;
+        background: white;
+        padding: 12px;
+      }}
+      .timeline-item p, .drift-item p {{
+        margin: 8px 0;
+      }}
+      .timeline-topline {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
       }}
       .diff, .verdict {{
         background: #f2f6f4;
