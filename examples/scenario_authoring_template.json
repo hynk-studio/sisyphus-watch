@@ -1,148 +1,237 @@
 {
   "scenario_id": "school_air_quality_alert_communication",
   "scenario_name": "School Air Quality Alert Communication",
-  "title": "School district air-quality alerts and classroom mitigation claims",
+  "title": "School Air Quality Alert: Safety Dashboard vs Classroom Reality",
   "public_interest_reason": "Families need clear, evidence-bound communication when public agencies claim that classrooms are safe during an air-quality alert.",
   "summary": [
-    "A fictional school district said classrooms were safe during a smoke-related air-quality alert.",
-    "Parent and teacher observations later challenged whether all classrooms had working filtration and timely notifications.",
-    "A follow-up district update acknowledged equipment gaps and promised room-level checks."
+    "The fictional district said classroom air-quality readings were within safe limits after a ventilation/filter issue.",
+    "Parent and teacher observations later reported stale air, late notices, inconsistent dashboard readings, and confusing temporary relocations in several rooms.",
+    "The district corrected the dashboard, identified rooms without current readings, deployed portable HEPA units, clarified thresholds, and explained sensor calibration and data-sync delays."
   ],
   "source_fixtures": [
     {
-      "source_id": "src_school_air_quality_initial_notice_2026_09_08",
-      "source_type": "district_notice",
+      "source_id": "src_school_air_quality_initial_notice_2026_06_16",
+      "source_type": "official_notice_fixture",
       "actor": "Fictional Unified School District",
-      "title": "District says schools remain open with air filtration active",
-      "draft_text": "The district announced that schools would remain open because central filtration was running and classroom air quality was being monitored."
+      "title": "District says classroom air-quality readings are within safe limits",
+      "draft_text": "Fictional Unified School District issued a morning notice after a ventilation filter fault and regional smoke alert. The notice said classroom air-quality readings were within safe limits across the district dashboard and that schools would remain open. It stated that central ventilation was running, filter checks had been completed overnight, and families would be notified if any room exceeded the district threshold. The notice did not list room-level readings, identify classrooms with missing current readings, or explain how quickly the dashboard refreshed after sensor calibration."
     },
     {
-      "source_id": "src_school_air_quality_parent_teacher_observations_2026_09_09",
-      "source_type": "community_observation",
-      "actor": "Parent and teacher observation group",
-      "title": "Families report inconsistent classroom air filtering and late alerts",
-      "draft_text": "Parents and teachers reported several classrooms with missing portable filters, delayed notification emails, and uncertainty about whether outdoor activities were cancelled."
+      "source_id": "src_parent_teacher_air_quality_observation_2026_06_17",
+      "source_type": "parent_teacher_observation_fixture",
+      "actor": "Fictional Parent Teacher Air Quality Working Group",
+      "title": "Parent and teacher observations report classroom-level air-quality gaps",
+      "draft_text": "A fictional parent and teacher working group reported that several rooms did not match the broad safe-dashboard message. Teachers described stale air in rooms B-104, C-212, and the temporary art room, and said portable filters had not arrived before first period. Parents said alert emails reached some families after drop-off, and teachers were uncertain whether hallway dashboard readings applied to interior classrooms. The group said temporary relocations were confusing because some classes moved rooms while the public dashboard still showed a green safe status for the school."
     },
     {
-      "source_id": "src_school_air_quality_followup_update_2026_09_10",
-      "source_type": "district_update",
+      "source_id": "src_school_air_quality_corrected_update_2026_06_18",
+      "source_type": "official_update_fixture",
       "actor": "Fictional Unified School District",
-      "title": "District follow-up says filters and room checks were added",
-      "draft_text": "The district issued a follow-up saying it had added portable filters to affected rooms, corrected notification lists, and started room-level checks."
+      "title": "District updates dashboard and identifies rooms without current readings",
+      "draft_text": "The district published a corrected air-quality update and dashboard note. It identified eight classrooms that had lacked current room-level readings during the prior morning, including rooms temporarily served by hallway sensors while classroom sensors were recalibrated. The district said it deployed portable HEPA units, relocated three classes for part of the day, clarified that green dashboard indicators applied only to rooms with current readings, and added a timestamp for sensor refreshes. Officials also said some earlier indicators lagged because calibration and data-sync delays made dashboard values update more slowly than room checks."
+    },
+    {
+      "source_id": "src_editorial_school_air_quality_transparency_note_2026_06_19",
+      "source_type": "editorial_note_fixture",
+      "actor": "Fictional School Safety Review Column",
+      "title": "Transparency note on safe dashboards and classroom reality",
+      "draft_text": "A fictional school safety column argued that the district's dashboard language gave families too little room-level context. The column wrote: A dashboard that says 'safe' while teachers prop doors open for air is not reassurance; it is a screensaver with authority. The piece also noted that calibration delays can be real operational problems and that the corrected update reduced the force of any claim that the district deliberately hid conditions. It urged readers to distinguish dashboard design failures, late family notifications, and sensor latency from direct evidence of intent."
     }
   ],
   "expected_facts": [
     {
-      "text": "The district said schools would remain open while filtration systems were running.",
-      "source_ids": ["src_school_air_quality_initial_notice_2026_09_08"]
+      "text": "The district notice said classroom air-quality readings were within safe limits across the district dashboard.",
+      "source_ids": [
+        "src_school_air_quality_initial_notice_2026_06_16"
+      ]
     },
     {
-      "text": "Parent and teacher observations described missing portable filters in some classrooms.",
-      "source_ids": ["src_school_air_quality_parent_teacher_observations_2026_09_09"]
+      "text": "The initial notice did not list room-level readings or identify classrooms that lacked current readings.",
+      "source_ids": [
+        "src_school_air_quality_initial_notice_2026_06_16"
+      ]
     },
     {
-      "text": "The district follow-up said portable filters and room-level checks were added.",
-      "source_ids": ["src_school_air_quality_followup_update_2026_09_10"]
+      "text": "Parent and teacher observations reported stale air and missing portable filters in several named rooms.",
+      "source_ids": [
+        "src_parent_teacher_air_quality_observation_2026_06_17"
+      ]
+    },
+    {
+      "text": "The observation report said some family alerts arrived after drop-off and temporary room relocations were confusing while the public dashboard still showed green status.",
+      "source_ids": [
+        "src_parent_teacher_air_quality_observation_2026_06_17"
+      ]
     }
   ],
   "expected_actor_claims": [
     {
       "actor": "Fictional Unified School District",
-      "claim_text": "Classrooms were safe for in-person school during the air-quality alert.",
-      "claim_type": "safety_assurance",
-      "source_ids": ["src_school_air_quality_initial_notice_2026_09_08"]
+      "claim_text": "Classroom air-quality readings were within safe limits and schools could remain open.",
+      "claim_type": "public_safety_assurance",
+      "source_ids": [
+        "src_school_air_quality_initial_notice_2026_06_16"
+      ]
     },
     {
-      "actor": "Parent and teacher observation group",
-      "claim_text": "Some classrooms lacked working filtration and families did not receive timely alerts.",
-      "claim_type": "community_challenge",
-      "source_ids": ["src_school_air_quality_parent_teacher_observations_2026_09_09"]
+      "actor": "Fictional Unified School District",
+      "claim_text": "Families would be notified if any room exceeded the district threshold.",
+      "claim_type": "notification_commitment",
+      "source_ids": [
+        "src_school_air_quality_initial_notice_2026_06_16"
+      ]
+    },
+    {
+      "actor": "Fictional Parent Teacher Air Quality Working Group",
+      "claim_text": "Several rooms had stale air, missing portable filters, late family notices, inconsistent dashboard readings, or confusing temporary relocations.",
+      "claim_type": "field_observation_challenge",
+      "source_ids": [
+        "src_parent_teacher_air_quality_observation_2026_06_17"
+      ]
     }
   ],
   "expected_actions": [
     {
       "actor": "Fictional Unified School District",
-      "action_text": "Added portable filters to affected rooms and corrected notification lists.",
-      "action_type": "public_safety_update",
-      "date": "2026-09-10",
-      "source_ids": ["src_school_air_quality_followup_update_2026_09_10"]
+      "action_text": "Published a corrected dashboard note that identified rooms without current readings and added sensor refresh timestamps.",
+      "action_type": "public_dashboard_correction",
+      "date": "2026-06-18",
+      "source_ids": [
+        "src_school_air_quality_corrected_update_2026_06_18"
+      ]
+    },
+    {
+      "actor": "Fictional Unified School District",
+      "action_text": "Deployed portable HEPA units to affected rooms.",
+      "action_type": "room_level_mitigation",
+      "date": "2026-06-18",
+      "source_ids": [
+        "src_school_air_quality_corrected_update_2026_06_18"
+      ]
+    },
+    {
+      "actor": "Fictional Unified School District",
+      "action_text": "Relocated three classes for part of the day and clarified that green dashboard indicators applied only to rooms with current readings.",
+      "action_type": "operations_and_guidance_update",
+      "date": "2026-06-18",
+      "source_ids": [
+        "src_school_air_quality_corrected_update_2026_06_18"
+      ]
     }
   ],
   "expected_interpretations": [
     {
-      "title": "Communication and implementation gap in school air-quality response",
-      "interpretation_text": "The initial safety assurance may have been too broad for room-level conditions until the district corrected equipment and notification gaps.",
+      "title": "Room-level air-quality communication and coverage gap",
+      "interpretation_text": "The broad safe-dashboard message was not reliable enough for room-level decision-making until the district identified missing current readings, clarified thresholds, and deployed mitigation.",
       "alternative_interpretations": [
-        "Some gaps may reflect fast-changing conditions rather than misleading communication."
+        "The initial dashboard may have been accurate for monitored rooms but incomplete for rooms without current readings.",
+        "Fast-changing indoor conditions and sensor calibration may explain part of the mismatch without proving concealment."
       ]
     }
   ],
   "expected_counter_branches": [
     {
-      "title": "Rapid smoke conditions and equipment logistics may explain part of the gap",
-      "counter_text": "The district follow-up suggests partial remediation and may indicate operational lag rather than intentional misrepresentation.",
-      "what_would_change_this": "Room-level air readings, filter deployment logs, and notification timestamps before and after the update."
+      "title": "Sensor calibration and data latency may explain part of the dashboard mismatch",
+      "counter_text": "The room-level gap may reflect calibration, data-sync delays, and fast-changing indoor conditions rather than deliberate concealment. The corrected dashboard, HEPA deployment, threshold clarification, and partial relocations indicate remediation.",
+      "what_would_change_this": "Room-level sensor histories, calibration logs, notification timestamps, and classroom relocation records before and after the corrected update."
     }
   ],
   "expected_bias_notes": [
     {
-      "bias_type": "risk_framing",
-      "note_text": "Community reports may use urgent safety language that should be separated from source-bound evidence.",
-      "source_ids": ["src_school_air_quality_parent_teacher_observations_2026_09_09"]
+      "bias_type": "metaphor_and_opinion",
+      "note_text": "A dashboard that says 'safe' while teachers prop doors open for air is not reassurance; it is a screensaver with authority.",
+      "source_ids": [
+        "src_editorial_school_air_quality_transparency_note_2026_06_19"
+      ]
     }
   ],
   "expected_version_timeline": [
     {
       "version_label": "v00",
-      "date": "2026-09-08",
+      "date": "2026-06-16",
       "trigger": "initial_public_claim",
-      "summary": "The district said classrooms were safe while filtration was active.",
-      "judgment_at_version": "Adequate on paper; room-level conditions unknown.",
-      "open_questions": ["Were all classrooms actually filtered and monitored?"]
+      "summary": "The district said classroom air-quality readings were within safe limits and schools could remain open.",
+      "judgment_at_version": "Adequate on dashboard terms; room-level coverage and alert timing unknown.",
+      "open_questions": [
+        "Did every occupied classroom have current room-level readings?",
+        "Were families notified before drop-off if thresholds changed?"
+      ]
     },
     {
       "version_label": "v01",
-      "date": "2026-09-10",
-      "trigger": "community_observation_and_district_update",
-      "summary": "Observations challenged the broad safety claim and the district added filters and room checks.",
-      "judgment_at_version": "Partially corrected implementation gap.",
-      "open_questions": ["Did remediation reach affected classrooms before exposure risk increased?"]
+      "date": "2026-06-17",
+      "trigger": "parent_teacher_observation",
+      "summary": "Parent and teacher observations challenged the broad safe-dashboard claim with room-level reports of stale air, missing filters, late alerts, and relocation confusion.",
+      "judgment_at_version": "The broad safety claim weakened for affected classrooms, but scale and sensor history remained uncertain.",
+      "open_questions": [
+        "How many rooms were affected and for how long?",
+        "Which dashboard readings were current versus stale?"
+      ]
+    },
+    {
+      "version_label": "v02",
+      "date": "2026-06-18",
+      "trigger": "district_correction_and_operational_update",
+      "summary": "The district identified rooms without current readings, deployed HEPA units, relocated classes, clarified thresholds, and explained calibration/data-sync lag.",
+      "judgment_at_version": "Partially corrected air-quality communication and coverage gap; deliberate concealment remains unproven.",
+      "open_questions": [
+        "Did the dashboard correction prevent future room-level ambiguity?",
+        "Did mitigation reach affected classrooms quickly enough?"
+      ]
     }
   ],
   "expected_claim_drift": [
     {
-      "from_status": "unverified_initial_safety_claim",
+      "from_status": "unverified_dashboard_safety_claim",
       "to_status": "partially_challenged_by_room_level_observations",
       "direction": "weakened",
-      "drift_summary": "The broad classroom safety claim weakened after room-level observations reported missing filtration.",
-      "current_handling": "Keep the district claim as an initial assurance, but mark it as partially challenged."
+      "drift_summary": "The broad classroom safety claim weakened after room-level observations and the corrected update identified rooms without current readings.",
+      "current_handling": "Keep the district safety claim as the initial public statement, but do not treat it as reliable for every classroom during the alert window."
+    },
+    {
+      "from_status": "broad_notification_commitment",
+      "to_status": "narrowed_by_late_alert_reports_and_dashboard_update",
+      "direction": "narrowed",
+      "drift_summary": "The notification commitment narrowed after reports of late family alerts and a district update clarifying dashboard thresholds and timestamps.",
+      "current_handling": "Treat the notification claim as a policy commitment that needs timestamp evidence before being accepted as timely implementation."
+    },
+    {
+      "from_status": "new_operational_explanation",
+      "to_status": "plausible_but_not_independently_verified",
+      "direction": "unresolved",
+      "drift_summary": "The sensor-lag explanation is plausible from the district update but lacks independent calibration logs or raw dashboard history.",
+      "current_handling": "Use the explanation as a counter-branch driver, not as final proof that the mismatch was purely technical."
     }
   ],
   "expected_version_diff": {
-    "from_version": "v00_initial_district_notice",
-    "to_version": "v01_after_observations_and_followup",
-    "previous_judgment": "The district claim sounded adequate, but classroom-level implementation was unknown.",
-    "updated_judgment": "Concern shifted to a partially corrected communication and implementation gap.",
+    "from_version": "v00_initial_dashboard_claim_only",
+    "to_version": "v01_after_room_observations_and_corrected_update",
+    "previous_judgment": "The district dashboard suggested classrooms were broadly safe, but room-level coverage and alert timing were unknown.",
+    "updated_judgment": "Concern shifted to a partially corrected air-quality communication and coverage gap after parent/teacher observations and the district's corrected dashboard update.",
     "confidence_delta": {
-      "implementation_gap_hypothesis": "low -> medium_high",
-      "intentional_misrepresentation_hypothesis": "low -> medium_low"
+      "room_level_coverage_gap_hypothesis": "low -> high",
+      "deliberate_concealment_hypothesis": "low -> medium_low",
+      "sensor_latency_explanation": "unknown -> medium_high",
+      "partial_remediation_hypothesis": "unknown -> high"
     },
     "unchanged_uncertainties": [
-      "Whether room-level air readings supported the district's safety assurance.",
-      "Whether families received alerts early enough to make decisions."
+      "Whether room-level sensor histories matched student and teacher experience during the alert window.",
+      "Whether family notifications arrived early enough for informed decisions.",
+      "Whether portable HEPA deployment and dashboard timestamping became durable practice."
     ]
   },
   "expected_editorial_verdict": {
-    "short_label": "School air-quality communication gap with partial remediation",
-    "verdict_text": "This draft should be treated as a school safety communication and implementation-gap scenario until room-level evidence is added.",
-    "confidence": "draft",
+    "short_label": "Air-quality communication gap with partial remediation",
+    "verdict_text": "This case is best treated as a school safety communication and implementation-gap case. The initial safe-dashboard claim was too broad for rooms without current readings, but the corrected dashboard, HEPA deployment, class relocations, and sensor-lag explanation weaken a simple concealment framing. Readers should inspect room-level readings, notification timing, and calibration records before accepting a stronger accusation.",
+    "confidence": "medium_high",
     "reader_warnings": [
-      "Draft authoring template, not a validated demo scenario.",
-      "No independent verification has been performed."
+      "Synthetic fixture, not real news.",
+      "No independent verification was performed.",
+      "Student exposure and intent remain uncertain."
     ]
   },
   "authoring_notes": [
-    "Promote this template only after all facts, claims, actions, and drift entries are evidence-bound.",
-    "Build a claim_graph only after stable IDs are assigned."
+    "This template was dogfooded into news_school_air_quality_alert_communication_2026_06_19_v01.",
+    "Promote future templates only after all source-bound facts, claims, actions, timeline events, drift entries, and claim_graph edges validate."
   ]
 }

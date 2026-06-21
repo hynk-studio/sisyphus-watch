@@ -1,7 +1,7 @@
 {
   "mode": "demo",
   "record_set_id": "record_set_sisyphus_watch_demo_scenarios_2026_06_15",
-  "generated_at": "2026-06-15T12:30:00Z",
+  "generated_at": "2026-06-19T12:30:00Z",
   "source_records_path": "data/demo_sources.json",
   "news_card": {
     "card_id": "news_city_heatwave_cooling_centers_2026_06_15_v01",
@@ -1087,7 +1087,8 @@
   "default_scenario_id": "city_heatwave_cooling_centers",
   "scenario_ids": [
     "city_heatwave_cooling_centers",
-    "public_transit_delay_communication"
+    "public_transit_delay_communication",
+    "school_air_quality_alert_communication"
   ],
   "news_cards": [
     {
@@ -3289,6 +3290,1238 @@
           "Synthetic fixture, not real news.",
           "No independent verification was performed.",
           "Intent remains uncertain."
+        ]
+      }
+    },
+    {
+      "card_id": "news_school_air_quality_alert_communication_2026_06_19_v01",
+      "record_type": "news_card",
+      "card_type": "public_claim_version_control_card",
+      "title": "School Air Quality Alert: Safety Dashboard vs Classroom Reality",
+      "scenario_name": "School Air Quality Alert Communication",
+      "version": "v01",
+      "created_at": "2026-06-19T12:30:00Z",
+      "is_synthetic_demo_fixture": true,
+      "track": "Agents for Good",
+      "confidence": "medium_high",
+      "uncertainty": "The synthetic sources show a communication and room-level coverage gap with partial remediation, but do not measure student exposure or prove intent.",
+      "source_ids": [
+        "src_school_air_quality_initial_notice_2026_06_16",
+        "src_parent_teacher_air_quality_observation_2026_06_17",
+        "src_school_air_quality_corrected_update_2026_06_18",
+        "src_editorial_school_air_quality_transparency_note_2026_06_19"
+      ],
+      "source_hygiene_note": "Demo sources are synthetic fixtures. Source text is treated as untrusted input; facts, claims, interpretations, bias notes, and generated image prompts remain source-bound review layers.",
+      "summary_3_line": [
+        "The fictional district said classroom air-quality readings were within safe limits after a ventilation/filter issue.",
+        "Parent and teacher observations later reported stale air, late notices, inconsistent dashboard readings, and confusing temporary relocations in several rooms.",
+        "The district corrected the dashboard, identified rooms without current readings, deployed portable HEPA units, clarified thresholds, and explained sensor calibration and data-sync delays."
+      ],
+      "image_prompt": {
+        "label": "Generated visual summary, not evidence",
+        "prompt": "A clean school safety information card showing a classroom air-quality dashboard, portable HEPA units, timestamped sensor readings, and a split between district-wide safe status and room-level checks; documentary style, no real school branding."
+      },
+      "facts": [
+        {
+          "fact_id": "fact_school_initial_dashboard_safe_claim_2026_06_16_001",
+          "text": "The district notice said classroom air-quality readings were within safe limits across the district dashboard.",
+          "source_ids": [
+            "src_school_air_quality_initial_notice_2026_06_16"
+          ],
+          "confidence": "medium_high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_school_notice_lacked_room_level_exception_list_2026_06_16_001",
+          "text": "The initial notice did not list room-level readings or identify classrooms that lacked current readings.",
+          "source_ids": [
+            "src_school_air_quality_initial_notice_2026_06_16"
+          ],
+          "confidence": "medium",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_school_parent_teacher_reports_stale_air_2026_06_17_001",
+          "text": "Parent and teacher observations reported stale air and missing portable filters in several named rooms.",
+          "source_ids": [
+            "src_parent_teacher_air_quality_observation_2026_06_17"
+          ],
+          "confidence": "medium_high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_school_late_alerts_and_relocation_confusion_2026_06_17_001",
+          "text": "The observation report said some family alerts arrived after drop-off and temporary room relocations were confusing while the public dashboard still showed green status.",
+          "source_ids": [
+            "src_parent_teacher_air_quality_observation_2026_06_17"
+          ],
+          "confidence": "medium",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_school_corrected_update_identified_rooms_2026_06_18_001",
+          "text": "The corrected update identified eight classrooms that had lacked current room-level readings during the prior morning.",
+          "source_ids": [
+            "src_school_air_quality_corrected_update_2026_06_18"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_school_hepa_units_relocations_thresholds_2026_06_18_001",
+          "text": "The district said it deployed portable HEPA units, relocated three classes for part of the day, clarified thresholds, and added timestamps for sensor refreshes.",
+          "source_ids": [
+            "src_school_air_quality_corrected_update_2026_06_18"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+          "text": "The corrected update said some earlier indicators lagged because calibration and data-sync delays slowed dashboard updates.",
+          "source_ids": [
+            "src_school_air_quality_corrected_update_2026_06_18"
+          ],
+          "confidence": "medium_high",
+          "source_bound": true
+        }
+      ],
+      "actor_claims": [
+        {
+          "claim_id": "claim_school_classrooms_safe_2026_06_16_001",
+          "actor": "Fictional Unified School District",
+          "claim_text": "Classroom air-quality readings were within safe limits and schools could remain open.",
+          "source_ids": [
+            "src_school_air_quality_initial_notice_2026_06_16"
+          ],
+          "claim_type": "public_safety_assurance",
+          "status": "partially_challenged_by_room_level_observations"
+        },
+        {
+          "claim_id": "claim_school_family_notifications_if_threshold_exceeded_2026_06_16_001",
+          "actor": "Fictional Unified School District",
+          "claim_text": "Families would be notified if any room exceeded the district threshold.",
+          "source_ids": [
+            "src_school_air_quality_initial_notice_2026_06_16"
+          ],
+          "claim_type": "notification_commitment",
+          "status": "narrowed_by_late_alert_reports_and_dashboard_update"
+        },
+        {
+          "claim_id": "claim_parent_teacher_room_level_gap_2026_06_17_001",
+          "actor": "Fictional Parent Teacher Air Quality Working Group",
+          "claim_text": "Several rooms had stale air, missing portable filters, late family notices, inconsistent dashboard readings, or confusing temporary relocations.",
+          "source_ids": [
+            "src_parent_teacher_air_quality_observation_2026_06_17"
+          ],
+          "claim_type": "field_observation_challenge",
+          "status": "partially_supported_by_district_correction"
+        },
+        {
+          "claim_id": "claim_school_sensor_lag_explained_2026_06_18_001",
+          "actor": "Fictional Unified School District",
+          "claim_text": "Some earlier dashboard indicators lagged because of sensor calibration and data-sync delays.",
+          "source_ids": [
+            "src_school_air_quality_corrected_update_2026_06_18"
+          ],
+          "claim_type": "operational_explanation",
+          "status": "plausible_but_not_independently_verified"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "action_school_updates_air_quality_dashboard_2026_06_18_001",
+          "actor": "Fictional Unified School District",
+          "action_text": "Published a corrected dashboard note that identified rooms without current readings and added sensor refresh timestamps.",
+          "source_ids": [
+            "src_school_air_quality_corrected_update_2026_06_18"
+          ],
+          "action_type": "public_dashboard_correction",
+          "date": "2026-06-18"
+        },
+        {
+          "action_id": "action_school_deploys_hepa_units_2026_06_18_001",
+          "actor": "Fictional Unified School District",
+          "action_text": "Deployed portable HEPA units to affected rooms.",
+          "source_ids": [
+            "src_school_air_quality_corrected_update_2026_06_18"
+          ],
+          "action_type": "room_level_mitigation",
+          "date": "2026-06-18"
+        },
+        {
+          "action_id": "action_school_relocates_classes_clarifies_thresholds_2026_06_18_001",
+          "actor": "Fictional Unified School District",
+          "action_text": "Relocated three classes for part of the day and clarified that green dashboard indicators applied only to rooms with current readings.",
+          "source_ids": [
+            "src_school_air_quality_corrected_update_2026_06_18"
+          ],
+          "action_type": "operations_and_guidance_update",
+          "date": "2026-06-18"
+        }
+      ],
+      "interpretations": [
+        {
+          "interpretation_id": "interp_school_air_quality_communication_gap_2026_06_19_001",
+          "title": "Room-level air-quality communication and coverage gap",
+          "interpretation_text": "The broad safe-dashboard message was not reliable enough for room-level decision-making until the district identified missing current readings, clarified thresholds, and deployed mitigation.",
+          "evidence_ids": [
+            "fact_school_notice_lacked_room_level_exception_list_2026_06_16_001",
+            "claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "fact_school_corrected_update_identified_rooms_2026_06_18_001",
+            "action_school_updates_air_quality_dashboard_2026_06_18_001",
+            "action_school_deploys_hepa_units_2026_06_18_001"
+          ],
+          "alternative_interpretations": [
+            "The initial dashboard may have been accurate for monitored rooms but incomplete for rooms without current readings.",
+            "Fast-changing indoor conditions and sensor calibration may explain part of the mismatch without proving concealment."
+          ],
+          "risk_notes": [
+            "Do not infer student exposure or intent without room-level air readings and notification timestamps.",
+            "Separate parent/teacher observations from district-wide measurement claims."
+          ],
+          "confidence": "high"
+        }
+      ],
+      "counter_branches": [
+        {
+          "counter_branch_id": "counter_school_sensor_calibration_data_lag_2026_06_19_001",
+          "title": "Sensor calibration and data latency may explain part of the dashboard mismatch",
+          "counter_text": "The room-level gap may reflect calibration, data-sync delays, and fast-changing indoor conditions rather than deliberate concealment. The corrected dashboard, HEPA deployment, threshold clarification, and partial relocations indicate remediation.",
+          "target_id": "interp_school_air_quality_communication_gap_2026_06_19_001",
+          "target_type": "interpretation",
+          "evidence_ids": [
+            "fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+            "claim_school_sensor_lag_explained_2026_06_18_001",
+            "action_school_updates_air_quality_dashboard_2026_06_18_001",
+            "action_school_relocates_classes_clarifies_thresholds_2026_06_18_001"
+          ],
+          "confidence": "medium_high",
+          "what_would_change_this": "Room-level sensor histories, calibration logs, notification timestamps, and classroom relocation records before and after the corrected update."
+        }
+      ],
+      "bias_notes": [
+        {
+          "bias_note_id": "bias_school_dashboard_screensaver_metaphor_2026_06_19_001",
+          "source_id": "src_editorial_school_air_quality_transparency_note_2026_06_19",
+          "bias_type": "metaphor_and_opinion",
+          "note_text": "A dashboard that says 'safe' while teachers prop doors open for air is not reassurance; it is a screensaver with authority.",
+          "why_labeled": "This is a metaphorical editorial judgment about dashboard credibility, not direct evidence of room-level air quality or intent.",
+          "evidence_value": "review_only"
+        }
+      ],
+      "version_diff": {
+        "diff_id": "diff_school_air_quality_v00_to_v01_2026_06_19",
+        "from_version": "v00_initial_dashboard_claim_only",
+        "to_version": "v01_after_room_observations_and_corrected_update",
+        "previous_judgment": "The district dashboard suggested classrooms were broadly safe, but room-level coverage and alert timing were unknown.",
+        "updated_judgment": "Concern shifted to a partially corrected air-quality communication and coverage gap after parent/teacher observations and the district's corrected dashboard update.",
+        "new_evidence_ids": [
+          "claim_parent_teacher_room_level_gap_2026_06_17_001",
+          "fact_school_corrected_update_identified_rooms_2026_06_18_001",
+          "fact_school_hepa_units_relocations_thresholds_2026_06_18_001",
+          "fact_school_sensor_lag_calibration_sync_2026_06_18_001"
+        ],
+        "confidence_delta": {
+          "room_level_coverage_gap_hypothesis": "low -> high",
+          "deliberate_concealment_hypothesis": "low -> medium_low",
+          "sensor_latency_explanation": "unknown -> medium_high",
+          "partial_remediation_hypothesis": "unknown -> high"
+        },
+        "unchanged_uncertainties": [
+          "Whether room-level sensor histories matched student and teacher experience during the alert window.",
+          "Whether family notifications arrived early enough for informed decisions.",
+          "Whether portable HEPA deployment and dashboard timestamping became durable practice."
+        ]
+      },
+      "version_timeline": [
+        {
+          "version_id": "version_school_air_quality_v00_initial_dashboard_claim_2026_06_16",
+          "version_label": "v00",
+          "date": "2026-06-16",
+          "trigger": "initial_public_claim",
+          "summary": "The district said classroom air-quality readings were within safe limits and schools could remain open.",
+          "evidence_ids": [
+            "claim_school_classrooms_safe_2026_06_16_001"
+          ],
+          "judgment_at_version": "Adequate on dashboard terms; room-level coverage and alert timing unknown.",
+          "confidence_at_version": "low",
+          "open_questions": [
+            "Did every occupied classroom have current room-level readings?",
+            "Were families notified before drop-off if thresholds changed?"
+          ]
+        },
+        {
+          "version_id": "version_school_air_quality_v01_room_level_observations_2026_06_17",
+          "version_label": "v01",
+          "date": "2026-06-17",
+          "trigger": "parent_teacher_observation",
+          "summary": "Parent and teacher observations challenged the broad safe-dashboard claim with room-level reports of stale air, missing filters, late alerts, and relocation confusion.",
+          "evidence_ids": [
+            "claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "fact_school_late_alerts_and_relocation_confusion_2026_06_17_001"
+          ],
+          "judgment_at_version": "The broad safety claim weakened for affected classrooms, but scale and sensor history remained uncertain.",
+          "confidence_at_version": "medium",
+          "open_questions": [
+            "How many rooms were affected and for how long?",
+            "Which dashboard readings were current versus stale?"
+          ]
+        },
+        {
+          "version_id": "version_school_air_quality_v02_corrected_dashboard_update_2026_06_18",
+          "version_label": "v02",
+          "date": "2026-06-18",
+          "trigger": "district_correction_and_operational_update",
+          "summary": "The district identified rooms without current readings, deployed HEPA units, relocated classes, clarified thresholds, and explained calibration/data-sync lag.",
+          "evidence_ids": [
+            "fact_school_corrected_update_identified_rooms_2026_06_18_001",
+            "action_school_deploys_hepa_units_2026_06_18_001",
+            "claim_school_sensor_lag_explained_2026_06_18_001"
+          ],
+          "judgment_at_version": "Partially corrected air-quality communication and coverage gap; deliberate concealment remains unproven.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "Did the dashboard correction prevent future room-level ambiguity?",
+            "Did mitigation reach affected classrooms quickly enough?"
+          ]
+        }
+      ],
+      "claim_drift": [
+        {
+          "drift_id": "drift_school_safe_classrooms_to_partially_challenged_2026_06_19",
+          "target_claim_id": "claim_school_classrooms_safe_2026_06_16_001",
+          "from_status": "unverified_dashboard_safety_claim",
+          "to_status": "partially_challenged_by_room_level_observations",
+          "direction": "weakened",
+          "driver_evidence_ids": [
+            "claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "fact_school_corrected_update_identified_rooms_2026_06_18_001"
+          ],
+          "drift_summary": "The broad classroom safety claim weakened after room-level observations and the corrected update identified rooms without current readings.",
+          "current_handling": "Keep the district safety claim as the initial public statement, but do not treat it as reliable for every classroom during the alert window."
+        },
+        {
+          "drift_id": "drift_school_threshold_notifications_to_narrowed_2026_06_19",
+          "target_claim_id": "claim_school_family_notifications_if_threshold_exceeded_2026_06_16_001",
+          "from_status": "broad_notification_commitment",
+          "to_status": "narrowed_by_late_alert_reports_and_dashboard_update",
+          "direction": "narrowed",
+          "driver_evidence_ids": [
+            "fact_school_late_alerts_and_relocation_confusion_2026_06_17_001",
+            "action_school_updates_air_quality_dashboard_2026_06_18_001"
+          ],
+          "drift_summary": "The notification commitment narrowed after reports of late family alerts and a district update clarifying dashboard thresholds and timestamps.",
+          "current_handling": "Treat the notification claim as a policy commitment that needs timestamp evidence before being accepted as timely implementation."
+        },
+        {
+          "drift_id": "drift_school_sensor_lag_explanation_to_plausible_2026_06_19",
+          "target_claim_id": "claim_school_sensor_lag_explained_2026_06_18_001",
+          "from_status": "new_operational_explanation",
+          "to_status": "plausible_but_not_independently_verified",
+          "direction": "unresolved",
+          "driver_evidence_ids": [
+            "fact_school_sensor_lag_calibration_sync_2026_06_18_001"
+          ],
+          "drift_summary": "The sensor-lag explanation is plausible from the district update but lacks independent calibration logs or raw dashboard history.",
+          "current_handling": "Use the explanation as a counter-branch driver, not as final proof that the mismatch was purely technical."
+        }
+      ],
+      "editorial_verdict": {
+        "verdict_id": "verdict_school_air_quality_alert_communication_2026_06_19_v01",
+        "short_label": "Air-quality communication gap with partial remediation",
+        "verdict_text": "This case is best treated as a school safety communication and implementation-gap case. The initial safe-dashboard claim was too broad for rooms without current readings, but the corrected dashboard, HEPA deployment, class relocations, and sensor-lag explanation weaken a simple concealment framing. Readers should inspect room-level readings, notification timing, and calibration records before accepting a stronger accusation.",
+        "confidence": "medium_high",
+        "reader_warnings": [
+          "Synthetic fixture, not real news.",
+          "No independent verification was performed.",
+          "Student exposure and intent remain uncertain."
+        ]
+      },
+      "scenario_id": "school_air_quality_alert_communication",
+      "claim_graph": {
+        "graph_id": "graph_school_air_quality_alert_communication_2026_06_19_v01",
+        "nodes": [
+          {
+            "node_id": "node_src_school_air_quality_initial_notice_2026_06_16",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_school_air_quality_initial_notice_2026_06_16",
+            "summary": "src_school_air_quality_initial_notice_2026_06_16",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_parent_teacher_air_quality_observation_2026_06_17",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_parent_teacher_air_quality_observation_2026_06_17",
+            "summary": "src_parent_teacher_air_quality_observation_2026_06_17",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_school_air_quality_corrected_update_2026_06_18",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_school_air_quality_corrected_update_2026_06_18",
+            "summary": "src_school_air_quality_corrected_update_2026_06_18",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_editorial_school_air_quality_transparency_note_2026_06_19",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_editorial_school_air_quality_transparency_note_2026_06_19",
+            "summary": "src_editorial_school_air_quality_transparency_note_2026_06_19",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_school_initial_dashboard_safe_claim_2026_06_16_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_school_initial_dashboard_safe_claim_2026_06_16_001",
+            "summary": "The district notice said classroom air-quality readings were within safe limits across the district dashboard.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_school_notice_lacked_room_level_exception_list_2026_06_16_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_school_notice_lacked_room_level_exception_list_2026_06_16_001",
+            "summary": "The initial notice did not list room-level readings or identify classrooms that lacked current readings.",
+            "confidence": "medium",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_school_parent_teacher_reports_stale_air_2026_06_17_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_school_parent_teacher_reports_stale_air_2026_06_17_001",
+            "summary": "Parent and teacher observations reported stale air and missing portable filters in several named rooms.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_school_late_alerts_and_relocation_confusion_2026_06_17_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_school_late_alerts_and_relocation_confusion_2026_06_17_001",
+            "summary": "The observation report said some family alerts arrived after drop-off and temporary room relocations were confusing while the public dashboard still showed green status.",
+            "confidence": "medium",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_school_corrected_update_identified_rooms_2026_06_18_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_school_corrected_update_identified_rooms_2026_06_18_001",
+            "summary": "The corrected update identified eight classrooms that had lacked current room-level readings during the prior morning.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_school_hepa_units_relocations_thresholds_2026_06_18_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_school_hepa_units_relocations_thresholds_2026_06_18_001",
+            "summary": "The district said it deployed portable HEPA units, relocated three classes for part of the day, clarified thresholds, and added timestamps for sensor refreshes.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+            "summary": "The corrected update said some earlier indicators lagged because calibration and data-sync delays slowed dashboard updates.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_school_classrooms_safe_2026_06_16_001",
+            "node_type": "actor_claim",
+            "label": "Fictional Unified School District",
+            "ref_id": "claim_school_classrooms_safe_2026_06_16_001",
+            "summary": "Classroom air-quality readings were within safe limits and schools could remain open.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_school_family_notifications_if_threshold_exceeded_2026_06_16_001",
+            "node_type": "actor_claim",
+            "label": "Fictional Unified School District",
+            "ref_id": "claim_school_family_notifications_if_threshold_exceeded_2026_06_16_001",
+            "summary": "Families would be notified if any room exceeded the district threshold.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "node_type": "actor_claim",
+            "label": "Fictional Parent Teacher Air Quality Working Group",
+            "ref_id": "claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "summary": "Several rooms had stale air, missing portable filters, late family notices, inconsistent dashboard readings, or confusing temporary relocations.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_school_sensor_lag_explained_2026_06_18_001",
+            "node_type": "actor_claim",
+            "label": "Fictional Unified School District",
+            "ref_id": "claim_school_sensor_lag_explained_2026_06_18_001",
+            "summary": "Some earlier dashboard indicators lagged because of sensor calibration and data-sync delays.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_school_updates_air_quality_dashboard_2026_06_18_001",
+            "node_type": "action",
+            "label": "public_dashboard_correction",
+            "ref_id": "action_school_updates_air_quality_dashboard_2026_06_18_001",
+            "summary": "Published a corrected dashboard note that identified rooms without current readings and added sensor refresh timestamps.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_school_deploys_hepa_units_2026_06_18_001",
+            "node_type": "action",
+            "label": "room_level_mitigation",
+            "ref_id": "action_school_deploys_hepa_units_2026_06_18_001",
+            "summary": "Deployed portable HEPA units to affected rooms.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_school_relocates_classes_clarifies_thresholds_2026_06_18_001",
+            "node_type": "action",
+            "label": "operations_and_guidance_update",
+            "ref_id": "action_school_relocates_classes_clarifies_thresholds_2026_06_18_001",
+            "summary": "Relocated three classes for part of the day and clarified that green dashboard indicators applied only to rooms with current readings.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+            "node_type": "interpretation",
+            "label": "Room-level air-quality communication and coverage gap",
+            "ref_id": "interp_school_air_quality_communication_gap_2026_06_19_001",
+            "summary": "The broad safe-dashboard message was not reliable enough for room-level decision-making until the district identified missing current readings, clarified thresholds, and deployed mitigation.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_counter_school_sensor_calibration_data_lag_2026_06_19_001",
+            "node_type": "counter_branch",
+            "label": "Sensor calibration and data latency may explain part of the dashboard mismatch",
+            "ref_id": "counter_school_sensor_calibration_data_lag_2026_06_19_001",
+            "summary": "The room-level gap may reflect calibration, data-sync delays, and fast-changing indoor conditions rather than deliberate concealment. The corrected dashboard, HEPA deployment, threshold clarification, and partial relocations indicate remediation.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_bias_school_dashboard_screensaver_metaphor_2026_06_19_001",
+            "node_type": "bias_note",
+            "label": "metaphor_and_opinion",
+            "ref_id": "bias_school_dashboard_screensaver_metaphor_2026_06_19_001",
+            "summary": "A dashboard that says 'safe' while teachers prop doors open for air is not reassurance; it is a screensaver with authority.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_school_air_quality_v00_initial_dashboard_claim_2026_06_16",
+            "node_type": "version_event",
+            "label": "v00",
+            "ref_id": "version_school_air_quality_v00_initial_dashboard_claim_2026_06_16",
+            "summary": "The district said classroom air-quality readings were within safe limits and schools could remain open.",
+            "confidence": "low",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_school_air_quality_v01_room_level_observations_2026_06_17",
+            "node_type": "version_event",
+            "label": "v01",
+            "ref_id": "version_school_air_quality_v01_room_level_observations_2026_06_17",
+            "summary": "Parent and teacher observations challenged the broad safe-dashboard claim with room-level reports of stale air, missing filters, late alerts, and relocation confusion.",
+            "confidence": "medium",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_school_air_quality_v02_corrected_dashboard_update_2026_06_18",
+            "node_type": "version_event",
+            "label": "v02",
+            "ref_id": "version_school_air_quality_v02_corrected_dashboard_update_2026_06_18",
+            "summary": "The district identified rooms without current readings, deployed HEPA units, relocated classes, clarified thresholds, and explained calibration/data-sync lag.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_school_safe_classrooms_to_partially_challenged_2026_06_19",
+            "node_type": "claim_drift",
+            "label": "weakened",
+            "ref_id": "drift_school_safe_classrooms_to_partially_challenged_2026_06_19",
+            "summary": "The broad classroom safety claim weakened after room-level observations and the corrected update identified rooms without current readings.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_school_threshold_notifications_to_narrowed_2026_06_19",
+            "node_type": "claim_drift",
+            "label": "narrowed",
+            "ref_id": "drift_school_threshold_notifications_to_narrowed_2026_06_19",
+            "summary": "The notification commitment narrowed after reports of late family alerts and a district update clarifying dashboard thresholds and timestamps.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_school_sensor_lag_explanation_to_plausible_2026_06_19",
+            "node_type": "claim_drift",
+            "label": "unresolved",
+            "ref_id": "drift_school_sensor_lag_explanation_to_plausible_2026_06_19",
+            "summary": "The sensor-lag explanation is plausible from the district update but lacks independent calibration logs or raw dashboard history.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+            "node_type": "version_diff",
+            "label": "v01_after_room_observations_and_corrected_update",
+            "ref_id": "diff_school_air_quality_v00_to_v01_2026_06_19",
+            "summary": "Concern shifted to a partially corrected air-quality communication and coverage gap after parent/teacher observations and the district's corrected dashboard update.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "node_type": "verdict",
+            "label": "Air-quality communication gap with partial remediation",
+            "ref_id": "verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "summary": "This case is best treated as a school safety communication and implementation-gap case. The initial safe-dashboard claim was too broad for rooms without current readings, but the corrected dashboard, HEPA deployment, class relocations, and sensor-lag explanation weaken a simple concealment framing. Readers should inspect room-level readings, notification timing, and calibration records before accepting a stronger accusation.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_school_air_quality_alert_communication_01",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 1",
+            "ref_id": "unresolved_school_air_quality_alert_communication_01",
+            "summary": "Whether room-level sensor histories matched student and teacher experience during the alert window.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_school_air_quality_alert_communication_02",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 2",
+            "ref_id": "unresolved_school_air_quality_alert_communication_02",
+            "summary": "Whether family notifications arrived early enough for informed decisions.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_school_air_quality_alert_communication_03",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 3",
+            "ref_id": "unresolved_school_air_quality_alert_communication_03",
+            "summary": "Whether portable HEPA deployment and dashboard timestamping became durable practice.",
+            "source_bound": true
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_001_source_supports_fact",
+            "source_node_id": "node_src_school_air_quality_initial_notice_2026_06_16",
+            "target_node_id": "node_fact_school_initial_dashboard_safe_claim_2026_06_16_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_school_initial_dashboard_safe_claim_2026_06_16_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_002_source_supports_fact",
+            "source_node_id": "node_src_school_air_quality_initial_notice_2026_06_16",
+            "target_node_id": "node_fact_school_notice_lacked_room_level_exception_list_2026_06_16_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_school_notice_lacked_room_level_exception_list_2026_06_16_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_003_source_supports_fact",
+            "source_node_id": "node_src_parent_teacher_air_quality_observation_2026_06_17",
+            "target_node_id": "node_fact_school_parent_teacher_reports_stale_air_2026_06_17_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_school_parent_teacher_reports_stale_air_2026_06_17_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_004_source_supports_fact",
+            "source_node_id": "node_src_parent_teacher_air_quality_observation_2026_06_17",
+            "target_node_id": "node_fact_school_late_alerts_and_relocation_confusion_2026_06_17_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_school_late_alerts_and_relocation_confusion_2026_06_17_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_005_source_supports_fact",
+            "source_node_id": "node_src_school_air_quality_corrected_update_2026_06_18",
+            "target_node_id": "node_fact_school_corrected_update_identified_rooms_2026_06_18_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_school_corrected_update_identified_rooms_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_006_source_supports_fact",
+            "source_node_id": "node_src_school_air_quality_corrected_update_2026_06_18",
+            "target_node_id": "node_fact_school_hepa_units_relocations_thresholds_2026_06_18_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_school_hepa_units_relocations_thresholds_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_007_source_supports_fact",
+            "source_node_id": "node_src_school_air_quality_corrected_update_2026_06_18",
+            "target_node_id": "node_fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_school_sensor_lag_calibration_sync_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_008_source_contains_claim",
+            "source_node_id": "node_src_school_air_quality_initial_notice_2026_06_16",
+            "target_node_id": "node_claim_school_classrooms_safe_2026_06_16_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_school_classrooms_safe_2026_06_16_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_009_source_contains_claim",
+            "source_node_id": "node_src_school_air_quality_initial_notice_2026_06_16",
+            "target_node_id": "node_claim_school_family_notifications_if_threshold_exceeded_2026_06_16_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_school_family_notifications_if_threshold_exceeded_2026_06_16_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_010_source_contains_claim",
+            "source_node_id": "node_src_parent_teacher_air_quality_observation_2026_06_17",
+            "target_node_id": "node_claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_parent_teacher_room_level_gap_2026_06_17_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_011_source_contains_claim",
+            "source_node_id": "node_src_school_air_quality_corrected_update_2026_06_18",
+            "target_node_id": "node_claim_school_sensor_lag_explained_2026_06_18_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_school_sensor_lag_explained_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_012_source_describes_action",
+            "source_node_id": "node_src_school_air_quality_corrected_update_2026_06_18",
+            "target_node_id": "node_action_school_updates_air_quality_dashboard_2026_06_18_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_school_updates_air_quality_dashboard_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_013_source_describes_action",
+            "source_node_id": "node_src_school_air_quality_corrected_update_2026_06_18",
+            "target_node_id": "node_action_school_deploys_hepa_units_2026_06_18_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_school_deploys_hepa_units_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_014_source_describes_action",
+            "source_node_id": "node_src_school_air_quality_corrected_update_2026_06_18",
+            "target_node_id": "node_action_school_relocates_classes_clarifies_thresholds_2026_06_18_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_school_relocates_classes_clarifies_thresholds_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_015_source_contains_bias_note",
+            "source_node_id": "node_src_editorial_school_air_quality_transparency_note_2026_06_19",
+            "target_node_id": "node_bias_school_dashboard_screensaver_metaphor_2026_06_19_001",
+            "edge_type": "source_contains_bias_note",
+            "label": "source contains labeled bias note"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_016_fact_supports_interpretation",
+            "source_node_id": "node_fact_school_notice_lacked_room_level_exception_list_2026_06_16_001",
+            "target_node_id": "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_school_notice_lacked_room_level_exception_list_2026_06_16_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_017_claim_supports_interpretation",
+            "source_node_id": "node_claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "target_node_id": "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+            "edge_type": "claim_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "claim_parent_teacher_room_level_gap_2026_06_17_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_018_fact_supports_interpretation",
+            "source_node_id": "node_fact_school_corrected_update_identified_rooms_2026_06_18_001",
+            "target_node_id": "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_school_corrected_update_identified_rooms_2026_06_18_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_019_action_supports_interpretation",
+            "source_node_id": "node_action_school_updates_air_quality_dashboard_2026_06_18_001",
+            "target_node_id": "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+            "edge_type": "action_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "action_school_updates_air_quality_dashboard_2026_06_18_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_020_action_supports_interpretation",
+            "source_node_id": "node_action_school_deploys_hepa_units_2026_06_18_001",
+            "target_node_id": "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+            "edge_type": "action_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "action_school_deploys_hepa_units_2026_06_18_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_021_evidence_supports_counter_branch",
+            "source_node_id": "node_fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+            "target_node_id": "node_counter_school_sensor_calibration_data_lag_2026_06_19_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "fact_school_sensor_lag_calibration_sync_2026_06_18_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_022_evidence_supports_counter_branch",
+            "source_node_id": "node_claim_school_sensor_lag_explained_2026_06_18_001",
+            "target_node_id": "node_counter_school_sensor_calibration_data_lag_2026_06_19_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "claim_school_sensor_lag_explained_2026_06_18_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_023_evidence_supports_counter_branch",
+            "source_node_id": "node_action_school_updates_air_quality_dashboard_2026_06_18_001",
+            "target_node_id": "node_counter_school_sensor_calibration_data_lag_2026_06_19_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "action_school_updates_air_quality_dashboard_2026_06_18_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_024_evidence_supports_counter_branch",
+            "source_node_id": "node_action_school_relocates_classes_clarifies_thresholds_2026_06_18_001",
+            "target_node_id": "node_counter_school_sensor_calibration_data_lag_2026_06_19_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "action_school_relocates_classes_clarifies_thresholds_2026_06_18_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_025_counter_branch_targets_interpretation",
+            "source_node_id": "node_counter_school_sensor_calibration_data_lag_2026_06_19_001",
+            "target_node_id": "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+            "edge_type": "counter_branch_targets_interpretation",
+            "label": "counter-branch targets review object",
+            "evidence_ids": [
+              "fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+              "claim_school_sensor_lag_explained_2026_06_18_001",
+              "action_school_updates_air_quality_dashboard_2026_06_18_001",
+              "action_school_relocates_classes_clarifies_thresholds_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_026_timeline_event_uses_evidence",
+            "source_node_id": "node_claim_school_classrooms_safe_2026_06_16_001",
+            "target_node_id": "node_version_school_air_quality_v00_initial_dashboard_claim_2026_06_16",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "claim_school_classrooms_safe_2026_06_16_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_027_timeline_event_updates_judgment",
+            "source_node_id": "node_version_school_air_quality_v00_initial_dashboard_claim_2026_06_16",
+            "target_node_id": "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "claim_school_classrooms_safe_2026_06_16_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_028_timeline_event_uses_evidence",
+            "source_node_id": "node_claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "target_node_id": "node_version_school_air_quality_v01_room_level_observations_2026_06_17",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "claim_parent_teacher_room_level_gap_2026_06_17_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_029_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_school_late_alerts_and_relocation_confusion_2026_06_17_001",
+            "target_node_id": "node_version_school_air_quality_v01_room_level_observations_2026_06_17",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_school_late_alerts_and_relocation_confusion_2026_06_17_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_030_timeline_event_updates_judgment",
+            "source_node_id": "node_version_school_air_quality_v01_room_level_observations_2026_06_17",
+            "target_node_id": "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "claim_parent_teacher_room_level_gap_2026_06_17_001",
+              "fact_school_late_alerts_and_relocation_confusion_2026_06_17_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_031_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_school_corrected_update_identified_rooms_2026_06_18_001",
+            "target_node_id": "node_version_school_air_quality_v02_corrected_dashboard_update_2026_06_18",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_school_corrected_update_identified_rooms_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_032_timeline_event_uses_evidence",
+            "source_node_id": "node_action_school_deploys_hepa_units_2026_06_18_001",
+            "target_node_id": "node_version_school_air_quality_v02_corrected_dashboard_update_2026_06_18",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_school_deploys_hepa_units_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_033_timeline_event_uses_evidence",
+            "source_node_id": "node_claim_school_sensor_lag_explained_2026_06_18_001",
+            "target_node_id": "node_version_school_air_quality_v02_corrected_dashboard_update_2026_06_18",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "claim_school_sensor_lag_explained_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_034_timeline_event_updates_judgment",
+            "source_node_id": "node_version_school_air_quality_v02_corrected_dashboard_update_2026_06_18",
+            "target_node_id": "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "fact_school_corrected_update_identified_rooms_2026_06_18_001",
+              "action_school_deploys_hepa_units_2026_06_18_001",
+              "claim_school_sensor_lag_explained_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_035_claim_drift_targets_claim",
+            "source_node_id": "node_drift_school_safe_classrooms_to_partially_challenged_2026_06_19",
+            "target_node_id": "node_claim_school_classrooms_safe_2026_06_16_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "claim_parent_teacher_room_level_gap_2026_06_17_001",
+              "fact_school_corrected_update_identified_rooms_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_036_evidence_drives_claim_drift",
+            "source_node_id": "node_claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "target_node_id": "node_drift_school_safe_classrooms_to_partially_challenged_2026_06_19",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "claim_parent_teacher_room_level_gap_2026_06_17_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_037_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_school_corrected_update_identified_rooms_2026_06_18_001",
+            "target_node_id": "node_drift_school_safe_classrooms_to_partially_challenged_2026_06_19",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_school_corrected_update_identified_rooms_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_038_claim_drift_targets_claim",
+            "source_node_id": "node_drift_school_threshold_notifications_to_narrowed_2026_06_19",
+            "target_node_id": "node_claim_school_family_notifications_if_threshold_exceeded_2026_06_16_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_school_late_alerts_and_relocation_confusion_2026_06_17_001",
+              "action_school_updates_air_quality_dashboard_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_039_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_school_late_alerts_and_relocation_confusion_2026_06_17_001",
+            "target_node_id": "node_drift_school_threshold_notifications_to_narrowed_2026_06_19",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_school_late_alerts_and_relocation_confusion_2026_06_17_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_040_evidence_drives_claim_drift",
+            "source_node_id": "node_action_school_updates_air_quality_dashboard_2026_06_18_001",
+            "target_node_id": "node_drift_school_threshold_notifications_to_narrowed_2026_06_19",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "action_school_updates_air_quality_dashboard_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_041_claim_drift_targets_claim",
+            "source_node_id": "node_drift_school_sensor_lag_explanation_to_plausible_2026_06_19",
+            "target_node_id": "node_claim_school_sensor_lag_explained_2026_06_18_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_school_sensor_lag_calibration_sync_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_042_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+            "target_node_id": "node_drift_school_sensor_lag_explanation_to_plausible_2026_06_19",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_school_sensor_lag_calibration_sync_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_043_version_diff_uses_evidence",
+            "source_node_id": "node_claim_parent_teacher_room_level_gap_2026_06_17_001",
+            "target_node_id": "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "claim_parent_teacher_room_level_gap_2026_06_17_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_044_version_diff_uses_evidence",
+            "source_node_id": "node_fact_school_corrected_update_identified_rooms_2026_06_18_001",
+            "target_node_id": "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_school_corrected_update_identified_rooms_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_045_version_diff_uses_evidence",
+            "source_node_id": "node_fact_school_hepa_units_relocations_thresholds_2026_06_18_001",
+            "target_node_id": "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_school_hepa_units_relocations_thresholds_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_046_version_diff_uses_evidence",
+            "source_node_id": "node_fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+            "target_node_id": "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_school_sensor_lag_calibration_sync_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_047_version_diff_updates_verdict",
+            "source_node_id": "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+            "target_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "edge_type": "version_diff_updates_verdict",
+            "label": "version diff updates verdict",
+            "evidence_ids": [
+              "claim_parent_teacher_room_level_gap_2026_06_17_001",
+              "fact_school_corrected_update_identified_rooms_2026_06_18_001",
+              "fact_school_hepa_units_relocations_thresholds_2026_06_18_001",
+              "fact_school_sensor_lag_calibration_sync_2026_06_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_048_verdict_depends_on_interpretation",
+            "source_node_id": "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+            "target_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "edge_type": "verdict_depends_on_interpretation",
+            "label": "verdict depends on interpretation",
+            "evidence_ids": [
+              "fact_school_notice_lacked_room_level_exception_list_2026_06_16_001",
+              "claim_parent_teacher_room_level_gap_2026_06_17_001",
+              "fact_school_corrected_update_identified_rooms_2026_06_18_001",
+              "action_school_updates_air_quality_dashboard_2026_06_18_001",
+              "action_school_deploys_hepa_units_2026_06_18_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_049_verdict_tempered_by_counter_branch",
+            "source_node_id": "node_counter_school_sensor_calibration_data_lag_2026_06_19_001",
+            "target_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "edge_type": "verdict_tempered_by_counter_branch",
+            "label": "verdict is tempered by counter-branch",
+            "evidence_ids": [
+              "fact_school_sensor_lag_calibration_sync_2026_06_18_001",
+              "claim_school_sensor_lag_explained_2026_06_18_001",
+              "action_school_updates_air_quality_dashboard_2026_06_18_001",
+              "action_school_relocates_classes_clarifies_thresholds_2026_06_18_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_050_bias_note_attaches_to_interpretation",
+            "source_node_id": "node_bias_school_dashboard_screensaver_metaphor_2026_06_19_001",
+            "target_node_id": "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+            "edge_type": "bias_note_attaches_to_interpretation",
+            "label": "bias note attaches to interpretation for review"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_051_bias_note_attaches_to_verdict",
+            "source_node_id": "node_bias_school_dashboard_screensaver_metaphor_2026_06_19_001",
+            "target_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "edge_type": "bias_note_attaches_to_verdict",
+            "label": "bias note attaches to verdict for review"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_052_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "target_node_id": "node_unresolved_school_air_quality_alert_communication_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_053_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "target_node_id": "node_unresolved_school_air_quality_alert_communication_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_054_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "target_node_id": "node_unresolved_school_air_quality_alert_communication_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
+        ],
+        "graph_summary": "Derived claim graph with 32 nodes and 54 edges linking sources, evidence, interpretations, counter-branches, timeline events, claim drift, version diff, and verdict.",
+        "primary_paths": [
+          {
+            "path_id": "path_school_air_quality_alert_communication_version_diff_to_verdict",
+            "label": "Evidence to version diff to verdict",
+            "node_ids": [
+              "node_src_parent_teacher_air_quality_observation_2026_06_17",
+              "node_claim_parent_teacher_room_level_gap_2026_06_17_001",
+              "node_diff_school_air_quality_v00_to_v01_2026_06_19",
+              "node_verdict_school_air_quality_alert_communication_2026_06_19_v01"
+            ],
+            "edge_ids": [
+              "edge_school_air_quality_alert_communication_010_source_contains_claim",
+              "edge_school_air_quality_alert_communication_043_version_diff_uses_evidence",
+              "edge_school_air_quality_alert_communication_047_version_diff_updates_verdict"
+            ],
+            "summary": "A source-bound evidence item changes the version diff, which updates the verdict."
+          },
+          {
+            "path_id": "path_school_air_quality_alert_communication_interpretation_to_verdict",
+            "label": "Evidence to interpretation to verdict",
+            "node_ids": [
+              "node_src_school_air_quality_initial_notice_2026_06_16",
+              "node_fact_school_notice_lacked_room_level_exception_list_2026_06_16_001",
+              "node_interp_school_air_quality_communication_gap_2026_06_19_001",
+              "node_verdict_school_air_quality_alert_communication_2026_06_19_v01"
+            ],
+            "edge_ids": [
+              "edge_school_air_quality_alert_communication_002_source_supports_fact",
+              "edge_school_air_quality_alert_communication_016_fact_supports_interpretation",
+              "edge_school_air_quality_alert_communication_048_verdict_depends_on_interpretation"
+            ],
+            "summary": "A source-bound evidence item supports the interpretation that the verdict depends on."
+          }
+        ],
+        "unresolved_edges": [
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_052_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "target_node_id": "node_unresolved_school_air_quality_alert_communication_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_053_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "target_node_id": "node_unresolved_school_air_quality_alert_communication_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_school_air_quality_alert_communication_054_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_school_air_quality_alert_communication_2026_06_19_v01",
+            "target_node_id": "node_unresolved_school_air_quality_alert_communication_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
         ]
       }
     }

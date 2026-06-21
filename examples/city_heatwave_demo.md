@@ -115,6 +115,8 @@ This is labeled as metaphor and opinion, not evidence.
 
 Use `examples/scenario_authoring_template.json` as the starting point for another synthetic public-claim scenario. Run the authoring checklist, generate a draft skeleton, then fill evidence-bound facts, claims, actions, interpretations, counter-branches, timeline events, and drift entries before promoting anything into deterministic demo records.
 
+See `examples/school_air_quality_demo.md` for the first promoted authoring-workflow dogfood scenario.
+
 ## Editorial Verdict
 
 This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.
