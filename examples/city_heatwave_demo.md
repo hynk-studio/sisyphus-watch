@@ -81,6 +81,16 @@ This is labeled as metaphor and opinion, not evidence.
 - `claim_city_all_centers_open_2026_06_10_001`: weakened from an unverified initial claim to a partially challenged availability claim after community access observations.
 - `claim_city_list_will_update_2026_06_10_001`: strengthened from an unverified process commitment to a supported update commitment after corrected hours and removed unavailable locations.
 
+## Claim Graph
+
+**Graph ID:** `graph_city_heatwave_cooling_centers_2026_06_15_v01`
+
+**Primary path:** `src_community_cooling_center_access_report_2026_06_12` -> `claim_community_access_gap_2026_06_12_001` -> `diff_city_heatwave_v00_to_v01_2026_06_15` -> `verdict_city_heatwave_cooling_centers_2026_06_15_v01`
+
+**Node/edge summary:** 29 nodes and 46 edges connect sources, facts, actor claims, actions, interpretations, counter-branches, timeline events, claim drift entries, version diff, unresolved questions, and verdict.
+
+**Why this matters:** the card can be reused as a relation map instead of a set of independent lists, while still keeping every graph edge tied back to source-bound IDs.
+
 ## Editorial Verdict
 
 This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.

@@ -299,6 +299,778 @@
         "current_handling": "Treat the process commitment as supported while keeping access impact unresolved."
       }
     ],
+    "claim_graph": {
+      "graph_id": "graph_city_heatwave_cooling_centers_2026_06_15_v01",
+      "nodes": [
+        {
+          "node_id": "node_src_city_heatwave_initial_announcement_2026_06_10",
+          "node_type": "source",
+          "label": "Source fixture",
+          "ref_id": "src_city_heatwave_initial_announcement_2026_06_10",
+          "summary": "src_city_heatwave_initial_announcement_2026_06_10",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_src_community_cooling_center_access_report_2026_06_12",
+          "node_type": "source",
+          "label": "Source fixture",
+          "ref_id": "src_community_cooling_center_access_report_2026_06_12",
+          "summary": "src_community_cooling_center_access_report_2026_06_12",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+          "node_type": "source",
+          "label": "Source fixture",
+          "ref_id": "src_city_heatwave_updated_guidance_2026_06_14",
+          "summary": "src_city_heatwave_updated_guidance_2026_06_14",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_src_editorial_heatwave_accountability_note_2026_06_15",
+          "node_type": "source",
+          "label": "Source fixture",
+          "ref_id": "src_editorial_heatwave_accountability_note_2026_06_15",
+          "summary": "src_editorial_heatwave_accountability_note_2026_06_15",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_fact_city_announces_50_cooling_centers_2026_06_10_001",
+          "node_type": "fact",
+          "label": "Fact",
+          "ref_id": "fact_city_announces_50_cooling_centers_2026_06_10_001",
+          "summary": "The fictional city announced that 50 cooling centers would be open during a severe heatwave.",
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_fact_community_reports_access_problems_2026_06_12_001",
+          "node_type": "fact",
+          "label": "Fact",
+          "ref_id": "fact_community_reports_access_problems_2026_06_12_001",
+          "summary": "A fictional community volunteer group reported access problems at some listed cooling centers.",
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_fact_city_updates_list_and_hours_2026_06_14_001",
+          "node_type": "fact",
+          "label": "Fact",
+          "ref_id": "fact_city_updates_list_and_hours_2026_06_14_001",
+          "summary": "The fictional city later updated the cooling center list and clarified opening hours.",
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_fact_city_adds_transport_support_2026_06_14_001",
+          "node_type": "fact",
+          "label": "Fact",
+          "ref_id": "fact_city_adds_transport_support_2026_06_14_001",
+          "summary": "The fictional city added free shuttle support for older residents and medically vulnerable residents in hardest-hit neighborhoods.",
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+          "node_type": "fact",
+          "label": "Fact",
+          "ref_id": "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+          "summary": "The city update attributed some earlier listing errors to staffing shortages and late facility confirmations.",
+          "confidence": "medium_high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_claim_city_all_centers_open_2026_06_10_001",
+          "node_type": "actor_claim",
+          "label": "Fictional City Emergency Management Office",
+          "ref_id": "claim_city_all_centers_open_2026_06_10_001",
+          "summary": "Residents could find safe, air-conditioned spaces across the city.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_claim_city_list_will_update_2026_06_10_001",
+          "node_type": "actor_claim",
+          "label": "Fictional City Emergency Management Office",
+          "ref_id": "claim_city_list_will_update_2026_06_10_001",
+          "summary": "The cooling center list would be updated as conditions changed.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_claim_community_access_gap_2026_06_12_001",
+          "node_type": "actor_claim",
+          "label": "Fictional Neighborhood Volunteer Network",
+          "ref_id": "claim_community_access_gap_2026_06_12_001",
+          "summary": "Several listed cooling centers were not practically accessible because some were closed, had limited hours, lacked signage, or were difficult for older residents to reach.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_claim_city_update_corrected_errors_2026_06_14_001",
+          "node_type": "actor_claim",
+          "label": "Fictional City Emergency Management Office",
+          "ref_id": "claim_city_update_corrected_errors_2026_06_14_001",
+          "summary": "The updated guidance corrected listing errors and improved access through clarified hours, removed unavailable sites, corrected addresses, and added transport support.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+          "node_type": "action",
+          "label": "public_guidance_update",
+          "ref_id": "action_city_updates_cooling_center_hours_2026_06_14_001",
+          "summary": "Published an updated cooling center list and clarified opening hours.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+          "node_type": "action",
+          "label": "listing_correction",
+          "ref_id": "action_city_removes_unavailable_locations_2026_06_14_001",
+          "summary": "Removed unavailable locations and corrected addresses for several facilities.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_action_city_adds_transport_support_2026_06_14_001",
+          "node_type": "action",
+          "label": "access_support",
+          "ref_id": "action_city_adds_transport_support_2026_06_14_001",
+          "summary": "Added free shuttle support for older and medically vulnerable residents in hardest-hit neighborhoods.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+          "node_type": "interpretation",
+          "label": "Implementation gap in emergency public-service communication",
+          "ref_id": "interp_emergency_service_implementation_gap_2026_06_15_001",
+          "summary": "The case suggests an implementation gap between emergency-service public claims and real-world accessibility. The later update reduces concern about a simple bad-faith overclaim but increases the importance of versioned public communication during emergencies.",
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+          "node_type": "counter_branch",
+          "label": "Outdated listings and staffing constraints may explain part of the access gap",
+          "ref_id": "counter_fast_changing_conditions_2026_06_15_001",
+          "summary": "The initial gap may reflect fast-changing emergency conditions, staffing constraints, and late facility confirmations rather than deliberate exaggeration. The update and transport support indicate partial correction.",
+          "confidence": "medium_high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_bias_public_accountability_metaphor_2026_06_15_001",
+          "node_type": "bias_note",
+          "label": "metaphor_opinion",
+          "ref_id": "bias_public_accountability_metaphor_2026_06_15_001",
+          "summary": "An emergency map that works only on paper is a cardboard umbrella in a heatwave.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_version_city_heatwave_v00_initial_claim_2026_06_10",
+          "node_type": "version_event",
+          "label": "v00",
+          "ref_id": "version_city_heatwave_v00_initial_claim_2026_06_10",
+          "summary": "The fictional city announced that 50 cooling centers would be open.",
+          "confidence": "low",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_version_city_heatwave_v01_access_observation_2026_06_12",
+          "node_type": "version_event",
+          "label": "v01",
+          "ref_id": "version_city_heatwave_v01_access_observation_2026_06_12",
+          "summary": "Community observations reported closed sites, limited hours, weak signage, and access barriers.",
+          "confidence": "medium_high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+          "node_type": "version_event",
+          "label": "v02",
+          "ref_id": "version_city_heatwave_v02_city_update_2026_06_14",
+          "summary": "The city corrected the list, clarified hours, removed unavailable sites, and added transport support.",
+          "confidence": "medium_high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+          "node_type": "claim_drift",
+          "label": "weakened",
+          "ref_id": "drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+          "summary": "The broad availability claim weakened after community observations reported inaccessible listed sites.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_drift_city_list_update_commitment_to_supported_update_2026_06_15",
+          "node_type": "claim_drift",
+          "label": "strengthened",
+          "ref_id": "drift_city_list_update_commitment_to_supported_update_2026_06_15",
+          "summary": "The update commitment strengthened after the city published corrected hours and removed unavailable locations.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+          "node_type": "version_diff",
+          "label": "v01_after_community_report_and_city_update",
+          "ref_id": "diff_city_heatwave_v00_to_v01_2026_06_15",
+          "summary": "Concern shifted from possible overclaim to partially corrected implementation gap after updated guidance and transport support.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "node_type": "verdict",
+          "label": "Public communication failure with partial remediation",
+          "ref_id": "verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "summary": "This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.",
+          "confidence": "medium_high",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_unresolved_city_heatwave_cooling_centers_01",
+          "node_type": "unresolved_question",
+          "label": "Unresolved question 1",
+          "ref_id": "unresolved_city_heatwave_cooling_centers_01",
+          "summary": "How many residents were actually unable to access centers.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_unresolved_city_heatwave_cooling_centers_02",
+          "node_type": "unresolved_question",
+          "label": "Unresolved question 2",
+          "ref_id": "unresolved_city_heatwave_cooling_centers_02",
+          "summary": "Whether updated transport support reached the most vulnerable residents.",
+          "source_bound": true
+        },
+        {
+          "node_id": "node_unresolved_city_heatwave_cooling_centers_03",
+          "node_type": "unresolved_question",
+          "label": "Unresolved question 3",
+          "ref_id": "unresolved_city_heatwave_cooling_centers_03",
+          "summary": "Whether the city has a durable process for future emergency updates.",
+          "source_bound": true
+        }
+      ],
+      "edges": [
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_001_source_supports_fact",
+          "source_node_id": "node_src_city_heatwave_initial_announcement_2026_06_10",
+          "target_node_id": "node_fact_city_announces_50_cooling_centers_2026_06_10_001",
+          "edge_type": "source_supports_fact",
+          "label": "source supports fact",
+          "evidence_ids": [
+            "fact_city_announces_50_cooling_centers_2026_06_10_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_002_source_supports_fact",
+          "source_node_id": "node_src_community_cooling_center_access_report_2026_06_12",
+          "target_node_id": "node_fact_community_reports_access_problems_2026_06_12_001",
+          "edge_type": "source_supports_fact",
+          "label": "source supports fact",
+          "evidence_ids": [
+            "fact_community_reports_access_problems_2026_06_12_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_003_source_supports_fact",
+          "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+          "target_node_id": "node_fact_city_updates_list_and_hours_2026_06_14_001",
+          "edge_type": "source_supports_fact",
+          "label": "source supports fact",
+          "evidence_ids": [
+            "fact_city_updates_list_and_hours_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_004_source_supports_fact",
+          "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+          "target_node_id": "node_fact_city_adds_transport_support_2026_06_14_001",
+          "edge_type": "source_supports_fact",
+          "label": "source supports fact",
+          "evidence_ids": [
+            "fact_city_adds_transport_support_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_005_source_supports_fact",
+          "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+          "target_node_id": "node_fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+          "edge_type": "source_supports_fact",
+          "label": "source supports fact",
+          "evidence_ids": [
+            "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_006_source_contains_claim",
+          "source_node_id": "node_src_city_heatwave_initial_announcement_2026_06_10",
+          "target_node_id": "node_claim_city_all_centers_open_2026_06_10_001",
+          "edge_type": "source_contains_claim",
+          "label": "source contains actor claim",
+          "evidence_ids": [
+            "claim_city_all_centers_open_2026_06_10_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_007_source_contains_claim",
+          "source_node_id": "node_src_city_heatwave_initial_announcement_2026_06_10",
+          "target_node_id": "node_claim_city_list_will_update_2026_06_10_001",
+          "edge_type": "source_contains_claim",
+          "label": "source contains actor claim",
+          "evidence_ids": [
+            "claim_city_list_will_update_2026_06_10_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_008_source_contains_claim",
+          "source_node_id": "node_src_community_cooling_center_access_report_2026_06_12",
+          "target_node_id": "node_claim_community_access_gap_2026_06_12_001",
+          "edge_type": "source_contains_claim",
+          "label": "source contains actor claim",
+          "evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_009_source_contains_claim",
+          "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+          "target_node_id": "node_claim_city_update_corrected_errors_2026_06_14_001",
+          "edge_type": "source_contains_claim",
+          "label": "source contains actor claim",
+          "evidence_ids": [
+            "claim_city_update_corrected_errors_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_010_source_describes_action",
+          "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+          "target_node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+          "edge_type": "source_describes_action",
+          "label": "source describes action",
+          "evidence_ids": [
+            "action_city_updates_cooling_center_hours_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_011_source_describes_action",
+          "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+          "target_node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+          "edge_type": "source_describes_action",
+          "label": "source describes action",
+          "evidence_ids": [
+            "action_city_removes_unavailable_locations_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_012_source_describes_action",
+          "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+          "target_node_id": "node_action_city_adds_transport_support_2026_06_14_001",
+          "edge_type": "source_describes_action",
+          "label": "source describes action",
+          "evidence_ids": [
+            "action_city_adds_transport_support_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_013_source_contains_bias_note",
+          "source_node_id": "node_src_editorial_heatwave_accountability_note_2026_06_15",
+          "target_node_id": "node_bias_public_accountability_metaphor_2026_06_15_001",
+          "edge_type": "source_contains_bias_note",
+          "label": "source contains labeled bias note"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_014_fact_supports_interpretation",
+          "source_node_id": "node_fact_city_announces_50_cooling_centers_2026_06_10_001",
+          "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+          "edge_type": "fact_supports_interpretation",
+          "label": "evidence supports interpretation",
+          "evidence_ids": [
+            "fact_city_announces_50_cooling_centers_2026_06_10_001"
+          ],
+          "confidence": "high"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_015_claim_supports_interpretation",
+          "source_node_id": "node_claim_community_access_gap_2026_06_12_001",
+          "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+          "edge_type": "claim_supports_interpretation",
+          "label": "evidence supports interpretation",
+          "evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001"
+          ],
+          "confidence": "high"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_016_action_supports_interpretation",
+          "source_node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+          "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+          "edge_type": "action_supports_interpretation",
+          "label": "evidence supports interpretation",
+          "evidence_ids": [
+            "action_city_updates_cooling_center_hours_2026_06_14_001"
+          ],
+          "confidence": "high"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_017_action_supports_interpretation",
+          "source_node_id": "node_action_city_adds_transport_support_2026_06_14_001",
+          "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+          "edge_type": "action_supports_interpretation",
+          "label": "evidence supports interpretation",
+          "evidence_ids": [
+            "action_city_adds_transport_support_2026_06_14_001"
+          ],
+          "confidence": "high"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_018_evidence_supports_counter_branch",
+          "source_node_id": "node_fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+          "target_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+          "edge_type": "evidence_supports_counter_branch",
+          "label": "evidence supports counter-branch",
+          "evidence_ids": [
+            "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+          ],
+          "confidence": "medium_high"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_019_evidence_supports_counter_branch",
+          "source_node_id": "node_claim_city_list_will_update_2026_06_10_001",
+          "target_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+          "edge_type": "evidence_supports_counter_branch",
+          "label": "evidence supports counter-branch",
+          "evidence_ids": [
+            "claim_city_list_will_update_2026_06_10_001"
+          ],
+          "confidence": "medium_high"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_020_evidence_supports_counter_branch",
+          "source_node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+          "target_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+          "edge_type": "evidence_supports_counter_branch",
+          "label": "evidence supports counter-branch",
+          "evidence_ids": [
+            "action_city_removes_unavailable_locations_2026_06_14_001"
+          ],
+          "confidence": "medium_high"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_021_counter_branch_targets_interpretation",
+          "source_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+          "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+          "edge_type": "counter_branch_targets_interpretation",
+          "label": "counter-branch targets review object",
+          "evidence_ids": [
+            "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+            "claim_city_list_will_update_2026_06_10_001",
+            "action_city_removes_unavailable_locations_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_022_timeline_event_uses_evidence",
+          "source_node_id": "node_claim_city_all_centers_open_2026_06_10_001",
+          "target_node_id": "node_version_city_heatwave_v00_initial_claim_2026_06_10",
+          "edge_type": "timeline_event_uses_evidence",
+          "label": "timeline event uses evidence",
+          "evidence_ids": [
+            "claim_city_all_centers_open_2026_06_10_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_023_timeline_event_updates_judgment",
+          "source_node_id": "node_version_city_heatwave_v00_initial_claim_2026_06_10",
+          "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+          "edge_type": "timeline_event_updates_judgment",
+          "label": "timeline event updates judgment",
+          "evidence_ids": [
+            "claim_city_all_centers_open_2026_06_10_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_024_timeline_event_uses_evidence",
+          "source_node_id": "node_claim_community_access_gap_2026_06_12_001",
+          "target_node_id": "node_version_city_heatwave_v01_access_observation_2026_06_12",
+          "edge_type": "timeline_event_uses_evidence",
+          "label": "timeline event uses evidence",
+          "evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_025_timeline_event_updates_judgment",
+          "source_node_id": "node_version_city_heatwave_v01_access_observation_2026_06_12",
+          "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+          "edge_type": "timeline_event_updates_judgment",
+          "label": "timeline event updates judgment",
+          "evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_026_timeline_event_uses_evidence",
+          "source_node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+          "target_node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+          "edge_type": "timeline_event_uses_evidence",
+          "label": "timeline event uses evidence",
+          "evidence_ids": [
+            "action_city_updates_cooling_center_hours_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_027_timeline_event_uses_evidence",
+          "source_node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+          "target_node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+          "edge_type": "timeline_event_uses_evidence",
+          "label": "timeline event uses evidence",
+          "evidence_ids": [
+            "action_city_removes_unavailable_locations_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_028_timeline_event_uses_evidence",
+          "source_node_id": "node_action_city_adds_transport_support_2026_06_14_001",
+          "target_node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+          "edge_type": "timeline_event_uses_evidence",
+          "label": "timeline event uses evidence",
+          "evidence_ids": [
+            "action_city_adds_transport_support_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_029_timeline_event_updates_judgment",
+          "source_node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+          "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+          "edge_type": "timeline_event_updates_judgment",
+          "label": "timeline event updates judgment",
+          "evidence_ids": [
+            "action_city_updates_cooling_center_hours_2026_06_14_001",
+            "action_city_removes_unavailable_locations_2026_06_14_001",
+            "action_city_adds_transport_support_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_030_claim_drift_targets_claim",
+          "source_node_id": "node_drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+          "target_node_id": "node_claim_city_all_centers_open_2026_06_10_001",
+          "edge_type": "claim_drift_targets_claim",
+          "label": "claim drift targets actor claim",
+          "evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_031_evidence_drives_claim_drift",
+          "source_node_id": "node_claim_community_access_gap_2026_06_12_001",
+          "target_node_id": "node_drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+          "edge_type": "evidence_drives_claim_drift",
+          "label": "evidence drives claim drift",
+          "evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_032_claim_drift_targets_claim",
+          "source_node_id": "node_drift_city_list_update_commitment_to_supported_update_2026_06_15",
+          "target_node_id": "node_claim_city_list_will_update_2026_06_10_001",
+          "edge_type": "claim_drift_targets_claim",
+          "label": "claim drift targets actor claim",
+          "evidence_ids": [
+            "action_city_updates_cooling_center_hours_2026_06_14_001",
+            "action_city_removes_unavailable_locations_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_033_evidence_drives_claim_drift",
+          "source_node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+          "target_node_id": "node_drift_city_list_update_commitment_to_supported_update_2026_06_15",
+          "edge_type": "evidence_drives_claim_drift",
+          "label": "evidence drives claim drift",
+          "evidence_ids": [
+            "action_city_updates_cooling_center_hours_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_034_evidence_drives_claim_drift",
+          "source_node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+          "target_node_id": "node_drift_city_list_update_commitment_to_supported_update_2026_06_15",
+          "edge_type": "evidence_drives_claim_drift",
+          "label": "evidence drives claim drift",
+          "evidence_ids": [
+            "action_city_removes_unavailable_locations_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_035_version_diff_uses_evidence",
+          "source_node_id": "node_claim_community_access_gap_2026_06_12_001",
+          "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+          "edge_type": "version_diff_uses_evidence",
+          "label": "version diff uses evidence",
+          "evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_036_version_diff_uses_evidence",
+          "source_node_id": "node_fact_city_updates_list_and_hours_2026_06_14_001",
+          "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+          "edge_type": "version_diff_uses_evidence",
+          "label": "version diff uses evidence",
+          "evidence_ids": [
+            "fact_city_updates_list_and_hours_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_037_version_diff_uses_evidence",
+          "source_node_id": "node_fact_city_adds_transport_support_2026_06_14_001",
+          "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+          "edge_type": "version_diff_uses_evidence",
+          "label": "version diff uses evidence",
+          "evidence_ids": [
+            "fact_city_adds_transport_support_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_038_version_diff_uses_evidence",
+          "source_node_id": "node_fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+          "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+          "edge_type": "version_diff_uses_evidence",
+          "label": "version diff uses evidence",
+          "evidence_ids": [
+            "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_039_version_diff_updates_verdict",
+          "source_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+          "target_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "edge_type": "version_diff_updates_verdict",
+          "label": "version diff updates verdict",
+          "evidence_ids": [
+            "claim_community_access_gap_2026_06_12_001",
+            "fact_city_updates_list_and_hours_2026_06_14_001",
+            "fact_city_adds_transport_support_2026_06_14_001",
+            "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+          ]
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_040_verdict_depends_on_interpretation",
+          "source_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+          "target_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "edge_type": "verdict_depends_on_interpretation",
+          "label": "verdict depends on interpretation",
+          "evidence_ids": [
+            "fact_city_announces_50_cooling_centers_2026_06_10_001",
+            "claim_community_access_gap_2026_06_12_001",
+            "action_city_updates_cooling_center_hours_2026_06_14_001",
+            "action_city_adds_transport_support_2026_06_14_001"
+          ],
+          "confidence": "medium_high"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_041_verdict_tempered_by_counter_branch",
+          "source_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+          "target_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "edge_type": "verdict_tempered_by_counter_branch",
+          "label": "verdict is tempered by counter-branch",
+          "evidence_ids": [
+            "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+            "claim_city_list_will_update_2026_06_10_001",
+            "action_city_removes_unavailable_locations_2026_06_14_001"
+          ],
+          "confidence": "medium_high"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_042_bias_note_attaches_to_interpretation",
+          "source_node_id": "node_bias_public_accountability_metaphor_2026_06_15_001",
+          "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+          "edge_type": "bias_note_attaches_to_interpretation",
+          "label": "bias note attaches to interpretation for review"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_043_bias_note_attaches_to_verdict",
+          "source_node_id": "node_bias_public_accountability_metaphor_2026_06_15_001",
+          "target_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "edge_type": "bias_note_attaches_to_verdict",
+          "label": "bias note attaches to verdict for review"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_044_verdict_has_unresolved_question",
+          "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "target_node_id": "node_unresolved_city_heatwave_cooling_centers_01",
+          "edge_type": "verdict_has_unresolved_question",
+          "label": "verdict keeps unresolved question visible"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_045_verdict_has_unresolved_question",
+          "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "target_node_id": "node_unresolved_city_heatwave_cooling_centers_02",
+          "edge_type": "verdict_has_unresolved_question",
+          "label": "verdict keeps unresolved question visible"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_046_verdict_has_unresolved_question",
+          "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "target_node_id": "node_unresolved_city_heatwave_cooling_centers_03",
+          "edge_type": "verdict_has_unresolved_question",
+          "label": "verdict keeps unresolved question visible"
+        }
+      ],
+      "graph_summary": "Derived claim graph with 29 nodes and 46 edges linking sources, evidence, interpretations, counter-branches, timeline events, claim drift, version diff, and verdict.",
+      "primary_paths": [
+        {
+          "path_id": "path_city_heatwave_cooling_centers_version_diff_to_verdict",
+          "label": "Evidence to version diff to verdict",
+          "node_ids": [
+            "node_src_community_cooling_center_access_report_2026_06_12",
+            "node_claim_community_access_gap_2026_06_12_001",
+            "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01"
+          ],
+          "edge_ids": [
+            "edge_city_heatwave_cooling_centers_008_source_contains_claim",
+            "edge_city_heatwave_cooling_centers_035_version_diff_uses_evidence",
+            "edge_city_heatwave_cooling_centers_039_version_diff_updates_verdict"
+          ],
+          "summary": "A source-bound evidence item changes the version diff, which updates the verdict."
+        },
+        {
+          "path_id": "path_city_heatwave_cooling_centers_interpretation_to_verdict",
+          "label": "Evidence to interpretation to verdict",
+          "node_ids": [
+            "node_src_city_heatwave_initial_announcement_2026_06_10",
+            "node_fact_city_announces_50_cooling_centers_2026_06_10_001",
+            "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+            "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01"
+          ],
+          "edge_ids": [
+            "edge_city_heatwave_cooling_centers_001_source_supports_fact",
+            "edge_city_heatwave_cooling_centers_014_fact_supports_interpretation",
+            "edge_city_heatwave_cooling_centers_040_verdict_depends_on_interpretation"
+          ],
+          "summary": "A source-bound evidence item supports the interpretation that the verdict depends on."
+        }
+      ],
+      "unresolved_edges": [
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_044_verdict_has_unresolved_question",
+          "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "target_node_id": "node_unresolved_city_heatwave_cooling_centers_01",
+          "edge_type": "verdict_has_unresolved_question",
+          "label": "verdict keeps unresolved question visible"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_045_verdict_has_unresolved_question",
+          "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "target_node_id": "node_unresolved_city_heatwave_cooling_centers_02",
+          "edge_type": "verdict_has_unresolved_question",
+          "label": "verdict keeps unresolved question visible"
+        },
+        {
+          "edge_id": "edge_city_heatwave_cooling_centers_046_verdict_has_unresolved_question",
+          "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+          "target_node_id": "node_unresolved_city_heatwave_cooling_centers_03",
+          "edge_type": "verdict_has_unresolved_question",
+          "label": "verdict keeps unresolved question visible"
+        }
+      ]
+    },
     "editorial_verdict": {
       "verdict_id": "verdict_city_heatwave_cooling_centers_2026_06_15_v01",
       "short_label": "Public communication failure with partial remediation",
@@ -614,6 +1386,778 @@
           "current_handling": "Treat the process commitment as supported while keeping access impact unresolved."
         }
       ],
+      "claim_graph": {
+        "graph_id": "graph_city_heatwave_cooling_centers_2026_06_15_v01",
+        "nodes": [
+          {
+            "node_id": "node_src_city_heatwave_initial_announcement_2026_06_10",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_city_heatwave_initial_announcement_2026_06_10",
+            "summary": "src_city_heatwave_initial_announcement_2026_06_10",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_community_cooling_center_access_report_2026_06_12",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_community_cooling_center_access_report_2026_06_12",
+            "summary": "src_community_cooling_center_access_report_2026_06_12",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_city_heatwave_updated_guidance_2026_06_14",
+            "summary": "src_city_heatwave_updated_guidance_2026_06_14",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_editorial_heatwave_accountability_note_2026_06_15",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_editorial_heatwave_accountability_note_2026_06_15",
+            "summary": "src_editorial_heatwave_accountability_note_2026_06_15",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_city_announces_50_cooling_centers_2026_06_10_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_city_announces_50_cooling_centers_2026_06_10_001",
+            "summary": "The fictional city announced that 50 cooling centers would be open during a severe heatwave.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_community_reports_access_problems_2026_06_12_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_community_reports_access_problems_2026_06_12_001",
+            "summary": "A fictional community volunteer group reported access problems at some listed cooling centers.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_city_updates_list_and_hours_2026_06_14_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_city_updates_list_and_hours_2026_06_14_001",
+            "summary": "The fictional city later updated the cooling center list and clarified opening hours.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_city_adds_transport_support_2026_06_14_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_city_adds_transport_support_2026_06_14_001",
+            "summary": "The fictional city added free shuttle support for older residents and medically vulnerable residents in hardest-hit neighborhoods.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+            "summary": "The city update attributed some earlier listing errors to staffing shortages and late facility confirmations.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_city_all_centers_open_2026_06_10_001",
+            "node_type": "actor_claim",
+            "label": "Fictional City Emergency Management Office",
+            "ref_id": "claim_city_all_centers_open_2026_06_10_001",
+            "summary": "Residents could find safe, air-conditioned spaces across the city.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_city_list_will_update_2026_06_10_001",
+            "node_type": "actor_claim",
+            "label": "Fictional City Emergency Management Office",
+            "ref_id": "claim_city_list_will_update_2026_06_10_001",
+            "summary": "The cooling center list would be updated as conditions changed.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_community_access_gap_2026_06_12_001",
+            "node_type": "actor_claim",
+            "label": "Fictional Neighborhood Volunteer Network",
+            "ref_id": "claim_community_access_gap_2026_06_12_001",
+            "summary": "Several listed cooling centers were not practically accessible because some were closed, had limited hours, lacked signage, or were difficult for older residents to reach.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_city_update_corrected_errors_2026_06_14_001",
+            "node_type": "actor_claim",
+            "label": "Fictional City Emergency Management Office",
+            "ref_id": "claim_city_update_corrected_errors_2026_06_14_001",
+            "summary": "The updated guidance corrected listing errors and improved access through clarified hours, removed unavailable sites, corrected addresses, and added transport support.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+            "node_type": "action",
+            "label": "public_guidance_update",
+            "ref_id": "action_city_updates_cooling_center_hours_2026_06_14_001",
+            "summary": "Published an updated cooling center list and clarified opening hours.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+            "node_type": "action",
+            "label": "listing_correction",
+            "ref_id": "action_city_removes_unavailable_locations_2026_06_14_001",
+            "summary": "Removed unavailable locations and corrected addresses for several facilities.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_city_adds_transport_support_2026_06_14_001",
+            "node_type": "action",
+            "label": "access_support",
+            "ref_id": "action_city_adds_transport_support_2026_06_14_001",
+            "summary": "Added free shuttle support for older and medically vulnerable residents in hardest-hit neighborhoods.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+            "node_type": "interpretation",
+            "label": "Implementation gap in emergency public-service communication",
+            "ref_id": "interp_emergency_service_implementation_gap_2026_06_15_001",
+            "summary": "The case suggests an implementation gap between emergency-service public claims and real-world accessibility. The later update reduces concern about a simple bad-faith overclaim but increases the importance of versioned public communication during emergencies.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+            "node_type": "counter_branch",
+            "label": "Outdated listings and staffing constraints may explain part of the access gap",
+            "ref_id": "counter_fast_changing_conditions_2026_06_15_001",
+            "summary": "The initial gap may reflect fast-changing emergency conditions, staffing constraints, and late facility confirmations rather than deliberate exaggeration. The update and transport support indicate partial correction.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_bias_public_accountability_metaphor_2026_06_15_001",
+            "node_type": "bias_note",
+            "label": "metaphor_opinion",
+            "ref_id": "bias_public_accountability_metaphor_2026_06_15_001",
+            "summary": "An emergency map that works only on paper is a cardboard umbrella in a heatwave.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_city_heatwave_v00_initial_claim_2026_06_10",
+            "node_type": "version_event",
+            "label": "v00",
+            "ref_id": "version_city_heatwave_v00_initial_claim_2026_06_10",
+            "summary": "The fictional city announced that 50 cooling centers would be open.",
+            "confidence": "low",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_city_heatwave_v01_access_observation_2026_06_12",
+            "node_type": "version_event",
+            "label": "v01",
+            "ref_id": "version_city_heatwave_v01_access_observation_2026_06_12",
+            "summary": "Community observations reported closed sites, limited hours, weak signage, and access barriers.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+            "node_type": "version_event",
+            "label": "v02",
+            "ref_id": "version_city_heatwave_v02_city_update_2026_06_14",
+            "summary": "The city corrected the list, clarified hours, removed unavailable sites, and added transport support.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+            "node_type": "claim_drift",
+            "label": "weakened",
+            "ref_id": "drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+            "summary": "The broad availability claim weakened after community observations reported inaccessible listed sites.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_city_list_update_commitment_to_supported_update_2026_06_15",
+            "node_type": "claim_drift",
+            "label": "strengthened",
+            "ref_id": "drift_city_list_update_commitment_to_supported_update_2026_06_15",
+            "summary": "The update commitment strengthened after the city published corrected hours and removed unavailable locations.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "node_type": "version_diff",
+            "label": "v01_after_community_report_and_city_update",
+            "ref_id": "diff_city_heatwave_v00_to_v01_2026_06_15",
+            "summary": "Concern shifted from possible overclaim to partially corrected implementation gap after updated guidance and transport support.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "node_type": "verdict",
+            "label": "Public communication failure with partial remediation",
+            "ref_id": "verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "summary": "This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_city_heatwave_cooling_centers_01",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 1",
+            "ref_id": "unresolved_city_heatwave_cooling_centers_01",
+            "summary": "How many residents were actually unable to access centers.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_city_heatwave_cooling_centers_02",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 2",
+            "ref_id": "unresolved_city_heatwave_cooling_centers_02",
+            "summary": "Whether updated transport support reached the most vulnerable residents.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_city_heatwave_cooling_centers_03",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 3",
+            "ref_id": "unresolved_city_heatwave_cooling_centers_03",
+            "summary": "Whether the city has a durable process for future emergency updates.",
+            "source_bound": true
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_001_source_supports_fact",
+            "source_node_id": "node_src_city_heatwave_initial_announcement_2026_06_10",
+            "target_node_id": "node_fact_city_announces_50_cooling_centers_2026_06_10_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_city_announces_50_cooling_centers_2026_06_10_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_002_source_supports_fact",
+            "source_node_id": "node_src_community_cooling_center_access_report_2026_06_12",
+            "target_node_id": "node_fact_community_reports_access_problems_2026_06_12_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_community_reports_access_problems_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_003_source_supports_fact",
+            "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+            "target_node_id": "node_fact_city_updates_list_and_hours_2026_06_14_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_city_updates_list_and_hours_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_004_source_supports_fact",
+            "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+            "target_node_id": "node_fact_city_adds_transport_support_2026_06_14_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_city_adds_transport_support_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_005_source_supports_fact",
+            "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+            "target_node_id": "node_fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_006_source_contains_claim",
+            "source_node_id": "node_src_city_heatwave_initial_announcement_2026_06_10",
+            "target_node_id": "node_claim_city_all_centers_open_2026_06_10_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_city_all_centers_open_2026_06_10_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_007_source_contains_claim",
+            "source_node_id": "node_src_city_heatwave_initial_announcement_2026_06_10",
+            "target_node_id": "node_claim_city_list_will_update_2026_06_10_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_city_list_will_update_2026_06_10_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_008_source_contains_claim",
+            "source_node_id": "node_src_community_cooling_center_access_report_2026_06_12",
+            "target_node_id": "node_claim_community_access_gap_2026_06_12_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_community_access_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_009_source_contains_claim",
+            "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+            "target_node_id": "node_claim_city_update_corrected_errors_2026_06_14_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_city_update_corrected_errors_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_010_source_describes_action",
+            "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+            "target_node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_city_updates_cooling_center_hours_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_011_source_describes_action",
+            "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+            "target_node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_city_removes_unavailable_locations_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_012_source_describes_action",
+            "source_node_id": "node_src_city_heatwave_updated_guidance_2026_06_14",
+            "target_node_id": "node_action_city_adds_transport_support_2026_06_14_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_city_adds_transport_support_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_013_source_contains_bias_note",
+            "source_node_id": "node_src_editorial_heatwave_accountability_note_2026_06_15",
+            "target_node_id": "node_bias_public_accountability_metaphor_2026_06_15_001",
+            "edge_type": "source_contains_bias_note",
+            "label": "source contains labeled bias note"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_014_fact_supports_interpretation",
+            "source_node_id": "node_fact_city_announces_50_cooling_centers_2026_06_10_001",
+            "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_city_announces_50_cooling_centers_2026_06_10_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_015_claim_supports_interpretation",
+            "source_node_id": "node_claim_community_access_gap_2026_06_12_001",
+            "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+            "edge_type": "claim_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "claim_community_access_gap_2026_06_12_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_016_action_supports_interpretation",
+            "source_node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+            "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+            "edge_type": "action_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "action_city_updates_cooling_center_hours_2026_06_14_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_017_action_supports_interpretation",
+            "source_node_id": "node_action_city_adds_transport_support_2026_06_14_001",
+            "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+            "edge_type": "action_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "action_city_adds_transport_support_2026_06_14_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_018_evidence_supports_counter_branch",
+            "source_node_id": "node_fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+            "target_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_019_evidence_supports_counter_branch",
+            "source_node_id": "node_claim_city_list_will_update_2026_06_10_001",
+            "target_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "claim_city_list_will_update_2026_06_10_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_020_evidence_supports_counter_branch",
+            "source_node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+            "target_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "action_city_removes_unavailable_locations_2026_06_14_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_021_counter_branch_targets_interpretation",
+            "source_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+            "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+            "edge_type": "counter_branch_targets_interpretation",
+            "label": "counter-branch targets review object",
+            "evidence_ids": [
+              "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+              "claim_city_list_will_update_2026_06_10_001",
+              "action_city_removes_unavailable_locations_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_022_timeline_event_uses_evidence",
+            "source_node_id": "node_claim_city_all_centers_open_2026_06_10_001",
+            "target_node_id": "node_version_city_heatwave_v00_initial_claim_2026_06_10",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "claim_city_all_centers_open_2026_06_10_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_023_timeline_event_updates_judgment",
+            "source_node_id": "node_version_city_heatwave_v00_initial_claim_2026_06_10",
+            "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "claim_city_all_centers_open_2026_06_10_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_024_timeline_event_uses_evidence",
+            "source_node_id": "node_claim_community_access_gap_2026_06_12_001",
+            "target_node_id": "node_version_city_heatwave_v01_access_observation_2026_06_12",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "claim_community_access_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_025_timeline_event_updates_judgment",
+            "source_node_id": "node_version_city_heatwave_v01_access_observation_2026_06_12",
+            "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "claim_community_access_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_026_timeline_event_uses_evidence",
+            "source_node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+            "target_node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_city_updates_cooling_center_hours_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_027_timeline_event_uses_evidence",
+            "source_node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+            "target_node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_city_removes_unavailable_locations_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_028_timeline_event_uses_evidence",
+            "source_node_id": "node_action_city_adds_transport_support_2026_06_14_001",
+            "target_node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_city_adds_transport_support_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_029_timeline_event_updates_judgment",
+            "source_node_id": "node_version_city_heatwave_v02_city_update_2026_06_14",
+            "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "action_city_updates_cooling_center_hours_2026_06_14_001",
+              "action_city_removes_unavailable_locations_2026_06_14_001",
+              "action_city_adds_transport_support_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_030_claim_drift_targets_claim",
+            "source_node_id": "node_drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+            "target_node_id": "node_claim_city_all_centers_open_2026_06_10_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "claim_community_access_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_031_evidence_drives_claim_drift",
+            "source_node_id": "node_claim_community_access_gap_2026_06_12_001",
+            "target_node_id": "node_drift_city_all_centers_open_to_partially_challenged_2026_06_15",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "claim_community_access_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_032_claim_drift_targets_claim",
+            "source_node_id": "node_drift_city_list_update_commitment_to_supported_update_2026_06_15",
+            "target_node_id": "node_claim_city_list_will_update_2026_06_10_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "action_city_updates_cooling_center_hours_2026_06_14_001",
+              "action_city_removes_unavailable_locations_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_033_evidence_drives_claim_drift",
+            "source_node_id": "node_action_city_updates_cooling_center_hours_2026_06_14_001",
+            "target_node_id": "node_drift_city_list_update_commitment_to_supported_update_2026_06_15",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "action_city_updates_cooling_center_hours_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_034_evidence_drives_claim_drift",
+            "source_node_id": "node_action_city_removes_unavailable_locations_2026_06_14_001",
+            "target_node_id": "node_drift_city_list_update_commitment_to_supported_update_2026_06_15",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "action_city_removes_unavailable_locations_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_035_version_diff_uses_evidence",
+            "source_node_id": "node_claim_community_access_gap_2026_06_12_001",
+            "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "claim_community_access_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_036_version_diff_uses_evidence",
+            "source_node_id": "node_fact_city_updates_list_and_hours_2026_06_14_001",
+            "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_city_updates_list_and_hours_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_037_version_diff_uses_evidence",
+            "source_node_id": "node_fact_city_adds_transport_support_2026_06_14_001",
+            "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_city_adds_transport_support_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_038_version_diff_uses_evidence",
+            "source_node_id": "node_fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+            "target_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_039_version_diff_updates_verdict",
+            "source_node_id": "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+            "target_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "edge_type": "version_diff_updates_verdict",
+            "label": "version diff updates verdict",
+            "evidence_ids": [
+              "claim_community_access_gap_2026_06_12_001",
+              "fact_city_updates_list_and_hours_2026_06_14_001",
+              "fact_city_adds_transport_support_2026_06_14_001",
+              "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_040_verdict_depends_on_interpretation",
+            "source_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+            "target_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "edge_type": "verdict_depends_on_interpretation",
+            "label": "verdict depends on interpretation",
+            "evidence_ids": [
+              "fact_city_announces_50_cooling_centers_2026_06_10_001",
+              "claim_community_access_gap_2026_06_12_001",
+              "action_city_updates_cooling_center_hours_2026_06_14_001",
+              "action_city_adds_transport_support_2026_06_14_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_041_verdict_tempered_by_counter_branch",
+            "source_node_id": "node_counter_fast_changing_conditions_2026_06_15_001",
+            "target_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "edge_type": "verdict_tempered_by_counter_branch",
+            "label": "verdict is tempered by counter-branch",
+            "evidence_ids": [
+              "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+              "claim_city_list_will_update_2026_06_10_001",
+              "action_city_removes_unavailable_locations_2026_06_14_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_042_bias_note_attaches_to_interpretation",
+            "source_node_id": "node_bias_public_accountability_metaphor_2026_06_15_001",
+            "target_node_id": "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+            "edge_type": "bias_note_attaches_to_interpretation",
+            "label": "bias note attaches to interpretation for review"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_043_bias_note_attaches_to_verdict",
+            "source_node_id": "node_bias_public_accountability_metaphor_2026_06_15_001",
+            "target_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "edge_type": "bias_note_attaches_to_verdict",
+            "label": "bias note attaches to verdict for review"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_044_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "target_node_id": "node_unresolved_city_heatwave_cooling_centers_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_045_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "target_node_id": "node_unresolved_city_heatwave_cooling_centers_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_046_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "target_node_id": "node_unresolved_city_heatwave_cooling_centers_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
+        ],
+        "graph_summary": "Derived claim graph with 29 nodes and 46 edges linking sources, evidence, interpretations, counter-branches, timeline events, claim drift, version diff, and verdict.",
+        "primary_paths": [
+          {
+            "path_id": "path_city_heatwave_cooling_centers_version_diff_to_verdict",
+            "label": "Evidence to version diff to verdict",
+            "node_ids": [
+              "node_src_community_cooling_center_access_report_2026_06_12",
+              "node_claim_community_access_gap_2026_06_12_001",
+              "node_diff_city_heatwave_v00_to_v01_2026_06_15",
+              "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01"
+            ],
+            "edge_ids": [
+              "edge_city_heatwave_cooling_centers_008_source_contains_claim",
+              "edge_city_heatwave_cooling_centers_035_version_diff_uses_evidence",
+              "edge_city_heatwave_cooling_centers_039_version_diff_updates_verdict"
+            ],
+            "summary": "A source-bound evidence item changes the version diff, which updates the verdict."
+          },
+          {
+            "path_id": "path_city_heatwave_cooling_centers_interpretation_to_verdict",
+            "label": "Evidence to interpretation to verdict",
+            "node_ids": [
+              "node_src_city_heatwave_initial_announcement_2026_06_10",
+              "node_fact_city_announces_50_cooling_centers_2026_06_10_001",
+              "node_interp_emergency_service_implementation_gap_2026_06_15_001",
+              "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01"
+            ],
+            "edge_ids": [
+              "edge_city_heatwave_cooling_centers_001_source_supports_fact",
+              "edge_city_heatwave_cooling_centers_014_fact_supports_interpretation",
+              "edge_city_heatwave_cooling_centers_040_verdict_depends_on_interpretation"
+            ],
+            "summary": "A source-bound evidence item supports the interpretation that the verdict depends on."
+          }
+        ],
+        "unresolved_edges": [
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_044_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "target_node_id": "node_unresolved_city_heatwave_cooling_centers_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_045_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "target_node_id": "node_unresolved_city_heatwave_cooling_centers_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_city_heatwave_cooling_centers_046_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+            "target_node_id": "node_unresolved_city_heatwave_cooling_centers_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
+        ]
+      },
       "editorial_verdict": {
         "verdict_id": "verdict_city_heatwave_cooling_centers_2026_06_15_v01",
         "short_label": "Public communication failure with partial remediation",
@@ -934,6 +2478,808 @@
           "current_handling": "Treat minor delay as not applicable to the named affected lines during the disruption window."
         }
       ],
+      "claim_graph": {
+        "graph_id": "graph_public_transit_delay_communication_2026_06_14_v01",
+        "nodes": [
+          {
+            "node_id": "node_src_transit_initial_service_status_2026_06_11",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_transit_initial_service_status_2026_06_11",
+            "summary": "src_transit_initial_service_status_2026_06_11",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_commuter_delay_observation_report_2026_06_12",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_commuter_delay_observation_report_2026_06_12",
+            "summary": "src_commuter_delay_observation_report_2026_06_12",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_transit_corrected_service_update_2026_06_13",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_transit_corrected_service_update_2026_06_13",
+            "summary": "src_transit_corrected_service_update_2026_06_13",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_editorial_transit_status_accountability_note_2026_06_14",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_editorial_transit_status_accountability_note_2026_06_14",
+            "summary": "src_editorial_transit_status_accountability_note_2026_06_14",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_transit_claims_most_service_normal_2026_06_11_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_transit_claims_most_service_normal_2026_06_11_001",
+            "summary": "The fictional transit agency reported that most rail and bus service was running normally after an early-morning signal-system issue.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_commuters_report_severe_delays_2026_06_12_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_commuters_report_severe_delays_2026_06_12_001",
+            "summary": "A fictional commuter forum reported severe delays on several lines and unclear station announcements.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_app_status_lag_reported_2026_06_12_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_app_status_lag_reported_2026_06_12_001",
+            "summary": "Riders reported service-status app updates showing normal or minor-delay conditions while trains were held.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_transit_corrects_affected_lines_2026_06_13_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_transit_corrects_affected_lines_2026_06_13_001",
+            "summary": "The transit agency later identified the Blue, Green, and Crosstown lines as affected by severe residual delays.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_transit_adds_replacement_buses_2026_06_13_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_transit_adds_replacement_buses_2026_06_13_001",
+            "summary": "The transit agency added replacement bus support between key stations.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_transit_app_indicators_lagged_operations_2026_06_13_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_transit_app_indicators_lagged_operations_2026_06_13_001",
+            "summary": "The agency said some app status indicators lagged behind operations data during manual dispatching.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_transit_most_service_normal_2026_06_11_001",
+            "node_type": "actor_claim",
+            "label": "Fictional Metropolitan Transit Agency",
+            "ref_id": "claim_transit_most_service_normal_2026_06_11_001",
+            "summary": "Most rail and bus service was running normally after the signal-system issue.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_transit_minor_residual_delays_2026_06_11_001",
+            "node_type": "actor_claim",
+            "label": "Fictional Metropolitan Transit Agency",
+            "ref_id": "claim_transit_minor_residual_delays_2026_06_11_001",
+            "summary": "Riders should see only minor residual delays as operations stabilized.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_commuters_severe_delay_gap_2026_06_12_001",
+            "node_type": "actor_claim",
+            "label": "Fictional Commuter Riders Forum",
+            "ref_id": "claim_commuters_severe_delay_gap_2026_06_12_001",
+            "summary": "Several lines still had severe delays, unclear station notices, crowded platforms, and inconsistent service app updates.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_transit_app_lag_explained_2026_06_13_001",
+            "node_type": "actor_claim",
+            "label": "Fictional Metropolitan Transit Agency",
+            "ref_id": "claim_transit_app_lag_explained_2026_06_13_001",
+            "summary": "Some app status indicators lagged behind operations data during manual dispatching.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_transit_publishes_corrected_service_update_2026_06_13_001",
+            "node_type": "action",
+            "label": "public_status_correction",
+            "ref_id": "action_transit_publishes_corrected_service_update_2026_06_13_001",
+            "summary": "Published a corrected service update naming the affected Blue, Green, and Crosstown lines.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_transit_adds_replacement_bus_support_2026_06_13_001",
+            "node_type": "action",
+            "label": "service_mitigation",
+            "ref_id": "action_transit_adds_replacement_bus_support_2026_06_13_001",
+            "summary": "Added replacement bus support between key stations.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_transit_updates_station_staff_script_2026_06_13_001",
+            "node_type": "action",
+            "label": "communication_process_update",
+            "ref_id": "action_transit_updates_station_staff_script_2026_06_13_001",
+            "summary": "Said station staff would receive a direct update script for future signal disruptions.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_interp_transit_service_communication_gap_2026_06_14_001",
+            "node_type": "interpretation",
+            "label": "Implementation gap in real-time transit service communication",
+            "ref_id": "interp_transit_service_communication_gap_2026_06_14_001",
+            "summary": "The case suggests a communication implementation gap between the agency status claim and rider-facing conditions. The correction weakens a simple deliberate-deception framing but strengthens the need for versioned service status during disruptions.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_counter_transit_data_lag_operations_2026_06_14_001",
+            "node_type": "counter_branch",
+            "label": "Fast-changing operations and app data lag may explain part of the gap",
+            "ref_id": "counter_transit_data_lag_operations_2026_06_14_001",
+            "summary": "The service-status gap may reflect fast-changing signal recovery, manual dispatching, and lagging app indicators rather than deliberate deception. The corrected update and replacement buses indicate partial correction.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_bias_transit_status_wallpaper_metaphor_2026_06_14_001",
+            "node_type": "bias_note",
+            "label": "metaphor_opinion",
+            "ref_id": "bias_transit_status_wallpaper_metaphor_2026_06_14_001",
+            "summary": "A status board that says 'normal service' while platforms fill with stranded riders is not information; it is decorative wallpaper.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_transit_delay_v00_initial_status_2026_06_11",
+            "node_type": "version_event",
+            "label": "v00",
+            "ref_id": "version_transit_delay_v00_initial_status_2026_06_11",
+            "summary": "The fictional transit agency said most service was normal after a signal issue.",
+            "confidence": "low",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_transit_delay_v01_commuter_observation_2026_06_12",
+            "node_type": "version_event",
+            "label": "v01",
+            "ref_id": "version_transit_delay_v01_commuter_observation_2026_06_12",
+            "summary": "Commuters reported severe delays, unclear station notices, and app/status mismatches.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_transit_delay_v02_agency_correction_2026_06_13",
+            "node_type": "version_event",
+            "label": "v02",
+            "ref_id": "version_transit_delay_v02_agency_correction_2026_06_13",
+            "summary": "The agency named affected lines, added replacement buses, and acknowledged app data lag.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_transit_most_service_normal_to_partially_challenged_2026_06_14",
+            "node_type": "claim_drift",
+            "label": "weakened",
+            "ref_id": "drift_transit_most_service_normal_to_partially_challenged_2026_06_14",
+            "summary": "The broad normal-service claim weakened after riders reported severe line-level delays.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_transit_minor_delays_to_narrowed_affected_lines_2026_06_14",
+            "node_type": "claim_drift",
+            "label": "narrowed",
+            "ref_id": "drift_transit_minor_delays_to_narrowed_affected_lines_2026_06_14",
+            "summary": "The minor-delay framing narrowed after the agency named specific lines with severe residual delays.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_diff_transit_delay_v00_to_v01_2026_06_14",
+            "node_type": "version_diff",
+            "label": "v01_after_commuter_reports_and_agency_correction",
+            "ref_id": "diff_transit_delay_v00_to_v01_2026_06_14",
+            "summary": "Concern shifted from mostly normal service to partially corrected communication failure after rider reports, a corrected affected-line list, and replacement bus support.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "node_type": "verdict",
+            "label": "Transit communication failure with partial remediation",
+            "ref_id": "verdict_transit_delay_communication_2026_06_14_v01",
+            "summary": "This case is best treated as a real-time service communication and implementation-gap case. The agency initial claim was not reliable for riders on affected platforms, but the later correction and replacement buses weaken a simple bad-faith framing. Readers should inspect facts, counter-branches, and unresolved service-impact questions before accepting a stronger accusation.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_public_transit_delay_communication_01",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 1",
+            "ref_id": "unresolved_public_transit_delay_communication_01",
+            "summary": "How many riders were delayed and for how long.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_public_transit_delay_communication_02",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 2",
+            "ref_id": "unresolved_public_transit_delay_communication_02",
+            "summary": "Whether replacement buses met actual rider demand.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_public_transit_delay_communication_03",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 3",
+            "ref_id": "unresolved_public_transit_delay_communication_03",
+            "summary": "Whether app and station update lag was fixed durably for future disruptions.",
+            "source_bound": true
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge_public_transit_delay_communication_001_source_supports_fact",
+            "source_node_id": "node_src_transit_initial_service_status_2026_06_11",
+            "target_node_id": "node_fact_transit_claims_most_service_normal_2026_06_11_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_transit_claims_most_service_normal_2026_06_11_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_002_source_supports_fact",
+            "source_node_id": "node_src_commuter_delay_observation_report_2026_06_12",
+            "target_node_id": "node_fact_commuters_report_severe_delays_2026_06_12_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_commuters_report_severe_delays_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_003_source_supports_fact",
+            "source_node_id": "node_src_commuter_delay_observation_report_2026_06_12",
+            "target_node_id": "node_fact_app_status_lag_reported_2026_06_12_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_app_status_lag_reported_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_004_source_supports_fact",
+            "source_node_id": "node_src_transit_corrected_service_update_2026_06_13",
+            "target_node_id": "node_fact_transit_corrects_affected_lines_2026_06_13_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_transit_corrects_affected_lines_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_005_source_supports_fact",
+            "source_node_id": "node_src_transit_corrected_service_update_2026_06_13",
+            "target_node_id": "node_fact_transit_adds_replacement_buses_2026_06_13_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_transit_adds_replacement_buses_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_006_source_supports_fact",
+            "source_node_id": "node_src_transit_corrected_service_update_2026_06_13",
+            "target_node_id": "node_fact_transit_app_indicators_lagged_operations_2026_06_13_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_transit_app_indicators_lagged_operations_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_007_source_contains_claim",
+            "source_node_id": "node_src_transit_initial_service_status_2026_06_11",
+            "target_node_id": "node_claim_transit_most_service_normal_2026_06_11_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_transit_most_service_normal_2026_06_11_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_008_source_contains_claim",
+            "source_node_id": "node_src_transit_initial_service_status_2026_06_11",
+            "target_node_id": "node_claim_transit_minor_residual_delays_2026_06_11_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_transit_minor_residual_delays_2026_06_11_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_009_source_contains_claim",
+            "source_node_id": "node_src_commuter_delay_observation_report_2026_06_12",
+            "target_node_id": "node_claim_commuters_severe_delay_gap_2026_06_12_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_commuters_severe_delay_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_010_source_contains_claim",
+            "source_node_id": "node_src_transit_corrected_service_update_2026_06_13",
+            "target_node_id": "node_claim_transit_app_lag_explained_2026_06_13_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_transit_app_lag_explained_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_011_source_describes_action",
+            "source_node_id": "node_src_transit_corrected_service_update_2026_06_13",
+            "target_node_id": "node_action_transit_publishes_corrected_service_update_2026_06_13_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_transit_publishes_corrected_service_update_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_012_source_describes_action",
+            "source_node_id": "node_src_transit_corrected_service_update_2026_06_13",
+            "target_node_id": "node_action_transit_adds_replacement_bus_support_2026_06_13_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_transit_adds_replacement_bus_support_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_013_source_describes_action",
+            "source_node_id": "node_src_transit_corrected_service_update_2026_06_13",
+            "target_node_id": "node_action_transit_updates_station_staff_script_2026_06_13_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_transit_updates_station_staff_script_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_014_source_contains_bias_note",
+            "source_node_id": "node_src_editorial_transit_status_accountability_note_2026_06_14",
+            "target_node_id": "node_bias_transit_status_wallpaper_metaphor_2026_06_14_001",
+            "edge_type": "source_contains_bias_note",
+            "label": "source contains labeled bias note"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_015_claim_supports_interpretation",
+            "source_node_id": "node_claim_transit_most_service_normal_2026_06_11_001",
+            "target_node_id": "node_interp_transit_service_communication_gap_2026_06_14_001",
+            "edge_type": "claim_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "claim_transit_most_service_normal_2026_06_11_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_016_claim_supports_interpretation",
+            "source_node_id": "node_claim_commuters_severe_delay_gap_2026_06_12_001",
+            "target_node_id": "node_interp_transit_service_communication_gap_2026_06_14_001",
+            "edge_type": "claim_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "claim_commuters_severe_delay_gap_2026_06_12_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_017_action_supports_interpretation",
+            "source_node_id": "node_action_transit_publishes_corrected_service_update_2026_06_13_001",
+            "target_node_id": "node_interp_transit_service_communication_gap_2026_06_14_001",
+            "edge_type": "action_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "action_transit_publishes_corrected_service_update_2026_06_13_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_018_action_supports_interpretation",
+            "source_node_id": "node_action_transit_adds_replacement_bus_support_2026_06_13_001",
+            "target_node_id": "node_interp_transit_service_communication_gap_2026_06_14_001",
+            "edge_type": "action_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "action_transit_adds_replacement_bus_support_2026_06_13_001"
+            ],
+            "confidence": "high"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_019_evidence_supports_counter_branch",
+            "source_node_id": "node_fact_transit_app_indicators_lagged_operations_2026_06_13_001",
+            "target_node_id": "node_counter_transit_data_lag_operations_2026_06_14_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "fact_transit_app_indicators_lagged_operations_2026_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_020_evidence_supports_counter_branch",
+            "source_node_id": "node_claim_transit_app_lag_explained_2026_06_13_001",
+            "target_node_id": "node_counter_transit_data_lag_operations_2026_06_14_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "claim_transit_app_lag_explained_2026_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_021_evidence_supports_counter_branch",
+            "source_node_id": "node_action_transit_updates_station_staff_script_2026_06_13_001",
+            "target_node_id": "node_counter_transit_data_lag_operations_2026_06_14_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "action_transit_updates_station_staff_script_2026_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_022_counter_branch_targets_interpretation",
+            "source_node_id": "node_counter_transit_data_lag_operations_2026_06_14_001",
+            "target_node_id": "node_interp_transit_service_communication_gap_2026_06_14_001",
+            "edge_type": "counter_branch_targets_interpretation",
+            "label": "counter-branch targets review object",
+            "evidence_ids": [
+              "fact_transit_app_indicators_lagged_operations_2026_06_13_001",
+              "claim_transit_app_lag_explained_2026_06_13_001",
+              "action_transit_updates_station_staff_script_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_023_timeline_event_uses_evidence",
+            "source_node_id": "node_claim_transit_most_service_normal_2026_06_11_001",
+            "target_node_id": "node_version_transit_delay_v00_initial_status_2026_06_11",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "claim_transit_most_service_normal_2026_06_11_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_024_timeline_event_updates_judgment",
+            "source_node_id": "node_version_transit_delay_v00_initial_status_2026_06_11",
+            "target_node_id": "node_diff_transit_delay_v00_to_v01_2026_06_14",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "claim_transit_most_service_normal_2026_06_11_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_025_timeline_event_uses_evidence",
+            "source_node_id": "node_claim_commuters_severe_delay_gap_2026_06_12_001",
+            "target_node_id": "node_version_transit_delay_v01_commuter_observation_2026_06_12",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "claim_commuters_severe_delay_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_026_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_app_status_lag_reported_2026_06_12_001",
+            "target_node_id": "node_version_transit_delay_v01_commuter_observation_2026_06_12",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_app_status_lag_reported_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_027_timeline_event_updates_judgment",
+            "source_node_id": "node_version_transit_delay_v01_commuter_observation_2026_06_12",
+            "target_node_id": "node_diff_transit_delay_v00_to_v01_2026_06_14",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "claim_commuters_severe_delay_gap_2026_06_12_001",
+              "fact_app_status_lag_reported_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_028_timeline_event_uses_evidence",
+            "source_node_id": "node_action_transit_publishes_corrected_service_update_2026_06_13_001",
+            "target_node_id": "node_version_transit_delay_v02_agency_correction_2026_06_13",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_transit_publishes_corrected_service_update_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_029_timeline_event_uses_evidence",
+            "source_node_id": "node_action_transit_adds_replacement_bus_support_2026_06_13_001",
+            "target_node_id": "node_version_transit_delay_v02_agency_correction_2026_06_13",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_transit_adds_replacement_bus_support_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_030_timeline_event_uses_evidence",
+            "source_node_id": "node_claim_transit_app_lag_explained_2026_06_13_001",
+            "target_node_id": "node_version_transit_delay_v02_agency_correction_2026_06_13",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "claim_transit_app_lag_explained_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_031_timeline_event_updates_judgment",
+            "source_node_id": "node_version_transit_delay_v02_agency_correction_2026_06_13",
+            "target_node_id": "node_diff_transit_delay_v00_to_v01_2026_06_14",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "action_transit_publishes_corrected_service_update_2026_06_13_001",
+              "action_transit_adds_replacement_bus_support_2026_06_13_001",
+              "claim_transit_app_lag_explained_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_032_claim_drift_targets_claim",
+            "source_node_id": "node_drift_transit_most_service_normal_to_partially_challenged_2026_06_14",
+            "target_node_id": "node_claim_transit_most_service_normal_2026_06_11_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "claim_commuters_severe_delay_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_033_evidence_drives_claim_drift",
+            "source_node_id": "node_claim_commuters_severe_delay_gap_2026_06_12_001",
+            "target_node_id": "node_drift_transit_most_service_normal_to_partially_challenged_2026_06_14",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "claim_commuters_severe_delay_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_034_claim_drift_targets_claim",
+            "source_node_id": "node_drift_transit_minor_delays_to_narrowed_affected_lines_2026_06_14",
+            "target_node_id": "node_claim_transit_minor_residual_delays_2026_06_11_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_transit_corrects_affected_lines_2026_06_13_001",
+              "action_transit_publishes_corrected_service_update_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_035_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_transit_corrects_affected_lines_2026_06_13_001",
+            "target_node_id": "node_drift_transit_minor_delays_to_narrowed_affected_lines_2026_06_14",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_transit_corrects_affected_lines_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_036_evidence_drives_claim_drift",
+            "source_node_id": "node_action_transit_publishes_corrected_service_update_2026_06_13_001",
+            "target_node_id": "node_drift_transit_minor_delays_to_narrowed_affected_lines_2026_06_14",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "action_transit_publishes_corrected_service_update_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_037_version_diff_uses_evidence",
+            "source_node_id": "node_claim_commuters_severe_delay_gap_2026_06_12_001",
+            "target_node_id": "node_diff_transit_delay_v00_to_v01_2026_06_14",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "claim_commuters_severe_delay_gap_2026_06_12_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_038_version_diff_uses_evidence",
+            "source_node_id": "node_fact_transit_corrects_affected_lines_2026_06_13_001",
+            "target_node_id": "node_diff_transit_delay_v00_to_v01_2026_06_14",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_transit_corrects_affected_lines_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_039_version_diff_uses_evidence",
+            "source_node_id": "node_fact_transit_adds_replacement_buses_2026_06_13_001",
+            "target_node_id": "node_diff_transit_delay_v00_to_v01_2026_06_14",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_transit_adds_replacement_buses_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_040_version_diff_uses_evidence",
+            "source_node_id": "node_fact_transit_app_indicators_lagged_operations_2026_06_13_001",
+            "target_node_id": "node_diff_transit_delay_v00_to_v01_2026_06_14",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_transit_app_indicators_lagged_operations_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_041_version_diff_updates_verdict",
+            "source_node_id": "node_diff_transit_delay_v00_to_v01_2026_06_14",
+            "target_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "edge_type": "version_diff_updates_verdict",
+            "label": "version diff updates verdict",
+            "evidence_ids": [
+              "claim_commuters_severe_delay_gap_2026_06_12_001",
+              "fact_transit_corrects_affected_lines_2026_06_13_001",
+              "fact_transit_adds_replacement_buses_2026_06_13_001",
+              "fact_transit_app_indicators_lagged_operations_2026_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_042_verdict_depends_on_interpretation",
+            "source_node_id": "node_interp_transit_service_communication_gap_2026_06_14_001",
+            "target_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "edge_type": "verdict_depends_on_interpretation",
+            "label": "verdict depends on interpretation",
+            "evidence_ids": [
+              "claim_transit_most_service_normal_2026_06_11_001",
+              "claim_commuters_severe_delay_gap_2026_06_12_001",
+              "action_transit_publishes_corrected_service_update_2026_06_13_001",
+              "action_transit_adds_replacement_bus_support_2026_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_043_verdict_tempered_by_counter_branch",
+            "source_node_id": "node_counter_transit_data_lag_operations_2026_06_14_001",
+            "target_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "edge_type": "verdict_tempered_by_counter_branch",
+            "label": "verdict is tempered by counter-branch",
+            "evidence_ids": [
+              "fact_transit_app_indicators_lagged_operations_2026_06_13_001",
+              "claim_transit_app_lag_explained_2026_06_13_001",
+              "action_transit_updates_station_staff_script_2026_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_044_bias_note_attaches_to_interpretation",
+            "source_node_id": "node_bias_transit_status_wallpaper_metaphor_2026_06_14_001",
+            "target_node_id": "node_interp_transit_service_communication_gap_2026_06_14_001",
+            "edge_type": "bias_note_attaches_to_interpretation",
+            "label": "bias note attaches to interpretation for review"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_045_bias_note_attaches_to_verdict",
+            "source_node_id": "node_bias_transit_status_wallpaper_metaphor_2026_06_14_001",
+            "target_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "edge_type": "bias_note_attaches_to_verdict",
+            "label": "bias note attaches to verdict for review"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_046_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "target_node_id": "node_unresolved_public_transit_delay_communication_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_047_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "target_node_id": "node_unresolved_public_transit_delay_communication_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_048_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "target_node_id": "node_unresolved_public_transit_delay_communication_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
+        ],
+        "graph_summary": "Derived claim graph with 30 nodes and 48 edges linking sources, evidence, interpretations, counter-branches, timeline events, claim drift, version diff, and verdict.",
+        "primary_paths": [
+          {
+            "path_id": "path_public_transit_delay_communication_version_diff_to_verdict",
+            "label": "Evidence to version diff to verdict",
+            "node_ids": [
+              "node_src_commuter_delay_observation_report_2026_06_12",
+              "node_claim_commuters_severe_delay_gap_2026_06_12_001",
+              "node_diff_transit_delay_v00_to_v01_2026_06_14",
+              "node_verdict_transit_delay_communication_2026_06_14_v01"
+            ],
+            "edge_ids": [
+              "edge_public_transit_delay_communication_009_source_contains_claim",
+              "edge_public_transit_delay_communication_037_version_diff_uses_evidence",
+              "edge_public_transit_delay_communication_041_version_diff_updates_verdict"
+            ],
+            "summary": "A source-bound evidence item changes the version diff, which updates the verdict."
+          },
+          {
+            "path_id": "path_public_transit_delay_communication_interpretation_to_verdict",
+            "label": "Evidence to interpretation to verdict",
+            "node_ids": [
+              "node_src_transit_initial_service_status_2026_06_11",
+              "node_claim_transit_most_service_normal_2026_06_11_001",
+              "node_interp_transit_service_communication_gap_2026_06_14_001",
+              "node_verdict_transit_delay_communication_2026_06_14_v01"
+            ],
+            "edge_ids": [
+              "edge_public_transit_delay_communication_007_source_contains_claim",
+              "edge_public_transit_delay_communication_015_claim_supports_interpretation",
+              "edge_public_transit_delay_communication_042_verdict_depends_on_interpretation"
+            ],
+            "summary": "A source-bound evidence item supports the interpretation that the verdict depends on."
+          }
+        ],
+        "unresolved_edges": [
+          {
+            "edge_id": "edge_public_transit_delay_communication_046_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "target_node_id": "node_unresolved_public_transit_delay_communication_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_047_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "target_node_id": "node_unresolved_public_transit_delay_communication_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_public_transit_delay_communication_048_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_transit_delay_communication_2026_06_14_v01",
+            "target_node_id": "node_unresolved_public_transit_delay_communication_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
+        ]
+      },
       "editorial_verdict": {
         "verdict_id": "verdict_transit_delay_communication_2026_06_14_v01",
         "short_label": "Transit communication failure with partial remediation",

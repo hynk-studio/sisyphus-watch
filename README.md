@@ -2,7 +2,7 @@
 
 **Kaggle-facing title:** Sisyphus Watch: Version Control for Public Claims
 
-Sisyphus Watch is an AI-agent demo that turns public news-like sources into versioned claim cards. It separates facts, actor claims, actions, interpretations, counter-branches, bias notes, version timelines, claim drift, and version diffs so people and AI agents can reason beyond the news cycle.
+Sisyphus Watch is an AI-agent demo that turns public news-like sources into versioned claim cards. It separates facts, actor claims, actions, interpretations, counter-branches, bias notes, version timelines, claim drift, claim graphs, and version diffs so people and AI agents can reason beyond the news cycle.
 
 This first build is a Kaggle Code-native vertical slice for the Kaggle 5-Day AI Agents Intensive Vibe Coding Course with Google. It is not a production news platform.
 
@@ -19,6 +19,7 @@ Sisyphus Watch is claim-version-control for public reasoning. It takes messy pub
 - bias, opinion, and metaphor notes
 - version timelines that track public claims from initial statement to observation to correction or update
 - claim drift records that show whether specific claims were weakened, strengthened, narrowed, corrected, or remain unresolved
+- claim_graph relation maps that connect sources, facts, claims, actions, interpretations, counter-branches, timeline events, drift entries, version diffs, unresolved questions, and verdicts
 - version diffs that show how judgment changes over time
 - human-readable card rendering
 - agent-readable JSON and JSONL records
@@ -47,6 +48,7 @@ The demo shows the claim-version-control flow:
 initial public claim
 -> observed implementation gap
 -> claim drift
+-> claim graph relation map
 -> counter-explanation
 -> updated action
 -> revised judgment
@@ -95,7 +97,7 @@ for card in cards:
     packet = build_agent_packet(card)
     print(card["card_id"], checks, negative.keys(), packet["packet_version"])
     assert all(row["status"] == "PASS" for row in checks)
-    assert packet["packet_version"] == "0.3"
+    assert packet["packet_version"] == "0.4"
 PY
 ```
 
@@ -118,7 +120,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
+The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, claim graph, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
 
 To switch scenarios in the notebook, change:
 
@@ -150,10 +152,11 @@ Demo mode loads:
 
 It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path. The deterministic record set includes both demo cards while preserving the heatwave card as the default.
 
-## Agent Packet v0.3
+## Agent Packet v0.4
 
-`build_agent_packet()` now emits `packet_version: "0.3"` with reusable context for downstream agents:
+`build_agent_packet()` now emits `packet_version: "0.4"` with reusable context for downstream agents:
 
+- claim graph summary, primary graph paths, node/edge counts, and graph reuse hints
 - compact version timeline and claim drift summaries
 - latest version label and current verdict ID
 - changed, weakened, strengthened, and unresolved claim ID buckets
@@ -176,6 +179,10 @@ To try it:
 
 Live mode treats source text as untrusted data, asks for JSON only, and normalizes the response into the same schema. If the key is missing, the package is unavailable, parsing fails, validation fails, or the API call fails, the notebook falls back to deterministic demo records. It never prints or stores the API key.
 
+## Claim Graph v0.4
+
+Each deterministic card includes an in-card `claim_graph` relation map. The graph is built from existing card IDs and records source/fact/claim/action/interpretation/counter/timeline/drift/diff/verdict relationships as nodes and edges. It is plain JSON; no database, graph service, network library, or external API is used.
+
 ## Schema
 
 `schemas/sisyphus_schema.json` documents the record shapes for:
@@ -192,6 +199,9 @@ Live mode treats source text as untrusted data, asks for JSON only, and normaliz
 - `version_diff`
 - `version_event`
 - `claim_drift`
+- `graph_node`
+- `graph_edge`
+- `claim_graph`
 - `editorial_verdict`
 - `agent_packet`
 

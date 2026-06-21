@@ -204,6 +204,104 @@
       },
       "additionalProperties": true
     },
+    "graph_node": {
+      "type": "object",
+      "required": ["node_id", "node_type", "label", "ref_id", "summary"],
+      "properties": {
+        "node_id": { "type": "string", "pattern": "^node_" },
+        "node_type": {
+          "type": "string",
+          "enum": [
+            "source",
+            "fact",
+            "actor_claim",
+            "action",
+            "interpretation",
+            "counter_branch",
+            "version_event",
+            "claim_drift",
+            "version_diff",
+            "verdict",
+            "unresolved_question",
+            "bias_note"
+          ]
+        },
+        "label": { "type": "string" },
+        "ref_id": { "type": "string" },
+        "summary": { "type": "string" },
+        "confidence": { "type": "string" },
+        "source_bound": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "graph_edge": {
+      "type": "object",
+      "required": ["edge_id", "source_node_id", "target_node_id", "edge_type", "label"],
+      "properties": {
+        "edge_id": { "type": "string", "pattern": "^edge_" },
+        "source_node_id": { "type": "string", "pattern": "^node_" },
+        "target_node_id": { "type": "string", "pattern": "^node_" },
+        "edge_type": {
+          "type": "string",
+          "enum": [
+            "source_supports_fact",
+            "source_contains_claim",
+            "source_describes_action",
+            "source_contains_bias_note",
+            "fact_supports_interpretation",
+            "claim_supports_interpretation",
+            "action_supports_interpretation",
+            "evidence_supports_counter_branch",
+            "counter_branch_targets_interpretation",
+            "counter_branch_targets_claim",
+            "timeline_event_uses_evidence",
+            "timeline_event_updates_judgment",
+            "claim_drift_targets_claim",
+            "evidence_drives_claim_drift",
+            "version_diff_uses_evidence",
+            "version_diff_updates_verdict",
+            "verdict_depends_on_interpretation",
+            "verdict_tempered_by_counter_branch",
+            "verdict_has_unresolved_question",
+            "bias_note_attaches_to_interpretation",
+            "bias_note_attaches_to_verdict"
+          ]
+        },
+        "label": { "type": "string" },
+        "evidence_ids": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "primary_graph_path": {
+      "type": "object",
+      "required": ["path_id", "label", "node_ids", "edge_ids", "summary"],
+      "properties": {
+        "path_id": { "type": "string", "pattern": "^path_" },
+        "label": { "type": "string" },
+        "node_ids": { "type": "array", "items": { "type": "string", "pattern": "^node_" }, "minItems": 2 },
+        "edge_ids": { "type": "array", "items": { "type": "string", "pattern": "^edge_" }, "minItems": 1 },
+        "summary": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "claim_graph": {
+      "type": "object",
+      "required": ["graph_id", "nodes", "edges", "graph_summary", "primary_paths", "unresolved_edges"],
+      "properties": {
+        "graph_id": { "type": "string", "pattern": "^graph_" },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/graph_node" }, "minItems": 1 },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/graph_edge" }, "minItems": 1 },
+        "graph_summary": { "type": "string" },
+        "primary_paths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/primary_graph_path" },
+          "minItems": 1
+        },
+        "unresolved_edges": { "type": "array", "items": { "$ref": "#/$defs/graph_edge" } }
+      },
+      "additionalProperties": true
+    },
     "editorial_verdict": {
       "type": "object",
       "required": ["verdict_id", "short_label", "verdict_text", "confidence", "reader_warnings"],
@@ -240,6 +338,7 @@
         "version_diff",
         "version_timeline",
         "claim_drift",
+        "claim_graph",
         "editorial_verdict"
       ],
       "properties": {
@@ -272,6 +371,7 @@
         "version_diff": { "$ref": "#/$defs/version_diff" },
         "version_timeline": { "type": "array", "items": { "$ref": "#/$defs/version_event" }, "minItems": 2 },
         "claim_drift": { "type": "array", "items": { "$ref": "#/$defs/claim_drift" }, "minItems": 1 },
+        "claim_graph": { "$ref": "#/$defs/claim_graph" },
         "editorial_verdict": { "$ref": "#/$defs/editorial_verdict" }
       },
       "additionalProperties": true
@@ -287,6 +387,13 @@
         "source_ids",
         "quality_checks",
         "reusable_context_summary",
+        "claim_graph_summary",
+        "primary_graph_paths",
+        "graph_node_count",
+        "graph_edge_count",
+        "graph_node_type_counts",
+        "graph_edge_type_counts",
+        "reusable_graph_hints",
         "version_timeline_summary",
         "claim_drift_summary",
         "latest_version_label",
@@ -307,13 +414,20 @@
       ],
       "properties": {
         "packet_id": { "type": "string", "pattern": "^agent_packet_" },
-        "packet_version": { "const": "0.3" },
+        "packet_version": { "const": "0.4" },
         "record_type": { "const": "agent_packet" },
         "canonical_card_id": { "type": "string" },
         "task": { "type": "string" },
         "source_ids": { "type": "array", "items": { "type": "string" } },
         "quality_checks": { "type": "array", "items": { "type": "object" } },
         "reusable_context_summary": { "type": "string" },
+        "claim_graph_summary": { "type": "string" },
+        "primary_graph_paths": { "type": "array", "items": { "$ref": "#/$defs/primary_graph_path" } },
+        "graph_node_count": { "type": "integer", "minimum": 0 },
+        "graph_edge_count": { "type": "integer", "minimum": 0 },
+        "graph_node_type_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "graph_edge_type_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "reusable_graph_hints": { "type": "array", "items": { "type": "string" } },
         "version_timeline_summary": { "type": "string" },
         "claim_drift_summary": { "type": "string" },
         "latest_version_label": { "type": "string" },
