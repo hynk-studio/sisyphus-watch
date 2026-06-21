@@ -32,7 +32,7 @@ The default demo uses synthetic fixtures. They are realistic enough to show the 
 
 ## Demo Scenarios
 
-Two synthetic scenarios are included. `city_heatwave_cooling_centers` remains the default Kaggle demo.
+Three synthetic scenarios are included. `city_heatwave_cooling_centers` remains the default Kaggle demo.
 
 **City Heatwave Cooling Centers** (`city_heatwave_cooling_centers`)
 
@@ -41,6 +41,10 @@ A fictional city announces that 50 cooling centers are open during a severe heat
 **Public Transit Delay Communication** (`public_transit_delay_communication`)
 
 A fictional transit agency says most service is running normally after a signal-system issue. Rider reports later show severe delays, unclear station notices, and lagging app updates. The agency publishes a correction, names affected lines, adds replacement bus support, and explains app data lag. This second scenario demonstrates that the same claim-version-control schema is reusable beyond the heatwave card.
+
+**School Air Quality Alert Communication** (`school_air_quality_alert_communication`)
+
+A fictional school district says classroom air-quality readings are within safe limits after a ventilation/filter issue. Parent and teacher observations later report stale air, unclear notices, inconsistent dashboard readings, and relocation confusion. The district publishes a corrected dashboard, identifies rooms without current readings, deploys portable HEPA units, clarifies thresholds, and explains sensor calibration and data-sync delays. This third scenario dogfoods the scenario authoring workflow.
 
 The demo shows the claim-version-control flow:
 
