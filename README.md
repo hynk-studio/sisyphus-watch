@@ -106,6 +106,15 @@ The notebook searches for the project root in the current working directory, par
 
 The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
 
+## Kaggle Visual Review Path
+
+1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
+2. Run all cells.
+3. Confirm the top evaluation summary passes before reading the detailed table.
+4. Review the human card first; JSON, JSONL, and agent packet details are available in collapsed sections below.
+
+For a cleaner Kaggle dataset package, exclude `.git`, `__pycache__`, and notebook checkpoint folders.
+
 ## Demo Mode
 
 Demo mode loads:
