@@ -205,6 +205,20 @@ Reviewer presets package common graph questions into deterministic JSON packets 
 
 `export_reviewer_packet()` emits `packet_version: "0.6"` reviewer packets. No LLM call, external graph service, or network access is required.
 
+## Scenario Authoring Workflow v0.7
+
+`examples/scenario_authoring_template.json` provides a lightweight draft for adding another synthetic public-claim scenario.
+
+The authoring helpers are deterministic and dependency-free:
+
+- `load_scenario_authoring_template()`
+- `validate_scenario_authoring_template()`
+- `build_scenario_authoring_checklist()`
+- `build_news_card_skeleton_from_template()`
+- `export_scenario_authoring_packet()`
+
+The output is a draft authoring aid, not a verified news card. No LLM call, live ingestion, graph database, or network access is required.
+
 ## Schema
 
 `schemas/sisyphus_schema.json` documents the record shapes for:
@@ -226,6 +240,9 @@ Reviewer presets package common graph questions into deterministic JSON packets 
 - `claim_graph`
 - `graph_packet`
 - `reviewer_packet`
+- `scenario_authoring_template`
+- `scenario_authoring_checklist`
+- `scenario_authoring_packet`
 - `editorial_verdict`
 - `agent_packet`
 

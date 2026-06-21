@@ -19,6 +19,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_PATH = PROJECT_ROOT / "data" / "demo_sources.json"
 DEFAULT_RECORD_PATH = PROJECT_ROOT / "data" / "precomputed_records.json"
+DEFAULT_SCENARIO_AUTHORING_TEMPLATE_PATH = PROJECT_ROOT / "examples" / "scenario_authoring_template.json"
 
 
 WORKFLOW_STEPS = [
@@ -110,6 +111,25 @@ QUERY_PRESETS = {
         "default_focus_type": "actor_claim",
         "output_packet_type": "sisyphus_reviewer_packet",
     },
+}
+
+SCENARIO_AUTHORING_REQUIREMENTS = {
+    "scenario_id": {"type": "string", "min_count": 1},
+    "scenario_name": {"type": "string", "min_count": 1},
+    "title": {"type": "string", "min_count": 1},
+    "public_interest_reason": {"type": "string", "min_count": 1},
+    "summary": {"type": "present", "min_count": 1},
+    "source_fixtures": {"type": "list", "min_count": 3},
+    "expected_facts": {"type": "list", "min_count": 3},
+    "expected_actor_claims": {"type": "list", "min_count": 2},
+    "expected_actions": {"type": "list", "min_count": 1},
+    "expected_interpretations": {"type": "list", "min_count": 1},
+    "expected_counter_branches": {"type": "list", "min_count": 1},
+    "expected_bias_notes": {"type": "list", "min_count": 1},
+    "expected_version_timeline": {"type": "list", "min_count": 2},
+    "expected_claim_drift": {"type": "list", "min_count": 1},
+    "expected_version_diff": {"type": "dict", "min_count": 1},
+    "expected_editorial_verdict": {"type": "dict", "min_count": 1},
 }
 
 
@@ -1685,6 +1705,343 @@ def export_reviewer_packet(
     return packet
 
 
+def load_scenario_authoring_template(path: str | Path | None = None) -> dict[str, Any]:
+    """Load the deterministic scenario authoring template."""
+    template_path = Path(path) if path else DEFAULT_SCENARIO_AUTHORING_TEMPLATE_PATH
+    template = _read_json(template_path)
+    if not isinstance(template, dict):
+        raise ValueError("scenario authoring template must contain a JSON object")
+    return template
+
+
+def validate_scenario_authoring_template(template: dict[str, Any]) -> list[str]:
+    """Return readable validation errors for a scenario authoring template."""
+    if not isinstance(template, dict):
+        raise TypeError("scenario authoring template must be a dict")
+
+    errors: list[str] = []
+    for section, requirement in SCENARIO_AUTHORING_REQUIREMENTS.items():
+        value = template.get(section)
+        expected_type = requirement["type"]
+        min_count = int(requirement["min_count"])
+        if expected_type == "string":
+            if not isinstance(value, str) or not value.strip():
+                errors.append(f"{section} is required and must be a non-empty string")
+        elif expected_type == "list":
+            if not isinstance(value, list):
+                errors.append(f"{section} is required and must be a list")
+            elif len(value) < min_count:
+                errors.append(f"{section} must include at least {min_count} entries; found {len(value)}")
+        elif expected_type == "dict":
+            if not isinstance(value, dict) or not value:
+                errors.append(f"{section} is required and must be a non-empty object")
+        elif section not in template:
+            errors.append(f"{section} is required")
+
+    scenario_id = template.get("scenario_id")
+    if isinstance(scenario_id, str) and scenario_id.strip() and not scenario_id.replace("_", "").isalnum():
+        errors.append("scenario_id should use lowercase letters, numbers, and underscores")
+
+    return errors
+
+
+def build_scenario_authoring_checklist(template: dict[str, Any]) -> dict[str, Any]:
+    """Build a deterministic authoring checklist for a scenario template."""
+    if not isinstance(template, dict):
+        raise TypeError("scenario authoring template must be a dict")
+
+    errors = validate_scenario_authoring_template(template)
+    required_sections = list(SCENARIO_AUTHORING_REQUIREMENTS.keys())
+    missing_sections: list[str] = []
+    passed_sections: list[str] = []
+    for section in required_sections:
+        section_errors = [error for error in errors if error.startswith(section)]
+        if section_errors:
+            missing_sections.append(section)
+        else:
+            passed_sections.append(section)
+
+    warnings: list[str] = []
+    if template.get("scenario_id") in {card.get("scenario_id") for card in get_news_cards(load_precomputed_records())}:
+        warnings.append("scenario_id already exists in deterministic demo records")
+    if any("TODO" in json.dumps(template.get(section, ""), ensure_ascii=False) for section in required_sections):
+        warnings.append("template still contains TODO markers")
+
+    ready = not errors
+    next_steps = [
+        "Replace draft source fixtures with source-bound synthetic text.",
+        "Fill facts, actor claims, and actions before writing interpretations.",
+        "Add counter-branches, claim drift, and version timeline entries before promoting the card.",
+        "Run validate_news_card() only after claim_graph and final IDs are added.",
+    ]
+    if not ready:
+        next_steps.insert(0, "Fix missing or underspecified template sections listed in missing_sections.")
+
+    scenario_id = str(template.get("scenario_id", "draft_scenario"))
+    return {
+        "checklist_id": f"scenario_checklist_{scenario_id}",
+        "scenario_id": scenario_id,
+        "scenario_name": template.get("scenario_name", ""),
+        "required_sections": required_sections,
+        "passed_sections": passed_sections,
+        "missing_sections": missing_sections,
+        "warnings": warnings,
+        "ready_for_card_authoring": ready,
+        "next_authoring_steps": next_steps,
+    }
+
+
+def _authoring_slug(value: Any) -> str:
+    text = str(value or "draft_scenario").strip().lower().replace("-", "_").replace(" ", "_")
+    return "".join(char for char in text if char.isalnum() or char == "_") or "draft_scenario"
+
+
+def _template_text(item: Any, *keys: str) -> str:
+    if isinstance(item, dict):
+        for key in keys:
+            if item.get(key):
+                return str(item[key])
+        return str(item.get("summary", "TODO: fill draft text"))
+    return str(item)
+
+
+def _template_source_ids(template: dict[str, Any]) -> list[str]:
+    scenario_id = _authoring_slug(template.get("scenario_id"))
+    source_ids: list[str] = []
+    for index, source in enumerate(_as_list(template.get("source_fixtures")), start=1):
+        if isinstance(source, dict) and source.get("source_id"):
+            source_ids.append(str(source["source_id"]))
+        else:
+            source_ids.append(f"src_{scenario_id}_{index:03d}")
+    return source_ids
+
+
+def build_news_card_skeleton_from_template(template: dict[str, Any]) -> dict[str, Any]:
+    """Build a draft news-card skeleton from an authoring template."""
+    if not isinstance(template, dict):
+        raise TypeError("scenario authoring template must be a dict")
+
+    scenario_id = _authoring_slug(template.get("scenario_id"))
+    source_ids = _template_source_ids(template)
+
+    def source_refs(item: Any) -> list[str]:
+        if isinstance(item, dict):
+            refs = _as_list(item.get("source_ids"))
+            if refs:
+                return [str(ref) for ref in refs]
+        return source_ids[:1]
+
+    summary = template.get("summary", [])
+    if isinstance(summary, str):
+        summary_lines = [summary, "TODO: add claim drift summary.", "TODO: add unresolved question summary."]
+    else:
+        summary_lines = [str(line) for line in _as_list(summary)[:3]]
+    while len(summary_lines) < 3:
+        summary_lines.append("TODO: fill summary line.")
+
+    facts = [
+        {
+            "fact_id": f"fact_{scenario_id}_{index:03d}",
+            "text": _template_text(item, "text", "fact_text"),
+            "source_ids": source_refs(item),
+            "confidence": "draft",
+            "source_bound": True,
+            "authoring_status": "todo_verify_against_source_fixture",
+        }
+        for index, item in enumerate(_as_list(template.get("expected_facts")), start=1)
+    ]
+    claims = [
+        {
+            "claim_id": f"claim_{scenario_id}_{index:03d}",
+            "actor": item.get("actor", "TODO: actor") if isinstance(item, dict) else "TODO: actor",
+            "claim_text": _template_text(item, "claim_text", "text"),
+            "source_ids": source_refs(item),
+            "claim_type": item.get("claim_type", "draft_public_claim") if isinstance(item, dict) else "draft_public_claim",
+            "status": "draft_expected_claim",
+        }
+        for index, item in enumerate(_as_list(template.get("expected_actor_claims")), start=1)
+    ]
+    actions = [
+        {
+            "action_id": f"action_{scenario_id}_{index:03d}",
+            "actor": item.get("actor", "TODO: actor") if isinstance(item, dict) else "TODO: actor",
+            "action_text": _template_text(item, "action_text", "text"),
+            "source_ids": source_refs(item),
+            "action_type": item.get("action_type", "draft_action") if isinstance(item, dict) else "draft_action",
+            "date": item.get("date", "TODO: date") if isinstance(item, dict) else "TODO: date",
+        }
+        for index, item in enumerate(_as_list(template.get("expected_actions")), start=1)
+    ]
+    interpretations = [
+        {
+            "interpretation_id": f"interp_{scenario_id}_{index:03d}",
+            "title": item.get("title", f"Draft interpretation {index}") if isinstance(item, dict) else f"Draft interpretation {index}",
+            "interpretation_text": _template_text(item, "interpretation_text", "text"),
+            "evidence_ids": [fact["fact_id"] for fact in facts[:2]] + [claim["claim_id"] for claim in claims[:1]],
+            "alternative_interpretations": _as_list(item.get("alternative_interpretations")) if isinstance(item, dict) else [],
+            "risk_notes": ["TODO: verify interpretation against evidence-bound facts and claims."],
+            "confidence": "draft",
+        }
+        for index, item in enumerate(_as_list(template.get("expected_interpretations")), start=1)
+    ]
+    counters = [
+        {
+            "counter_branch_id": f"counter_{scenario_id}_{index:03d}",
+            "title": item.get("title", f"Draft counter branch {index}") if isinstance(item, dict) else f"Draft counter branch {index}",
+            "counter_text": _template_text(item, "counter_text", "text"),
+            "target_id": interpretations[0]["interpretation_id"] if interpretations else "TODO: target_interpretation_or_claim_id",
+            "target_type": "interpretation",
+            "evidence_ids": [fact["fact_id"] for fact in facts[-2:]] or [claim["claim_id"] for claim in claims[:1]],
+            "confidence": "draft",
+            "what_would_change_this": item.get("what_would_change_this", "TODO: specify what would change this counter branch.") if isinstance(item, dict) else "TODO: specify what would change this counter branch.",
+        }
+        for index, item in enumerate(_as_list(template.get("expected_counter_branches")), start=1)
+    ]
+    bias_notes = [
+        {
+            "bias_note_id": f"bias_{scenario_id}_{index:03d}",
+            "source_id": source_refs(item)[0] if source_refs(item) else (source_ids[0] if source_ids else "TODO: source_id"),
+            "bias_type": item.get("bias_type", "draft_bias_or_framing_note") if isinstance(item, dict) else "draft_bias_or_framing_note",
+            "note_text": _template_text(item, "note_text", "text"),
+            "why_labeled": "TODO: explain why this is bias, opinion, or metaphor rather than evidence.",
+            "evidence_value": "review_only",
+        }
+        for index, item in enumerate(_as_list(template.get("expected_bias_notes")), start=1)
+    ]
+    timeline = [
+        {
+            "version_id": f"version_{scenario_id}_v{index - 1:02d}",
+            "version_label": item.get("version_label", f"v{index - 1:02d}") if isinstance(item, dict) else f"v{index - 1:02d}",
+            "date": item.get("date", "TODO: date") if isinstance(item, dict) else "TODO: date",
+            "trigger": item.get("trigger", "draft_trigger") if isinstance(item, dict) else "draft_trigger",
+            "summary": _template_text(item, "summary", "text"),
+            "evidence_ids": [claims[0]["claim_id"]] if claims else [],
+            "judgment_at_version": item.get("judgment_at_version", "TODO: draft judgment") if isinstance(item, dict) else "TODO: draft judgment",
+            "confidence_at_version": "draft",
+            "open_questions": _as_list(item.get("open_questions")) if isinstance(item, dict) else [],
+        }
+        for index, item in enumerate(_as_list(template.get("expected_version_timeline")), start=1)
+    ]
+    drift = [
+        {
+            "drift_id": f"drift_{scenario_id}_{index:03d}",
+            "target_claim_id": claims[min(index - 1, len(claims) - 1)]["claim_id"] if claims else "TODO: claim_id",
+            "from_status": item.get("from_status", "draft_initial_status") if isinstance(item, dict) else "draft_initial_status",
+            "to_status": item.get("to_status", "draft_updated_status") if isinstance(item, dict) else "draft_updated_status",
+            "direction": item.get("direction", "unresolved") if isinstance(item, dict) else "unresolved",
+            "driver_evidence_ids": [claims[min(index, len(claims)) - 1]["claim_id"]] if claims else [],
+            "drift_summary": _template_text(item, "drift_summary", "summary", "text"),
+            "current_handling": item.get("current_handling", "TODO: current handling") if isinstance(item, dict) else "TODO: current handling",
+        }
+        for index, item in enumerate(_as_list(template.get("expected_claim_drift")), start=1)
+    ]
+    version_diff_template = template.get("expected_version_diff", {})
+    verdict_template = template.get("expected_editorial_verdict", {})
+    return {
+        "card_id": f"news_{scenario_id}_draft",
+        "record_type": "news_card",
+        "card_type": "public_claim_review",
+        "title": template.get("title", "TODO: title"),
+        "scenario_id": scenario_id,
+        "scenario_name": template.get("scenario_name", "TODO: scenario name"),
+        "version": "draft_v0",
+        "created_at": _now_iso(),
+        "is_synthetic_demo_fixture": True,
+        "authoring_status": "draft_skeleton",
+        "summary_3_line": summary_lines,
+        "source_ids": source_ids,
+        "source_hygiene_note": "Draft skeleton from scenario authoring template; verify all source-bound claims before promotion.",
+        "facts": facts,
+        "actor_claims": claims,
+        "actions": actions,
+        "interpretations": interpretations,
+        "counter_branches": counters,
+        "bias_notes": bias_notes,
+        "version_diff": {
+            "diff_id": f"diff_{scenario_id}_draft",
+            "from_version": version_diff_template.get("from_version", "draft_initial"),
+            "to_version": version_diff_template.get("to_version", "draft_current"),
+            "previous_judgment": version_diff_template.get("previous_judgment", "TODO: previous judgment"),
+            "updated_judgment": version_diff_template.get("updated_judgment", "TODO: updated judgment"),
+            "new_evidence_ids": [claim["claim_id"] for claim in claims[:1]] + [fact["fact_id"] for fact in facts[:2]],
+            "confidence_delta": version_diff_template.get("confidence_delta", {"draft_hypothesis": "unknown -> draft"}),
+            "unchanged_uncertainties": version_diff_template.get("unchanged_uncertainties", ["TODO: unresolved uncertainty"]),
+        },
+        "version_timeline": timeline,
+        "claim_drift": drift,
+        "editorial_verdict": {
+            "verdict_id": f"verdict_{scenario_id}_draft",
+            "short_label": verdict_template.get("short_label", "Draft verdict"),
+            "verdict_text": verdict_template.get("verdict_text", "TODO: draft editorial verdict"),
+            "confidence": verdict_template.get("confidence", "draft"),
+            "reader_warnings": verdict_template.get(
+                "reader_warnings",
+                ["Draft skeleton; not validated as a production demo card."],
+            ),
+        },
+    }
+
+
+def export_scenario_authoring_packet(template: dict[str, Any]) -> dict[str, Any]:
+    """Export a v0.7 scenario authoring packet."""
+    if not isinstance(template, dict):
+        raise TypeError("scenario authoring template must be a dict")
+    scenario_id = _authoring_slug(template.get("scenario_id"))
+    template_errors = validate_scenario_authoring_template(template)
+    checklist = build_scenario_authoring_checklist(template)
+    skeleton = build_news_card_skeleton_from_template(template)
+    return {
+        "packet_id": f"scenario_authoring_packet_{scenario_id}",
+        "packet_version": "0.7",
+        "packet_type": "sisyphus_scenario_authoring_packet",
+        "scenario_id": scenario_id,
+        "scenario_name": template.get("scenario_name", ""),
+        "template_errors": template_errors,
+        "checklist": checklist,
+        "news_card_skeleton": skeleton,
+        "authoring_guidance": [
+            "Use the skeleton as a drafting aid, not as a validated news card.",
+            "Replace draft evidence IDs only after facts, claims, and actions are source-bound.",
+            "Build claim_graph after the card layers are stable, then run validate_news_card().",
+            "Do not add the draft skeleton to data/precomputed_records.json until it validates end to end.",
+        ],
+        "limitations": [
+            "This packet does not generate verified facts or run live source ingestion.",
+            "The template is synthetic and deterministic; it is not a third production scenario.",
+            "A draft skeleton can contain TODO-level placeholders and may intentionally fail news-card validation.",
+        ],
+    }
+
+
+def validate_scenario_authoring_packet(packet: dict[str, Any]) -> list[str]:
+    """Return validation errors for a scenario authoring packet."""
+    errors: list[str] = []
+    if not isinstance(packet, dict):
+        return ["scenario authoring packet must be an object"]
+    _require_prefix(
+        errors,
+        "scenario_authoring_packet.packet_id",
+        packet.get("packet_id"),
+        "scenario_authoring_packet_",
+    )
+    if packet.get("packet_version") != "0.7":
+        errors.append("scenario authoring packet packet_version must be 0.7")
+    if packet.get("packet_type") != "sisyphus_scenario_authoring_packet":
+        errors.append("scenario authoring packet packet_type must be sisyphus_scenario_authoring_packet")
+    for field in ["scenario_id", "checklist", "news_card_skeleton", "authoring_guidance", "limitations"]:
+        if field not in packet:
+            errors.append(f"scenario authoring packet missing {field}")
+    if "checklist" in packet and not isinstance(packet.get("checklist"), dict):
+        errors.append("scenario authoring packet checklist must be an object")
+    if "news_card_skeleton" in packet and not isinstance(packet.get("news_card_skeleton"), dict):
+        errors.append("scenario authoring packet news_card_skeleton must be an object")
+    if "authoring_guidance" in packet and not isinstance(packet.get("authoring_guidance"), list):
+        errors.append("scenario authoring packet authoring_guidance must be a list")
+    if "limitations" in packet and not isinstance(packet.get("limitations"), list):
+        errors.append("scenario authoring packet limitations must be a list")
+    return errors
+
+
 def load_demo_sources(path: str | Path | None = None) -> list[dict[str, Any]]:
     """Load synthetic source fixtures and validate their basic shape."""
     source_path = Path(path) if path else DEFAULT_SOURCE_PATH
@@ -2284,18 +2641,24 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
         focus_claim_id = claims[0].get("claim_id")
     graph_packet = export_agent_graph_packet(news_card, focus_ref_id=focus_claim_id)
     reviewer_packet = export_reviewer_packet(news_card, "next_agent_handoff", focus_ref_id=focus_claim_id)
+    scenario_authoring_packet = export_scenario_authoring_packet(load_scenario_authoring_template())
     paths = {
         "news_card": output_path / "sisyphus_news_card.json",
         "records_jsonl": output_path / "sisyphus_records.jsonl",
         "agent_packet": output_path / "sisyphus_agent_packet.json",
         "graph_packet": output_path / "sisyphus_graph_packet.json",
         "reviewer_packet": output_path / "sisyphus_reviewer_packet.json",
+        "scenario_authoring_packet": output_path / "sisyphus_scenario_authoring_packet.json",
     }
     paths["news_card"].write_text(json.dumps(news_card, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["records_jsonl"].write_text(to_jsonl([news_card, packet]) + "\n", encoding="utf-8")
     paths["agent_packet"].write_text(json.dumps(packet, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["graph_packet"].write_text(json.dumps(graph_packet, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["reviewer_packet"].write_text(json.dumps(reviewer_packet, indent=2, ensure_ascii=False), encoding="utf-8")
+    paths["scenario_authoring_packet"].write_text(
+        json.dumps(scenario_authoring_packet, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     return paths
 
 
@@ -2916,6 +3279,59 @@ def render_reviewer_presets_html(news_card: dict[str, Any]) -> str:
           <h4>Preset Summaries</h4>
           <div class="graph-path-list">{''.join(packet_cards)}</div>
         </section>
+        """,
+    )
+
+
+def render_scenario_authoring_preview_html(template: dict[str, Any]) -> str:
+    """Render a compact scenario authoring checklist and packet preview."""
+    template_errors = validate_scenario_authoring_template(template)
+    checklist = build_scenario_authoring_checklist(template)
+    skeleton = build_news_card_skeleton_from_template(template)
+    packet = export_scenario_authoring_packet(template)
+    passed_count = len(_as_list(checklist.get("passed_sections")))
+    required_count = len(_as_list(checklist.get("required_sections")))
+    missing = _as_list(checklist.get("missing_sections"))
+    warnings = _as_list(checklist.get("warnings"))
+    missing_rows = "".join(f"<li>{escape(str(section))}</li>" for section in missing) or "<li>None</li>"
+    warning_rows = "".join(f"<li>{escape(str(warning))}</li>" for warning in warnings) or "<li>None</li>"
+    next_steps = "".join(
+        f"<li>{escape(str(step))}</li>"
+        for step in _as_list(checklist.get("next_authoring_steps"))[:4]
+    )
+    return _wrap_html(
+        "scenario-authoring-preview",
+        f"""
+        <h3>Scenario Authoring Preview</h3>
+        <p class="muted">Template: <code>{escape(str(template.get('scenario_id', 'unknown')))}</code></p>
+        <div class="summary-grid">
+          <div class="summary-card ok"><span>Sections</span><strong>{passed_count}/{required_count}</strong></div>
+          <div class="summary-card {'ok' if not template_errors else 'warn'}"><span>Template errors</span><strong>{len(template_errors)}</strong></div>
+          <div class="summary-card {'ok' if checklist.get('ready_for_card_authoring') else 'warn'}"><span>Ready</span><strong>{'yes' if checklist.get('ready_for_card_authoring') else 'no'}</strong></div>
+          <div class="summary-card ok"><span>Packet</span><strong>{escape(str(packet.get('packet_version')))}</strong></div>
+        </div>
+        <div class="grid two">
+          <section>
+            <h4>Missing sections</h4>
+            <ul>{missing_rows}</ul>
+          </section>
+          <section>
+            <h4>Warnings</h4>
+            <ul>{warning_rows}</ul>
+          </section>
+        </div>
+        <section>
+          <h4>Next authoring steps</h4>
+          <ol>{next_steps}</ol>
+        </section>
+        <details>
+          <summary>Draft skeleton preview</summary>
+          <pre>{escape(json.dumps(skeleton, indent=2, ensure_ascii=False))}</pre>
+        </details>
+        <details>
+          <summary>Scenario authoring packet</summary>
+          <pre>{escape(json.dumps(packet, indent=2, ensure_ascii=False))}</pre>
+        </details>
         """,
     )
 
