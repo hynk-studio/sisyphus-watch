@@ -32,7 +32,7 @@ The default demo uses synthetic fixtures. They are realistic enough to show the 
 
 ## Demo Scenarios
 
-Two synthetic scenarios are included. `city_heatwave_cooling_centers` remains the default Kaggle demo.
+Three synthetic scenarios are included. `city_heatwave_cooling_centers` remains the default Kaggle demo.
 
 **City Heatwave Cooling Centers** (`city_heatwave_cooling_centers`)
 
@@ -41,6 +41,10 @@ A fictional city announces that 50 cooling centers are open during a severe heat
 **Public Transit Delay Communication** (`public_transit_delay_communication`)
 
 A fictional transit agency says most service is running normally after a signal-system issue. Rider reports later show severe delays, unclear station notices, and lagging app updates. The agency publishes a correction, names affected lines, adds replacement bus support, and explains app data lag. This second scenario demonstrates that the same claim-version-control schema is reusable beyond the heatwave card.
+
+**School Air Quality Alert Communication** (`school_air_quality_alert_communication`)
+
+A fictional school district says classroom air-quality readings are within safe limits after a ventilation/filter issue. Parent and teacher observations later report stale air, unclear notices, inconsistent dashboard readings, and relocation confusion. The district publishes a corrected dashboard, identifies rooms without current readings, deploys portable HEPA units, clarifies thresholds, and explains sensor calibration and data-sync delays. This third scenario dogfoods the scenario authoring workflow.
 
 The demo shows the claim-version-control flow:
 
@@ -120,7 +124,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, claim graph, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
+The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, scenario authoring preview, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
 
 To switch scenarios in the notebook, change:
 
@@ -132,6 +136,12 @@ to:
 
 ```python
 SCENARIO_ID = "public_transit_delay_communication"
+```
+
+or:
+
+```python
+SCENARIO_ID = "school_air_quality_alert_communication"
 ```
 
 ## Kaggle Visual Review Path
@@ -150,7 +160,11 @@ Demo mode loads:
 - `data/demo_sources.json`
 - `data/precomputed_records.json`
 
-It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path. The deterministic record set includes both demo cards while preserving the heatwave card as the default.
+It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path. The deterministic record set includes three demo cards while preserving the heatwave card as the default:
+
+- `city_heatwave_cooling_centers`
+- `public_transit_delay_communication`
+- `school_air_quality_alert_communication`
 
 ## Agent Packet v0.4
 
@@ -217,7 +231,7 @@ The authoring helpers are deterministic and dependency-free:
 - `build_news_card_skeleton_from_template()`
 - `export_scenario_authoring_packet()`
 
-The output is a draft authoring aid, not a verified news card. No LLM call, live ingestion, graph database, or network access is required.
+The output is a draft authoring aid, not a verified news card. The School Air Quality Alert Communication scenario was added by dogfooding this workflow: the template validated, the checklist passed, the skeleton was generated, and the completed evidence-bound card now validates through graph, agent, reviewer, and export paths. No LLM call, live ingestion, graph database, external API, or network access is required.
 
 ## Schema
 

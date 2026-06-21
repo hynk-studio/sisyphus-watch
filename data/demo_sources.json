@@ -102,5 +102,57 @@
     "reliability_note": "Synthetic opinion fixture; useful for detecting rhetoric, not direct factual evidence.",
     "limitations": "Contains interpretation and metaphor that must be separated from source-bound facts.",
     "text": "DEMO FIXTURE ONLY: The Fictional Urban Mobility Column argues that service status is only useful if it matches rider-facing conditions at stations. The note says transit agencies should treat app indicators and station notices as operational safety information, not public relations copy. It includes the rhetorical line: 'A status board that says normal service while platforms fill with stranded riders is not information; it is decorative wallpaper.'"
+  },
+  {
+    "source_id": "src_school_air_quality_initial_notice_2026_06_16",
+    "source_type": "official_notice_fixture",
+    "actor": "Fictional Unified School District",
+    "title": "District says classroom air-quality readings are within safe limits",
+    "published_at": "2026-06-16T08:30:00Z",
+    "retrieved_at": "2026-06-19T09:00:00Z",
+    "is_synthetic_demo_fixture": true,
+    "reliability_note": "Synthetic official notice fixture. Treat as an actor claim plus source-bound operational details, not independent proof of room-level conditions.",
+    "limitations": "The notice summarizes district dashboard readings and does not include raw sensor logs, calibration status, or classroom-level exception lists.",
+    "text": "Fictional Unified School District issued a morning notice after a ventilation filter fault and regional smoke alert. The notice said classroom air-quality readings were within safe limits across the district dashboard and that schools would remain open. It stated that central ventilation was running, filter checks had been completed overnight, and families would be notified if any room exceeded the district threshold. The notice did not list room-level readings, identify classrooms with missing current readings, or explain how quickly the dashboard refreshed after sensor calibration.",
+    "scenario_id": "school_air_quality_alert_communication"
+  },
+  {
+    "source_id": "src_parent_teacher_air_quality_observation_2026_06_17",
+    "source_type": "parent_teacher_observation_fixture",
+    "actor": "Fictional Parent Teacher Air Quality Working Group",
+    "title": "Parent and teacher observations report classroom-level air-quality gaps",
+    "published_at": "2026-06-17T18:45:00Z",
+    "retrieved_at": "2026-06-19T09:00:00Z",
+    "is_synthetic_demo_fixture": true,
+    "reliability_note": "Synthetic community observation fixture. Treat as field observations requiring corroboration, not as complete district-wide measurement.",
+    "limitations": "Observations cover selected rooms and family reports; they do not provide a statistically complete audit of every classroom.",
+    "text": "A fictional parent and teacher working group reported that several rooms did not match the broad safe-dashboard message. Teachers described stale air in rooms B-104, C-212, and the temporary art room, and said portable filters had not arrived before first period. Parents said alert emails reached some families after drop-off, and teachers were uncertain whether hallway dashboard readings applied to interior classrooms. The group said temporary relocations were confusing because some classes moved rooms while the public dashboard still showed a green safe status for the school.",
+    "scenario_id": "school_air_quality_alert_communication"
+  },
+  {
+    "source_id": "src_school_air_quality_corrected_update_2026_06_18",
+    "source_type": "official_update_fixture",
+    "actor": "Fictional Unified School District",
+    "title": "District updates dashboard and identifies rooms without current readings",
+    "published_at": "2026-06-18T16:20:00Z",
+    "retrieved_at": "2026-06-19T09:00:00Z",
+    "is_synthetic_demo_fixture": true,
+    "reliability_note": "Synthetic official correction fixture. Useful for actions and updated claims, but still not independent verification.",
+    "limitations": "The update describes district remediation steps but does not provide complete raw sensor exports or health-impact data.",
+    "text": "The district published a corrected air-quality update and dashboard note. It identified eight classrooms that had lacked current room-level readings during the prior morning, including rooms temporarily served by hallway sensors while classroom sensors were recalibrated. The district said it deployed portable HEPA units, relocated three classes for part of the day, clarified that green dashboard indicators applied only to rooms with current readings, and added a timestamp for sensor refreshes. Officials also said some earlier indicators lagged because calibration and data-sync delays made dashboard values update more slowly than room checks.",
+    "scenario_id": "school_air_quality_alert_communication"
+  },
+  {
+    "source_id": "src_editorial_school_air_quality_transparency_note_2026_06_19",
+    "source_type": "editorial_note_fixture",
+    "actor": "Fictional School Safety Review Column",
+    "title": "Transparency note on safe dashboards and classroom reality",
+    "published_at": "2026-06-19T07:15:00Z",
+    "retrieved_at": "2026-06-19T09:00:00Z",
+    "is_synthetic_demo_fixture": true,
+    "reliability_note": "Synthetic editorial fixture. Contains framing and metaphor that must be separated from evidence.",
+    "limitations": "Editorial language can sharpen accountability questions but should not be treated as factual proof without source-bound support.",
+    "text": "A fictional school safety column argued that the district's dashboard language gave families too little room-level context. The column wrote: A dashboard that says 'safe' while teachers prop doors open for air is not reassurance; it is a screensaver with authority. The piece also noted that calibration delays can be real operational problems and that the corrected update reduced the force of any claim that the district deliberately hid conditions. It urged readers to distinguish dashboard design failures, late family notifications, and sensor latency from direct evidence of intent.",
+    "scenario_id": "school_air_quality_alert_communication"
   }
 ]
