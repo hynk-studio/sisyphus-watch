@@ -101,6 +101,16 @@ This is labeled as metaphor and opinion, not evidence.
 
 **Selected subgraph use:** a radius-2 subgraph around this claim includes the source, nearby claim drift, timeline, version diff, and related evidence nodes. This gives another AI agent compact claim context without handing over the entire card graph.
 
+## Reviewer Query Example
+
+**Preset:** `claim_status_review`
+
+**Focus claim:** `claim_city_all_centers_open_2026_06_10_001`
+
+**Answer summary:** the claim is currently handled as `partially_challenged_by_later_observation` and has weakened drift in the card history.
+
+**Handoff use:** the reviewer packet keeps the claim record, drift entry, nearby graph context, evidence records, path to verdict, and radius-2 subgraph together so a downstream agent can inspect the claim without reloading the full card.
+
 ## Editorial Verdict
 
 This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.
