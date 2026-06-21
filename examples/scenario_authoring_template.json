@@ -1,0 +1,148 @@
+{
+  "scenario_id": "school_air_quality_alert_communication",
+  "scenario_name": "School Air Quality Alert Communication",
+  "title": "School district air-quality alerts and classroom mitigation claims",
+  "public_interest_reason": "Families need clear, evidence-bound communication when public agencies claim that classrooms are safe during an air-quality alert.",
+  "summary": [
+    "A fictional school district said classrooms were safe during a smoke-related air-quality alert.",
+    "Parent and teacher observations later challenged whether all classrooms had working filtration and timely notifications.",
+    "A follow-up district update acknowledged equipment gaps and promised room-level checks."
+  ],
+  "source_fixtures": [
+    {
+      "source_id": "src_school_air_quality_initial_notice_2026_09_08",
+      "source_type": "district_notice",
+      "actor": "Fictional Unified School District",
+      "title": "District says schools remain open with air filtration active",
+      "draft_text": "The district announced that schools would remain open because central filtration was running and classroom air quality was being monitored."
+    },
+    {
+      "source_id": "src_school_air_quality_parent_teacher_observations_2026_09_09",
+      "source_type": "community_observation",
+      "actor": "Parent and teacher observation group",
+      "title": "Families report inconsistent classroom air filtering and late alerts",
+      "draft_text": "Parents and teachers reported several classrooms with missing portable filters, delayed notification emails, and uncertainty about whether outdoor activities were cancelled."
+    },
+    {
+      "source_id": "src_school_air_quality_followup_update_2026_09_10",
+      "source_type": "district_update",
+      "actor": "Fictional Unified School District",
+      "title": "District follow-up says filters and room checks were added",
+      "draft_text": "The district issued a follow-up saying it had added portable filters to affected rooms, corrected notification lists, and started room-level checks."
+    }
+  ],
+  "expected_facts": [
+    {
+      "text": "The district said schools would remain open while filtration systems were running.",
+      "source_ids": ["src_school_air_quality_initial_notice_2026_09_08"]
+    },
+    {
+      "text": "Parent and teacher observations described missing portable filters in some classrooms.",
+      "source_ids": ["src_school_air_quality_parent_teacher_observations_2026_09_09"]
+    },
+    {
+      "text": "The district follow-up said portable filters and room-level checks were added.",
+      "source_ids": ["src_school_air_quality_followup_update_2026_09_10"]
+    }
+  ],
+  "expected_actor_claims": [
+    {
+      "actor": "Fictional Unified School District",
+      "claim_text": "Classrooms were safe for in-person school during the air-quality alert.",
+      "claim_type": "safety_assurance",
+      "source_ids": ["src_school_air_quality_initial_notice_2026_09_08"]
+    },
+    {
+      "actor": "Parent and teacher observation group",
+      "claim_text": "Some classrooms lacked working filtration and families did not receive timely alerts.",
+      "claim_type": "community_challenge",
+      "source_ids": ["src_school_air_quality_parent_teacher_observations_2026_09_09"]
+    }
+  ],
+  "expected_actions": [
+    {
+      "actor": "Fictional Unified School District",
+      "action_text": "Added portable filters to affected rooms and corrected notification lists.",
+      "action_type": "public_safety_update",
+      "date": "2026-09-10",
+      "source_ids": ["src_school_air_quality_followup_update_2026_09_10"]
+    }
+  ],
+  "expected_interpretations": [
+    {
+      "title": "Communication and implementation gap in school air-quality response",
+      "interpretation_text": "The initial safety assurance may have been too broad for room-level conditions until the district corrected equipment and notification gaps.",
+      "alternative_interpretations": [
+        "Some gaps may reflect fast-changing conditions rather than misleading communication."
+      ]
+    }
+  ],
+  "expected_counter_branches": [
+    {
+      "title": "Rapid smoke conditions and equipment logistics may explain part of the gap",
+      "counter_text": "The district follow-up suggests partial remediation and may indicate operational lag rather than intentional misrepresentation.",
+      "what_would_change_this": "Room-level air readings, filter deployment logs, and notification timestamps before and after the update."
+    }
+  ],
+  "expected_bias_notes": [
+    {
+      "bias_type": "risk_framing",
+      "note_text": "Community reports may use urgent safety language that should be separated from source-bound evidence.",
+      "source_ids": ["src_school_air_quality_parent_teacher_observations_2026_09_09"]
+    }
+  ],
+  "expected_version_timeline": [
+    {
+      "version_label": "v00",
+      "date": "2026-09-08",
+      "trigger": "initial_public_claim",
+      "summary": "The district said classrooms were safe while filtration was active.",
+      "judgment_at_version": "Adequate on paper; room-level conditions unknown.",
+      "open_questions": ["Were all classrooms actually filtered and monitored?"]
+    },
+    {
+      "version_label": "v01",
+      "date": "2026-09-10",
+      "trigger": "community_observation_and_district_update",
+      "summary": "Observations challenged the broad safety claim and the district added filters and room checks.",
+      "judgment_at_version": "Partially corrected implementation gap.",
+      "open_questions": ["Did remediation reach affected classrooms before exposure risk increased?"]
+    }
+  ],
+  "expected_claim_drift": [
+    {
+      "from_status": "unverified_initial_safety_claim",
+      "to_status": "partially_challenged_by_room_level_observations",
+      "direction": "weakened",
+      "drift_summary": "The broad classroom safety claim weakened after room-level observations reported missing filtration.",
+      "current_handling": "Keep the district claim as an initial assurance, but mark it as partially challenged."
+    }
+  ],
+  "expected_version_diff": {
+    "from_version": "v00_initial_district_notice",
+    "to_version": "v01_after_observations_and_followup",
+    "previous_judgment": "The district claim sounded adequate, but classroom-level implementation was unknown.",
+    "updated_judgment": "Concern shifted to a partially corrected communication and implementation gap.",
+    "confidence_delta": {
+      "implementation_gap_hypothesis": "low -> medium_high",
+      "intentional_misrepresentation_hypothesis": "low -> medium_low"
+    },
+    "unchanged_uncertainties": [
+      "Whether room-level air readings supported the district's safety assurance.",
+      "Whether families received alerts early enough to make decisions."
+    ]
+  },
+  "expected_editorial_verdict": {
+    "short_label": "School air-quality communication gap with partial remediation",
+    "verdict_text": "This draft should be treated as a school safety communication and implementation-gap scenario until room-level evidence is added.",
+    "confidence": "draft",
+    "reader_warnings": [
+      "Draft authoring template, not a validated demo scenario.",
+      "No independent verification has been performed."
+    ]
+  },
+  "authoring_notes": [
+    "Promote this template only after all facts, claims, actions, and drift entries are evidence-bound.",
+    "Build a claim_graph only after stable IDs are assigned."
+  ]
+}

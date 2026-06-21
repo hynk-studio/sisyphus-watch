@@ -455,6 +455,107 @@
       },
       "additionalProperties": true
     },
+    "scenario_authoring_template": {
+      "type": "object",
+      "required": [
+        "scenario_id",
+        "scenario_name",
+        "title",
+        "public_interest_reason",
+        "summary",
+        "source_fixtures",
+        "expected_facts",
+        "expected_actor_claims",
+        "expected_actions",
+        "expected_interpretations",
+        "expected_counter_branches",
+        "expected_bias_notes",
+        "expected_version_timeline",
+        "expected_claim_drift",
+        "expected_version_diff",
+        "expected_editorial_verdict",
+        "authoring_notes"
+      ],
+      "properties": {
+        "scenario_id": { "type": "string" },
+        "scenario_name": { "type": "string" },
+        "title": { "type": "string" },
+        "public_interest_reason": { "type": "string" },
+        "summary": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "source_fixtures": { "type": "array", "items": { "type": "object" }, "minItems": 3 },
+        "expected_facts": { "type": "array", "items": { "type": "object" }, "minItems": 3 },
+        "expected_actor_claims": { "type": "array", "items": { "type": "object" }, "minItems": 2 },
+        "expected_actions": { "type": "array", "items": { "type": "object" }, "minItems": 1 },
+        "expected_interpretations": { "type": "array", "items": { "type": "object" }, "minItems": 1 },
+        "expected_counter_branches": { "type": "array", "items": { "type": "object" }, "minItems": 1 },
+        "expected_bias_notes": { "type": "array", "items": { "type": "object" }, "minItems": 1 },
+        "expected_version_timeline": { "type": "array", "items": { "type": "object" }, "minItems": 2 },
+        "expected_claim_drift": { "type": "array", "items": { "type": "object" }, "minItems": 1 },
+        "expected_version_diff": { "type": "object" },
+        "expected_editorial_verdict": { "type": "object" },
+        "authoring_notes": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "scenario_authoring_checklist": {
+      "type": "object",
+      "required": [
+        "checklist_id",
+        "scenario_id",
+        "scenario_name",
+        "required_sections",
+        "passed_sections",
+        "missing_sections",
+        "warnings",
+        "ready_for_card_authoring",
+        "next_authoring_steps"
+      ],
+      "properties": {
+        "checklist_id": { "type": "string", "pattern": "^scenario_checklist_" },
+        "scenario_id": { "type": "string" },
+        "scenario_name": { "type": "string" },
+        "required_sections": { "type": "array", "items": { "type": "string" } },
+        "passed_sections": { "type": "array", "items": { "type": "string" } },
+        "missing_sections": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "ready_for_card_authoring": { "type": "boolean" },
+        "next_authoring_steps": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "scenario_authoring_packet": {
+      "type": "object",
+      "required": [
+        "packet_id",
+        "packet_version",
+        "packet_type",
+        "scenario_id",
+        "scenario_name",
+        "template_errors",
+        "checklist",
+        "news_card_skeleton",
+        "authoring_guidance",
+        "limitations"
+      ],
+      "properties": {
+        "packet_id": { "type": "string", "pattern": "^scenario_authoring_packet_" },
+        "packet_version": { "const": "0.7" },
+        "packet_type": { "const": "sisyphus_scenario_authoring_packet" },
+        "scenario_id": { "type": "string" },
+        "scenario_name": { "type": "string" },
+        "template_errors": { "type": "array", "items": { "type": "string" } },
+        "checklist": { "$ref": "#/$defs/scenario_authoring_checklist" },
+        "news_card_skeleton": { "type": "object" },
+        "authoring_guidance": { "type": "array", "items": { "type": "string" } },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
     "editorial_verdict": {
       "type": "object",
       "required": ["verdict_id", "short_label", "verdict_text", "confidence", "reader_warnings"],
@@ -623,6 +724,8 @@
     { "$ref": "#/$defs/agent_packet" },
     { "$ref": "#/$defs/graph_packet" },
     { "$ref": "#/$defs/reviewer_packet" },
+    { "$ref": "#/$defs/scenario_authoring_template" },
+    { "$ref": "#/$defs/scenario_authoring_packet" },
     { "$ref": "#/$defs/record_set" }
   ]
 }

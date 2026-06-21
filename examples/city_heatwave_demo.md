@@ -111,6 +111,10 @@ This is labeled as metaphor and opinion, not evidence.
 
 **Handoff use:** the reviewer packet keeps the claim record, drift entry, nearby graph context, evidence records, path to verdict, and radius-2 subgraph together so a downstream agent can inspect the claim without reloading the full card.
 
+## Adding Another Scenario
+
+Use `examples/scenario_authoring_template.json` as the starting point for another synthetic public-claim scenario. Run the authoring checklist, generate a draft skeleton, then fill evidence-bound facts, claims, actions, interpretations, counter-branches, timeline events, and drift entries before promoting anything into deterministic demo records.
+
 ## Editorial Verdict
 
 This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.
