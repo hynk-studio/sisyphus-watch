@@ -9,7 +9,8 @@
     "is_synthetic_demo_fixture": true,
     "reliability_note": "Synthetic official-announcement-like fixture for Kaggle demo use; not a real city notice.",
     "limitations": "Represents the city's public claim, not independent confirmation that every location was accessible.",
-    "text": "DEMO FIXTURE ONLY: During a severe heatwave, the Fictional City Emergency Management Office announces that 50 cooling centers will be open across the city. The announcement says residents can find safe, air-conditioned spaces in libraries, recreation centers, and partner community facilities. It says the public list will be updated as conditions change and asks residents to check the city website before traveling."
+    "text": "DEMO FIXTURE ONLY: During a severe heatwave, the Fictional City Emergency Management Office announces that 50 cooling centers will be open across the city. The announcement says residents can find safe, air-conditioned spaces in libraries, recreation centers, and partner community facilities. It says the public list will be updated as conditions change and asks residents to check the city website before traveling.",
+    "scenario_id": "city_heatwave_cooling_centers"
   },
   {
     "source_id": "src_community_cooling_center_access_report_2026_06_12",
@@ -21,7 +22,8 @@
     "is_synthetic_demo_fixture": true,
     "reliability_note": "Synthetic community-observation fixture; useful for access-gap signals but not a complete audit.",
     "limitations": "Observations are partial, time-bound, and do not prove intent by the city.",
-    "text": "DEMO FIXTURE ONLY: The Fictional Neighborhood Volunteer Network reports that its volunteers checked a sample of listed cooling centers on June 12. Several listed centers were closed when volunteers arrived, some had shorter hours than the public list suggested, and others lacked clear signage. The group also reports that older residents in two neighborhoods found several open centers difficult to reach without a car. The group frames the report as an access observation and asks the city to update the list quickly."
+    "text": "DEMO FIXTURE ONLY: The Fictional Neighborhood Volunteer Network reports that its volunteers checked a sample of listed cooling centers on June 12. Several listed centers were closed when volunteers arrived, some had shorter hours than the public list suggested, and others lacked clear signage. The group also reports that older residents in two neighborhoods found several open centers difficult to reach without a car. The group frames the report as an access observation and asks the city to update the list quickly.",
+    "scenario_id": "city_heatwave_cooling_centers"
   },
   {
     "source_id": "src_city_heatwave_updated_guidance_2026_06_14",
@@ -33,7 +35,8 @@
     "is_synthetic_demo_fixture": true,
     "reliability_note": "Synthetic official-update fixture; records a changed city position and remedial action.",
     "limitations": "Does not independently verify whether the updated guidance reached residents or solved every access problem.",
-    "text": "DEMO FIXTURE ONLY: The Fictional City Emergency Management Office publishes an updated cooling center list. The update clarifies opening hours, removes locations that are unavailable, corrects addresses for several facilities, and adds free shuttle support for older residents and medically vulnerable residents in the hardest-hit neighborhoods. The city says some earlier listing errors resulted from staffing shortages and late facility confirmations during the fast-changing emergency."
+    "text": "DEMO FIXTURE ONLY: The Fictional City Emergency Management Office publishes an updated cooling center list. The update clarifies opening hours, removes locations that are unavailable, corrects addresses for several facilities, and adds free shuttle support for older residents and medically vulnerable residents in the hardest-hit neighborhoods. The city says some earlier listing errors resulted from staffing shortages and late facility confirmations during the fast-changing emergency.",
+    "scenario_id": "city_heatwave_cooling_centers"
   },
   {
     "source_id": "src_editorial_heatwave_accountability_note_2026_06_15",
@@ -45,6 +48,59 @@
     "is_synthetic_demo_fixture": true,
     "reliability_note": "Synthetic opinion fixture; useful for detecting rhetoric, not direct factual evidence.",
     "limitations": "Contains interpretation and metaphor that must be separated from source-bound facts.",
-    "text": "DEMO FIXTURE ONLY: The Fictional Civic Accountability Column argues that emergency communication is only useful if public claims remain true at street level. The note says the city should treat public lists as live safety infrastructure, not static public relations material. It includes the rhetorical line: 'An emergency map that works only on paper is a cardboard umbrella in a heatwave.'"
+    "text": "DEMO FIXTURE ONLY: The Fictional Civic Accountability Column argues that emergency communication is only useful if public claims remain true at street level. The note says the city should treat public lists as live safety infrastructure, not static public relations material. It includes the rhetorical line: 'An emergency map that works only on paper is a cardboard umbrella in a heatwave.'",
+    "scenario_id": "city_heatwave_cooling_centers"
+  },
+  {
+    "source_id": "src_transit_initial_service_status_2026_06_11",
+    "scenario_id": "public_transit_delay_communication",
+    "source_type": "official_service_status_fixture",
+    "actor": "Fictional Metropolitan Transit Agency",
+    "title": "Transit agency says most service is running normally after signal issue",
+    "published_at": "2026-06-11T08:10:00Z",
+    "retrieved_at": "2026-06-14T12:00:00Z",
+    "is_synthetic_demo_fixture": true,
+    "reliability_note": "Synthetic official-status fixture for Kaggle demo use; not a real transit notice.",
+    "limitations": "Represents the agency public status claim, not independent verification of line-level service conditions.",
+    "text": "DEMO FIXTURE ONLY: The Fictional Metropolitan Transit Agency reports that most rail and bus service is running normally after an early-morning signal-system issue. The agency says crews restored central signal functions and that riders should see only minor residual delays. It says the service-status app and station boards will continue to update as operations stabilize."
+  },
+  {
+    "source_id": "src_commuter_delay_observation_report_2026_06_12",
+    "scenario_id": "public_transit_delay_communication",
+    "source_type": "commuter_observation_fixture",
+    "actor": "Fictional Commuter Riders Forum",
+    "title": "Riders report severe delays and inconsistent service notices",
+    "published_at": "2026-06-12T19:20:00Z",
+    "retrieved_at": "2026-06-14T12:00:00Z",
+    "is_synthetic_demo_fixture": true,
+    "reliability_note": "Synthetic rider-observation fixture; useful for service-gap signals but not a complete operations audit.",
+    "limitations": "Reports are partial, rider-submitted, and time-bound; they do not prove agency intent.",
+    "text": "DEMO FIXTURE ONLY: The Fictional Commuter Riders Forum collects reports from riders on June 12. Riders describe severe delays on several lines, unclear station announcements, crowded platforms, and service-status app updates that still showed normal or minor-delay conditions while trains were held. The forum asks the agency to identify affected lines and explain why rider-facing updates lagged behind station conditions."
+  },
+  {
+    "source_id": "src_transit_corrected_service_update_2026_06_13",
+    "scenario_id": "public_transit_delay_communication",
+    "source_type": "official_correction_fixture",
+    "actor": "Fictional Metropolitan Transit Agency",
+    "title": "Transit agency corrects affected line list and adds replacement buses",
+    "published_at": "2026-06-13T15:45:00Z",
+    "retrieved_at": "2026-06-14T12:00:00Z",
+    "is_synthetic_demo_fixture": true,
+    "reliability_note": "Synthetic official-correction fixture; records changed agency guidance and remedial action.",
+    "limitations": "Does not independently verify whether replacement buses met rider demand or whether all app indicators were corrected promptly.",
+    "text": "DEMO FIXTURE ONLY: The Fictional Metropolitan Transit Agency publishes a corrected service update. It identifies the Blue, Green, and Crosstown lines as affected by severe residual delays, adds replacement bus support between key stations, and says some app status indicators lagged behind operations data during manual dispatching. The agency says station staff will receive a direct update script for future signal disruptions."
+  },
+  {
+    "source_id": "src_editorial_transit_status_accountability_note_2026_06_14",
+    "scenario_id": "public_transit_delay_communication",
+    "source_type": "editorial_note_fixture",
+    "actor": "Fictional Urban Mobility Column",
+    "title": "Opinion note on transit status claims and rider reality",
+    "published_at": "2026-06-14T09:30:00Z",
+    "retrieved_at": "2026-06-14T12:00:00Z",
+    "is_synthetic_demo_fixture": true,
+    "reliability_note": "Synthetic opinion fixture; useful for detecting rhetoric, not direct factual evidence.",
+    "limitations": "Contains interpretation and metaphor that must be separated from source-bound facts.",
+    "text": "DEMO FIXTURE ONLY: The Fictional Urban Mobility Column argues that service status is only useful if it matches rider-facing conditions at stations. The note says transit agencies should treat app indicators and station notices as operational safety information, not public relations copy. It includes the rhetorical line: 'A status board that says normal service while platforms fill with stranded riders is not information; it is decorative wallpaper.'"
   }
 ]

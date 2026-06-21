@@ -27,11 +27,17 @@ Sisyphus Watch is not a generic news summarizer. It does not decide truth automa
 
 The default demo uses synthetic fixtures. They are realistic enough to show the workflow, but they are not real news and do not describe a real city or organization.
 
-## Demo Scenario
+## Demo Scenarios
 
-**City Heatwave Cooling Centers**
+Two synthetic scenarios are included. `city_heatwave_cooling_centers` remains the default Kaggle demo.
+
+**City Heatwave Cooling Centers** (`city_heatwave_cooling_centers`)
 
 A fictional city announces that 50 cooling centers are open during a severe heatwave. A fictional community group later reports that several listed centers were closed, had limited hours, lacked clear signage, or were hard to access. The city then publishes updated guidance, clarifies hours, removes unavailable locations, and adds transport support for vulnerable residents.
+
+**Public Transit Delay Communication** (`public_transit_delay_communication`)
+
+A fictional transit agency says most service is running normally after a signal-system issue. Rider reports later show severe delays, unclear station notices, and lagging app updates. The agency publishes a correction, names affected lines, adds replacement bus support, and explains app data lag. This second scenario demonstrates that the same claim-version-control schema is reusable beyond the heatwave card.
 
 The demo shows the claim-version-control flow:
 
@@ -67,21 +73,26 @@ import sys
 sys.path.insert(0, "src")
 from sisyphus_watch_demo import (
     find_project_root,
+    get_news_cards,
     load_demo_sources,
     load_precomputed_records,
     run_negative_validation_self_test,
     run_quality_checks,
+    build_agent_packet,
 )
 root = find_project_root()
 sources = load_demo_sources()
-card = load_precomputed_records()["news_card"]
-checks = run_quality_checks(card)
-negative = run_negative_validation_self_test(card)
+records = load_precomputed_records()
+cards = get_news_cards(records)
 print(f"root={root}")
 print(f"sources={len(sources)}")
-print(checks)
-print(negative)
-assert all(row["status"] == "PASS" for row in checks)
+for card in cards:
+    checks = run_quality_checks(card)
+    negative = run_negative_validation_self_test(card)
+    packet = build_agent_packet(card)
+    print(card["card_id"], checks, negative.keys(), packet["packet_version"])
+    assert all(row["status"] == "PASS" for row in checks)
+    assert packet["packet_version"] == "0.2"
 PY
 ```
 
@@ -106,6 +117,18 @@ The notebook searches for the project root in the current working directory, par
 
 The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
 
+To switch scenarios in the notebook, change:
+
+```python
+SCENARIO_ID = "city_heatwave_cooling_centers"
+```
+
+to:
+
+```python
+SCENARIO_ID = "public_transit_delay_communication"
+```
+
 ## Kaggle Visual Review Path
 
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
@@ -122,7 +145,18 @@ Demo mode loads:
 - `data/demo_sources.json`
 - `data/precomputed_records.json`
 
-It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path.
+It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path. The deterministic record set includes both demo cards while preserving the heatwave card as the default.
+
+## Agent Packet v0.2
+
+`build_agent_packet()` now emits `packet_version: "0.2"` with reusable context for downstream agents:
+
+- stable fact, claim, and action IDs
+- unresolved questions
+- what to watch next
+- verdict change conditions
+- recommended next source types
+- reuse guidance that warns agents not to treat the packet as final truth
 
 ## Optional Gemini Live Mode
 
@@ -168,7 +202,6 @@ The notebook uses dependency-free Python validation from `src/sisyphus_watch_dem
 
 ## Next Steps
 
-- Add a second synthetic scenario to test portability.
 - Add optional `jsonschema` validation when that dependency is available.
 - Add a small Kaggle dataset package for the demo files.
 - Add a lightweight export command for producing JSONL from new scenarios.

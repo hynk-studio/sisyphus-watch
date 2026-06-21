@@ -221,14 +221,42 @@
     },
     "agent_packet": {
       "type": "object",
-      "required": ["packet_id", "record_type", "canonical_card_id", "task", "source_ids", "quality_checks", "news_card"],
+      "required": [
+        "packet_id",
+        "packet_version",
+        "record_type",
+        "canonical_card_id",
+        "task",
+        "source_ids",
+        "quality_checks",
+        "reusable_context_summary",
+        "stable_claim_ids",
+        "stable_fact_ids",
+        "stable_action_ids",
+        "unresolved_questions",
+        "what_to_watch_next",
+        "verdict_change_conditions",
+        "recommended_next_sources",
+        "reuse_guidance",
+        "news_card"
+      ],
       "properties": {
         "packet_id": { "type": "string", "pattern": "^agent_packet_" },
+        "packet_version": { "const": "0.2" },
         "record_type": { "const": "agent_packet" },
         "canonical_card_id": { "type": "string" },
         "task": { "type": "string" },
         "source_ids": { "type": "array", "items": { "type": "string" } },
         "quality_checks": { "type": "array", "items": { "type": "object" } },
+        "reusable_context_summary": { "type": "string" },
+        "stable_claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim_" } },
+        "stable_fact_ids": { "type": "array", "items": { "type": "string", "pattern": "^fact_" } },
+        "stable_action_ids": { "type": "array", "items": { "type": "string", "pattern": "^action_" } },
+        "unresolved_questions": { "type": "array", "items": { "type": "string" } },
+        "what_to_watch_next": { "type": "array", "items": { "type": "string" } },
+        "verdict_change_conditions": { "type": "object" },
+        "recommended_next_sources": { "type": "array", "items": { "type": "string" } },
+        "reuse_guidance": { "type": "array", "items": { "type": "string" } },
         "news_card": { "$ref": "#/$defs/news_card" }
       },
       "additionalProperties": true
@@ -239,9 +267,12 @@
       "properties": {
         "mode": { "type": "string" },
         "record_set_id": { "type": "string", "pattern": "^record_set_" },
+        "default_scenario_id": { "type": "string" },
+        "scenario_ids": { "type": "array", "items": { "type": "string" } },
         "generated_at": { "type": "string" },
         "source_records_path": { "type": "string" },
-        "news_card": { "$ref": "#/$defs/news_card" }
+        "news_card": { "$ref": "#/$defs/news_card" },
+        "news_cards": { "type": "array", "items": { "$ref": "#/$defs/news_card" }, "minItems": 1 }
       },
       "additionalProperties": true
     }
