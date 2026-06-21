@@ -39,6 +39,43 @@ WORKFLOW_STEPS = [
 ]
 
 DRIFT_DIRECTIONS = {"strengthened", "weakened", "narrowed", "corrected", "unresolved"}
+GRAPH_NODE_TYPES = {
+    "source",
+    "fact",
+    "actor_claim",
+    "action",
+    "interpretation",
+    "counter_branch",
+    "version_event",
+    "claim_drift",
+    "version_diff",
+    "verdict",
+    "unresolved_question",
+    "bias_note",
+}
+GRAPH_EDGE_TYPES = {
+    "source_supports_fact",
+    "source_contains_claim",
+    "source_describes_action",
+    "source_contains_bias_note",
+    "fact_supports_interpretation",
+    "claim_supports_interpretation",
+    "action_supports_interpretation",
+    "evidence_supports_counter_branch",
+    "counter_branch_targets_interpretation",
+    "counter_branch_targets_claim",
+    "timeline_event_uses_evidence",
+    "timeline_event_updates_judgment",
+    "claim_drift_targets_claim",
+    "evidence_drives_claim_drift",
+    "version_diff_uses_evidence",
+    "version_diff_updates_verdict",
+    "verdict_depends_on_interpretation",
+    "verdict_tempered_by_counter_branch",
+    "verdict_has_unresolved_question",
+    "bias_note_attaches_to_interpretation",
+    "bias_note_attaches_to_verdict",
+}
 
 
 def find_project_root(start: Path | None = None) -> Path:
@@ -161,6 +198,629 @@ def _check_evidence_refs(
         errors.append(f"{object_name} {object_id} references unknown evidence IDs: {sorted(unknown)}")
 
 
+def _graph_node_id(ref_id: str) -> str:
+    return f"node_{ref_id}"
+
+
+def _count_by_key(records: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for record in records:
+        value = str(record.get(key, "unknown"))
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _graph_date_slug(news_card: dict[str, Any]) -> str:
+    created_at = str(news_card.get("created_at", ""))
+    if len(created_at) >= 10:
+        return created_at[:10].replace("-", "_")
+    return "undated"
+
+
+def _unresolved_question_ref_id(news_card: dict[str, Any], index: int) -> str:
+    scenario_slug = str(news_card.get("scenario_id") or news_card.get("card_id", "card")).replace("-", "_")
+    return f"unresolved_{scenario_slug}_{index:02d}"
+
+
+def build_claim_graph(news_card: dict[str, Any]) -> dict[str, Any]:
+    """Derive a compact public-claim graph from the canonical card fields."""
+    scenario_slug = str(news_card.get("scenario_id") or news_card.get("card_id", "card")).replace("-", "_")
+    version = str(news_card.get("version", "v01")).replace(".", "_").replace("-", "_")
+    graph_id = f"graph_{scenario_slug}_{_graph_date_slug(news_card)}_{version}"
+
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+    unresolved_edges: list[dict[str, Any]] = []
+    node_id_by_ref_id: dict[str, str] = {}
+    record_by_ref_id: dict[str, dict[str, Any]] = {}
+
+    def add_node(
+        ref_id: str,
+        node_type: str,
+        label: str,
+        summary: str,
+        confidence: Any = None,
+        source_bound: Any = None,
+    ) -> str:
+        node_id = _graph_node_id(ref_id)
+        node = {
+            "node_id": node_id,
+            "node_type": node_type,
+            "label": label,
+            "ref_id": ref_id,
+            "summary": summary,
+        }
+        if confidence:
+            node["confidence"] = confidence
+        if source_bound is not None:
+            node["source_bound"] = bool(source_bound)
+        nodes.append(node)
+        node_id_by_ref_id[ref_id] = node_id
+        return node_id
+
+    def add_edge(
+        source_ref_id: str,
+        target_ref_id: str,
+        edge_type: str,
+        label: str,
+        evidence_ids: list[str] | None = None,
+        confidence: Any = None,
+    ) -> dict[str, Any] | None:
+        source_node_id = node_id_by_ref_id.get(source_ref_id)
+        target_node_id = node_id_by_ref_id.get(target_ref_id)
+        if not source_node_id or not target_node_id:
+            return None
+        edge = {
+            "edge_id": f"edge_{scenario_slug}_{len(edges) + 1:03d}_{edge_type}",
+            "source_node_id": source_node_id,
+            "target_node_id": target_node_id,
+            "edge_type": edge_type,
+            "label": label,
+        }
+        if evidence_ids:
+            edge["evidence_ids"] = evidence_ids
+        if confidence:
+            edge["confidence"] = confidence
+        edges.append(edge)
+        return edge
+
+    source_ids = _as_list(news_card.get("source_ids"))
+    facts = _as_list(news_card.get("facts"))
+    claims = _as_list(news_card.get("actor_claims"))
+    actions = _as_list(news_card.get("actions"))
+    interpretations = _as_list(news_card.get("interpretations"))
+    counter_branches = _as_list(news_card.get("counter_branches"))
+    bias_notes = _as_list(news_card.get("bias_notes"))
+    version_timeline = _as_list(news_card.get("version_timeline"))
+    claim_drift = _as_list(news_card.get("claim_drift"))
+    version_diff = news_card.get("version_diff", {})
+    verdict = news_card.get("editorial_verdict", {})
+
+    for source_id in source_ids:
+        if isinstance(source_id, str):
+            add_node(source_id, "source", "Source fixture", source_id, source_bound=True)
+
+    for fact in facts:
+        if not isinstance(fact, dict) or not fact.get("fact_id"):
+            continue
+        record_by_ref_id[fact["fact_id"]] = fact
+        add_node(
+            fact["fact_id"],
+            "fact",
+            "Fact",
+            str(fact.get("text", "")),
+            fact.get("confidence"),
+            fact.get("source_bound", True),
+        )
+
+    for claim in claims:
+        if not isinstance(claim, dict) or not claim.get("claim_id"):
+            continue
+        record_by_ref_id[claim["claim_id"]] = claim
+        add_node(
+            claim["claim_id"],
+            "actor_claim",
+            str(claim.get("actor", "Actor claim")),
+            str(claim.get("claim_text", "")),
+            None,
+            True,
+        )
+
+    for action in actions:
+        if not isinstance(action, dict) or not action.get("action_id"):
+            continue
+        record_by_ref_id[action["action_id"]] = action
+        add_node(
+            action["action_id"],
+            "action",
+            str(action.get("action_type", "Action")),
+            str(action.get("action_text", "")),
+            None,
+            True,
+        )
+
+    for interpretation in interpretations:
+        if not isinstance(interpretation, dict) or not interpretation.get("interpretation_id"):
+            continue
+        add_node(
+            interpretation["interpretation_id"],
+            "interpretation",
+            str(interpretation.get("title", "Interpretation")),
+            str(interpretation.get("interpretation_text", "")),
+            interpretation.get("confidence"),
+            True,
+        )
+
+    for counter in counter_branches:
+        if not isinstance(counter, dict) or not counter.get("counter_branch_id"):
+            continue
+        add_node(
+            counter["counter_branch_id"],
+            "counter_branch",
+            str(counter.get("title", "Counter-branch")),
+            str(counter.get("counter_text", "")),
+            counter.get("confidence"),
+            True,
+        )
+
+    for bias_note in bias_notes:
+        if not isinstance(bias_note, dict) or not bias_note.get("bias_note_id"):
+            continue
+        add_node(
+            bias_note["bias_note_id"],
+            "bias_note",
+            str(bias_note.get("bias_type", "Bias note")),
+            str(bias_note.get("note_text", "")),
+            None,
+            True,
+        )
+
+    for event in version_timeline:
+        if not isinstance(event, dict) or not event.get("version_id"):
+            continue
+        add_node(
+            event["version_id"],
+            "version_event",
+            str(event.get("version_label", "Version event")),
+            str(event.get("summary", "")),
+            event.get("confidence_at_version"),
+            True,
+        )
+
+    for drift in claim_drift:
+        if not isinstance(drift, dict) or not drift.get("drift_id"):
+            continue
+        add_node(
+            drift["drift_id"],
+            "claim_drift",
+            str(drift.get("direction", "Claim drift")),
+            str(drift.get("drift_summary", "")),
+            None,
+            True,
+        )
+
+    if isinstance(version_diff, dict) and version_diff.get("diff_id"):
+        add_node(
+            version_diff["diff_id"],
+            "version_diff",
+            str(version_diff.get("to_version", "Version diff")),
+            str(version_diff.get("updated_judgment", "")),
+            None,
+            True,
+        )
+
+    if isinstance(verdict, dict) and verdict.get("verdict_id"):
+        add_node(
+            verdict["verdict_id"],
+            "verdict",
+            str(verdict.get("short_label", "Verdict")),
+            str(verdict.get("verdict_text", "")),
+            verdict.get("confidence"),
+            True,
+        )
+
+    unresolved_questions = _as_list(version_diff.get("unchanged_uncertainties")) if isinstance(version_diff, dict) else []
+    for index, question in enumerate(unresolved_questions, start=1):
+        ref_id = _unresolved_question_ref_id(news_card, index)
+        add_node(ref_id, "unresolved_question", f"Unresolved question {index}", str(question), None, True)
+
+    def source_edge_type(ref_id: str) -> str | None:
+        if ref_id.startswith("fact_"):
+            return "source_supports_fact"
+        if ref_id.startswith("claim_"):
+            return "source_contains_claim"
+        if ref_id.startswith("action_"):
+            return "source_describes_action"
+        return None
+
+    def interpretation_edge_type(ref_id: str) -> str:
+        if ref_id.startswith("fact_"):
+            return "fact_supports_interpretation"
+        if ref_id.startswith("claim_"):
+            return "claim_supports_interpretation"
+        return "action_supports_interpretation"
+
+    for fact in facts:
+        if not isinstance(fact, dict) or not fact.get("fact_id"):
+            continue
+        for source_id in _as_list(fact.get("source_ids")):
+            add_edge(str(source_id), fact["fact_id"], "source_supports_fact", "source supports fact", [fact["fact_id"]])
+
+    for claim in claims:
+        if not isinstance(claim, dict) or not claim.get("claim_id"):
+            continue
+        for source_id in _as_list(claim.get("source_ids")):
+            add_edge(str(source_id), claim["claim_id"], "source_contains_claim", "source contains actor claim", [claim["claim_id"]])
+
+    for action in actions:
+        if not isinstance(action, dict) or not action.get("action_id"):
+            continue
+        for source_id in _as_list(action.get("source_ids")):
+            add_edge(str(source_id), action["action_id"], "source_describes_action", "source describes action", [action["action_id"]])
+
+    for bias_note in bias_notes:
+        if not isinstance(bias_note, dict) or not bias_note.get("bias_note_id"):
+            continue
+        add_edge(
+            str(bias_note.get("source_id", "")),
+            bias_note["bias_note_id"],
+            "source_contains_bias_note",
+            "source contains labeled bias note",
+        )
+
+    for interpretation in interpretations:
+        if not isinstance(interpretation, dict) or not interpretation.get("interpretation_id"):
+            continue
+        for evidence_id in _as_list(interpretation.get("evidence_ids")):
+            add_edge(
+                str(evidence_id),
+                interpretation["interpretation_id"],
+                interpretation_edge_type(str(evidence_id)),
+                "evidence supports interpretation",
+                [str(evidence_id)],
+                interpretation.get("confidence"),
+            )
+
+    for counter in counter_branches:
+        if not isinstance(counter, dict) or not counter.get("counter_branch_id"):
+            continue
+        counter_id = counter["counter_branch_id"]
+        for evidence_id in _as_list(counter.get("evidence_ids")):
+            add_edge(
+                str(evidence_id),
+                counter_id,
+                "evidence_supports_counter_branch",
+                "evidence supports counter-branch",
+                [str(evidence_id)],
+                counter.get("confidence"),
+            )
+        target_id = str(counter.get("target_id", ""))
+        target_type = "counter_branch_targets_claim" if target_id.startswith("claim_") else "counter_branch_targets_interpretation"
+        add_edge(counter_id, target_id, target_type, "counter-branch targets review object", _as_list(counter.get("evidence_ids")))
+
+    diff_id = str(version_diff.get("diff_id", "")) if isinstance(version_diff, dict) else ""
+    verdict_id = str(verdict.get("verdict_id", "")) if isinstance(verdict, dict) else ""
+
+    for event in version_timeline:
+        if not isinstance(event, dict) or not event.get("version_id"):
+            continue
+        event_id = event["version_id"]
+        for evidence_id in _as_list(event.get("evidence_ids")):
+            add_edge(str(evidence_id), event_id, "timeline_event_uses_evidence", "timeline event uses evidence", [str(evidence_id)])
+        if diff_id:
+            add_edge(event_id, diff_id, "timeline_event_updates_judgment", "timeline event updates judgment", _as_list(event.get("evidence_ids")))
+
+    for drift in claim_drift:
+        if not isinstance(drift, dict) or not drift.get("drift_id"):
+            continue
+        drift_id = drift["drift_id"]
+        driver_ids = [str(evidence_id) for evidence_id in _as_list(drift.get("driver_evidence_ids"))]
+        target_claim_id = str(drift.get("target_claim_id", ""))
+        add_edge(drift_id, target_claim_id, "claim_drift_targets_claim", "claim drift targets actor claim", driver_ids)
+        for evidence_id in driver_ids:
+            add_edge(evidence_id, drift_id, "evidence_drives_claim_drift", "evidence drives claim drift", [evidence_id])
+
+    if diff_id:
+        new_evidence_ids = [str(evidence_id) for evidence_id in _as_list(version_diff.get("new_evidence_ids"))]
+        for evidence_id in new_evidence_ids:
+            add_edge(evidence_id, diff_id, "version_diff_uses_evidence", "version diff uses evidence", [evidence_id])
+        if verdict_id:
+            add_edge(diff_id, verdict_id, "version_diff_updates_verdict", "version diff updates verdict", new_evidence_ids)
+
+    for interpretation in interpretations:
+        if not isinstance(interpretation, dict) or not interpretation.get("interpretation_id") or not verdict_id:
+            continue
+        add_edge(
+            interpretation["interpretation_id"],
+            verdict_id,
+            "verdict_depends_on_interpretation",
+            "verdict depends on interpretation",
+            _as_list(interpretation.get("evidence_ids")),
+            verdict.get("confidence") if isinstance(verdict, dict) else None,
+        )
+
+    for counter in counter_branches:
+        if not isinstance(counter, dict) or not counter.get("counter_branch_id") or not verdict_id:
+            continue
+        add_edge(
+            counter["counter_branch_id"],
+            verdict_id,
+            "verdict_tempered_by_counter_branch",
+            "verdict is tempered by counter-branch",
+            _as_list(counter.get("evidence_ids")),
+            counter.get("confidence"),
+        )
+
+    for bias_note in bias_notes:
+        if not isinstance(bias_note, dict) or not bias_note.get("bias_note_id"):
+            continue
+        if interpretations:
+            first_interpretation = interpretations[0].get("interpretation_id") if isinstance(interpretations[0], dict) else None
+            if first_interpretation:
+                add_edge(
+                    bias_note["bias_note_id"],
+                    first_interpretation,
+                    "bias_note_attaches_to_interpretation",
+                    "bias note attaches to interpretation for review",
+                )
+        if verdict_id:
+            add_edge(
+                bias_note["bias_note_id"],
+                verdict_id,
+                "bias_note_attaches_to_verdict",
+                "bias note attaches to verdict for review",
+            )
+
+    for index, _question in enumerate(unresolved_questions, start=1):
+        if not verdict_id:
+            continue
+        question_ref_id = _unresolved_question_ref_id(news_card, index)
+        edge = add_edge(
+            verdict_id,
+            question_ref_id,
+            "verdict_has_unresolved_question",
+            "verdict keeps unresolved question visible",
+        )
+        if edge:
+            unresolved_edges.append(dict(edge))
+
+    def find_source_for_ref(ref_id: str) -> str | None:
+        record = record_by_ref_id.get(ref_id)
+        if not record:
+            return None
+        source_ids_for_record = _as_list(record.get("source_ids"))
+        return str(source_ids_for_record[0]) if source_ids_for_record else None
+
+    def find_edge_id(source_ref_id: str, target_ref_id: str, edge_type: str) -> str | None:
+        source_node_id = node_id_by_ref_id.get(source_ref_id)
+        target_node_id = node_id_by_ref_id.get(target_ref_id)
+        for edge in edges:
+            if (
+                edge.get("source_node_id") == source_node_id
+                and edge.get("target_node_id") == target_node_id
+                and edge.get("edge_type") == edge_type
+            ):
+                return str(edge.get("edge_id"))
+        return None
+
+    primary_paths: list[dict[str, Any]] = []
+    if diff_id and verdict_id:
+        for evidence_id in _as_list(version_diff.get("new_evidence_ids")):
+            evidence_ref_id = str(evidence_id)
+            source_ref_id = find_source_for_ref(evidence_ref_id)
+            source_to_evidence_type = source_edge_type(evidence_ref_id)
+            if not source_ref_id or not source_to_evidence_type:
+                continue
+            edge_ids = [
+                find_edge_id(source_ref_id, evidence_ref_id, source_to_evidence_type),
+                find_edge_id(evidence_ref_id, diff_id, "version_diff_uses_evidence"),
+                find_edge_id(diff_id, verdict_id, "version_diff_updates_verdict"),
+            ]
+            if all(edge_ids):
+                primary_paths.append(
+                    {
+                        "path_id": f"path_{scenario_slug}_version_diff_to_verdict",
+                        "label": "Evidence to version diff to verdict",
+                        "node_ids": [
+                            node_id_by_ref_id[source_ref_id],
+                            node_id_by_ref_id[evidence_ref_id],
+                            node_id_by_ref_id[diff_id],
+                            node_id_by_ref_id[verdict_id],
+                        ],
+                        "edge_ids": edge_ids,
+                        "summary": "A source-bound evidence item changes the version diff, which updates the verdict.",
+                    }
+                )
+                break
+
+    if interpretations and verdict_id:
+        first_interpretation = interpretations[0]
+        if isinstance(first_interpretation, dict):
+            interpretation_id = str(first_interpretation.get("interpretation_id", ""))
+            for evidence_id in _as_list(first_interpretation.get("evidence_ids")):
+                evidence_ref_id = str(evidence_id)
+                source_ref_id = find_source_for_ref(evidence_ref_id)
+                source_to_evidence_type = source_edge_type(evidence_ref_id)
+                if not source_ref_id or not source_to_evidence_type:
+                    continue
+                edge_ids = [
+                    find_edge_id(source_ref_id, evidence_ref_id, source_to_evidence_type),
+                    find_edge_id(evidence_ref_id, interpretation_id, interpretation_edge_type(evidence_ref_id)),
+                    find_edge_id(interpretation_id, verdict_id, "verdict_depends_on_interpretation"),
+                ]
+                if all(edge_ids):
+                    primary_paths.append(
+                        {
+                            "path_id": f"path_{scenario_slug}_interpretation_to_verdict",
+                            "label": "Evidence to interpretation to verdict",
+                            "node_ids": [
+                                node_id_by_ref_id[source_ref_id],
+                                node_id_by_ref_id[evidence_ref_id],
+                                node_id_by_ref_id[interpretation_id],
+                                node_id_by_ref_id[verdict_id],
+                            ],
+                            "edge_ids": edge_ids,
+                            "summary": "A source-bound evidence item supports the interpretation that the verdict depends on.",
+                        }
+                    )
+                    break
+
+    return {
+        "graph_id": graph_id,
+        "nodes": nodes,
+        "edges": edges,
+        "graph_summary": (
+            f"Derived claim graph with {len(nodes)} nodes and {len(edges)} edges linking sources, "
+            "evidence, interpretations, counter-branches, timeline events, claim drift, version diff, and verdict."
+        ),
+        "primary_paths": primary_paths,
+        "unresolved_edges": unresolved_edges,
+    }
+
+
+def _collect_graph_validation_ids(news_card: dict[str, Any]) -> tuple[set[str], set[str]]:
+    facts = _as_list(news_card.get("facts"))
+    claims = _as_list(news_card.get("actor_claims"))
+    actions = _as_list(news_card.get("actions"))
+    interpretations = _as_list(news_card.get("interpretations"))
+    counter_branches = _as_list(news_card.get("counter_branches"))
+    bias_notes = _as_list(news_card.get("bias_notes"))
+    version_timeline = _as_list(news_card.get("version_timeline"))
+    claim_drift = _as_list(news_card.get("claim_drift"))
+    source_ids = {str(source_id) for source_id in _as_list(news_card.get("source_ids"))}
+    fact_ids = _ids(facts, "fact_id")
+    claim_ids = _ids(claims, "claim_id")
+    action_ids = _ids(actions, "action_id")
+    interpretation_ids = _ids(interpretations, "interpretation_id")
+    counter_ids = _ids(counter_branches, "counter_branch_id")
+    bias_ids = _ids(bias_notes, "bias_note_id")
+    version_ids = _ids(version_timeline, "version_id")
+    drift_ids = _ids(claim_drift, "drift_id")
+
+    known_object_ids = (
+        source_ids
+        | fact_ids
+        | claim_ids
+        | action_ids
+        | interpretation_ids
+        | counter_ids
+        | bias_ids
+        | version_ids
+        | drift_ids
+    )
+
+    version_diff = news_card.get("version_diff", {})
+    if isinstance(version_diff, dict) and version_diff.get("diff_id"):
+        known_object_ids.add(str(version_diff["diff_id"]))
+
+    verdict = news_card.get("editorial_verdict", {})
+    if isinstance(verdict, dict) and verdict.get("verdict_id"):
+        known_object_ids.add(str(verdict["verdict_id"]))
+
+    known_evidence_ids = fact_ids | claim_ids | action_ids
+    return known_object_ids, known_evidence_ids
+
+
+def validate_claim_graph(news_card: dict[str, Any]) -> list[str]:
+    """Validate the derived claim_graph relation map."""
+    errors: list[str] = []
+    graph = news_card.get("claim_graph")
+    known_object_ids, known_evidence_ids = _collect_graph_validation_ids(news_card)
+
+    if not isinstance(graph, dict):
+        return ["claim_graph must be an object"]
+
+    _require_prefix(errors, "claim_graph.graph_id", graph.get("graph_id"), "graph_")
+    nodes = _as_list(graph.get("nodes"))
+    edges = _as_list(graph.get("edges"))
+    if not nodes:
+        errors.append("claim_graph nodes must be non-empty")
+    if not edges:
+        errors.append("claim_graph edges must be non-empty")
+    if not _as_list(graph.get("primary_paths")):
+        errors.append("claim_graph primary_paths must be non-empty")
+
+    node_ids: set[str] = set()
+    for index, node in enumerate(nodes):
+        if not isinstance(node, dict):
+            errors.append(f"claim_graph.nodes[{index}] must be an object")
+            continue
+        for field in ["node_id", "node_type", "label", "ref_id", "summary"]:
+            if field not in node:
+                errors.append(f"claim_graph node[{index}] missing {field}")
+        node_id = node.get("node_id")
+        node_type = node.get("node_type")
+        ref_id = node.get("ref_id")
+        _require_prefix(errors, "claim_graph.node_id", node_id, "node_")
+        if node_type not in GRAPH_NODE_TYPES:
+            errors.append(f"claim_graph node {node_id} has unknown node_type {node_type}")
+        if isinstance(node_id, str):
+            if node_id in node_ids:
+                errors.append(f"claim_graph duplicate node_id {node_id}")
+            node_ids.add(node_id)
+        if node_type == "unresolved_question":
+            if not isinstance(ref_id, str) or not ref_id.startswith("unresolved_"):
+                errors.append(f"claim_graph unresolved node {node_id} has invalid ref_id {ref_id}")
+        elif ref_id not in known_object_ids:
+            errors.append(f"claim_graph node {node_id} references unknown ref_id {ref_id}")
+
+    edge_ids: set[str] = set()
+
+    def validate_edge(edge: Any, label: str, require_registered_edge: bool = False) -> None:
+        if not isinstance(edge, dict):
+            errors.append(f"{label} must be an object")
+            return
+        for field in ["edge_id", "source_node_id", "target_node_id", "edge_type", "label"]:
+            if field not in edge:
+                errors.append(f"{label} missing {field}")
+        edge_id = edge.get("edge_id")
+        source_node_id = edge.get("source_node_id")
+        target_node_id = edge.get("target_node_id")
+        edge_type = edge.get("edge_type")
+        _require_prefix(errors, f"{label}.edge_id", edge_id, "edge_")
+        if source_node_id not in node_ids:
+            errors.append(f"{label} {edge_id} references unknown source node {source_node_id}")
+        if target_node_id not in node_ids:
+            errors.append(f"{label} {edge_id} references unknown target node {target_node_id}")
+        if edge_type not in GRAPH_EDGE_TYPES:
+            errors.append(f"{label} {edge_id} has unknown edge_type {edge_type}")
+        if "evidence_ids" in edge:
+            evidence_ids = _as_list(edge.get("evidence_ids"))
+            unknown = set(evidence_ids) - known_evidence_ids
+            if unknown:
+                errors.append(f"{label} {edge_id} references unknown evidence IDs: {sorted(unknown)}")
+        if require_registered_edge and edge_id not in edge_ids:
+            errors.append(f"{label} {edge_id} is not present in claim_graph.edges")
+
+    for index, edge in enumerate(edges):
+        validate_edge(edge, f"claim_graph.edges[{index}]")
+        if isinstance(edge, dict) and isinstance(edge.get("edge_id"), str):
+            edge_id = str(edge["edge_id"])
+            if edge_id in edge_ids:
+                errors.append(f"claim_graph duplicate edge_id {edge_id}")
+            edge_ids.add(edge_id)
+
+    for index, path in enumerate(_as_list(graph.get("primary_paths"))):
+        if not isinstance(path, dict):
+            errors.append(f"claim_graph.primary_paths[{index}] must be an object")
+            continue
+        for node_id in _as_list(path.get("node_ids")):
+            if node_id not in node_ids:
+                errors.append(f"claim_graph primary path {path.get('path_id')} references unknown node {node_id}")
+        for edge_id in _as_list(path.get("edge_ids")):
+            if edge_id not in edge_ids:
+                errors.append(f"claim_graph primary path {path.get('path_id')} references unknown edge {edge_id}")
+
+    for index, unresolved_edge in enumerate(_as_list(graph.get("unresolved_edges"))):
+        if isinstance(unresolved_edge, str):
+            if unresolved_edge not in edge_ids:
+                errors.append(f"claim_graph unresolved_edges[{index}] references unknown edge {unresolved_edge}")
+            continue
+        validate_edge(unresolved_edge, f"claim_graph.unresolved_edges[{index}]", require_registered_edge=True)
+
+    return errors
+
+
 def load_demo_sources(path: str | Path | None = None) -> list[dict[str, Any]]:
     """Load synthetic source fixtures and validate their basic shape."""
     source_path = Path(path) if path else DEFAULT_SOURCE_PATH
@@ -271,6 +931,7 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
         "version_diff",
         "version_timeline",
         "claim_drift",
+        "claim_graph",
         "editorial_verdict",
     ]
     errors: list[str] = []
@@ -468,6 +1129,8 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
     if image_prompt.get("label") != "Generated visual summary, not evidence":
         errors.append("image_prompt label must be 'Generated visual summary, not evidence'")
 
+    errors.extend(validate_claim_graph(news_card))
+
     return errors
 
 
@@ -499,11 +1162,32 @@ def run_negative_validation_self_test(news_card: dict[str, Any] | None = None) -
     if not drift_errors:
         raise AssertionError("Expected claim_drift.driver_evidence_ids validation to fail")
 
+    bad_graph_node = deepcopy(card)
+    bad_graph_node["claim_graph"]["nodes"][0]["ref_id"] = "claim_graph_ref_does_not_exist"
+    graph_node_errors = validate_news_card(bad_graph_node)
+    if not graph_node_errors:
+        raise AssertionError("Expected claim_graph node ref_id validation to fail")
+
+    bad_graph_target = deepcopy(card)
+    bad_graph_target["claim_graph"]["edges"][0]["target_node_id"] = "node_does_not_exist"
+    graph_target_errors = validate_news_card(bad_graph_target)
+    if not graph_target_errors:
+        raise AssertionError("Expected claim_graph edge target node validation to fail")
+
+    bad_graph_evidence = deepcopy(card)
+    bad_graph_evidence["claim_graph"]["edges"][0]["evidence_ids"] = ["interp_not_allowed_as_graph_evidence"]
+    graph_evidence_errors = validate_news_card(bad_graph_evidence)
+    if not graph_evidence_errors:
+        raise AssertionError("Expected claim_graph edge evidence_ids validation to fail")
+
     return {
         "counter_branch_unknown_evidence": counter_errors,
         "version_diff_unknown_evidence": diff_errors,
         "version_timeline_unknown_evidence": timeline_errors,
         "claim_drift_unknown_evidence": drift_errors,
+        "claim_graph_unknown_node_ref": graph_node_errors,
+        "claim_graph_unknown_edge_target": graph_target_errors,
+        "claim_graph_unknown_edge_evidence": graph_evidence_errors,
     }
 
 
@@ -573,7 +1257,7 @@ def _build_live_prompt(source_records: list[dict[str, Any]]) -> str:
         "Return JSON only with a top-level news_card object matching the Sisyphus Watch schema.\n\n"
         "Required news_card fields: card_id, card_type, title, version, summary_3_line, image_prompt, source_ids, "
         "source_hygiene_note, facts, actor_claims, actions, interpretations, counter_branches, bias_notes, "
-        "version_diff, version_timeline, claim_drift, editorial_verdict.\n\n"
+        "version_diff, version_timeline, claim_drift, claim_graph, editorial_verdict.\n\n"
         "Synthetic source records:\n"
         f"{json.dumps(source_records, indent=2, ensure_ascii=False)}"
     )
@@ -599,6 +1283,9 @@ def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
     version_diff = news_card.get("version_diff", {})
     version_timeline = _as_list(news_card.get("version_timeline"))
     claim_drift = _as_list(news_card.get("claim_drift"))
+    claim_graph = news_card.get("claim_graph") if isinstance(news_card.get("claim_graph"), dict) else build_claim_graph(news_card)
+    graph_nodes = _as_list(claim_graph.get("nodes"))
+    graph_edges = _as_list(claim_graph.get("edges"))
     verdict = news_card.get("editorial_verdict", {})
     counter_branches = news_card.get("counter_branches", [])
     interpretation = news_card.get("interpretations", [{}])[0] if news_card.get("interpretations") else {}
@@ -647,7 +1334,7 @@ def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
     ]
     return {
         "packet_id": f"agent_packet_{news_card['card_id']}",
-        "packet_version": "0.3",
+        "packet_version": "0.4",
         "record_type": "agent_packet",
         "created_at": _now_iso(),
         "canonical_card_id": news_card["card_id"],
@@ -655,6 +1342,17 @@ def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
         "source_ids": news_card.get("source_ids", []),
         "quality_checks": run_quality_checks(news_card),
         "reusable_context_summary": " ".join(news_card.get("summary_3_line", [])),
+        "claim_graph_summary": claim_graph.get("graph_summary", ""),
+        "primary_graph_paths": claim_graph.get("primary_paths", []),
+        "graph_node_count": len(graph_nodes),
+        "graph_edge_count": len(graph_edges),
+        "graph_node_type_counts": _count_by_key(graph_nodes, "node_type"),
+        "graph_edge_type_counts": _count_by_key(graph_edges, "edge_type"),
+        "reusable_graph_hints": [
+            "Use node ref_id values to join graph nodes back to the canonical card objects.",
+            "Use edge evidence_ids only as source-bound evidence pointers, not independent verification.",
+            "Follow primary_graph_paths first, then inspect unresolved_edges before strengthening a verdict.",
+        ],
         "version_timeline_summary": version_timeline_summary,
         "claim_drift_summary": claim_drift_summary,
         "latest_version_label": latest_version_label,
@@ -753,6 +1451,10 @@ def run_quality_checks(news_card: dict[str, Any]) -> list[dict[str, str]]:
     version_diff = news_card.get("version_diff")
     version_timeline = _as_list(news_card.get("version_timeline"))
     claim_drift = _as_list(news_card.get("claim_drift"))
+    claim_graph = news_card.get("claim_graph")
+    graph_nodes = _as_list(claim_graph.get("nodes")) if isinstance(claim_graph, dict) else []
+    graph_edges = _as_list(claim_graph.get("edges")) if isinstance(claim_graph, dict) else []
+    graph_errors = validate_claim_graph(news_card)
     summary = _as_list(news_card.get("summary_3_line"))
     image_prompt = news_card.get("image_prompt", {})
 
@@ -801,6 +1503,26 @@ def run_quality_checks(news_card: dict[str, Any]) -> list[dict[str, str]]:
             "Claim drift exists",
             len(claim_drift) >= 1 and all(item.get("drift_id") for item in claim_drift),
             f"{len(claim_drift)} drift entries",
+        ),
+        (
+            "Claim graph exists",
+            isinstance(claim_graph, dict) and bool(claim_graph.get("graph_id")),
+            "graph_id present" if isinstance(claim_graph, dict) and claim_graph.get("graph_id") else "missing",
+        ),
+        (
+            "Claim graph nodes exist",
+            len(graph_nodes) > 0 and all(item.get("node_id") for item in graph_nodes),
+            f"{len(graph_nodes)} nodes",
+        ),
+        (
+            "Claim graph edges exist",
+            len(graph_edges) > 0 and all(item.get("edge_id") for item in graph_edges),
+            f"{len(graph_edges)} edges",
+        ),
+        (
+            "Claim graph references are valid",
+            len(graph_errors) == 0,
+            "all graph references valid" if not graph_errors else "; ".join(graph_errors[:4]),
         ),
         (
             "3-line summary exists",
@@ -1078,6 +1800,76 @@ def render_claim_drift_html(news_card: dict[str, Any]) -> str:
         f"""
         <h3>Claim Drift</h3>
         <div class="drift-list">{''.join(rendered_drifts)}</div>
+        """,
+    )
+
+
+def render_claim_graph_html(news_card: dict[str, Any]) -> str:
+    """Render a compact claim graph relation map."""
+    graph = news_card.get("claim_graph") if isinstance(news_card.get("claim_graph"), dict) else build_claim_graph(news_card)
+    nodes = _as_list(graph.get("nodes"))
+    edges = _as_list(graph.get("edges"))
+    node_counts = _count_by_key(nodes, "node_type")
+    edge_counts = _count_by_key(edges, "edge_type")
+    node_by_id = {node.get("node_id"): node for node in nodes if isinstance(node, dict)}
+
+    def count_rows(counts: dict[str, int]) -> str:
+        return "".join(
+            f"<tr><td>{escape(key)}</td><td>{value}</td></tr>"
+            for key, value in counts.items()
+        )
+
+    primary_paths = []
+    for path in _as_list(graph.get("primary_paths")):
+        if not isinstance(path, dict):
+            continue
+        labels = []
+        for node_id in _as_list(path.get("node_ids")):
+            node = node_by_id.get(node_id, {})
+            labels.append(str(node.get("label") or node.get("ref_id") or node_id))
+        primary_paths.append(
+            f"""
+            <article class="graph-path">
+              <strong>{escape(str(path.get('label', 'Primary path')))}</strong>
+              <p>{escape(' -> '.join(labels))}</p>
+              <p class="muted">{escape(str(path.get('summary', '')))}</p>
+            </article>
+            """
+        )
+
+    return _wrap_html(
+        "claim-graph",
+        f"""
+        <h3>Claim Graph</h3>
+        <p>{escape(str(graph.get('graph_summary', '')))}</p>
+        <div class="graph-metrics">
+          <div class="summary-card ok"><span>Nodes</span><strong>{len(nodes)}</strong></div>
+          <div class="summary-card ok"><span>Edges</span><strong>{len(edges)}</strong></div>
+          <div class="summary-card ok"><span>Primary paths</span><strong>{len(_as_list(graph.get('primary_paths')))}</strong></div>
+          <div class="summary-card ok"><span>Unresolved edges</span><strong>{len(_as_list(graph.get('unresolved_edges')))}</strong></div>
+        </div>
+        <section>
+          <h4>Primary Path</h4>
+          <div class="graph-path-list">{''.join(primary_paths)}</div>
+        </section>
+        <div class="grid two">
+          <section>
+            <h4>Node counts by type</h4>
+            <table><thead><tr><th>Node type</th><th>Count</th></tr></thead><tbody>{count_rows(node_counts)}</tbody></table>
+          </section>
+          <section>
+            <h4>Edge counts by type</h4>
+            <table><thead><tr><th>Edge type</th><th>Count</th></tr></thead><tbody>{count_rows(edge_counts)}</tbody></table>
+          </section>
+        </div>
+        <details>
+          <summary>Full graph nodes</summary>
+          <pre>{escape(json.dumps(nodes, indent=2, ensure_ascii=False))}</pre>
+        </details>
+        <details>
+          <summary>Full graph edges</summary>
+          <pre>{escape(json.dumps(edges, indent=2, ensure_ascii=False))}</pre>
+        </details>
         """,
     )
 
@@ -1402,6 +2194,25 @@ def _wrap_html(class_name: str, body: str) -> str:
         gap: 8px;
         align-items: center;
       }}
+      .graph-metrics {{
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin: 12px 0;
+      }}
+      .graph-path-list {{
+        display: grid;
+        gap: 10px;
+      }}
+      .graph-path {{
+        border: 1px solid #dce5e0;
+        border-radius: 8px;
+        background: white;
+        padding: 12px;
+      }}
+      .graph-path p {{
+        margin: 8px 0 0;
+      }}
       .diff, .verdict {{
         background: #f2f6f4;
         border-radius: 8px;
@@ -1500,7 +2311,7 @@ def _wrap_html(class_name: str, body: str) -> str:
         margin: 10px 0;
       }}
       @media (max-width: 780px) {{
-        .intro-panel, .card-header, .grid.two, .branch-row, .summary-grid {{
+        .intro-panel, .card-header, .grid.two, .branch-row, .summary-grid, .graph-metrics {{
           grid-template-columns: 1fr;
         }}
         .arrow {{
