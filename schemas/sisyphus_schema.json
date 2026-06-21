@@ -376,6 +376,85 @@
       },
       "additionalProperties": true
     },
+    "reviewer_packet": {
+      "type": "object",
+      "required": [
+        "packet_id",
+        "packet_version",
+        "packet_type",
+        "card_id",
+        "preset_id",
+        "focus_ref_id",
+        "answer_summary",
+        "query_result",
+        "agent_instructions",
+        "limitations"
+      ],
+      "properties": {
+        "packet_id": { "type": "string", "pattern": "^reviewer_packet_" },
+        "packet_version": { "const": "0.6" },
+        "packet_type": { "const": "sisyphus_reviewer_packet" },
+        "card_id": { "type": "string", "pattern": "^news_" },
+        "preset_id": {
+          "type": "string",
+          "enum": [
+            "claim_status_review",
+            "verdict_change_review",
+            "counter_branch_review",
+            "next_agent_handoff"
+          ]
+        },
+        "focus_ref_id": { "type": ["string", "null"] },
+        "answer_summary": { "type": "string" },
+        "query_result": {
+          "type": "object",
+          "required": [
+            "preset_id",
+            "preset_title",
+            "question",
+            "card_id",
+            "focus_ref_id",
+            "answer_summary",
+            "supporting_nodes",
+            "supporting_edges",
+            "paths_to_verdict",
+            "unresolved_questions",
+            "recommended_next_checks",
+            "reuse_guidance"
+          ],
+          "properties": {
+            "preset_id": { "type": "string" },
+            "preset_title": { "type": "string" },
+            "question": { "type": "string" },
+            "card_id": { "type": "string", "pattern": "^news_" },
+            "focus_ref_id": { "type": ["string", "null"] },
+            "focus_node": {
+              "anyOf": [
+                { "$ref": "#/$defs/graph_node" },
+                { "type": "null" }
+              ]
+            },
+            "answer_summary": { "type": "string" },
+            "supporting_nodes": { "type": "array", "items": { "$ref": "#/$defs/graph_node" } },
+            "supporting_edges": { "type": "array", "items": { "$ref": "#/$defs/graph_edge" } },
+            "paths_to_verdict": { "type": "array", "items": { "type": "object" } },
+            "selected_subgraph": {
+              "anyOf": [
+                { "$ref": "#/$defs/selected_subgraph" },
+                { "type": "null" }
+              ]
+            },
+            "unresolved_questions": { "type": "array", "items": { "type": "string" } },
+            "recommended_next_checks": { "type": "array", "items": { "type": "string" } },
+            "reuse_guidance": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": true
+        },
+        "agent_instructions": { "type": "array", "items": { "type": "string" } },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
     "editorial_verdict": {
       "type": "object",
       "required": ["verdict_id", "short_label", "verdict_text", "confidence", "reader_warnings"],
@@ -543,6 +622,7 @@
     { "$ref": "#/$defs/news_card" },
     { "$ref": "#/$defs/agent_packet" },
     { "$ref": "#/$defs/graph_packet" },
+    { "$ref": "#/$defs/reviewer_packet" },
     { "$ref": "#/$defs/record_set" }
   ]
 }

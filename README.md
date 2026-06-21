@@ -194,6 +194,17 @@ The graph is queryable without external dependencies:
 
 Graph packets are plain JSON and are designed to reuse compact claim context. No graph database, external graph service, crawler, or web API is used.
 
+## Reviewer Query Presets v0.6
+
+Reviewer presets package common graph questions into deterministic JSON packets for downstream AI agents:
+
+- `claim_status_review` reviews one actor claim's status, drift, nearby evidence, and paths to verdict.
+- `verdict_change_review` reviews the current verdict, version diff, unresolved questions, and next checks.
+- `counter_branch_review` reviews counter-branch evidence and how it tempers a claim or interpretation.
+- `next_agent_handoff` packages a compact claim-centered subgraph and graph packet for follow-up review.
+
+`export_reviewer_packet()` emits `packet_version: "0.6"` reviewer packets. No LLM call, external graph service, or network access is required.
+
 ## Schema
 
 `schemas/sisyphus_schema.json` documents the record shapes for:
@@ -214,6 +225,7 @@ Graph packets are plain JSON and are designed to reuse compact claim context. No
 - `graph_edge`
 - `claim_graph`
 - `graph_packet`
+- `reviewer_packet`
 - `editorial_verdict`
 - `agent_packet`
 

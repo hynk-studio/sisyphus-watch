@@ -77,6 +77,41 @@ GRAPH_EDGE_TYPES = {
     "bias_note_attaches_to_verdict",
 }
 
+QUERY_PRESETS = {
+    "claim_status_review": {
+        "preset_id": "claim_status_review",
+        "title": "Claim Status Review",
+        "question": "What is the current status of this claim?",
+        "purpose": "Review claim drift, nearby evidence, graph neighbors, and verdict paths for one actor claim.",
+        "default_focus_type": "actor_claim",
+        "output_packet_type": "sisyphus_reviewer_packet",
+    },
+    "verdict_change_review": {
+        "preset_id": "verdict_change_review",
+        "title": "Verdict Change Review",
+        "question": "What would change the verdict?",
+        "purpose": "Review the current verdict, version diff, unresolved questions, and next evidence checks.",
+        "default_focus_type": "card",
+        "output_packet_type": "sisyphus_reviewer_packet",
+    },
+    "counter_branch_review": {
+        "preset_id": "counter_branch_review",
+        "title": "Counter-Branch Review",
+        "question": "What evidence and counter-branches affect this claim or interpretation?",
+        "purpose": "Review the counter-branch evidence and how it tempers the interpretation or claim.",
+        "default_focus_type": "counter_branch",
+        "output_packet_type": "sisyphus_reviewer_packet",
+    },
+    "next_agent_handoff": {
+        "preset_id": "next_agent_handoff",
+        "title": "Next Agent Handoff",
+        "question": "What compact subgraph should be handed off for the next review?",
+        "purpose": "Package a claim-centered subgraph, graph packet, unresolved questions, and next checks.",
+        "default_focus_type": "actor_claim",
+        "output_packet_type": "sisyphus_reviewer_packet",
+    },
+}
+
 
 def find_project_root(start: Path | None = None) -> Path:
     """Find the Sisyphus Watch project root across local and Kaggle layouts."""
@@ -1222,6 +1257,434 @@ def get_evidence_for_ref(news_card: dict[str, Any], ref_id: str) -> dict[str, An
     }
 
 
+def list_query_presets() -> list[dict[str, str]]:
+    """Return deterministic graph query preset metadata."""
+    return [dict(preset) for preset in QUERY_PRESETS.values()]
+
+
+def _unique_strings(values: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        if value is None:
+            continue
+        text = str(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        unique.append(text)
+    return unique
+
+
+def _claim_by_id(news_card: dict[str, Any], claim_id: str | None) -> dict[str, Any] | None:
+    for claim in _as_list(news_card.get("actor_claims")):
+        if isinstance(claim, dict) and claim.get("claim_id") == claim_id:
+            return claim
+    return None
+
+
+def _first_claim(news_card: dict[str, Any]) -> dict[str, Any] | None:
+    claims = _as_list(news_card.get("actor_claims"))
+    return claims[0] if claims and isinstance(claims[0], dict) else None
+
+
+def _counter_by_id(news_card: dict[str, Any], counter_id: str | None) -> dict[str, Any] | None:
+    for counter in _as_list(news_card.get("counter_branches")):
+        if isinstance(counter, dict) and counter.get("counter_branch_id") == counter_id:
+            return counter
+    return None
+
+
+def _first_counter(news_card: dict[str, Any]) -> dict[str, Any] | None:
+    counters = _as_list(news_card.get("counter_branches"))
+    return counters[0] if counters and isinstance(counters[0], dict) else None
+
+
+def _counter_for_focus(news_card: dict[str, Any], focus_ref_id: str | None) -> dict[str, Any] | None:
+    counter = _counter_by_id(news_card, focus_ref_id)
+    if counter:
+        return counter
+    if focus_ref_id:
+        for candidate in _as_list(news_card.get("counter_branches")):
+            if isinstance(candidate, dict) and candidate.get("target_id") == focus_ref_id:
+                return candidate
+    return _first_counter(news_card)
+
+
+def _evidence_records_by_id(news_card: dict[str, Any], evidence_ids: list[Any]) -> list[dict[str, Any]]:
+    evidence_records: dict[str, dict[str, Any]] = {}
+    for fact in _as_list(news_card.get("facts")):
+        if isinstance(fact, dict) and fact.get("fact_id"):
+            evidence_records[str(fact["fact_id"])] = fact
+    for claim in _as_list(news_card.get("actor_claims")):
+        if isinstance(claim, dict) and claim.get("claim_id"):
+            evidence_records[str(claim["claim_id"])] = claim
+    for action in _as_list(news_card.get("actions")):
+        if isinstance(action, dict) and action.get("action_id"):
+            evidence_records[str(action["action_id"])] = action
+    return [
+        evidence_records[evidence_id]
+        for evidence_id in _unique_strings(evidence_ids)
+        if evidence_id in evidence_records
+    ]
+
+
+def _unresolved_questions_for_card(news_card: dict[str, Any]) -> list[str]:
+    version_diff = news_card.get("version_diff", {})
+    verdict = news_card.get("editorial_verdict", {})
+    questions = []
+    if isinstance(version_diff, dict):
+        questions.extend(_as_list(version_diff.get("unchanged_uncertainties")))
+    if isinstance(verdict, dict):
+        questions.extend(_as_list(verdict.get("reader_warnings")))
+    return _unique_strings(questions)
+
+
+def _what_to_watch_next(news_card: dict[str, Any]) -> list[str]:
+    checks = [
+        counter.get("what_would_change_this")
+        for counter in _as_list(news_card.get("counter_branches"))
+        if isinstance(counter, dict) and counter.get("what_would_change_this")
+    ]
+    checks.extend(
+        [
+            "New source-bound evidence that changes the current version diff.",
+            "Fresh actor updates that confirm, narrow, or reverse the current remediation claim.",
+        ]
+    )
+    return _unique_strings(checks)
+
+
+def _recommended_next_sources() -> list[str]:
+    return [
+        "timestamped official update logs",
+        "field observation samples with time and location metadata",
+        "service or access metrics after the correction",
+        "public meeting notes or after-action reports",
+    ]
+
+
+def _verdict_change_conditions(news_card: dict[str, Any]) -> dict[str, Any]:
+    interpretation = news_card.get("interpretations", [{}])[0] if news_card.get("interpretations") else {}
+    return {
+        "would_strengthen_current_interpretation": [
+            "Independent logs or timestamped observations confirm the gap persisted after correction.",
+            "New actor records show the public claim was known to be stale before publication.",
+        ],
+        "would_weaken_current_interpretation": [
+            "Timestamped operational records show the public claim matched conditions when issued.",
+            "Follow-up access or service data shows the correction reached affected people quickly.",
+        ],
+        "current_interpretation_id": interpretation.get("interpretation_id") if isinstance(interpretation, dict) else None,
+    }
+
+
+def _claim_status_query(news_card: dict[str, Any], focus_ref_id: str | None) -> dict[str, Any]:
+    claim = _claim_by_id(news_card, focus_ref_id) or _first_claim(news_card)
+    claim_id = claim.get("claim_id") if isinstance(claim, dict) else focus_ref_id
+    graph = get_claim_graph(news_card)
+    focus_node = get_graph_node(graph, str(claim_id)) if claim_id else None
+    neighbors = get_graph_neighbors(graph, str(claim_id)) if claim_id else {}
+    drift_entries = [
+        drift
+        for drift in _as_list(news_card.get("claim_drift"))
+        if isinstance(drift, dict) and drift.get("target_claim_id") == claim_id
+    ]
+    evidence_ids = _unique_strings(
+        [claim_id]
+        + [
+            evidence_id
+            for drift in drift_entries
+            for evidence_id in _as_list(drift.get("driver_evidence_ids"))
+        ]
+        + [
+            evidence_id
+            for edge in _as_list(neighbors.get("incoming_edges")) + _as_list(neighbors.get("outgoing_edges"))
+            if isinstance(edge, dict)
+            for evidence_id in _as_list(edge.get("evidence_ids"))
+        ]
+    )
+    drift_labels = _unique_strings([drift.get("direction") for drift in drift_entries])
+    if drift_entries:
+        answer_summary = (
+            f"Claim {claim_id} is currently handled as {claim.get('status', 'review')} and has "
+            f"{', '.join(drift_labels)} drift in the card history."
+        )
+    elif claim:
+        answer_summary = f"Claim {claim_id} is currently handled as {claim.get('status', 'review')} with no explicit drift entry."
+    else:
+        answer_summary = f"No actor claim could be resolved for {focus_ref_id or 'default focus'}."
+
+    return {
+        "focus_ref_id": claim_id,
+        "focus_node": focus_node,
+        "answer_summary": answer_summary,
+        "supporting_nodes": _as_list(neighbors.get("neighbor_nodes")),
+        "supporting_edges": _as_list(neighbors.get("incoming_edges")) + _as_list(neighbors.get("outgoing_edges")),
+        "paths_to_verdict": get_paths_to_verdict(graph, str(claim_id)) if claim_id else [],
+        "selected_subgraph": get_selected_claim_subgraph(news_card, str(claim_id), radius=2) if claim_id else None,
+        "unresolved_questions": _unresolved_questions_for_card(news_card),
+        "recommended_next_checks": _what_to_watch_next(news_card),
+        "reuse_guidance": [
+            "Review claim drift before treating the latest claim status as stable.",
+            "Use supporting_edges to trace why this claim is connected to the verdict.",
+        ],
+        "claim_record": claim,
+        "claim_drift_entries": drift_entries,
+        "evidence_records": _evidence_records_by_id(news_card, evidence_ids),
+        "neighbor_context": neighbors,
+    }
+
+
+def _verdict_change_query(news_card: dict[str, Any], focus_ref_id: str | None) -> dict[str, Any]:
+    graph = get_claim_graph(news_card)
+    verdict = news_card.get("editorial_verdict", {})
+    version_diff = news_card.get("version_diff", {})
+    verdict_id = verdict.get("verdict_id") if isinstance(verdict, dict) else None
+    focus_node = get_graph_node(graph, focus_ref_id) if focus_ref_id else None
+    if focus_node is None and verdict_id:
+        focus_node = get_graph_node(graph, str(verdict_id))
+    confidence_delta = version_diff.get("confidence_delta", {}) if isinstance(version_diff, dict) else {}
+    answer_summary = (
+        f"Current verdict is {verdict.get('short_label', 'review')}. "
+        f"The version diff moved from {version_diff.get('previous_judgment', 'unknown')} "
+        f"to {version_diff.get('updated_judgment', 'unknown')}; confidence changes cover "
+        f"{', '.join(confidence_delta.keys()) or 'no listed hypotheses'}."
+    )
+    return {
+        "focus_ref_id": focus_ref_id or verdict_id,
+        "focus_node": focus_node,
+        "answer_summary": answer_summary,
+        "supporting_nodes": [node for node in [focus_node] if node],
+        "supporting_edges": _as_list(graph.get("unresolved_edges")),
+        "paths_to_verdict": get_paths_to_verdict(graph),
+        "selected_subgraph": None,
+        "unresolved_questions": _unresolved_questions_for_card(news_card),
+        "recommended_next_checks": _what_to_watch_next(news_card),
+        "reuse_guidance": [
+            "Use version_diff evidence before changing the editorial verdict.",
+            "Resolve unchanged uncertainties before strengthening the conclusion.",
+        ],
+        "editorial_verdict": verdict,
+        "version_diff": version_diff,
+        "version_diff_evidence_records": _evidence_records_by_id(
+            news_card,
+            _as_list(version_diff.get("new_evidence_ids")) if isinstance(version_diff, dict) else [],
+        ),
+        "what_to_watch_next": _what_to_watch_next(news_card),
+        "verdict_change_conditions": _verdict_change_conditions(news_card),
+        "recommended_next_sources": _recommended_next_sources(),
+    }
+
+
+def _counter_branch_query(news_card: dict[str, Any], focus_ref_id: str | None) -> dict[str, Any]:
+    graph = get_claim_graph(news_card)
+    counter = _counter_for_focus(news_card, focus_ref_id)
+    counter_id = counter.get("counter_branch_id") if isinstance(counter, dict) else focus_ref_id
+    target_id = counter.get("target_id") if isinstance(counter, dict) else None
+    focus_node = get_graph_node(graph, str(counter_id)) if counter_id else None
+    target_node = get_graph_node(graph, str(target_id)) if target_id else None
+    neighbors = get_graph_neighbors(graph, str(counter_id)) if counter_id else {}
+    evidence = get_evidence_for_ref(news_card, str(counter_id)) if counter_id else {}
+    answer_summary = (
+        f"Counter branch {counter_id} tempers {target_id} with {len(_as_list(evidence.get('evidence_ids')))} "
+        f"evidence pointers and confidence {counter.get('confidence', 'review')}."
+        if counter
+        else f"No counter branch could be resolved for {focus_ref_id or 'default focus'}."
+    )
+    return {
+        "focus_ref_id": counter_id,
+        "focus_node": focus_node,
+        "answer_summary": answer_summary,
+        "supporting_nodes": [node for node in [target_node, *(_as_list(neighbors.get("neighbor_nodes")))] if node],
+        "supporting_edges": _as_list(neighbors.get("incoming_edges")) + _as_list(neighbors.get("outgoing_edges")),
+        "paths_to_verdict": get_paths_to_verdict(graph, str(counter_id)) if counter_id else [],
+        "selected_subgraph": (
+            get_selected_claim_subgraph(news_card, str(target_id), radius=2)
+            if target_id and _claim_by_id(news_card, str(target_id))
+            else None
+        ),
+        "unresolved_questions": _unresolved_questions_for_card(news_card),
+        "recommended_next_checks": _unique_strings(
+            [counter.get("what_would_change_this") if isinstance(counter, dict) else None]
+            + _recommended_next_sources()
+        ),
+        "reuse_guidance": [
+            "Use this counter branch before escalating the claim to a stronger accusation.",
+            "Treat counter evidence as a tempering branch, not as automatic exoneration.",
+        ],
+        "counter_branch": counter,
+        "target_ref_id": target_id,
+        "counter_evidence": evidence,
+    }
+
+
+def _next_agent_handoff_query(news_card: dict[str, Any], focus_ref_id: str | None) -> dict[str, Any]:
+    claim = _claim_by_id(news_card, focus_ref_id) or _first_claim(news_card)
+    claim_id = claim.get("claim_id") if isinstance(claim, dict) else focus_ref_id
+    graph = get_claim_graph(news_card)
+    graph_packet = export_agent_graph_packet(news_card, focus_ref_id=str(claim_id), radius=2) if claim_id else None
+    selected_subgraph = graph_packet.get("selected_subgraph") if isinstance(graph_packet, dict) else None
+    answer_summary = (
+        f"Handoff centers on {claim_id} with "
+        f"{len(_as_list(selected_subgraph.get('nodes') if isinstance(selected_subgraph, dict) else []))} nodes and "
+        f"{len(_as_list(selected_subgraph.get('edges') if isinstance(selected_subgraph, dict) else []))} edges."
+        if claim_id
+        else "No actor claim is available for next-agent handoff."
+    )
+    return {
+        "focus_ref_id": claim_id,
+        "focus_node": get_graph_node(graph, str(claim_id)) if claim_id else None,
+        "answer_summary": answer_summary,
+        "supporting_nodes": _as_list(selected_subgraph.get("nodes")) if isinstance(selected_subgraph, dict) else [],
+        "supporting_edges": _as_list(selected_subgraph.get("edges")) if isinstance(selected_subgraph, dict) else [],
+        "paths_to_verdict": get_paths_to_verdict(graph, str(claim_id)) if claim_id else [],
+        "selected_subgraph": selected_subgraph,
+        "unresolved_questions": _unresolved_questions_for_card(news_card),
+        "recommended_next_checks": _what_to_watch_next(news_card) + _recommended_next_sources(),
+        "reuse_guidance": [
+            "Pass selected_subgraph for compact context and graph_packet for full graph metadata.",
+            "Ask the next agent to preserve source-bound facts, actor claims, actions, and counter-branches separately.",
+        ],
+        "claim_record": claim,
+        "graph_packet": graph_packet,
+        "downstream_instructions": [
+            "Start with answer_summary, then inspect selected_subgraph edges.",
+            "Do not treat synthetic demo fixtures as real evidence.",
+            "Return any new evidence as fact, claim, or action IDs before changing verdict handling.",
+        ],
+    }
+
+
+def run_graph_query_preset(
+    news_card: dict[str, Any],
+    preset_id: str,
+    focus_ref_id: str | None = None,
+) -> dict[str, Any]:
+    """Run a deterministic graph query preset and return a compact result packet."""
+    preset = QUERY_PRESETS.get(preset_id)
+    if not preset:
+        return {
+            "preset_id": preset_id,
+            "preset_title": "Unknown preset",
+            "question": "",
+            "card_id": news_card.get("card_id"),
+            "focus_ref_id": focus_ref_id,
+            "focus_node": None,
+            "answer_summary": f"Unknown graph query preset: {preset_id}",
+            "supporting_nodes": [],
+            "supporting_edges": [],
+            "paths_to_verdict": [],
+            "selected_subgraph": None,
+            "unresolved_questions": _unresolved_questions_for_card(news_card),
+            "recommended_next_checks": [],
+            "reuse_guidance": [],
+            "error": "unknown_preset",
+        }
+
+    if preset_id == "claim_status_review":
+        payload = _claim_status_query(news_card, focus_ref_id)
+    elif preset_id == "verdict_change_review":
+        payload = _verdict_change_query(news_card, focus_ref_id)
+    elif preset_id == "counter_branch_review":
+        payload = _counter_branch_query(news_card, focus_ref_id)
+    elif preset_id == "next_agent_handoff":
+        payload = _next_agent_handoff_query(news_card, focus_ref_id)
+    else:
+        payload = {}
+
+    return {
+        "preset_id": preset["preset_id"],
+        "preset_title": preset["title"],
+        "question": preset["question"],
+        "card_id": news_card.get("card_id"),
+        "focus_ref_id": payload.get("focus_ref_id", focus_ref_id),
+        "focus_node": payload.get("focus_node"),
+        "answer_summary": payload.get("answer_summary", ""),
+        "supporting_nodes": _as_list(payload.get("supporting_nodes")),
+        "supporting_edges": _as_list(payload.get("supporting_edges")),
+        "paths_to_verdict": _as_list(payload.get("paths_to_verdict")),
+        "selected_subgraph": payload.get("selected_subgraph"),
+        "unresolved_questions": _as_list(payload.get("unresolved_questions")),
+        "recommended_next_checks": _as_list(payload.get("recommended_next_checks")),
+        "reuse_guidance": _as_list(payload.get("reuse_guidance")),
+        **{
+            key: value
+            for key, value in payload.items()
+            if key
+            not in {
+                "focus_ref_id",
+                "focus_node",
+                "answer_summary",
+                "supporting_nodes",
+                "supporting_edges",
+                "paths_to_verdict",
+                "selected_subgraph",
+                "unresolved_questions",
+                "recommended_next_checks",
+                "reuse_guidance",
+            }
+        },
+    }
+
+
+def validate_reviewer_packet(packet: dict[str, Any]) -> list[str]:
+    """Return validation errors for reviewer preset packets."""
+    errors: list[str] = []
+    if not isinstance(packet, dict):
+        return ["reviewer packet must be an object"]
+    _require_prefix(errors, "reviewer_packet.packet_id", packet.get("packet_id"), "reviewer_packet_")
+    if packet.get("packet_version") != "0.6":
+        errors.append("reviewer packet packet_version must be 0.6")
+    if packet.get("packet_type") != "sisyphus_reviewer_packet":
+        errors.append("reviewer packet packet_type must be sisyphus_reviewer_packet")
+    for field in ["card_id", "preset_id", "query_result", "answer_summary", "limitations"]:
+        if field not in packet:
+            errors.append(f"reviewer packet missing {field}")
+    if "query_result" in packet and not isinstance(packet.get("query_result"), dict):
+        errors.append("reviewer packet query_result must be an object")
+    if "limitations" in packet and not isinstance(packet.get("limitations"), list):
+        errors.append("reviewer packet limitations must be a list")
+    if packet.get("preset_id") not in QUERY_PRESETS:
+        errors.append(f"reviewer packet preset_id {packet.get('preset_id')} is not registered")
+    return errors
+
+
+def export_reviewer_packet(
+    news_card: dict[str, Any],
+    preset_id: str,
+    focus_ref_id: str | None = None,
+) -> dict[str, Any]:
+    """Build a reviewer-facing packet from a graph query preset."""
+    query_result = run_graph_query_preset(news_card, preset_id, focus_ref_id)
+    resolved_focus = query_result.get("focus_ref_id") or focus_ref_id
+    focus_suffix = f"_{resolved_focus}" if resolved_focus else ""
+    packet = {
+        "packet_id": f"reviewer_packet_{news_card.get('card_id', 'unknown')}_{preset_id}{focus_suffix}",
+        "packet_version": "0.6",
+        "packet_type": "sisyphus_reviewer_packet",
+        "card_id": news_card.get("card_id"),
+        "preset_id": preset_id,
+        "focus_ref_id": resolved_focus,
+        "answer_summary": query_result.get("answer_summary", ""),
+        "query_result": query_result,
+        "agent_instructions": [
+            "Use the query_result as deterministic review context, not as a new factual source.",
+            "Preserve facts, actor claims, actions, interpretations, counter-branches, and verdicts as separate layers.",
+            "Before changing a verdict, add source-bound fact, claim, or action IDs and rerun validation.",
+        ],
+        "limitations": [
+            "Reviewer packets are deterministic JSON packets and do not call an LLM.",
+            "Synthetic demo fixtures are not real-world evidence.",
+            "Graph paths show encoded card relationships, not independent proof.",
+        ],
+    }
+    packet_errors = validate_reviewer_packet(packet)
+    if packet_errors:
+        packet["validation_errors"] = packet_errors
+    return packet
+
+
 def load_demo_sources(path: str | Path | None = None) -> list[dict[str, Any]]:
     """Load synthetic source fixtures and validate their basic shape."""
     source_path = Path(path) if path else DEFAULT_SOURCE_PATH
@@ -1820,16 +2283,19 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     if claims and isinstance(claims[0], dict):
         focus_claim_id = claims[0].get("claim_id")
     graph_packet = export_agent_graph_packet(news_card, focus_ref_id=focus_claim_id)
+    reviewer_packet = export_reviewer_packet(news_card, "next_agent_handoff", focus_ref_id=focus_claim_id)
     paths = {
         "news_card": output_path / "sisyphus_news_card.json",
         "records_jsonl": output_path / "sisyphus_records.jsonl",
         "agent_packet": output_path / "sisyphus_agent_packet.json",
         "graph_packet": output_path / "sisyphus_graph_packet.json",
+        "reviewer_packet": output_path / "sisyphus_reviewer_packet.json",
     }
     paths["news_card"].write_text(json.dumps(news_card, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["records_jsonl"].write_text(to_jsonl([news_card, packet]) + "\n", encoding="utf-8")
     paths["agent_packet"].write_text(json.dumps(packet, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["graph_packet"].write_text(json.dumps(graph_packet, indent=2, ensure_ascii=False), encoding="utf-8")
+    paths["reviewer_packet"].write_text(json.dumps(reviewer_packet, indent=2, ensure_ascii=False), encoding="utf-8")
     return paths
 
 
@@ -1864,6 +2330,9 @@ def run_quality_checks(news_card: dict[str, Any]) -> list[dict[str, str]]:
     graph_edges = _as_list(claim_graph.get("edges")) if isinstance(claim_graph, dict) else []
     graph_errors = validate_claim_graph(news_card)
     graph_packet = export_agent_graph_packet(news_card)
+    focus_claim_id = claims[0].get("claim_id") if claims and isinstance(claims[0], dict) else None
+    reviewer_packet = export_reviewer_packet(news_card, "next_agent_handoff", focus_ref_id=focus_claim_id)
+    reviewer_packet_errors = validate_reviewer_packet(reviewer_packet)
     summary = _as_list(news_card.get("summary_3_line"))
     image_prompt = news_card.get("image_prompt", {})
 
@@ -1937,6 +2406,11 @@ def run_quality_checks(news_card: dict[str, Any]) -> list[dict[str, str]]:
             "Graph packet export works",
             graph_packet.get("packet_version") == "0.5" and not graph_packet.get("validation_errors"),
             "packet_version 0.5" if not graph_packet.get("validation_errors") else "; ".join(graph_packet["validation_errors"][:4]),
+        ),
+        (
+            "Reviewer packet export works",
+            reviewer_packet.get("packet_version") == "0.6" and not reviewer_packet_errors,
+            "packet_version 0.6" if not reviewer_packet_errors else "; ".join(reviewer_packet_errors[:4]),
         ),
         (
             "3-line summary exists",
@@ -2380,6 +2854,68 @@ def render_graph_query_preview_html(news_card: dict[str, Any]) -> str:
           <summary>Graph packet preview</summary>
           <pre>{escape(json.dumps(graph_packet, indent=2, ensure_ascii=False))}</pre>
         </details>
+        """,
+    )
+
+
+def render_reviewer_presets_html(news_card: dict[str, Any]) -> str:
+    """Render deterministic reviewer query preset examples."""
+    claims = _as_list(news_card.get("actor_claims"))
+    claim_id = claims[0].get("claim_id") if claims and isinstance(claims[0], dict) else None
+    preset_rows = "".join(
+        f"""
+        <tr>
+          <td><code>{escape(preset['preset_id'])}</code></td>
+          <td>{escape(preset['title'])}</td>
+          <td>{escape(preset['question'])}</td>
+          <td>{escape(preset['default_focus_type'])}</td>
+        </tr>
+        """
+        for preset in list_query_presets()
+    )
+
+    preview_requests = [
+        ("claim_status_review", claim_id),
+        ("verdict_change_review", None),
+        ("next_agent_handoff", claim_id),
+    ]
+    packet_cards = []
+    for preset_id, focus in preview_requests:
+        packet = export_reviewer_packet(news_card, preset_id, focus_ref_id=focus)
+        result = packet.get("query_result", {})
+        packet_cards.append(
+            f"""
+            <article class="graph-path">
+              <div class="timeline-topline">
+                <span class="direction-badge">{escape(str(preset_id))}</span>
+                <code>{escape(str(packet.get('focus_ref_id') or 'card'))}</code>
+              </div>
+              <p>{escape(str(result.get('answer_summary', '')))}</p>
+              <p class="muted">
+                supporting nodes: {len(_as_list(result.get('supporting_nodes')))} |
+                paths: {len(_as_list(result.get('paths_to_verdict')))} |
+                unresolved: {len(_as_list(result.get('unresolved_questions')))}
+              </p>
+              <details>
+                <summary>Reviewer packet</summary>
+                <pre>{escape(json.dumps(packet, indent=2, ensure_ascii=False))}</pre>
+              </details>
+            </article>
+            """
+        )
+
+    return _wrap_html(
+        "reviewer-presets",
+        f"""
+        <h3>Reviewer Query Presets</h3>
+        <table>
+          <thead><tr><th>Preset</th><th>Title</th><th>Question</th><th>Default focus</th></tr></thead>
+          <tbody>{preset_rows}</tbody>
+        </table>
+        <section>
+          <h4>Preset Summaries</h4>
+          <div class="graph-path-list">{''.join(packet_cards)}</div>
+        </section>
         """,
     )
 
