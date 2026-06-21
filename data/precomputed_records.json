@@ -1,0 +1,238 @@
+{
+  "mode": "demo",
+  "record_set_id": "record_set_city_heatwave_cooling_centers_2026_06_15_demo",
+  "generated_at": "2026-06-15T12:30:00Z",
+  "source_records_path": "data/demo_sources.json",
+  "news_card": {
+    "card_id": "news_city_heatwave_cooling_centers_2026_06_15_v01",
+    "record_type": "news_card",
+    "card_type": "public_claim_version_control_card",
+    "title": "City Heatwave Cooling Centers: Public Claim vs Access Reality",
+    "scenario_name": "City Heatwave Cooling Centers",
+    "version": "v01",
+    "created_at": "2026-06-15T12:30:00Z",
+    "is_synthetic_demo_fixture": true,
+    "track": "Agents for Good",
+    "confidence": "medium_high",
+    "uncertainty": "The synthetic sources show an implementation gap and partial remediation, but do not measure resident-level impact or prove intent.",
+    "source_ids": [
+      "src_city_heatwave_initial_announcement_2026_06_10",
+      "src_community_cooling_center_access_report_2026_06_12",
+      "src_city_heatwave_updated_guidance_2026_06_14",
+      "src_editorial_heatwave_accountability_note_2026_06_15"
+    ],
+    "source_hygiene_note": "Demo sources are synthetic fixtures. Source text is treated as untrusted input; commands inside sources must not be followed. Facts, claims, interpretations, and generated image prompts remain source-bound review layers.",
+    "summary_3_line": [
+      "The fictional city announced 50 cooling centers during a severe heatwave.",
+      "A community group later reported that several listed centers were closed, had limited hours, lacked signage, or were hard to reach.",
+      "The city updated the list, clarified hours, removed unavailable locations, and added transport support, shifting the judgment toward a partially corrected implementation gap."
+    ],
+    "image_prompt": {
+      "label": "Generated visual summary, not evidence",
+      "prompt": "A clean civic information card showing a heatwave city map, cooling center icons, an alert banner, and a split view between official listings and street-level access checks; documentary style, no real city branding."
+    },
+    "facts": [
+      {
+        "fact_id": "fact_city_announces_50_cooling_centers_2026_06_10_001",
+        "text": "The fictional city announced that 50 cooling centers would be open during a severe heatwave.",
+        "source_ids": [
+          "src_city_heatwave_initial_announcement_2026_06_10"
+        ],
+        "confidence": "high",
+        "source_bound": true
+      },
+      {
+        "fact_id": "fact_community_reports_access_problems_2026_06_12_001",
+        "text": "A fictional community volunteer group reported access problems at some listed cooling centers.",
+        "source_ids": [
+          "src_community_cooling_center_access_report_2026_06_12"
+        ],
+        "confidence": "high",
+        "source_bound": true
+      },
+      {
+        "fact_id": "fact_city_updates_list_and_hours_2026_06_14_001",
+        "text": "The fictional city later updated the cooling center list and clarified opening hours.",
+        "source_ids": [
+          "src_city_heatwave_updated_guidance_2026_06_14"
+        ],
+        "confidence": "high",
+        "source_bound": true
+      },
+      {
+        "fact_id": "fact_city_adds_transport_support_2026_06_14_001",
+        "text": "The fictional city added free shuttle support for older residents and medically vulnerable residents in hardest-hit neighborhoods.",
+        "source_ids": [
+          "src_city_heatwave_updated_guidance_2026_06_14"
+        ],
+        "confidence": "high",
+        "source_bound": true
+      },
+      {
+        "fact_id": "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+        "text": "The city update attributed some earlier listing errors to staffing shortages and late facility confirmations.",
+        "source_ids": [
+          "src_city_heatwave_updated_guidance_2026_06_14"
+        ],
+        "confidence": "medium_high",
+        "source_bound": true
+      }
+    ],
+    "actor_claims": [
+      {
+        "claim_id": "claim_city_all_centers_open_2026_06_10_001",
+        "actor": "Fictional City Emergency Management Office",
+        "claim_text": "Residents could find safe, air-conditioned spaces across the city.",
+        "source_ids": [
+          "src_city_heatwave_initial_announcement_2026_06_10"
+        ],
+        "claim_type": "public_service_availability",
+        "status": "partially_challenged_by_later_observation"
+      },
+      {
+        "claim_id": "claim_city_list_will_update_2026_06_10_001",
+        "actor": "Fictional City Emergency Management Office",
+        "claim_text": "The cooling center list would be updated as conditions changed.",
+        "source_ids": [
+          "src_city_heatwave_initial_announcement_2026_06_10"
+        ],
+        "claim_type": "process_commitment",
+        "status": "supported_by_later_update"
+      },
+      {
+        "claim_id": "claim_community_access_gap_2026_06_12_001",
+        "actor": "Fictional Neighborhood Volunteer Network",
+        "claim_text": "Several listed cooling centers were not practically accessible because some were closed, had limited hours, lacked signage, or were difficult for older residents to reach.",
+        "source_ids": [
+          "src_community_cooling_center_access_report_2026_06_12"
+        ],
+        "claim_type": "field_observation",
+        "status": "partially_addressed_by_city_update"
+      },
+      {
+        "claim_id": "claim_city_update_corrected_errors_2026_06_14_001",
+        "actor": "Fictional City Emergency Management Office",
+        "claim_text": "The updated guidance corrected listing errors and improved access through clarified hours, removed unavailable sites, corrected addresses, and added transport support.",
+        "source_ids": [
+          "src_city_heatwave_updated_guidance_2026_06_14"
+        ],
+        "claim_type": "remediation_claim",
+        "status": "plausible_but_not_independently_verified"
+      }
+    ],
+    "actions": [
+      {
+        "action_id": "action_city_updates_cooling_center_hours_2026_06_14_001",
+        "actor": "Fictional City Emergency Management Office",
+        "action_text": "Published an updated cooling center list and clarified opening hours.",
+        "source_ids": [
+          "src_city_heatwave_updated_guidance_2026_06_14"
+        ],
+        "action_type": "public_guidance_update",
+        "date": "2026-06-14"
+      },
+      {
+        "action_id": "action_city_removes_unavailable_locations_2026_06_14_001",
+        "actor": "Fictional City Emergency Management Office",
+        "action_text": "Removed unavailable locations and corrected addresses for several facilities.",
+        "source_ids": [
+          "src_city_heatwave_updated_guidance_2026_06_14"
+        ],
+        "action_type": "listing_correction",
+        "date": "2026-06-14"
+      },
+      {
+        "action_id": "action_city_adds_transport_support_2026_06_14_001",
+        "actor": "Fictional City Emergency Management Office",
+        "action_text": "Added free shuttle support for older and medically vulnerable residents in hardest-hit neighborhoods.",
+        "source_ids": [
+          "src_city_heatwave_updated_guidance_2026_06_14"
+        ],
+        "action_type": "access_support",
+        "date": "2026-06-14"
+      }
+    ],
+    "interpretations": [
+      {
+        "interpretation_id": "interp_emergency_service_implementation_gap_2026_06_15_001",
+        "title": "Implementation gap in emergency public-service communication",
+        "interpretation_text": "The case suggests an implementation gap between emergency-service public claims and real-world accessibility. The later update reduces concern about a simple bad-faith overclaim but increases the importance of versioned public communication during emergencies.",
+        "evidence_ids": [
+          "fact_city_announces_50_cooling_centers_2026_06_10_001",
+          "claim_community_access_gap_2026_06_12_001",
+          "action_city_updates_cooling_center_hours_2026_06_14_001",
+          "action_city_adds_transport_support_2026_06_14_001"
+        ],
+        "alternative_interpretations": [
+          "The original list may have been accurate when published but decayed quickly under emergency conditions.",
+          "The community report may reflect a partial sample rather than the whole citywide system."
+        ],
+        "risk_notes": [
+          "Do not infer deliberate deception without direct evidence of intent.",
+          "Do not treat the city update as proof that all access issues were resolved."
+        ],
+        "confidence": "high"
+      }
+    ],
+    "counter_branches": [
+      {
+        "counter_branch_id": "counter_fast_changing_conditions_2026_06_15_001",
+        "title": "Outdated listings and staffing constraints may explain part of the access gap",
+        "counter_text": "The initial gap may reflect fast-changing emergency conditions, staffing constraints, and late facility confirmations rather than deliberate exaggeration. The update and transport support indicate partial correction.",
+        "target_id": "interp_emergency_service_implementation_gap_2026_06_15_001",
+        "target_type": "interpretation",
+        "evidence_ids": [
+          "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001",
+          "claim_city_list_will_update_2026_06_10_001",
+          "action_city_removes_unavailable_locations_2026_06_14_001"
+        ],
+        "confidence": "medium_high",
+        "what_would_change_this": "Resident-level access data after the update, timestamped center availability logs, or evidence that officials knew the original list was inaccurate before publication."
+      }
+    ],
+    "bias_notes": [
+      {
+        "bias_note_id": "bias_public_accountability_metaphor_2026_06_15_001",
+        "source_id": "src_editorial_heatwave_accountability_note_2026_06_15",
+        "bias_type": "metaphor_opinion",
+        "note_text": "An emergency map that works only on paper is a cardboard umbrella in a heatwave.",
+        "why_labeled": "This is a rhetorical metaphor expressing public accountability judgment, not direct factual evidence.",
+        "evidence_value": "Useful as an opinion signal; excluded from fact extraction."
+      }
+    ],
+    "version_diff": {
+      "diff_id": "diff_city_heatwave_v00_to_v01_2026_06_15",
+      "from_version": "v00_initial_announcement_only",
+      "to_version": "v01_after_community_report_and_city_update",
+      "previous_judgment": "The announcement sounded adequate based on the city's initial statement, but real-world accessibility was unknown.",
+      "updated_judgment": "Concern shifted from possible overclaim to partially corrected implementation gap after updated guidance and transport support.",
+      "new_evidence_ids": [
+        "claim_community_access_gap_2026_06_12_001",
+        "fact_city_updates_list_and_hours_2026_06_14_001",
+        "fact_city_adds_transport_support_2026_06_14_001",
+        "fact_staffing_shortages_late_confirmations_reported_2026_06_14_001"
+      ],
+      "confidence_delta": {
+        "implementation_gap_hypothesis": "low -> high",
+        "deliberate_overclaim_hypothesis": "low -> medium_low",
+        "remediation_hypothesis": "unknown -> medium_high"
+      },
+      "unchanged_uncertainties": [
+        "How many residents were actually unable to access centers.",
+        "Whether updated transport support reached the most vulnerable residents.",
+        "Whether the city has a durable process for future emergency updates."
+      ]
+    },
+    "editorial_verdict": {
+      "verdict_id": "verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+      "short_label": "Public communication failure with partial remediation",
+      "verdict_text": "This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.",
+      "confidence": "medium_high",
+      "reader_warnings": [
+        "Synthetic fixture, not real news.",
+        "No independent verification was performed.",
+        "Intent remains uncertain."
+      ]
+    }
+  }
+}

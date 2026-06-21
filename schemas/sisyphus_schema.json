@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/sisyphus_watch/schemas/sisyphus_schema.json",
+  "title": "Sisyphus Watch Demo Schema",
+  "description": "Schema for synthetic Kaggle demo records used by Sisyphus Watch.",
+  "$defs": {
+    "source_record": {
+      "type": "object",
+      "required": [
+        "source_id",
+        "source_type",
+        "actor",
+        "title",
+        "published_at",
+        "retrieved_at",
+        "reliability_note",
+        "limitations",
+        "is_synthetic_demo_fixture",
+        "text"
+      ],
+      "properties": {
+        "source_id": { "type": "string", "pattern": "^src_" },
+        "source_type": { "type": "string" },
+        "actor": { "type": "string" },
+        "title": { "type": "string" },
+        "published_at": { "type": "string" },
+        "retrieved_at": { "type": "string" },
+        "reliability_note": { "type": "string" },
+        "limitations": { "type": "string" },
+        "is_synthetic_demo_fixture": { "const": true },
+        "text": { "type": "string", "minLength": 80 }
+      },
+      "additionalProperties": true
+    },
+    "fact": {
+      "type": "object",
+      "required": ["fact_id", "text", "source_ids", "confidence", "source_bound"],
+      "properties": {
+        "fact_id": { "type": "string", "pattern": "^fact_" },
+        "text": { "type": "string" },
+        "source_ids": { "type": "array", "items": { "type": "string", "pattern": "^src_" }, "minItems": 1 },
+        "confidence": { "type": "string" },
+        "source_bound": { "const": true }
+      },
+      "additionalProperties": true
+    },
+    "actor_claim": {
+      "type": "object",
+      "required": ["claim_id", "actor", "claim_text", "source_ids", "claim_type", "status"],
+      "properties": {
+        "claim_id": { "type": "string", "pattern": "^claim_" },
+        "actor": { "type": "string" },
+        "claim_text": { "type": "string" },
+        "source_ids": { "type": "array", "items": { "type": "string", "pattern": "^src_" }, "minItems": 1 },
+        "claim_type": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "action": {
+      "type": "object",
+      "required": ["action_id", "actor", "action_text", "source_ids", "action_type", "date"],
+      "properties": {
+        "action_id": { "type": "string", "pattern": "^action_" },
+        "actor": { "type": "string" },
+        "action_text": { "type": "string" },
+        "source_ids": { "type": "array", "items": { "type": "string", "pattern": "^src_" }, "minItems": 1 },
+        "action_type": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "interpretation": {
+      "type": "object",
+      "required": [
+        "interpretation_id",
+        "title",
+        "interpretation_text",
+        "evidence_ids",
+        "alternative_interpretations",
+        "risk_notes",
+        "confidence"
+      ],
+      "properties": {
+        "interpretation_id": { "type": "string", "pattern": "^interp_" },
+        "title": { "type": "string" },
+        "interpretation_text": { "type": "string" },
+        "evidence_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "alternative_interpretations": { "type": "array", "items": { "type": "string" } },
+        "risk_notes": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "counter_branch": {
+      "type": "object",
+      "required": [
+        "counter_branch_id",
+        "title",
+        "counter_text",
+        "target_id",
+        "target_type",
+        "evidence_ids",
+        "confidence"
+      ],
+      "properties": {
+        "counter_branch_id": { "type": "string", "pattern": "^counter_" },
+        "title": { "type": "string" },
+        "counter_text": { "type": "string" },
+        "target_id": { "type": "string" },
+        "target_type": { "type": "string", "enum": ["interpretation", "claim", "column"] },
+        "evidence_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "confidence": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "bias_note": {
+      "type": "object",
+      "required": ["bias_note_id", "source_id", "bias_type", "note_text", "why_labeled", "evidence_value"],
+      "properties": {
+        "bias_note_id": { "type": "string", "pattern": "^bias_" },
+        "source_id": { "type": "string", "pattern": "^src_" },
+        "bias_type": { "type": "string" },
+        "note_text": { "type": "string" },
+        "why_labeled": { "type": "string" },
+        "evidence_value": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "version_diff": {
+      "type": "object",
+      "required": [
+        "diff_id",
+        "from_version",
+        "to_version",
+        "previous_judgment",
+        "updated_judgment",
+        "new_evidence_ids",
+        "confidence_delta",
+        "unchanged_uncertainties"
+      ],
+      "properties": {
+        "diff_id": { "type": "string", "pattern": "^diff_" },
+        "from_version": { "type": "string" },
+        "to_version": { "type": "string" },
+        "previous_judgment": { "type": "string" },
+        "updated_judgment": { "type": "string" },
+        "new_evidence_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "confidence_delta": { "type": "object", "additionalProperties": { "type": "string" } },
+        "unchanged_uncertainties": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "editorial_verdict": {
+      "type": "object",
+      "required": ["verdict_id", "short_label", "verdict_text", "confidence", "reader_warnings"],
+      "properties": {
+        "verdict_id": { "type": "string", "pattern": "^verdict_" },
+        "short_label": { "type": "string" },
+        "verdict_text": { "type": "string" },
+        "confidence": { "type": "string" },
+        "reader_warnings": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "news_card": {
+      "type": "object",
+      "required": [
+        "card_id",
+        "record_type",
+        "card_type",
+        "title",
+        "scenario_name",
+        "version",
+        "created_at",
+        "is_synthetic_demo_fixture",
+        "summary_3_line",
+        "image_prompt",
+        "source_ids",
+        "source_hygiene_note",
+        "facts",
+        "actor_claims",
+        "actions",
+        "interpretations",
+        "counter_branches",
+        "bias_notes",
+        "version_diff",
+        "editorial_verdict"
+      ],
+      "properties": {
+        "card_id": { "type": "string", "pattern": "^news_" },
+        "record_type": { "const": "news_card" },
+        "card_type": { "type": "string" },
+        "title": { "type": "string" },
+        "scenario_name": { "type": "string" },
+        "version": { "type": "string" },
+        "created_at": { "type": "string" },
+        "is_synthetic_demo_fixture": { "const": true },
+        "summary_3_line": { "type": "array", "items": { "type": "string" }, "minItems": 3, "maxItems": 3 },
+        "image_prompt": {
+          "type": "object",
+          "required": ["label", "prompt"],
+          "properties": {
+            "label": { "const": "Generated visual summary, not evidence" },
+            "prompt": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "source_ids": { "type": "array", "items": { "type": "string", "pattern": "^src_" }, "minItems": 1 },
+        "source_hygiene_note": { "type": "string" },
+        "facts": { "type": "array", "items": { "$ref": "#/$defs/fact" }, "minItems": 3 },
+        "actor_claims": { "type": "array", "items": { "$ref": "#/$defs/actor_claim" }, "minItems": 2 },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" }, "minItems": 1 },
+        "interpretations": { "type": "array", "items": { "$ref": "#/$defs/interpretation" }, "minItems": 1 },
+        "counter_branches": { "type": "array", "items": { "$ref": "#/$defs/counter_branch" }, "minItems": 1 },
+        "bias_notes": { "type": "array", "items": { "$ref": "#/$defs/bias_note" }, "minItems": 1 },
+        "version_diff": { "$ref": "#/$defs/version_diff" },
+        "editorial_verdict": { "$ref": "#/$defs/editorial_verdict" }
+      },
+      "additionalProperties": true
+    },
+    "agent_packet": {
+      "type": "object",
+      "required": ["packet_id", "record_type", "canonical_card_id", "task", "source_ids", "quality_checks", "news_card"],
+      "properties": {
+        "packet_id": { "type": "string", "pattern": "^agent_packet_" },
+        "record_type": { "const": "agent_packet" },
+        "canonical_card_id": { "type": "string" },
+        "task": { "type": "string" },
+        "source_ids": { "type": "array", "items": { "type": "string" } },
+        "quality_checks": { "type": "array", "items": { "type": "object" } },
+        "news_card": { "$ref": "#/$defs/news_card" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/source_record" },
+    { "$ref": "#/$defs/news_card" },
+    { "$ref": "#/$defs/agent_packet" }
+  ]
+}
