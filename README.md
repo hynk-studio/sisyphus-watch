@@ -127,7 +127,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the agent workflow trace, run summary, human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, evidence update simulation, revision comparison view, scenario authoring preview, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
+The first screen explains the submission summary, reviewer path, agent workflow, and default synthetic scenario. The notebook then renders the agent workflow trace, run summary, human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, scenario authoring preview, evidence update simulation, revision comparison view, branch view, JSON export, JSONL preview, agent packet preview, downloadable artifacts, PASS/FAIL evaluation table, and Kaggle mid-check checklist.
 
 To switch scenarios in the notebook, change:
 
@@ -147,12 +147,15 @@ or:
 SCENARIO_ID = "school_air_quality_alert_communication"
 ```
 
-## Kaggle Visual Review Path
+## Kaggle Review Path
 
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
-2. Run all cells.
-3. Confirm the top evaluation summary passes before reading the detailed table.
-4. Review the human card first; JSON, JSONL, and agent packet details are available in collapsed sections below.
+2. Run all cells with the default `SCENARIO_ID = "city_heatwave_cooling_centers"`.
+3. Read **Submission Summary** and **Agent Workflow Trace** first to understand the deterministic agent run.
+4. Inspect **Human Card View**, **Version Timeline**, **Claim Drift**, **Claim Graph**, **Reviewer Query Presets**, **Evidence Update Simulation**, and **Revision Comparison View**.
+5. Check **Downloadable Export Artifacts**, **Evaluation**, and **Kaggle Mid-Check Checklist** before saving a Kaggle notebook version.
+
+Demo mode does not require an API key or network access.
 
 For a cleaner Kaggle dataset package, exclude `.git`, `__pycache__`, and notebook checkpoint folders.
 

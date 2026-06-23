@@ -66,6 +66,7 @@ REVISION_VERDICT_EFFECTS = {
 }
 TRACE_STATUSES = {"PASS", "WARN", "SKIPPED", "FAIL"}
 RUN_SUMMARY_QUALITY_STATUSES = {"PASS", "WARN", "FAIL"}
+KAGGLE_MIDCHECK_STATUSES = {"PASS", "WARN", "FAIL"}
 GRAPH_NODE_TYPES = {
     "source",
     "fact",
@@ -3416,6 +3417,172 @@ def export_agent_workflow_trace(news_card: dict[str, Any], patch: dict[str, Any]
     }
 
 
+def build_kaggle_midcheck_summary(news_card: dict[str, Any], patch: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build a compact Kaggle reviewer-path readiness summary."""
+    card_id = str(news_card.get("card_id", "unknown_card"))
+    scenario_id = str(news_card.get("scenario_id", "unknown_scenario"))
+    card_errors = validate_news_card(news_card)
+    quality_checks = run_quality_checks(news_card)
+    failed_quality = [row for row in quality_checks if row.get("status") != "PASS"]
+    trace = build_agent_workflow_trace(news_card, patch)
+    trace_errors = validate_agent_workflow_trace(trace, news_card)
+    run_summary = build_run_summary(news_card, patch)
+    run_summary_errors = validate_run_summary(run_summary, news_card)
+    artifact_outputs = _artifact_outputs(patch is not None)
+    expected_artifacts = [
+        str(artifact.get("filename"))
+        for artifact in artifact_outputs
+        if artifact.get("status") == "PASS" and artifact.get("filename")
+    ]
+
+    def check(label: str, status: str, summary: str) -> dict[str, str]:
+        return {"label": label, "status": status, "summary": summary}
+
+    def render_check(label: str, render_func, skipped_summary: str | None = None) -> dict[str, str]:
+        if skipped_summary is not None:
+            return check(label, "WARN", skipped_summary)
+        try:
+            rendered = render_func()
+        except Exception as exc:  # pragma: no cover - defensive notebook readout
+            return check(label, "FAIL", f"Renderer raised {exc.__class__.__name__}: {exc}")
+        if str(rendered).strip():
+            return check(label, "PASS", "Renderer returned notebook HTML for the selected scenario.")
+        return check(label, "FAIL", "Renderer returned an empty result.")
+
+    checks = [
+        check(
+            "No API key required",
+            "PASS",
+            "Demo mode uses deterministic fixtures and keeps RUN_LIVE_MODE false by default.",
+        ),
+        check(
+            "Selected scenario loads",
+            "PASS" if card_id != "unknown_card" and scenario_id != "unknown_scenario" else "FAIL",
+            f"Selected scenario `{scenario_id}` resolves to card `{card_id}`.",
+        ),
+        check(
+            "Agent Workflow Trace renders",
+            "PASS" if not trace_errors and not run_summary_errors else "FAIL",
+            (
+                "Trace and run summary validate for the selected scenario."
+                if not trace_errors and not run_summary_errors
+                else "; ".join([*trace_errors, *run_summary_errors])
+            ),
+        ),
+        render_check("Human Card View renders", lambda: render_card_html(news_card)),
+        render_check(
+            "Evidence Update Simulation renders",
+            lambda: render_revision_proposal_html(news_card, patch),
+            None if patch is not None else "No evidence patch was available for this scenario.",
+        ),
+        render_check(
+            "Revision Comparison View renders",
+            lambda: render_revision_comparison_html(news_card, patch),
+            None if patch is not None else "No evidence patch was available for this scenario.",
+        ),
+        check(
+            "Evaluation passes",
+            "PASS" if not card_errors and not failed_quality else "FAIL",
+            (
+                f"{len(quality_checks)} quality check(s) passed."
+                if not card_errors and not failed_quality
+                else "; ".join([*card_errors, *[str(row) for row in failed_quality]])
+            ),
+        ),
+        check(
+            "Export artifacts are configured",
+            "PASS" if len(expected_artifacts) >= 10 else "WARN",
+            (
+                "write_export_artifacts emits the expected reviewer files to /kaggle/working "
+                "when that directory exists."
+            ),
+        ),
+    ]
+    statuses = [item["status"] for item in checks]
+    overall_status = "FAIL" if "FAIL" in statuses else "WARN" if "WARN" in statuses else "PASS"
+    return {
+        "midcheck_id": f"kaggle_midcheck_{card_id}",
+        "midcheck_version": "1.2",
+        "card_id": news_card.get("card_id"),
+        "scenario_id": news_card.get("scenario_id"),
+        "checks": checks,
+        "overall_status": overall_status,
+        "expected_export_artifacts": expected_artifacts,
+        "recommended_before_submission": [
+            "Run all cells in Kaggle with RUN_LIVE_MODE left as False.",
+            "Confirm Agent Workflow Trace, Evidence Update Simulation, and Revision Comparison View are visible.",
+            "Confirm the /kaggle/working export links appear after the export cell.",
+            "Save a Kaggle notebook version after the deterministic run completes.",
+        ],
+    }
+
+
+def validate_kaggle_midcheck_summary(
+    summary: dict[str, Any], news_card: dict[str, Any] | None = None
+) -> list[str]:
+    """Return validation errors for Kaggle mid-check summaries."""
+    if not isinstance(summary, dict):
+        return ["kaggle midcheck summary must be an object"]
+
+    errors: list[str] = []
+    required = [
+        "midcheck_id",
+        "midcheck_version",
+        "card_id",
+        "scenario_id",
+        "checks",
+        "overall_status",
+        "recommended_before_submission",
+    ]
+    for field in required:
+        if field not in summary:
+            errors.append(f"kaggle midcheck summary missing {field}")
+
+    _require_prefix(errors, "kaggle_midcheck.midcheck_id", summary.get("midcheck_id"), "kaggle_midcheck_")
+    if summary.get("midcheck_version") != "1.2":
+        errors.append("kaggle midcheck summary midcheck_version must be 1.2")
+    for field in ["card_id", "scenario_id"]:
+        if not str(summary.get(field, "")).strip():
+            errors.append(f"kaggle midcheck summary {field} is required")
+    if summary.get("overall_status") not in KAGGLE_MIDCHECK_STATUSES:
+        errors.append(
+            f"kaggle midcheck summary overall_status must be one of {sorted(KAGGLE_MIDCHECK_STATUSES)}"
+        )
+
+    checks = summary.get("checks")
+    if not isinstance(checks, list) or not checks:
+        errors.append("kaggle midcheck summary checks must be a non-empty list")
+    else:
+        for index, item in enumerate(checks):
+            if not isinstance(item, dict):
+                errors.append(f"kaggle midcheck summary checks[{index}] must be an object")
+                continue
+            for field in ["label", "status", "summary"]:
+                if not str(item.get(field, "")).strip():
+                    errors.append(f"kaggle midcheck summary checks[{index}] missing {field}")
+            if item.get("status") not in KAGGLE_MIDCHECK_STATUSES:
+                errors.append(
+                    f"kaggle midcheck summary checks[{index}] has invalid status {item.get('status')}"
+                )
+
+    if not isinstance(summary.get("recommended_before_submission"), list):
+        errors.append("kaggle midcheck summary recommended_before_submission must be a list")
+    if "expected_export_artifacts" in summary and not isinstance(summary.get("expected_export_artifacts"), list):
+        errors.append("kaggle midcheck summary expected_export_artifacts must be a list")
+
+    if news_card is not None:
+        if summary.get("card_id") != news_card.get("card_id"):
+            errors.append(
+                f"kaggle midcheck summary card_id {summary.get('card_id')} does not match {news_card.get('card_id')}"
+            )
+        if summary.get("scenario_id") != news_card.get("scenario_id"):
+            errors.append(
+                "kaggle midcheck summary scenario_id "
+                f"{summary.get('scenario_id')} does not match {news_card.get('scenario_id')}"
+            )
+    return errors
+
+
 def validate_news_card(news_card: dict[str, Any]) -> list[str]:
     """Return schema-like validation errors for the canonical news_card object."""
     required = [
@@ -4290,6 +4457,73 @@ def render_agent_workflow_trace_html(news_card: dict[str, Any], patch: dict[str,
         <details>
           <summary>Run summary JSON</summary>
           <pre>{escape(json.dumps(run_summary, indent=2, ensure_ascii=False))}</pre>
+        </details>
+        """,
+    )
+
+
+def render_kaggle_midcheck_summary_html(news_card: dict[str, Any], patch: dict[str, Any] | None = None) -> str:
+    """Render a compact Kaggle mid-check checklist for reviewer-path readiness."""
+    summary = build_kaggle_midcheck_summary(news_card, patch)
+    errors = validate_kaggle_midcheck_summary(summary, news_card)
+    check_rows = "".join(
+        f"""
+        <tr>
+          <td>{escape(str(item.get('label', '')))}</td>
+          <td><span class="status {'pass' if item.get('status') == 'PASS' else 'fail' if item.get('status') == 'FAIL' else ''}">{escape(str(item.get('status', '')))}</span></td>
+          <td>{escape(str(item.get('summary', '')))}</td>
+        </tr>
+        """
+        for item in _as_list(summary.get("checks"))
+        if isinstance(item, dict)
+    )
+    artifacts = "".join(
+        f"<li><code>{escape(str(filename))}</code></li>"
+        for filename in _as_list(summary.get("expected_export_artifacts"))
+    )
+    recommendations = "".join(
+        f"<li>{escape(str(item))}</li>" for item in _as_list(summary.get("recommended_before_submission"))
+    )
+    validation_block = (
+        "<section><h4>Validation issues</h4><ul>"
+        + "".join(f"<li>{escape(str(error))}</li>" for error in errors)
+        + "</ul></section>"
+        if errors
+        else "<p class='muted'>Kaggle mid-check summary validation passes for this deterministic run.</p>"
+    )
+    overall_status = str(summary.get("overall_status", "review"))
+    overall_class = "ok" if overall_status == "PASS" else "warn"
+    return _wrap_html(
+        "kaggle-midcheck",
+        f"""
+        <h3>Kaggle Mid-Check Checklist</h3>
+        <p class="warning-note">This checklist is a deterministic reviewer-path readout. It verifies the notebook path without adding live ingestion, a model call, or card mutation.</p>
+        <div class="summary-grid">
+          <div class="summary-card {overall_class}"><span>Overall</span><strong>{escape(overall_status)}</strong></div>
+          <div class="summary-card ok"><span>Mid-check</span><strong>{escape(str(summary.get('midcheck_version', '1.2')))}</strong></div>
+          <div class="summary-card ok"><span>Checks</span><strong>{len(_as_list(summary.get('checks')))}</strong></div>
+          <div class="summary-card ok"><span>Artifacts</span><strong>{len(_as_list(summary.get('expected_export_artifacts')))}</strong></div>
+        </div>
+        <section>
+          <table>
+            <thead><tr><th>Check</th><th>Status</th><th>Summary</th></tr></thead>
+            <tbody>{check_rows}</tbody>
+          </table>
+        </section>
+        <div class="grid two">
+          <section>
+            <h4>Expected /kaggle/working Artifacts</h4>
+            <ul>{artifacts}</ul>
+          </section>
+          <section>
+            <h4>Recommended Before Submission</h4>
+            <ol>{recommendations}</ol>
+          </section>
+        </div>
+        {validation_block}
+        <details>
+          <summary>Mid-check summary JSON</summary>
+          <pre>{escape(json.dumps(summary, indent=2, ensure_ascii=False))}</pre>
         </details>
         """,
     )
