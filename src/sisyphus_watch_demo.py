@@ -64,6 +64,8 @@ REVISION_VERDICT_EFFECTS = {
     "supports_counter_branch": "complicate",
     "requires_review": "requires_review",
 }
+TRACE_STATUSES = {"PASS", "WARN", "SKIPPED", "FAIL"}
+RUN_SUMMARY_QUALITY_STATUSES = {"PASS", "WARN", "FAIL"}
 GRAPH_NODE_TYPES = {
     "source",
     "fact",
@@ -2914,6 +2916,506 @@ def export_revision_comparison(news_card: dict[str, Any], patch: dict[str, Any])
     return build_revision_comparison(news_card, build_revision_proposal(news_card, patch))
 
 
+def _artifact_outputs(revision_available: bool) -> list[dict[str, Any]]:
+    artifacts = [
+        ("news_card", "sisyphus_news_card.json", "Canonical selected news card JSON."),
+        ("records_jsonl", "sisyphus_records.jsonl", "Selected card and agent packet JSONL export."),
+        ("agent_packet", "sisyphus_agent_packet.json", "Main downstream agent packet v0.4."),
+        ("graph_packet", "sisyphus_graph_packet.json", "Claim graph packet v0.5."),
+        ("reviewer_packet", "sisyphus_reviewer_packet.json", "Reviewer preset packet v0.6."),
+        ("scenario_authoring_packet", "sisyphus_scenario_authoring_packet.json", "Scenario authoring packet v0.7."),
+        ("revision_packet", "sisyphus_revision_packet.json", "Revision packet v0.9."),
+        ("revision_comparison", "sisyphus_revision_comparison.json", "Current-vs-proposed comparison v1.0."),
+        ("agent_workflow_trace", "sisyphus_agent_workflow_trace.json", "Agent workflow trace v1.1."),
+        ("run_summary", "sisyphus_run_summary.json", "Reviewer-facing run summary v1.1."),
+    ]
+    revision_artifacts = {"revision_packet", "revision_comparison"}
+    return [
+        {
+            "artifact_id": artifact_id,
+            "filename": filename,
+            "status": "PASS" if revision_available or artifact_id not in revision_artifacts else "SKIPPED",
+            "summary": summary,
+        }
+        for artifact_id, filename, summary in artifacts
+    ]
+
+
+def build_agent_workflow_trace(news_card: dict[str, Any], patch: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build a deterministic trace of the Sisyphus Watch agent workflow."""
+    card_id = str(news_card.get("card_id", "unknown_card"))
+    scenario_id = str(news_card.get("scenario_id", "unknown_scenario"))
+    source_ids = [str(source_id) for source_id in _as_list(news_card.get("source_ids"))]
+    facts = [item for item in _as_list(news_card.get("facts")) if isinstance(item, dict)]
+    claims = [item for item in _as_list(news_card.get("actor_claims")) if isinstance(item, dict)]
+    actions = [item for item in _as_list(news_card.get("actions")) if isinstance(item, dict)]
+    interpretations = [item for item in _as_list(news_card.get("interpretations")) if isinstance(item, dict)]
+    counters = [item for item in _as_list(news_card.get("counter_branches")) if isinstance(item, dict)]
+    timeline = [item for item in _as_list(news_card.get("version_timeline")) if isinstance(item, dict)]
+    drift = [item for item in _as_list(news_card.get("claim_drift")) if isinstance(item, dict)]
+    graph = get_claim_graph(news_card)
+    graph_nodes = _as_list(graph.get("nodes"))
+    graph_edges = _as_list(graph.get("edges"))
+    graph_errors = validate_claim_graph(news_card)
+    focus_claim_id = claims[0].get("claim_id") if claims else None
+    graph_packet = export_agent_graph_packet(news_card, focus_ref_id=focus_claim_id)
+    reviewer_packet = export_reviewer_packet(news_card, "next_agent_handoff", focus_ref_id=focus_claim_id)
+    agent_packet = build_agent_packet(news_card)
+    template = load_scenario_authoring_template()
+    authoring_packet = export_scenario_authoring_packet(template)
+    patch_present = patch is not None
+    patch_id = str(patch.get("patch_id")) if isinstance(patch, dict) and patch.get("patch_id") else None
+    revision_proposal = build_revision_proposal(news_card, patch) if patch_present else None
+    revision_packet = export_revision_packet(news_card, patch) if patch_present else None
+    revision_comparison = export_revision_comparison(news_card, patch) if patch_present else None
+
+    def step(
+        number: int,
+        key: str,
+        label: str,
+        status: str,
+        input_refs: list[Any],
+        output_refs: list[Any],
+        summary: str,
+        agentic_role: str,
+    ) -> dict[str, Any]:
+        return {
+            "step_id": f"step_{number:02d}_{key}",
+            "label": label,
+            "status": status,
+            "input_refs": _unique_strings(input_refs),
+            "output_refs": _unique_strings(output_refs),
+            "summary": summary,
+            "agentic_role": agentic_role,
+        }
+
+    skipped_patch_summary = "No evidence patch was supplied, so patch-dependent revision steps were skipped."
+    steps = [
+        step(
+            1,
+            "source_intake",
+            "Source intake",
+            "PASS",
+            source_ids,
+            source_ids,
+            f"Read {len(source_ids)} synthetic source fixture reference(s) for the selected card.",
+            "Collect bounded, reviewable source inputs before extraction.",
+        ),
+        step(
+            2,
+            "source_hygiene_check",
+            "Source hygiene check",
+            "PASS",
+            source_ids,
+            [str(news_card.get("source_hygiene_note", ""))],
+            "Labeled sources as synthetic fixtures and kept source text as untrusted input.",
+            "Prevent prompt injection and avoid treating fixture text as instructions.",
+        ),
+        step(
+            3,
+            "fact_extraction",
+            "Fact extraction",
+            "PASS",
+            source_ids,
+            [fact.get("fact_id") for fact in facts],
+            f"Extracted {len(facts)} source-bound fact(s).",
+            "Separate observable facts from actor claims and interpretation.",
+        ),
+        step(
+            4,
+            "actor_claim_extraction",
+            "Actor claim extraction",
+            "PASS",
+            source_ids,
+            [claim.get("claim_id") for claim in claims],
+            f"Extracted {len(claims)} actor claim(s) with explicit statuses.",
+            "Track public claims as versioned objects instead of flattening them into facts.",
+        ),
+        step(
+            5,
+            "action_extraction",
+            "Action extraction",
+            "PASS",
+            source_ids,
+            [action.get("action_id") for action in actions],
+            f"Extracted {len(actions)} actor action(s).",
+            "Separate what actors did from what actors said.",
+        ),
+        step(
+            6,
+            "interpretation_generation",
+            "Interpretation generation",
+            "PASS",
+            [item.get("fact_id") for item in facts] + [claim.get("claim_id") for claim in claims],
+            [interpretation.get("interpretation_id") for interpretation in interpretations],
+            f"Built {len(interpretations)} evidence-linked interpretation branch(es).",
+            "Generate reviewable interpretation from source-bound evidence.",
+        ),
+        step(
+            7,
+            "counter_branch_generation",
+            "Counter-branch generation",
+            "PASS",
+            [interpretation.get("interpretation_id") for interpretation in interpretations],
+            [counter.get("counter_branch_id") for counter in counters],
+            f"Built {len(counters)} counter-branch(es) to keep alternatives visible.",
+            "Preserve plausible alternative explanations before final judgment.",
+        ),
+        step(
+            8,
+            "version_timeline_build",
+            "Version timeline build",
+            "PASS",
+            [claim.get("claim_id") for claim in claims],
+            [event.get("version_id") for event in timeline],
+            f"Built {len(timeline)} version timeline event(s).",
+            "Show how public claims changed over time.",
+        ),
+        step(
+            9,
+            "claim_drift_tracking",
+            "Claim drift tracking",
+            "PASS",
+            [claim.get("claim_id") for claim in claims],
+            [item.get("drift_id") for item in drift],
+            f"Tracked {len(drift)} claim drift entr(y/ies).",
+            "Record whether claims weakened, strengthened, narrowed, corrected, or remain unresolved.",
+        ),
+        step(
+            10,
+            "claim_graph_build",
+            "Claim graph build",
+            "PASS" if not graph_errors else "FAIL",
+            [fact.get("fact_id") for fact in facts] + [claim.get("claim_id") for claim in claims],
+            [graph.get("graph_id")],
+            f"Built claim graph with {len(graph_nodes)} node(s) and {len(graph_edges)} edge(s).",
+            "Turn claim provenance into queryable local graph structure.",
+        ),
+        step(
+            11,
+            "graph_query_preview",
+            "Graph query preview",
+            "PASS",
+            [focus_claim_id] if focus_claim_id else [],
+            [path.get("path_id") for path in get_paths_to_verdict(graph, str(focus_claim_id))] if focus_claim_id else [],
+            "Prepared deterministic graph neighbors, paths, and selected subgraph context.",
+            "Let reviewers inspect why claims connect to verdicts.",
+        ),
+        step(
+            12,
+            "reviewer_preset_generation",
+            "Reviewer preset generation",
+            "PASS",
+            [focus_claim_id] if focus_claim_id else [],
+            [preset.get("preset_id") for preset in list_query_presets()],
+            f"Prepared {len(list_query_presets())} deterministic reviewer query preset(s).",
+            "Package common review questions as reusable deterministic queries.",
+        ),
+        step(
+            13,
+            "agent_packet_export",
+            "Agent packet export",
+            "PASS",
+            [card_id],
+            [agent_packet.get("packet_id")],
+            "Exported main downstream agent packet v0.4.",
+            "Bundle reusable context while preserving facts, claims, actions, and uncertainty.",
+        ),
+        step(
+            14,
+            "graph_packet_export",
+            "Graph packet export",
+            "PASS",
+            [graph.get("graph_id")],
+            [graph_packet.get("packet_id")],
+            "Exported graph packet v0.5.",
+            "Provide compact graph context for downstream agents.",
+        ),
+        step(
+            15,
+            "reviewer_packet_export",
+            "Reviewer packet export",
+            "PASS",
+            [focus_claim_id] if focus_claim_id else [],
+            [reviewer_packet.get("packet_id")],
+            "Exported reviewer packet v0.6.",
+            "Hand off deterministic review context without a live model call.",
+        ),
+        step(
+            16,
+            "evidence_patch_intake",
+            "Evidence patch intake",
+            "PASS" if patch_present else "SKIPPED",
+            [patch_id] if patch_id else [],
+            [_patch_source_id(patch)] if patch_present else [],
+            (
+                f"Loaded synthetic evidence patch {patch_id}."
+                if patch_present
+                else skipped_patch_summary
+            ),
+            "Accept new evidence as a bounded patch instead of mutating the canonical card.",
+        ),
+        step(
+            17,
+            "revision_proposal_generation",
+            "Revision proposal generation",
+            "PASS" if patch_present else "SKIPPED",
+            [patch_id] if patch_id else [],
+            [revision_proposal.get("proposal_id")] if isinstance(revision_proposal, dict) else [],
+            (
+                "Generated non-mutating revision proposal v0.9."
+                if patch_present
+                else skipped_patch_summary
+            ),
+            "Suggest what should change while keeping the original card reviewable.",
+        ),
+        step(
+            18,
+            "revision_comparison_generation",
+            "Revision comparison generation",
+            "PASS" if patch_present else "SKIPPED",
+            [revision_proposal.get("proposal_id")] if isinstance(revision_proposal, dict) else [],
+            [revision_comparison.get("comparison_id")] if isinstance(revision_comparison, dict) else [],
+            (
+                "Generated current-vs-proposed comparison v1.0."
+                if patch_present
+                else skipped_patch_summary
+            ),
+            "Make the revision proposal legible for human review and downstream agents.",
+        ),
+        step(
+            19,
+            "scenario_authoring_preview",
+            "Scenario authoring preview",
+            "PASS" if not authoring_packet.get("template_errors") else "WARN",
+            [template.get("scenario_id")],
+            [authoring_packet.get("packet_id")],
+            "Prepared scenario authoring preview and packet v0.7.",
+            "Show how the deterministic workflow can be reused for a future scenario.",
+        ),
+    ]
+
+    artifact_outputs = _artifact_outputs(patch_present)
+    output_counts = {
+        "source_count": len(source_ids),
+        "fact_count": len(facts),
+        "actor_claim_count": len(claims),
+        "action_count": len(actions),
+        "interpretation_count": len(interpretations),
+        "counter_branch_count": len(counters),
+        "timeline_event_count": len(timeline),
+        "claim_drift_count": len(drift),
+        "graph_node_count": len(graph_nodes),
+        "graph_edge_count": len(graph_edges),
+        "reviewer_preset_count": len(list_query_presets()),
+        "evidence_patch_count": 1 if patch_present else 0,
+        "exported_artifact_count": sum(1 for artifact in artifact_outputs if artifact.get("status") == "PASS"),
+    }
+    return {
+        "trace_id": f"agent_workflow_trace_{card_id}",
+        "trace_version": "1.1",
+        "trace_type": "sisyphus_agent_workflow_trace",
+        "card_id": news_card.get("card_id"),
+        "scenario_id": news_card.get("scenario_id"),
+        "scenario_name": news_card.get("scenario_name", news_card.get("title", "")),
+        "mode": "deterministic_demo",
+        "steps": steps,
+        "output_counts": output_counts,
+        "artifact_outputs": artifact_outputs,
+        "agentic_summary": (
+            "Sisyphus Watch reads bounded source fixtures, separates facts from actor claims and actions, "
+            "builds version timelines, drift, graph context, reviewer packets, and non-mutating revision outputs."
+        ),
+        "non_goals": [
+            "No live web ingestion.",
+            "No crawler.",
+            "No database or graph database.",
+            "No account system or recommender.",
+            "No live model call is required for demo mode.",
+            "No canonical card mutation occurs during evidence patch review.",
+        ],
+        "limitations": [
+            "Synthetic demo fixtures are not real-world evidence.",
+            "The trace is deterministic and describes local helper outputs.",
+            "Reviewer approval is still required before promoting revision suggestions.",
+        ],
+    }
+
+
+def validate_agent_workflow_trace(
+    trace: dict[str, Any], news_card: dict[str, Any] | None = None
+) -> list[str]:
+    """Return validation errors for agent workflow trace objects."""
+    if not isinstance(trace, dict):
+        return ["agent workflow trace must be an object"]
+
+    errors: list[str] = []
+    required = [
+        "trace_id",
+        "trace_version",
+        "trace_type",
+        "card_id",
+        "scenario_id",
+        "steps",
+        "output_counts",
+        "artifact_outputs",
+        "agentic_summary",
+        "limitations",
+    ]
+    for field in required:
+        if field not in trace:
+            errors.append(f"agent workflow trace missing {field}")
+
+    _require_prefix(errors, "agent_workflow_trace.trace_id", trace.get("trace_id"), "agent_workflow_trace_")
+    if trace.get("trace_version") != "1.1":
+        errors.append("agent workflow trace trace_version must be 1.1")
+    if trace.get("trace_type") != "sisyphus_agent_workflow_trace":
+        errors.append("agent workflow trace trace_type must be sisyphus_agent_workflow_trace")
+    if not trace.get("card_id"):
+        errors.append("agent workflow trace card_id is required")
+    if not trace.get("scenario_id"):
+        errors.append("agent workflow trace scenario_id is required")
+
+    steps = trace.get("steps")
+    if not isinstance(steps, list) or not steps:
+        errors.append("agent workflow trace steps must be a non-empty list")
+    else:
+        for index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                errors.append(f"agent workflow trace steps[{index}] must be an object")
+                continue
+            for field in ["step_id", "label", "status", "summary"]:
+                if field not in step:
+                    errors.append(f"agent workflow trace steps[{index}] missing {field}")
+            if step.get("status") not in TRACE_STATUSES:
+                errors.append(f"agent workflow trace steps[{index}] has invalid status {step.get('status')}")
+
+    if not isinstance(trace.get("output_counts"), dict):
+        errors.append("agent workflow trace output_counts must be an object")
+    if not isinstance(trace.get("artifact_outputs"), list):
+        errors.append("agent workflow trace artifact_outputs must be a list")
+    if not str(trace.get("agentic_summary", "")).strip():
+        errors.append("agent workflow trace agentic_summary is required")
+    if not isinstance(trace.get("limitations"), list):
+        errors.append("agent workflow trace limitations must be a list")
+
+    if news_card is not None:
+        if trace.get("card_id") != news_card.get("card_id"):
+            errors.append(f"agent workflow trace card_id {trace.get('card_id')} does not match {news_card.get('card_id')}")
+        if trace.get("scenario_id") != news_card.get("scenario_id"):
+            errors.append(
+                f"agent workflow trace scenario_id {trace.get('scenario_id')} does not match {news_card.get('scenario_id')}"
+            )
+    return errors
+
+
+def build_run_summary(news_card: dict[str, Any], patch: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build a compact reviewer-facing run summary for the selected card."""
+    trace = build_agent_workflow_trace(news_card, patch)
+    checks = run_quality_checks(news_card)
+    failed = [row for row in checks if row.get("status") == "FAIL"]
+    warn_steps = [step for step in _as_list(trace.get("steps")) if isinstance(step, dict) and step.get("status") == "WARN"]
+    quality_status = "FAIL" if failed else "WARN" if warn_steps else "PASS"
+    counts = trace.get("output_counts", {})
+    revision_available = patch is not None
+    return {
+        "run_summary_id": f"run_summary_{news_card.get('card_id', 'unknown_card')}",
+        "summary_version": "1.1",
+        "card_id": news_card.get("card_id"),
+        "scenario_id": news_card.get("scenario_id"),
+        "headline": f"Deterministic agent workflow trace for {news_card.get('scenario_name', news_card.get('title', 'selected scenario'))}.",
+        "what_the_agent_did": [
+            f"Read {counts.get('source_count', 0)} synthetic source fixture(s).",
+            f"Separated {counts.get('fact_count', 0)} fact(s), {counts.get('actor_claim_count', 0)} actor claim(s), and {counts.get('action_count', 0)} action(s).",
+            f"Built {counts.get('timeline_event_count', 0)} timeline event(s), {counts.get('claim_drift_count', 0)} drift entr(y/ies), and a graph with {counts.get('graph_node_count', 0)} node(s).",
+            "Exported agent, graph, reviewer, scenario-authoring, and workflow artifacts.",
+            "Simulated a non-mutating evidence update and revision review." if revision_available else "Skipped patch-dependent revision steps because no evidence patch was supplied.",
+        ],
+        "why_it_is_agentic": [
+            "It preserves source provenance instead of flattening inputs into a generic summary.",
+            "It separates facts, claims, actions, interpretations, counter-branches, drift, and verdicts.",
+            "It builds queryable graph context and reviewer packets for downstream agents.",
+            "It accepts new evidence as a patch and proposes changes without mutating the canonical card.",
+        ],
+        "key_outputs": [
+            f"{counts.get('fact_count', 0)} facts",
+            f"{counts.get('actor_claim_count', 0)} actor claims",
+            f"{counts.get('graph_node_count', 0)} graph nodes / {counts.get('graph_edge_count', 0)} graph edges",
+            f"{counts.get('reviewer_preset_count', 0)} reviewer presets",
+            "revision proposal and comparison available" if revision_available else "revision proposal and comparison skipped",
+        ],
+        "exported_artifacts": trace.get("artifact_outputs", []),
+        "quality_status": quality_status,
+        "quality_check_count": len(checks),
+        "revision_available": revision_available,
+        "comparison_available": revision_available,
+        "next_review_actions": _unique_strings(
+            (
+                _as_list(patch.get("recommended_revision_actions")) if isinstance(patch, dict) else []
+            )
+            + [
+                "Review workflow trace steps before inspecting detailed card sections.",
+                "Use reviewer presets and graph paths before changing a verdict.",
+                "Keep synthetic fixture status visible in downstream outputs.",
+            ]
+        ),
+    }
+
+
+def validate_run_summary(summary: dict[str, Any], news_card: dict[str, Any] | None = None) -> list[str]:
+    """Return validation errors for compact run summaries."""
+    if not isinstance(summary, dict):
+        return ["run summary must be an object"]
+
+    errors: list[str] = []
+    required = [
+        "run_summary_id",
+        "summary_version",
+        "card_id",
+        "scenario_id",
+        "headline",
+        "what_the_agent_did",
+        "why_it_is_agentic",
+        "key_outputs",
+        "exported_artifacts",
+        "quality_status",
+    ]
+    for field in required:
+        if field not in summary:
+            errors.append(f"run summary missing {field}")
+
+    _require_prefix(errors, "run_summary.run_summary_id", summary.get("run_summary_id"), "run_summary_")
+    if summary.get("summary_version") != "1.1":
+        errors.append("run summary summary_version must be 1.1")
+    for field in ["card_id", "scenario_id", "headline"]:
+        if not str(summary.get(field, "")).strip():
+            errors.append(f"run summary {field} is required")
+    for field in ["what_the_agent_did", "why_it_is_agentic", "key_outputs"]:
+        if not isinstance(summary.get(field), list) or not summary.get(field):
+            errors.append(f"run summary {field} must be a non-empty list")
+    if not isinstance(summary.get("exported_artifacts"), list):
+        errors.append("run summary exported_artifacts must be a list")
+    if summary.get("quality_status") not in RUN_SUMMARY_QUALITY_STATUSES:
+        errors.append(f"run summary quality_status must be one of {sorted(RUN_SUMMARY_QUALITY_STATUSES)}")
+
+    if news_card is not None:
+        if summary.get("card_id") != news_card.get("card_id"):
+            errors.append(f"run summary card_id {summary.get('card_id')} does not match {news_card.get('card_id')}")
+        if summary.get("scenario_id") != news_card.get("scenario_id"):
+            errors.append(
+                f"run summary scenario_id {summary.get('scenario_id')} does not match {news_card.get('scenario_id')}"
+            )
+    return errors
+
+
+def export_agent_workflow_trace(news_card: dict[str, Any], patch: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Export the workflow trace and companion run summary."""
+    return {
+        "trace": build_agent_workflow_trace(news_card, patch),
+        "run_summary": build_run_summary(news_card, patch),
+    }
+
+
 def validate_news_card(news_card: dict[str, Any]) -> list[str]:
     """Return schema-like validation errors for the canonical news_card object."""
     required = [
@@ -3427,6 +3929,7 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     evidence_patch = get_evidence_patch_for_scenario(load_evidence_patches(), str(news_card.get("scenario_id", "")))
     revision_packet = export_revision_packet(news_card, evidence_patch) if evidence_patch else None
     revision_comparison = export_revision_comparison(news_card, evidence_patch) if evidence_patch else None
+    workflow_export = export_agent_workflow_trace(news_card, evidence_patch)
     paths = {
         "news_card": output_path / "sisyphus_news_card.json",
         "records_jsonl": output_path / "sisyphus_records.jsonl",
@@ -3436,6 +3939,8 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
         "scenario_authoring_packet": output_path / "sisyphus_scenario_authoring_packet.json",
         "revision_packet": output_path / "sisyphus_revision_packet.json",
         "revision_comparison": output_path / "sisyphus_revision_comparison.json",
+        "agent_workflow_trace": output_path / "sisyphus_agent_workflow_trace.json",
+        "run_summary": output_path / "sisyphus_run_summary.json",
     }
     paths["news_card"].write_text(json.dumps(news_card, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["records_jsonl"].write_text(to_jsonl([news_card, packet]) + "\n", encoding="utf-8")
@@ -3452,6 +3957,14 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     )
     paths["revision_comparison"].write_text(
         json.dumps(revision_comparison or {}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    paths["agent_workflow_trace"].write_text(
+        json.dumps(workflow_export["trace"], indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    paths["run_summary"].write_text(
+        json.dumps(workflow_export["run_summary"], indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
     return paths
@@ -3661,6 +4174,123 @@ def render_evaluation_summary_html(checks: list[dict[str, str]], news_card: dict
         f"""
         <h3>Evaluation Summary</h3>
         <div class="summary-grid">{rendered_cards}</div>
+        """,
+    )
+
+
+def render_agent_workflow_trace_html(news_card: dict[str, Any], patch: dict[str, Any] | None = None) -> str:
+    """Render the deterministic agent workflow trace and run summary."""
+    exported = export_agent_workflow_trace(news_card, patch)
+    trace = exported["trace"]
+    run_summary = exported["run_summary"]
+    trace_errors = validate_agent_workflow_trace(trace, news_card)
+    summary_errors = validate_run_summary(run_summary, news_card)
+    counts = trace.get("output_counts", {})
+    artifact_outputs = _as_list(trace.get("artifact_outputs"))
+    steps = _as_list(trace.get("steps"))
+
+    count_rows = "".join(
+        f"""
+        <div class="summary-card ok">
+          <span>{escape(str(key).replace('_', ' '))}</span>
+          <strong>{escape(str(value))}</strong>
+        </div>
+        """
+        for key, value in counts.items()
+    )
+    what_did = "".join(f"<li>{escape(str(item))}</li>" for item in _as_list(run_summary.get("what_the_agent_did")))
+    agentic = "".join(f"<li>{escape(str(item))}</li>" for item in _as_list(run_summary.get("why_it_is_agentic")))
+    next_actions = "".join(f"<li>{escape(str(item))}</li>" for item in _as_list(run_summary.get("next_review_actions")))
+    step_rows = "".join(
+        f"""
+        <tr>
+          <td><code>{escape(str(step.get('step_id', '')))}</code></td>
+          <td>{escape(str(step.get('label', '')))}</td>
+          <td><span class="status {'pass' if step.get('status') == 'PASS' else 'fail' if step.get('status') == 'FAIL' else ''}">{escape(str(step.get('status', '')))}</span></td>
+          <td>{escape(str(step.get('summary', '')))}</td>
+          <td>{escape(str(step.get('agentic_role', '')))}</td>
+        </tr>
+        """
+        for step in steps
+        if isinstance(step, dict)
+    )
+    artifact_rows = "".join(
+        f"""
+        <tr>
+          <td><code>{escape(str(artifact.get('filename', '')))}</code></td>
+          <td><span class="status {'pass' if artifact.get('status') == 'PASS' else ''}">{escape(str(artifact.get('status', '')))}</span></td>
+          <td>{escape(str(artifact.get('summary', '')))}</td>
+        </tr>
+        """
+        for artifact in artifact_outputs
+        if isinstance(artifact, dict)
+    )
+    validation_errors = [*trace_errors, *summary_errors]
+    validation_block = (
+        "<section><h4>Validation issues</h4><ul>"
+        + "".join(f"<li>{escape(str(error))}</li>" for error in validation_errors)
+        + "</ul></section>"
+        if validation_errors
+        else "<p class='muted'>Workflow trace and run summary validation pass for this deterministic run.</p>"
+    )
+    quality_class = "ok" if run_summary.get("quality_status") == "PASS" else "warn"
+    return _wrap_html(
+        "agent-workflow-trace",
+        f"""
+        <h3>Agent Workflow Trace</h3>
+        <p class="warning-note">{escape(str(trace.get('agentic_summary', '')))}</p>
+        <div class="summary-grid">
+          <div class="summary-card {quality_class}"><span>Quality</span><strong>{escape(str(run_summary.get('quality_status', 'review')))}</strong></div>
+          <div class="summary-card ok"><span>Trace</span><strong>{escape(str(trace.get('trace_version', '1.1')))}</strong></div>
+          <div class="summary-card ok"><span>Revision</span><strong>{'yes' if run_summary.get('revision_available') else 'no'}</strong></div>
+          <div class="summary-card ok"><span>Comparison</span><strong>{'yes' if run_summary.get('comparison_available') else 'no'}</strong></div>
+        </div>
+        <section>
+          <h4>{escape(str(run_summary.get('headline', 'Run summary')))}</h4>
+          <div class="grid two">
+            <div>
+              <h4>What the agent did</h4>
+              <ul>{what_did}</ul>
+            </div>
+            <div>
+              <h4>What makes this an agent</h4>
+              <ul>{agentic}</ul>
+            </div>
+          </div>
+        </section>
+        <section>
+          <h4>Output Counts</h4>
+          <div class="summary-grid">{count_rows}</div>
+        </section>
+        <section>
+          <h4>Workflow Step Trace</h4>
+          <table>
+            <thead><tr><th>Step</th><th>Label</th><th>Status</th><th>Summary</th><th>Agentic role</th></tr></thead>
+            <tbody>{step_rows}</tbody>
+          </table>
+        </section>
+        <div class="grid two">
+          <section>
+            <h4>Export Artifacts</h4>
+            <table>
+              <thead><tr><th>Artifact</th><th>Status</th><th>Purpose</th></tr></thead>
+              <tbody>{artifact_rows}</tbody>
+            </table>
+          </section>
+          <section>
+            <h4>Next Review Actions</h4>
+            <ol>{next_actions}</ol>
+          </section>
+        </div>
+        {validation_block}
+        <details>
+          <summary>Full workflow trace JSON</summary>
+          <pre>{escape(json.dumps(trace, indent=2, ensure_ascii=False))}</pre>
+        </details>
+        <details>
+          <summary>Run summary JSON</summary>
+          <pre>{escape(json.dumps(run_summary, indent=2, ensure_ascii=False))}</pre>
+        </details>
         """,
     )
 
