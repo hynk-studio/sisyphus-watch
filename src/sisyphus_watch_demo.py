@@ -5399,103 +5399,121 @@ def _wrap_html(class_name: str, body: str) -> str:
       .{class_name}, .intro-hero, .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table, .evaluation-summary {{
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: #17211f;
+        line-height: 1.48;
       }}
       .{class_name}, .intro-hero, .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table, .evaluation-summary {{
-        border: 1px solid #d7e1dc;
+        border: 1px solid #cddbd5;
         border-radius: 8px;
         background: #fbfcfa;
-        padding: 18px;
-        margin: 14px 0;
-        box-shadow: 0 1px 2px rgba(23, 33, 31, 0.06);
+        padding: 20px;
+        margin: 16px 0;
+        box-shadow: 0 2px 8px rgba(23, 33, 31, 0.08);
       }}
       .intro-panel, .card-header {{
         display: grid;
         grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-        gap: 16px;
+        gap: 18px;
         align-items: stretch;
-        background: linear-gradient(135deg, #163832, #28536b 58%, #c9972d);
-        color: white;
+        background: linear-gradient(135deg, #0d2d28 0%, #18495d 62%, #8f6817 100%);
+        color: #f9fffb;
         border-radius: 8px;
-        padding: 18px;
+        padding: 22px;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14);
       }}
       .card-header {{
         display: block;
-        background: linear-gradient(135deg, #183b35, #28536b);
+        background: linear-gradient(135deg, #10342f 0%, #1d5368 100%);
       }}
       .eyebrow {{
         text-transform: uppercase;
         letter-spacing: 0;
         font-size: 12px;
-        font-weight: 700;
-        opacity: 0.85;
+        font-weight: 800;
+        color: #dff3e8;
+        opacity: 1;
       }}
       .intro-panel h1, .card-header h2 {{
-        margin: 8px 0 12px;
-        font-size: 32px;
+        margin: 8px 0 10px;
+        font-size: 34px;
         line-height: 1.12;
         letter-spacing: 0;
+        color: #ffffff;
+        text-shadow: 0 1px 1px rgba(0,0,0,0.26);
       }}
       .lede {{
-        font-size: 18px;
-        margin: 0 0 14px;
+        color: #f1fbf6;
+        font-size: 19px;
+        font-weight: 650;
+        line-height: 1.42;
+        margin: 0 0 16px;
       }}
       .comparison-card {{
-        border: 1px solid rgba(255,255,255,0.32);
-        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.42);
+        background: rgba(8,22,24,0.52);
         border-radius: 8px;
-        padding: 14px;
+        padding: 15px;
       }}
       .comparison-block {{
-        padding: 10px 0;
+        padding: 11px 0;
       }}
       .comparison-block + .comparison-block {{
-        border-top: 1px solid rgba(255,255,255,0.28);
+        border-top: 1px solid rgba(255,255,255,0.34);
       }}
       .comparison-block span {{
         display: block;
+        color: #f8d978;
         font-size: 12px;
         font-weight: 800;
-        opacity: 0.86;
+        opacity: 1;
         text-transform: uppercase;
       }}
       .comparison-block p {{
-        margin: 5px 0 0;
+        color: #ffffff;
+        font-size: 15px;
+        line-height: 1.45;
+        margin: 6px 0 0;
       }}
       .comparison-block.strong p {{
-        font-weight: 800;
+        font-weight: 850;
       }}
       .verdict-badge {{
         display: inline-flex;
         max-width: 100%;
         border-radius: 999px;
-        background: #f4d06f;
+        border: 1px solid #d7a622;
+        background: #ffe08a;
         color: #17211f;
-        padding: 6px 10px;
+        padding: 6px 11px;
         font-size: 13px;
-        font-weight: 800;
+        font-weight: 850;
         line-height: 1.2;
       }}
       .badge-row, .source-list, .meta, .evidence {{
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 9px;
       }}
       .badge, .mini, .status {{
+        border: 1px solid transparent;
         border-radius: 999px;
-        padding: 4px 8px;
+        padding: 4px 9px;
         font-size: 12px;
-        font-weight: 700;
+        font-weight: 750;
+        line-height: 1.25;
       }}
       .badge {{
-        color: #15312d;
-        background: #dceee7;
+        border-color: #b7d8cd;
+        color: #0e332e;
+        background: #eefaf4;
       }}
       .card-header .badge {{
-        background: rgba(255,255,255,0.9);
+        border-color: rgba(255,255,255,0.62);
+        background: rgba(255,255,255,0.94);
       }}
       .mini {{
-        color: #29423d;
-        background: #e8f0ec;
+        border-color: #d1ded8;
+        color: #243d38;
+        background: #edf5f1;
       }}
       .version-pill, .direction-badge {{
         display: inline-flex;
@@ -5507,58 +5525,65 @@ def _wrap_html(class_name: str, body: str) -> str:
       }}
       .version-pill {{
         color: #15312d;
-        background: #cfe5dc;
+        background: #d7ebe3;
+        border: 1px solid #a7ccbd;
       }}
       .direction-badge {{
         color: #17211f;
-        background: #f4d06f;
+        background: #ffe08a;
+        border: 1px solid #d7a622;
       }}
       .warning-note {{
-        border-left: 4px solid #c9972d;
-        background: #fff7df;
+        border-left: 4px solid #b88411;
+        background: #fff5d6;
         border-radius: 6px;
-        padding: 10px 12px;
-        color: #4d4325;
+        padding: 11px 13px;
+        color: #382f18;
       }}
       section {{
-        margin-top: 16px;
+        margin-top: 18px;
       }}
       h3 {{
-        margin: 0 0 10px;
-        font-size: 18px;
+        margin: 0 0 12px;
+        font-size: 20px;
+        line-height: 1.25;
+        font-weight: 800;
         letter-spacing: 0;
       }}
       h4 {{
-        margin: 0 0 8px;
+        margin: 0 0 9px;
+        font-size: 15px;
+        line-height: 1.3;
+        font-weight: 800;
       }}
       .summary ol {{
         margin: 0;
         padding-left: 22px;
       }}
       .muted {{
-        color: #5d6b68;
+        color: #4d5d59;
       }}
       .source-list {{
         padding-left: 0;
         list-style: none;
       }}
       code {{
-        background: #eef4f1;
-        border: 1px solid #d7e1dc;
+        background: #edf5f1;
+        border: 1px solid #cbd9d3;
         border-radius: 6px;
         padding: 2px 5px;
         font-size: 12px;
       }}
       .metadata-details, .id-details {{
-        border: 1px solid #dfe7e3;
+        border: 1px solid #d2ded9;
         border-radius: 8px;
-        background: #f8fbf9;
-        padding: 8px 10px;
-        margin-top: 10px;
+        background: #ffffff;
+        padding: 10px 12px;
+        margin-top: 12px;
       }}
       .grid {{
         display: grid;
-        gap: 14px;
+        gap: 15px;
       }}
       .grid.two {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5567,12 +5592,13 @@ def _wrap_html(class_name: str, body: str) -> str:
         margin-top: 0;
       }}
       .layer-item {{
-        border: 1px solid #dce5e0;
+        border: 1px solid #cedbd5;
         border-left: 5px solid #617d72;
         border-radius: 8px;
-        padding: 12px;
-        margin: 10px 0;
+        padding: 14px;
+        margin: 11px 0;
         background: white;
+        box-shadow: 0 1px 3px rgba(23, 33, 31, 0.05);
       }}
       .layer-item.claim {{ border-left-color: #8a6f2a; }}
       .layer-item.action {{ border-left-color: #2f6f95; }}
@@ -5586,17 +5612,18 @@ def _wrap_html(class_name: str, body: str) -> str:
         word-break: break-word;
       }}
       .layer-item p {{
-        margin: 6px 0 10px;
+        margin: 4px 0 11px;
       }}
       .timeline-list, .drift-list {{
         display: grid;
-        gap: 10px;
+        gap: 11px;
       }}
       .timeline-item, .drift-item {{
-        border: 1px solid #dce5e0;
+        border: 1px solid #cedbd5;
         border-radius: 8px;
         background: white;
-        padding: 12px;
+        padding: 14px;
+        box-shadow: 0 1px 3px rgba(23, 33, 31, 0.05);
       }}
       .timeline-item p, .drift-item p {{
         margin: 8px 0;
@@ -5627,7 +5654,8 @@ def _wrap_html(class_name: str, body: str) -> str:
         margin: 8px 0 0;
       }}
       .diff, .verdict {{
-        background: #f2f6f4;
+        background: #eef5f1;
+        border: 1px solid #d2ded9;
         border-radius: 8px;
         padding: 14px;
       }}
@@ -5637,27 +5665,29 @@ def _wrap_html(class_name: str, body: str) -> str:
         gap: 10px;
       }}
       .summary-card {{
-        border: 1px solid #d7e1dc;
+        border: 1px solid #cedbd5;
         border-radius: 8px;
         background: white;
-        padding: 12px;
+        padding: 14px;
+        box-shadow: 0 1px 3px rgba(23, 33, 31, 0.05);
       }}
       .summary-card span {{
         display: block;
-        color: #62706c;
+        color: #435650;
         font-size: 12px;
-        font-weight: 800;
+        font-weight: 850;
         margin-bottom: 6px;
         text-transform: uppercase;
       }}
       .summary-card strong {{
-        font-size: 18px;
+        font-size: 19px;
+        line-height: 1.2;
       }}
       .summary-card.ok strong {{
-        color: #135f38;
+        color: #0f5c36;
       }}
       .summary-card.warn strong {{
-        color: #8c1f28;
+        color: #8a1d27;
       }}
       .branch-row {{
         display: grid;
@@ -5666,17 +5696,17 @@ def _wrap_html(class_name: str, body: str) -> str:
         align-items: center;
       }}
       .branch-node {{
-        border: 1px solid #d7e1dc;
+        border: 1px solid #cedbd5;
         border-radius: 8px;
-        padding: 12px;
+        padding: 14px;
         min-height: 92px;
         background: white;
       }}
       .branch-node span {{
         display: block;
-        color: #62706c;
+        color: #435650;
         font-size: 12px;
-        font-weight: 700;
+        font-weight: 800;
         margin-bottom: 6px;
       }}
       .verdict-node {{
@@ -5690,23 +5720,28 @@ def _wrap_html(class_name: str, body: str) -> str:
         border-collapse: collapse;
         width: 100%;
         font-size: 14px;
+        line-height: 1.42;
       }}
       th, td {{
-        border-bottom: 1px solid #dfe7e3;
-        padding: 9px;
+        border-bottom: 1px solid #d6e1dc;
+        padding: 10px;
         text-align: left;
         vertical-align: top;
       }}
       th {{
-        background: #eef4f1;
+        background: #eaf2ee;
+        color: #223a35;
+        font-weight: 800;
       }}
       .status.pass {{
-        color: #135f38;
-        background: #dff3e8;
+        border-color: #a7d9bd;
+        color: #0f5c36;
+        background: #dff4e8;
       }}
       .status.fail {{
-        color: #8c1f28;
-        background: #f7dfe2;
+        border-color: #e7b8bf;
+        color: #8a1d27;
+        background: #f8dfe3;
       }}
       pre {{
         white-space: pre-wrap;
