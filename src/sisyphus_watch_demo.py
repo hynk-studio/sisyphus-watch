@@ -2680,6 +2680,240 @@ def validate_revision_packet(packet: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _revision_review_priority(effect: str, proposed_verdict_effect: str) -> str:
+    if effect in {"weakens", "requires_review"} or proposed_verdict_effect in {"weaken", "requires_review"}:
+        return "high"
+    if effect in {"narrows", "complicates", "supports_counter_branch"} or proposed_verdict_effect in {"narrow", "complicate"}:
+        return "medium"
+    return "low"
+
+
+def build_revision_comparison(news_card: dict[str, Any], revision_proposal: dict[str, Any]) -> dict[str, Any]:
+    """Build a deterministic current-vs-proposed comparison without mutating inputs."""
+    card_id = str(news_card.get("card_id", "unknown_card"))
+    patch_id = str(revision_proposal.get("patch_id", "unknown_patch"))
+    verdict = news_card.get("editorial_verdict", {})
+    latest_event = None
+    timeline = _as_list(news_card.get("version_timeline"))
+    if timeline and isinstance(timeline[-1], dict):
+        latest_event = timeline[-1]
+    latest_label = (
+        str(latest_event.get("version_label"))
+        if isinstance(latest_event, dict) and latest_event.get("version_label")
+        else str(news_card.get("version", "current"))
+    )
+    latest_summary = latest_event.get("summary", "") if isinstance(latest_event, dict) else ""
+    proposed_verdict_effect = str(revision_proposal.get("proposed_verdict_effect", "requires_review"))
+    timeline_suggestion = deepcopy(revision_proposal.get("timeline_event_suggestion", {}))
+    new_evidence_summary = str(timeline_suggestion.get("summary") or revision_proposal.get("proposal_summary", ""))
+    claim_suggestions = [
+        item for item in _as_list(revision_proposal.get("claim_status_suggestions")) if isinstance(item, dict)
+    ]
+
+    affected_claim_comparisons = []
+    for suggestion in claim_suggestions:
+        claim_id = str(suggestion.get("claim_id", ""))
+        claim = _claim_by_id(news_card, claim_id)
+        effects = _as_list(suggestion.get("supporting_patch_effects"))
+        proposed_effect = str(effects[0]) if effects else "requires_review"
+        affected_claim_comparisons.append(
+            {
+                "claim_id": claim_id,
+                "claim_text": str(
+                    suggestion.get("claim_text")
+                    or (claim.get("claim_text") if isinstance(claim, dict) else "")
+                ),
+                "current_status": str(
+                    suggestion.get("current_status")
+                    or (claim.get("status") if isinstance(claim, dict) else "review")
+                ),
+                "proposed_effect": proposed_effect,
+                "proposed_status_hint": str(suggestion.get("suggested_status", "requires_review")),
+                "reason": str(suggestion.get("reason") or revision_proposal.get("proposal_summary", "")),
+                "new_evidence_summary": new_evidence_summary,
+                "review_priority": _revision_review_priority(proposed_effect, proposed_verdict_effect),
+            }
+        )
+
+    drift_suggestions = [
+        item for item in _as_list(revision_proposal.get("claim_drift_suggestions")) if isinstance(item, dict)
+    ]
+    suggested_drift_summaries = _unique_strings(
+        [
+            item.get("drift_summary")
+            for item in drift_suggestions
+            if isinstance(item.get("drift_summary"), str)
+        ]
+    )
+    reviewer_questions = _as_list(revision_proposal.get("reviewer_questions"))
+    recommended_next_checks = _as_list(revision_proposal.get("recommended_next_checks"))
+    verdict_conditions = _verdict_change_conditions(news_card)
+    what_would_confirm = _unique_strings(
+        _as_list(verdict_conditions.get("would_strengthen_current_interpretation"))
+        + recommended_next_checks[:3]
+    )
+
+    comparison = {
+        "comparison_id": f"revision_comparison_{card_id}_{patch_id}",
+        "comparison_version": "1.0",
+        "comparison_type": "sisyphus_revision_comparison",
+        "base_card_id": news_card.get("card_id"),
+        "scenario_id": news_card.get("scenario_id"),
+        "patch_id": revision_proposal.get("patch_id"),
+        "current_state_summary": (
+            f"Current card is at {latest_label}. Verdict is "
+            f"{verdict.get('short_label', 'review') if isinstance(verdict, dict) else 'review'} "
+            f"with confidence {verdict.get('confidence', 'review') if isinstance(verdict, dict) else 'review'}."
+            + (f" Latest version note: {latest_summary}" if latest_summary else "")
+        ),
+        "proposed_revision_summary": str(revision_proposal.get("proposal_summary", "")),
+        "affected_claim_comparisons": affected_claim_comparisons,
+        "verdict_comparison": {
+            "current_verdict_id": verdict.get("verdict_id") if isinstance(verdict, dict) else None,
+            "current_short_label": verdict.get("short_label") if isinstance(verdict, dict) else None,
+            "current_confidence": verdict.get("confidence") if isinstance(verdict, dict) else None,
+            "proposed_verdict_effect": proposed_verdict_effect,
+            "proposed_verdict_summary": str(
+                revision_proposal.get("version_diff_suggestion", {}).get("updated_judgment", "")
+                if isinstance(revision_proposal.get("version_diff_suggestion"), dict)
+                else revision_proposal.get("proposal_summary", "")
+            ),
+            "what_would_confirm_revision": what_would_confirm,
+        },
+        "timeline_comparison": {
+            "current_latest_version": latest_label,
+            "suggested_new_event": timeline_suggestion,
+        },
+        "claim_drift_comparison": {
+            "existing_drift_count": len(_as_list(news_card.get("claim_drift"))),
+            "suggested_drift_count": len(drift_suggestions),
+            "suggested_drift_summaries": suggested_drift_summaries,
+        },
+        "graph_impact_summary": deepcopy(revision_proposal.get("graph_impact_summary", {})),
+        "unchanged_context": [
+            "Canonical source_ids remain unchanged until review.",
+            "Canonical version_timeline remains unchanged until review.",
+            "Canonical claim_drift remains unchanged until review.",
+            "Canonical claim_graph remains unchanged until review.",
+            "Existing agent, graph, reviewer, and authoring packet versions remain unchanged.",
+        ],
+        "reviewer_questions": reviewer_questions,
+        "recommended_next_checks": recommended_next_checks,
+        "non_mutation_notice": "This comparison does not mutate the canonical card.",
+        "limitations": [
+            "This is a deterministic comparison readout, not an authoritative update.",
+            "Patch evidence is synthetic and is not appended to canonical source_ids.",
+            "Suggested status, timeline, drift, and verdict changes require reviewer approval.",
+            "No live ingestion, external API, database, or model call is performed.",
+        ],
+    }
+    return comparison
+
+
+def validate_revision_comparison(
+    comparison: dict[str, Any], news_card: dict[str, Any] | None = None
+) -> list[str]:
+    """Return validation errors for revision comparison objects."""
+    if not isinstance(comparison, dict):
+        return ["revision comparison must be an object"]
+
+    errors: list[str] = []
+    required = [
+        "comparison_id",
+        "comparison_version",
+        "comparison_type",
+        "base_card_id",
+        "scenario_id",
+        "patch_id",
+        "current_state_summary",
+        "proposed_revision_summary",
+        "affected_claim_comparisons",
+        "verdict_comparison",
+        "timeline_comparison",
+        "non_mutation_notice",
+        "limitations",
+    ]
+    for field in required:
+        if field not in comparison:
+            errors.append(f"revision comparison missing {field}")
+
+    _require_prefix(
+        errors,
+        "revision_comparison.comparison_id",
+        comparison.get("comparison_id"),
+        "revision_comparison_",
+    )
+    if comparison.get("comparison_version") != "1.0":
+        errors.append("revision comparison comparison_version must be 1.0")
+    if comparison.get("comparison_type") != "sisyphus_revision_comparison":
+        errors.append("revision comparison comparison_type must be sisyphus_revision_comparison")
+    for field in ["base_card_id", "scenario_id", "patch_id", "current_state_summary", "proposed_revision_summary"]:
+        if not str(comparison.get(field, "")).strip():
+            errors.append(f"revision comparison {field} is required")
+    if not isinstance(comparison.get("affected_claim_comparisons"), list):
+        errors.append("revision comparison affected_claim_comparisons must be a list")
+    if not isinstance(comparison.get("verdict_comparison"), dict):
+        errors.append("revision comparison verdict_comparison must be an object")
+    if not isinstance(comparison.get("timeline_comparison"), dict):
+        errors.append("revision comparison timeline_comparison must be an object")
+    if not str(comparison.get("non_mutation_notice", "")).strip():
+        errors.append("revision comparison non_mutation_notice is required")
+    if not isinstance(comparison.get("limitations"), list):
+        errors.append("revision comparison limitations must be a list")
+
+    if news_card is None:
+        return errors
+
+    if comparison.get("base_card_id") != news_card.get("card_id"):
+        errors.append(
+            f"revision comparison base_card_id {comparison.get('base_card_id')} does not match {news_card.get('card_id')}"
+        )
+    claim_ids = _ids(_as_list(news_card.get("actor_claims")), "claim_id")
+    for index, item in enumerate(_as_list(comparison.get("affected_claim_comparisons"))):
+        if not isinstance(item, dict):
+            errors.append(f"affected_claim_comparisons[{index}] must be an object")
+            continue
+        claim_id = item.get("claim_id")
+        if claim_id not in claim_ids:
+            errors.append(f"affected_claim_comparisons[{index}] references unknown claim {claim_id}")
+
+    return errors
+
+
+def summarize_revision_comparison_for_agent(comparison: dict[str, Any]) -> dict[str, Any]:
+    """Return a compact machine-readable brief for a revision comparison."""
+    claim_comparisons = [
+        item for item in _as_list(comparison.get("affected_claim_comparisons")) if isinstance(item, dict)
+    ]
+    high_priority_claim_ids = [
+        str(item.get("claim_id"))
+        for item in claim_comparisons
+        if item.get("review_priority") == "high" and item.get("claim_id")
+    ]
+    verdict_comparison = comparison.get("verdict_comparison", {})
+    proposed_verdict_effect = (
+        verdict_comparison.get("proposed_verdict_effect")
+        if isinstance(verdict_comparison, dict)
+        else None
+    )
+    return {
+        "comparison_id": comparison.get("comparison_id"),
+        "base_card_id": comparison.get("base_card_id"),
+        "patch_id": comparison.get("patch_id"),
+        "affected_claim_count": len(claim_comparisons),
+        "high_priority_claim_ids": high_priority_claim_ids,
+        "proposed_verdict_effect": proposed_verdict_effect,
+        "reviewer_question_count": len(_as_list(comparison.get("reviewer_questions"))),
+        "next_check_count": len(_as_list(comparison.get("recommended_next_checks"))),
+        "summary": comparison.get("proposed_revision_summary") or comparison.get("current_state_summary", ""),
+    }
+
+
+def export_revision_comparison(news_card: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    """Build a revision comparison directly from a card and evidence patch."""
+    return build_revision_comparison(news_card, build_revision_proposal(news_card, patch))
+
+
 def validate_news_card(news_card: dict[str, Any]) -> list[str]:
     """Return schema-like validation errors for the canonical news_card object."""
     required = [
@@ -3192,6 +3426,7 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     scenario_authoring_packet = export_scenario_authoring_packet(load_scenario_authoring_template())
     evidence_patch = get_evidence_patch_for_scenario(load_evidence_patches(), str(news_card.get("scenario_id", "")))
     revision_packet = export_revision_packet(news_card, evidence_patch) if evidence_patch else None
+    revision_comparison = export_revision_comparison(news_card, evidence_patch) if evidence_patch else None
     paths = {
         "news_card": output_path / "sisyphus_news_card.json",
         "records_jsonl": output_path / "sisyphus_records.jsonl",
@@ -3200,6 +3435,7 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
         "reviewer_packet": output_path / "sisyphus_reviewer_packet.json",
         "scenario_authoring_packet": output_path / "sisyphus_scenario_authoring_packet.json",
         "revision_packet": output_path / "sisyphus_revision_packet.json",
+        "revision_comparison": output_path / "sisyphus_revision_comparison.json",
     }
     paths["news_card"].write_text(json.dumps(news_card, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["records_jsonl"].write_text(to_jsonl([news_card, packet]) + "\n", encoding="utf-8")
@@ -3212,6 +3448,10 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     )
     paths["revision_packet"].write_text(
         json.dumps(revision_packet or {}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    paths["revision_comparison"].write_text(
+        json.dumps(revision_comparison or {}, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
     return paths
@@ -3977,6 +4217,151 @@ def render_revision_proposal_html(news_card: dict[str, Any], patch: dict[str, An
           </section>
         </div>
         {validation_block}
+        <details>
+          <summary>Revision packet JSON</summary>
+          <pre>{escape(json.dumps(packet, indent=2, ensure_ascii=False))}</pre>
+        </details>
+        """,
+    )
+
+
+def render_revision_comparison_html(news_card: dict[str, Any], patch: dict[str, Any] | None) -> str:
+    """Render a current-vs-proposed revision comparison for notebook review."""
+    if patch is None:
+        return _wrap_html(
+            "revision-comparison",
+            """
+            <h3>Revision Comparison View</h3>
+            <p class="muted">No evidence patch is available for the selected scenario.</p>
+            """,
+        )
+
+    proposal = build_revision_proposal(news_card, patch)
+    comparison = build_revision_comparison(news_card, proposal)
+    packet = export_revision_packet(news_card, patch)
+    patch_errors = validate_evidence_patch(patch, news_card)
+    proposal_errors = validate_revision_proposal(proposal, news_card)
+    comparison_errors = validate_revision_comparison(comparison, news_card)
+    packet_errors = validate_revision_packet(packet)
+    source = patch.get("new_source_record", {}) if isinstance(patch.get("new_source_record"), dict) else {}
+    verdict = comparison.get("verdict_comparison", {})
+    timeline = comparison.get("timeline_comparison", {})
+    suggested_event = timeline.get("suggested_new_event", {}) if isinstance(timeline, dict) else {}
+    drift = comparison.get("claim_drift_comparison", {})
+    graph = comparison.get("graph_impact_summary", {})
+
+    claim_rows = "".join(
+        f"""
+        <tr>
+          <td><code>{escape(str(item.get('claim_id', '')))}</code><br>{escape(str(item.get('claim_text', '')))}</td>
+          <td>{escape(str(item.get('current_status', '')))}</td>
+          <td><span class="direction-badge">{escape(str(item.get('proposed_effect', 'requires_review')))}</span><br>{escape(str(item.get('proposed_status_hint', '')))}</td>
+          <td>{escape(str(item.get('reason', '')))}</td>
+          <td><span class="status {'fail' if item.get('review_priority') == 'high' else 'pass'}">{escape(str(item.get('review_priority', 'medium')))}</span></td>
+        </tr>
+        """
+        for item in _as_list(comparison.get("affected_claim_comparisons"))
+        if isinstance(item, dict)
+    ) or "<tr><td colspan='5' class='muted'>No affected claim comparison rows.</td></tr>"
+
+    drift_items = "".join(
+        f"<li>{escape(str(summary))}</li>"
+        for summary in _as_list(drift.get("suggested_drift_summaries") if isinstance(drift, dict) else [])
+    ) or "<li>No suggested drift summaries.</li>"
+    questions = "".join(
+        f"<li>{escape(str(question))}</li>"
+        for question in _as_list(comparison.get("reviewer_questions"))
+    )
+    checks = "".join(
+        f"<li>{escape(str(check))}</li>"
+        for check in _as_list(comparison.get("recommended_next_checks"))
+    )
+    unchanged = "".join(
+        f"<li>{escape(str(item))}</li>"
+        for item in _as_list(comparison.get("unchanged_context"))
+    )
+    validation_errors = [*patch_errors, *proposal_errors, *comparison_errors, *packet_errors]
+    validation_block = (
+        "<section><h4>Validation issues</h4><ul>"
+        + "".join(f"<li>{escape(str(error))}</li>" for error in validation_errors)
+        + "</ul></section>"
+        if validation_errors
+        else "<p class='muted'>Patch, proposal, comparison, and packet validation pass for this deterministic fixture.</p>"
+    )
+
+    return _wrap_html(
+        "revision-comparison",
+        f"""
+        <h3>Revision Comparison View</h3>
+        <p class="warning-note">{escape(str(comparison.get('non_mutation_notice', 'This comparison does not mutate the canonical card.')))}</p>
+        <div class="summary-grid">
+          <div class="summary-card ok"><span>Comparison</span><strong>{escape(str(comparison.get('comparison_version', '1.0')))}</strong></div>
+          <div class="summary-card ok"><span>Claims</span><strong>{len(_as_list(comparison.get('affected_claim_comparisons')))}</strong></div>
+          <div class="summary-card ok"><span>Verdict Effect</span><strong>{escape(str(verdict.get('proposed_verdict_effect', 'review') if isinstance(verdict, dict) else 'review'))}</strong></div>
+          <div class="summary-card ok"><span>Patch</span><strong>{escape(str(patch.get('patch_type', 'patch')))}</strong></div>
+        </div>
+        <div class="grid two">
+          <section>
+            <h4>Current State</h4>
+            <p>{escape(str(comparison.get('current_state_summary', '')))}</p>
+          </section>
+          <section>
+            <h4>Proposed Revision</h4>
+            <p>{escape(str(comparison.get('proposed_revision_summary', '')))}</p>
+            <p class="muted">New evidence: <code>{escape(str(source.get('source_id', '')))}</code></p>
+            <p>{escape(str(suggested_event.get('summary', '')))}</p>
+          </section>
+        </div>
+        <section>
+          <h4>Affected Claim Comparison</h4>
+          <table>
+            <thead><tr><th>Claim</th><th>Current status</th><th>Proposed effect</th><th>Reason</th><th>Priority</th></tr></thead>
+            <tbody>{claim_rows}</tbody>
+          </table>
+        </section>
+        <div class="grid two">
+          <section>
+            <h4>Verdict Comparison</h4>
+            <p><strong>Current:</strong> {escape(str(verdict.get('current_short_label', '') if isinstance(verdict, dict) else ''))} ({escape(str(verdict.get('current_confidence', '') if isinstance(verdict, dict) else ''))})</p>
+            <p><strong>Proposed effect:</strong> {escape(str(verdict.get('proposed_verdict_effect', '') if isinstance(verdict, dict) else ''))}</p>
+            <p>{escape(str(verdict.get('proposed_verdict_summary', '') if isinstance(verdict, dict) else ''))}</p>
+          </section>
+          <section>
+            <h4>Timeline / Drift</h4>
+            <p><strong>Latest:</strong> {escape(str(timeline.get('current_latest_version', '') if isinstance(timeline, dict) else ''))}</p>
+            <p><strong>Suggested:</strong> {escape(str(suggested_event.get('version_label', 'proposed_next')))} on {escape(str(suggested_event.get('date', '')))}</p>
+            <p class="muted">Existing drift: {escape(str(drift.get('existing_drift_count', 0) if isinstance(drift, dict) else 0))}; suggested drift: {escape(str(drift.get('suggested_drift_count', 0) if isinstance(drift, dict) else 0))}</p>
+            <ul>{drift_items}</ul>
+          </section>
+        </div>
+        <section>
+          <h4>Graph Impact Summary</h4>
+          <div class="summary-grid">
+            <div class="summary-card ok"><span>Focus claim</span><strong>{escape(str(graph.get('focus_claim_id', 'none') if isinstance(graph, dict) else 'none'))}</strong></div>
+            <div class="summary-card ok"><span>Neighbors</span><strong>{escape(str(graph.get('neighbor_node_count', 0) if isinstance(graph, dict) else 0))}</strong></div>
+            <div class="summary-card ok"><span>Verdict paths</span><strong>{escape(str(graph.get('path_to_verdict_count', 0) if isinstance(graph, dict) else 0))}</strong></div>
+            <div class="summary-card ok"><span>Subgraph</span><strong>{escape(str(graph.get('selected_subgraph_node_count', 0) if isinstance(graph, dict) else 0))}/{escape(str(graph.get('selected_subgraph_edge_count', 0) if isinstance(graph, dict) else 0))}</strong></div>
+          </div>
+        </section>
+        <div class="grid two">
+          <section>
+            <h4>Reviewer Questions</h4>
+            <ul>{questions}</ul>
+          </section>
+          <section>
+            <h4>Recommended Next Checks</h4>
+            <ol>{checks}</ol>
+          </section>
+        </div>
+        <section>
+          <h4>Unchanged Context</h4>
+          <ul>{unchanged}</ul>
+        </section>
+        {validation_block}
+        <details>
+          <summary>Revision comparison JSON</summary>
+          <pre>{escape(json.dumps(comparison, indent=2, ensure_ascii=False))}</pre>
+        </details>
         <details>
           <summary>Revision packet JSON</summary>
           <pre>{escape(json.dumps(packet, indent=2, ensure_ascii=False))}</pre>

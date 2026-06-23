@@ -698,6 +698,108 @@
       },
       "additionalProperties": true
     },
+    "revision_comparison": {
+      "type": "object",
+      "required": [
+        "comparison_id",
+        "comparison_version",
+        "comparison_type",
+        "base_card_id",
+        "scenario_id",
+        "patch_id",
+        "current_state_summary",
+        "proposed_revision_summary",
+        "affected_claim_comparisons",
+        "verdict_comparison",
+        "timeline_comparison",
+        "claim_drift_comparison",
+        "graph_impact_summary",
+        "unchanged_context",
+        "reviewer_questions",
+        "recommended_next_checks",
+        "non_mutation_notice",
+        "limitations"
+      ],
+      "properties": {
+        "comparison_id": { "type": "string", "pattern": "^revision_comparison_" },
+        "comparison_version": { "const": "1.0" },
+        "comparison_type": { "const": "sisyphus_revision_comparison" },
+        "base_card_id": { "type": "string", "pattern": "^news_" },
+        "scenario_id": { "type": "string" },
+        "patch_id": { "type": "string", "pattern": "^patch_" },
+        "current_state_summary": { "type": "string" },
+        "proposed_revision_summary": { "type": "string" },
+        "affected_claim_comparisons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "claim_id",
+              "claim_text",
+              "current_status",
+              "proposed_effect",
+              "proposed_status_hint",
+              "reason",
+              "new_evidence_summary",
+              "review_priority"
+            ],
+            "properties": {
+              "claim_id": { "type": "string", "pattern": "^claim_" },
+              "claim_text": { "type": "string" },
+              "current_status": { "type": "string" },
+              "proposed_effect": {
+                "type": "string",
+                "enum": [
+                  "strengthens",
+                  "weakens",
+                  "narrows",
+                  "complicates",
+                  "supports_counter_branch",
+                  "requires_review"
+                ]
+              },
+              "proposed_status_hint": { "type": "string" },
+              "reason": { "type": "string" },
+              "new_evidence_summary": { "type": "string" },
+              "review_priority": { "type": "string", "enum": ["high", "medium", "low"] }
+            },
+            "additionalProperties": true
+          }
+        },
+        "verdict_comparison": {
+          "type": "object",
+          "required": [
+            "current_verdict_id",
+            "current_short_label",
+            "current_confidence",
+            "proposed_verdict_effect",
+            "proposed_verdict_summary",
+            "what_would_confirm_revision"
+          ],
+          "properties": {
+            "current_verdict_id": { "type": ["string", "null"] },
+            "current_short_label": { "type": ["string", "null"] },
+            "current_confidence": { "type": ["string", "null"] },
+            "proposed_verdict_effect": {
+              "type": "string",
+              "enum": ["strengthen", "weaken", "narrow", "complicate", "requires_review"]
+            },
+            "proposed_verdict_summary": { "type": "string" },
+            "what_would_confirm_revision": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": true
+        },
+        "timeline_comparison": { "type": "object" },
+        "claim_drift_comparison": { "type": "object" },
+        "graph_impact_summary": { "type": "object" },
+        "unchanged_context": { "type": "array", "items": { "type": "string" } },
+        "reviewer_questions": { "type": "array", "items": { "type": "string" } },
+        "recommended_next_checks": { "type": "array", "items": { "type": "string" } },
+        "non_mutation_notice": { "type": "string" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
     "editorial_verdict": {
       "type": "object",
       "required": ["verdict_id", "short_label", "verdict_text", "confidence", "reader_warnings"],
@@ -871,6 +973,7 @@
     { "$ref": "#/$defs/evidence_patch" },
     { "$ref": "#/$defs/revision_proposal" },
     { "$ref": "#/$defs/revision_packet" },
+    { "$ref": "#/$defs/revision_comparison" },
     { "$ref": "#/$defs/record_set" }
   ]
 }

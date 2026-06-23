@@ -126,7 +126,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, evidence update simulation, scenario authoring preview, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
+The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, evidence update simulation, revision comparison view, scenario authoring preview, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
 
 To switch scenarios in the notebook, change:
 
@@ -247,6 +247,16 @@ The output is a draft authoring aid, not a verified news card. The School Air Qu
 
 Revision proposals summarize affected claims, suggested timeline and claim-drift updates, verdict impact, reviewer questions, and next checks. They do not mutate `data/precomputed_records.json`, append patch sources to canonical `source_ids`, or make live model calls. No live ingestion, crawler, database, external API, or network access is required.
 
+## Revision Comparison View v1.0
+
+Revision comparisons make evidence-update proposals easier to review by showing current card state next to proposed revision state:
+
+- `build_revision_comparison()` creates a `comparison_version: "1.0"` readout from a canonical card and revision proposal.
+- `validate_revision_comparison()` checks the comparison shape and affected claim references.
+- `render_revision_comparison_html()` renders the current-vs-proposed view in the notebook.
+
+Comparison objects summarize affected claims, proposed effects, verdict impact, timeline and drift suggestions, unchanged context, reviewer questions, and recommended next checks. They do not mutate canonical cards, add patch sources to `source_ids`, or change existing packet versions.
+
 ## Schema
 
 `schemas/sisyphus_schema.json` documents the record shapes for:
@@ -274,6 +284,7 @@ Revision proposals summarize affected claims, suggested timeline and claim-drift
 - `evidence_patch`
 - `revision_proposal`
 - `revision_packet`
+- `revision_comparison`
 - `editorial_verdict`
 - `agent_packet`
 
