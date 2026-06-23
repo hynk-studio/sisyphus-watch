@@ -882,6 +882,42 @@
       },
       "additionalProperties": true
     },
+    "kaggle_midcheck_summary": {
+      "type": "object",
+      "required": [
+        "midcheck_id",
+        "midcheck_version",
+        "card_id",
+        "scenario_id",
+        "checks",
+        "overall_status",
+        "recommended_before_submission"
+      ],
+      "properties": {
+        "midcheck_id": { "type": "string", "pattern": "^kaggle_midcheck_" },
+        "midcheck_version": { "const": "1.2" },
+        "card_id": { "type": "string", "pattern": "^news_" },
+        "scenario_id": { "type": "string" },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["label", "status", "summary"],
+            "properties": {
+              "label": { "type": "string" },
+              "status": { "type": "string", "enum": ["PASS", "WARN", "FAIL"] },
+              "summary": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "overall_status": { "type": "string", "enum": ["PASS", "WARN", "FAIL"] },
+        "expected_export_artifacts": { "type": "array", "items": { "type": "string" } },
+        "recommended_before_submission": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
     "editorial_verdict": {
       "type": "object",
       "required": ["verdict_id", "short_label", "verdict_text", "confidence", "reader_warnings"],
@@ -1058,6 +1094,7 @@
     { "$ref": "#/$defs/revision_comparison" },
     { "$ref": "#/$defs/agent_workflow_trace" },
     { "$ref": "#/$defs/run_summary" },
+    { "$ref": "#/$defs/kaggle_midcheck_summary" },
     { "$ref": "#/$defs/record_set" }
   ]
 }

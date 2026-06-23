@@ -28,12 +28,18 @@ The deterministic agent reads four synthetic source fixtures, separates facts fr
 7. Evidence patch intake: load a synthetic follow-up audit without mutating the canonical card.
 8. Revision comparison generation: show current state vs proposed revision state.
 
+## Reviewer Path
+
+Start with the Submission Summary and Agent Workflow Trace, then inspect the Human Card, Version Timeline, Claim Drift, Claim Graph, Reviewer Presets, Evidence Update Simulation, Revision Comparison View, and Evaluation. The Kaggle mid-check checklist confirms the deterministic reviewer path and expected `/kaggle/working` artifacts.
+
 ## Exported Artifacts
 
 - `sisyphus_news_card.json`
+- `sisyphus_records.jsonl`
 - `sisyphus_agent_packet.json`
 - `sisyphus_graph_packet.json`
 - `sisyphus_reviewer_packet.json`
+- `sisyphus_scenario_authoring_packet.json`
 - `sisyphus_revision_packet.json`
 - `sisyphus_revision_comparison.json`
 - `sisyphus_agent_workflow_trace.json`
