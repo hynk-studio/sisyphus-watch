@@ -66,9 +66,11 @@ notebooks/sisyphus_watch_kaggle_demo.ipynb
 src/sisyphus_watch_demo.py
 data/demo_sources.json
 data/precomputed_records.json
+data/evidence_patches.json
 schemas/sisyphus_schema.json
 examples/sisyphus_watch_records.jsonl
 examples/city_heatwave_demo.md
+examples/evidence_update_demo.md
 ```
 
 ## Run Locally
@@ -124,7 +126,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, scenario authoring preview, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
+The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, evidence update simulation, scenario authoring preview, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
 
 To switch scenarios in the notebook, change:
 
@@ -159,6 +161,7 @@ Demo mode loads:
 
 - `data/demo_sources.json`
 - `data/precomputed_records.json`
+- `data/evidence_patches.json` for the optional evidence update simulation
 
 It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path. The deterministic record set includes three demo cards while preserving the heatwave card as the default:
 
@@ -233,6 +236,17 @@ The authoring helpers are deterministic and dependency-free:
 
 The output is a draft authoring aid, not a verified news card. The School Air Quality Alert Communication scenario was added by dogfooding this workflow: the template validated, the checklist passed, the skeleton was generated, and the completed evidence-bound card now validates through graph, agent, reviewer, and export paths. No LLM call, live ingestion, graph database, external API, or network access is required.
 
+## Evidence Intake and Revision Proposal v0.9
+
+`data/evidence_patches.json` contains deterministic synthetic "new information arrived" patches, one per demo scenario. The helpers keep those patches separate from canonical cards:
+
+- `load_evidence_patches()` loads the patch fixtures.
+- `validate_evidence_patch()` checks patch shape and, when a card is provided, verifies affected claim and interpretation IDs.
+- `build_revision_proposal()` creates a non-mutating `proposal_version: "0.9"` change plan.
+- `export_revision_packet()` emits a downstream `packet_version: "0.9"` revision packet with graph and reviewer context.
+
+Revision proposals summarize affected claims, suggested timeline and claim-drift updates, verdict impact, reviewer questions, and next checks. They do not mutate `data/precomputed_records.json`, append patch sources to canonical `source_ids`, or make live model calls. No live ingestion, crawler, database, external API, or network access is required.
+
 ## Schema
 
 `schemas/sisyphus_schema.json` documents the record shapes for:
@@ -257,6 +271,9 @@ The output is a draft authoring aid, not a verified news card. The School Air Qu
 - `scenario_authoring_template`
 - `scenario_authoring_checklist`
 - `scenario_authoring_packet`
+- `evidence_patch`
+- `revision_proposal`
+- `revision_packet`
 - `editorial_verdict`
 - `agent_packet`
 

@@ -556,6 +556,148 @@
       },
       "additionalProperties": true
     },
+    "evidence_patch": {
+      "type": "object",
+      "required": [
+        "patch_id",
+        "scenario_id",
+        "patch_title",
+        "patch_type",
+        "is_synthetic_demo_fixture",
+        "new_source_record",
+        "affected_claim_ids",
+        "proposed_effects",
+        "recommended_revision_actions",
+        "uncertainty_notes"
+      ],
+      "properties": {
+        "patch_id": { "type": "string", "pattern": "^patch_" },
+        "scenario_id": { "type": "string" },
+        "patch_title": { "type": "string" },
+        "patch_type": {
+          "type": "string",
+          "enum": ["new_source_observation", "released_log", "follow_up_audit", "correction_memo"]
+        },
+        "is_synthetic_demo_fixture": { "const": true },
+        "new_source_record": { "$ref": "#/$defs/source_record" },
+        "affected_claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim_" } },
+        "affected_interpretation_ids": { "type": "array", "items": { "type": "string", "pattern": "^interp_" } },
+        "new_evidence_summary": { "type": "string" },
+        "proposed_effects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["target_id", "target_type", "effect", "reason"],
+            "properties": {
+              "target_id": { "type": "string" },
+              "target_type": {
+                "type": "string",
+                "enum": ["claim", "interpretation", "counter_branch", "verdict"]
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "strengthens",
+                  "weakens",
+                  "narrows",
+                  "complicates",
+                  "supports_counter_branch",
+                  "requires_review"
+                ]
+              },
+              "reason": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "recommended_revision_actions": { "type": "array", "items": { "type": "string" } },
+        "uncertainty_notes": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "revision_proposal": {
+      "type": "object",
+      "required": [
+        "proposal_id",
+        "proposal_version",
+        "proposal_type",
+        "base_card_id",
+        "scenario_id",
+        "patch_id",
+        "new_source_id",
+        "affected_claim_ids",
+        "current_verdict",
+        "proposed_verdict_effect",
+        "claim_status_suggestions",
+        "timeline_event_suggestion",
+        "claim_drift_suggestions",
+        "version_diff_suggestion",
+        "graph_impact_summary",
+        "reviewer_questions",
+        "recommended_next_checks",
+        "proposal_summary",
+        "limitations"
+      ],
+      "properties": {
+        "proposal_id": { "type": "string", "pattern": "^revision_proposal_" },
+        "proposal_version": { "const": "0.9" },
+        "proposal_type": { "const": "sisyphus_revision_proposal" },
+        "base_card_id": { "type": "string", "pattern": "^news_" },
+        "scenario_id": { "type": "string" },
+        "patch_id": { "type": "string", "pattern": "^patch_" },
+        "new_source_id": { "type": "string", "pattern": "^src_" },
+        "affected_claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim_" } },
+        "affected_interpretation_ids": { "type": "array", "items": { "type": "string", "pattern": "^interp_" } },
+        "current_verdict": { "$ref": "#/$defs/editorial_verdict" },
+        "proposed_verdict_effect": {
+          "type": "string",
+          "enum": ["strengthen", "weaken", "narrow", "complicate", "requires_review"]
+        },
+        "claim_status_suggestions": { "type": "array", "items": { "type": "object" } },
+        "timeline_event_suggestion": { "type": "object" },
+        "claim_drift_suggestions": { "type": "array", "items": { "type": "object" } },
+        "version_diff_suggestion": { "type": "object" },
+        "graph_impact_summary": { "type": "object" },
+        "reviewer_questions": { "type": "array", "items": { "type": "string" } },
+        "recommended_next_checks": { "type": "array", "items": { "type": "string" } },
+        "proposal_summary": { "type": "string" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "revision_packet": {
+      "type": "object",
+      "required": [
+        "packet_id",
+        "packet_version",
+        "packet_type",
+        "canonical_card_id",
+        "scenario_id",
+        "patch_id",
+        "revision_proposal",
+        "graph_context",
+        "reviewer_packet",
+        "agent_instructions",
+        "reuse_guidance",
+        "limitations"
+      ],
+      "properties": {
+        "packet_id": { "type": "string", "pattern": "^revision_packet_" },
+        "packet_version": { "const": "0.9" },
+        "packet_type": { "const": "sisyphus_revision_packet" },
+        "canonical_card_id": { "type": "string", "pattern": "^news_" },
+        "scenario_id": { "type": "string" },
+        "patch_id": { "type": "string", "pattern": "^patch_" },
+        "revision_proposal": { "$ref": "#/$defs/revision_proposal" },
+        "revision_proposal_summary": { "type": "object" },
+        "graph_context": { "type": "object" },
+        "reviewer_packet": { "$ref": "#/$defs/reviewer_packet" },
+        "agent_instructions": { "type": "array", "items": { "type": "string" } },
+        "reuse_guidance": { "type": "array", "items": { "type": "string" } },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
     "editorial_verdict": {
       "type": "object",
       "required": ["verdict_id", "short_label", "verdict_text", "confidence", "reader_warnings"],
@@ -726,6 +868,9 @@
     { "$ref": "#/$defs/reviewer_packet" },
     { "$ref": "#/$defs/scenario_authoring_template" },
     { "$ref": "#/$defs/scenario_authoring_packet" },
+    { "$ref": "#/$defs/evidence_patch" },
+    { "$ref": "#/$defs/revision_proposal" },
+    { "$ref": "#/$defs/revision_packet" },
     { "$ref": "#/$defs/record_set" }
   ]
 }
