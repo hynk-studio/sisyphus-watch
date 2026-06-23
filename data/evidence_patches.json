@@ -1,0 +1,188 @@
+[
+  {
+    "patch_id": "patch_city_heatwave_cooling_centers_2026_06_20_001",
+    "scenario_id": "city_heatwave_cooling_centers",
+    "patch_title": "Follow-up audit finds corrected center list but uneven shuttle access",
+    "patch_type": "follow_up_audit",
+    "is_synthetic_demo_fixture": true,
+    "new_source_record": {
+      "source_id": "src_patch_city_heatwave_follow_up_access_audit_2026_06_20",
+      "source_type": "follow_up_audit",
+      "actor": "Fictional Accessibility Audit Team",
+      "title": "Cooling center access follow-up audit",
+      "published_at": "2026-06-20T09:00:00Z",
+      "retrieved_at": "2026-06-20T10:00:00Z",
+      "reliability_note": "Synthetic follow-up audit fixture with neighborhood-level observations and no raw trip logs.",
+      "limitations": "Does not independently verify every center or shuttle route; sample is intentionally small for the demo.",
+      "is_synthetic_demo_fixture": true,
+      "text": "A fictional follow-up access audit reported that after the city update most listed cooling centers had corrected hours, addresses, and availability notes. The same audit said shuttle availability remained inconsistent in two vulnerable neighborhoods, leaving some older residents without a reliable route during peak heat."
+    },
+    "affected_claim_ids": [
+      "claim_city_all_centers_open_2026_06_10_001",
+      "claim_city_update_corrected_errors_2026_06_14_001"
+    ],
+    "affected_interpretation_ids": [
+      "interp_emergency_service_implementation_gap_2026_06_15_001"
+    ],
+    "new_evidence_summary": "Most center-list corrections appear to have held, but shuttle access remained uneven in two vulnerable neighborhoods.",
+    "proposed_effects": [
+      {
+        "target_id": "claim_city_update_corrected_errors_2026_06_14_001",
+        "target_type": "claim",
+        "effect": "strengthens",
+        "reason": "The audit supports that corrected hours, addresses, and availability notes were mostly implemented."
+      },
+      {
+        "target_id": "claim_city_all_centers_open_2026_06_10_001",
+        "target_type": "claim",
+        "effect": "narrows",
+        "reason": "The original broad access claim should be narrowed because availability did not guarantee reliable transport access."
+      },
+      {
+        "target_id": "interp_emergency_service_implementation_gap_2026_06_15_001",
+        "target_type": "interpretation",
+        "effect": "complicates",
+        "reason": "The patch shows partial remediation alongside a remaining mobility access gap."
+      },
+      {
+        "target_id": "verdict_city_heatwave_cooling_centers_2026_06_15_v01",
+        "target_type": "verdict",
+        "effect": "narrows",
+        "reason": "The verdict should distinguish corrected listings from unresolved shuttle reliability."
+      }
+    ],
+    "recommended_revision_actions": [
+      "Add a proposed v03 timeline event for the follow-up audit.",
+      "Record suggested drift that strengthens the city correction claim but narrows the original availability claim.",
+      "Ask for route-level shuttle logs before treating the mobility gap as fully resolved."
+    ],
+    "uncertainty_notes": [
+      "The audit sample does not cover every neighborhood.",
+      "The patch does not show whether shuttle failures were continuous or intermittent."
+    ]
+  },
+  {
+    "patch_id": "patch_public_transit_delay_communication_2026_06_15_001",
+    "scenario_id": "public_transit_delay_communication",
+    "patch_title": "Operations-log release shows app data lag during affected-line recovery",
+    "patch_type": "released_log",
+    "is_synthetic_demo_fixture": true,
+    "new_source_record": {
+      "source_id": "src_patch_transit_operations_log_release_2026_06_15",
+      "source_type": "released_log",
+      "actor": "Fictional Metropolitan Transit Agency Records Office",
+      "title": "Internal operations log summary for signal recovery period",
+      "published_at": "2026-06-15T08:30:00Z",
+      "retrieved_at": "2026-06-15T09:15:00Z",
+      "reliability_note": "Synthetic released-log fixture that summarizes internal timing without exposing a complete raw dispatch feed.",
+      "limitations": "The log summary is actor-provided and does not independently validate rider wait times at each station.",
+      "is_synthetic_demo_fixture": true,
+      "text": "A fictional operations-log release showed that internal dispatch data identified affected lines before public app status indicators updated. The release described a 25 to 40 minute lag between operations records and public app messaging during the recovery window, supporting the data-lag counter-branch while leaving the initial mostly normal service claim weaker."
+    },
+    "affected_claim_ids": [
+      "claim_transit_most_service_normal_2026_06_11_001",
+      "claim_transit_app_lag_explained_2026_06_13_001"
+    ],
+    "affected_interpretation_ids": [
+      "interp_transit_service_communication_gap_2026_06_14_001"
+    ],
+    "new_evidence_summary": "Operations logs support a 25 to 40 minute app-data lag on affected lines, explaining part of the mismatch while further weakening the initial mostly normal service claim.",
+    "proposed_effects": [
+      {
+        "target_id": "claim_transit_most_service_normal_2026_06_11_001",
+        "target_type": "claim",
+        "effect": "weakens",
+        "reason": "Internal logs show affected-line disruption was known before public app messaging caught up."
+      },
+      {
+        "target_id": "claim_transit_app_lag_explained_2026_06_13_001",
+        "target_type": "claim",
+        "effect": "strengthens",
+        "reason": "The 25 to 40 minute lag supports the agency explanation that app data trailed operations records."
+      },
+      {
+        "target_id": "counter_transit_data_lag_operations_2026_06_14_001",
+        "target_type": "counter_branch",
+        "effect": "supports_counter_branch",
+        "reason": "The patch gives concrete timing support for the data-lag counter-branch."
+      },
+      {
+        "target_id": "verdict_transit_delay_communication_2026_06_14_v01",
+        "target_type": "verdict",
+        "effect": "complicates",
+        "reason": "The verdict should preserve both findings: app lag was real, and the early public status was still misleading."
+      }
+    ],
+    "recommended_revision_actions": [
+      "Add a proposed v03 timeline event for the operations-log release.",
+      "Strengthen the app-lag explanation while weakening the initial mostly normal service claim.",
+      "Request line-level public message timestamps before changing the verdict beyond a complication."
+    ],
+    "uncertainty_notes": [
+      "The released log is summarized by the agency, not a full raw operations export.",
+      "The patch does not show whether station announcements lagged by the same amount as the public app."
+    ]
+  },
+  {
+    "patch_id": "patch_school_air_quality_alert_communication_2026_06_20_001",
+    "scenario_id": "school_air_quality_alert_communication",
+    "patch_title": "Sensor calibration memo discloses longer stale-reading windows",
+    "patch_type": "correction_memo",
+    "is_synthetic_demo_fixture": true,
+    "new_source_record": {
+      "source_id": "src_patch_school_sensor_calibration_memo_2026_06_20",
+      "source_type": "correction_memo",
+      "actor": "Fictional School District Facilities Office",
+      "title": "Sensor calibration and dashboard sync memo",
+      "published_at": "2026-06-20T11:00:00Z",
+      "retrieved_at": "2026-06-20T11:45:00Z",
+      "reliability_note": "Synthetic correction memo fixture issued by the same fictional district that manages the dashboard.",
+      "limitations": "Does not include independent classroom measurements or a complete sensor-by-sensor audit trail.",
+      "is_synthetic_demo_fixture": true,
+      "text": "A fictional sensor calibration memo said several classroom readings were stale for longer than the district initially disclosed. The memo also said calibration work and dashboard data-sync delays contributed to the mismatch between room conditions and public readings, weakening the broad dashboard safety claim while supporting the district explanation for part of the delay."
+    },
+    "affected_claim_ids": [
+      "claim_school_classrooms_safe_2026_06_16_001",
+      "claim_school_sensor_lag_explained_2026_06_18_001"
+    ],
+    "affected_interpretation_ids": [
+      "interp_school_air_quality_communication_gap_2026_06_19_001"
+    ],
+    "new_evidence_summary": "The memo shows several readings were stale longer than initially disclosed, weakening the dashboard safety claim while supporting the calibration/data-sync explanation.",
+    "proposed_effects": [
+      {
+        "target_id": "claim_school_classrooms_safe_2026_06_16_001",
+        "target_type": "claim",
+        "effect": "weakens",
+        "reason": "Longer stale-reading windows make the broad safe-readings claim less reliable."
+      },
+      {
+        "target_id": "claim_school_sensor_lag_explained_2026_06_18_001",
+        "target_type": "claim",
+        "effect": "strengthens",
+        "reason": "The memo supports calibration and data-sync delays as a real contributor."
+      },
+      {
+        "target_id": "counter_school_sensor_calibration_data_lag_2026_06_19_001",
+        "target_type": "counter_branch",
+        "effect": "supports_counter_branch",
+        "reason": "The patch strengthens the counter-branch that some mismatch came from sensor latency."
+      },
+      {
+        "target_id": "verdict_school_air_quality_alert_communication_2026_06_19_v01",
+        "target_type": "verdict",
+        "effect": "complicates",
+        "reason": "The verdict should keep both conclusions visible: dashboard safety was overstated, and calibration lag explains part of the gap."
+      }
+    ],
+    "recommended_revision_actions": [
+      "Add a proposed v03 timeline event for the calibration memo.",
+      "Weaken the dashboard safety claim and strengthen the calibration/data-sync explanation.",
+      "Request room-level sensor timestamps before deciding whether the verdict should become stronger."
+    ],
+    "uncertainty_notes": [
+      "The memo is actor-issued and does not include independent classroom readings.",
+      "The patch does not show exactly which families received delayed notices."
+    ]
+  }
+]

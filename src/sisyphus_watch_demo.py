@@ -19,6 +19,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_PATH = PROJECT_ROOT / "data" / "demo_sources.json"
 DEFAULT_RECORD_PATH = PROJECT_ROOT / "data" / "precomputed_records.json"
+DEFAULT_EVIDENCE_PATCH_PATH = PROJECT_ROOT / "data" / "evidence_patches.json"
 DEFAULT_SCENARIO_AUTHORING_TEMPLATE_PATH = PROJECT_ROOT / "examples" / "scenario_authoring_template.json"
 
 
@@ -40,6 +41,29 @@ WORKFLOW_STEPS = [
 ]
 
 DRIFT_DIRECTIONS = {"strengthened", "weakened", "narrowed", "corrected", "unresolved"}
+EVIDENCE_PATCH_TYPES = {
+    "new_source_observation",
+    "released_log",
+    "follow_up_audit",
+    "correction_memo",
+}
+EVIDENCE_PATCH_EFFECTS = {
+    "strengthens",
+    "weakens",
+    "narrows",
+    "complicates",
+    "supports_counter_branch",
+    "requires_review",
+}
+EVIDENCE_PATCH_TARGET_TYPES = {"claim", "interpretation", "counter_branch", "verdict"}
+REVISION_VERDICT_EFFECTS = {
+    "strengthens": "strengthen",
+    "weakens": "weaken",
+    "narrows": "narrow",
+    "complicates": "complicate",
+    "supports_counter_branch": "complicate",
+    "requires_review": "requires_review",
+}
 GRAPH_NODE_TYPES = {
     "source",
     "fact",
@@ -2132,6 +2156,530 @@ def validate_source_record(record: dict[str, Any]) -> list[str]:
     return errors
 
 
+def load_evidence_patches(path: str | Path | None = None) -> list[dict[str, Any]]:
+    """Load deterministic synthetic evidence patches for revision simulation."""
+    patch_path = Path(path) if path else DEFAULT_EVIDENCE_PATCH_PATH
+    patches = _read_json(patch_path)
+    if not isinstance(patches, list):
+        raise ValueError("evidence_patches.json must contain a list of evidence patches")
+
+    errors: list[str] = []
+    for index, patch in enumerate(patches):
+        errors.extend(f"patch[{index}]: {error}" for error in validate_evidence_patch(patch))
+    if errors:
+        raise ValueError("Invalid evidence patches:\n" + "\n".join(errors))
+    return patches
+
+
+def validate_evidence_patch(
+    patch: dict[str, Any], news_card: dict[str, Any] | None = None
+) -> list[str]:
+    """Return readable validation errors for one synthetic evidence patch."""
+    if not isinstance(patch, dict):
+        return ["evidence_patch must be an object"]
+
+    errors: list[str] = []
+    required = [
+        "patch_id",
+        "scenario_id",
+        "patch_title",
+        "patch_type",
+        "is_synthetic_demo_fixture",
+        "new_source_record",
+        "affected_claim_ids",
+        "proposed_effects",
+        "recommended_revision_actions",
+        "uncertainty_notes",
+    ]
+    for field in required:
+        if field not in patch:
+            errors.append(f"missing {field}")
+
+    _require_prefix(errors, "evidence_patch.patch_id", patch.get("patch_id"), "patch_")
+    if not str(patch.get("scenario_id", "")).strip():
+        errors.append("scenario_id must be present")
+    if not str(patch.get("patch_title", "")).strip():
+        errors.append("patch_title must be present")
+    if patch.get("patch_type") not in EVIDENCE_PATCH_TYPES:
+        errors.append(f"patch_type must be one of {sorted(EVIDENCE_PATCH_TYPES)}")
+    if patch.get("is_synthetic_demo_fixture") is not True:
+        errors.append("is_synthetic_demo_fixture must be true")
+
+    source_record = patch.get("new_source_record")
+    if not isinstance(source_record, dict):
+        errors.append("new_source_record must be an object")
+    else:
+        errors.extend(
+            f"new_source_record: {error}" for error in validate_source_record(source_record)
+        )
+
+    affected_claim_ids = patch.get("affected_claim_ids")
+    if not isinstance(affected_claim_ids, list):
+        errors.append("affected_claim_ids must be a list")
+        affected_claim_ids = []
+
+    affected_interpretation_ids = patch.get("affected_interpretation_ids", [])
+    if affected_interpretation_ids is not None and not isinstance(affected_interpretation_ids, list):
+        errors.append("affected_interpretation_ids must be a list when present")
+        affected_interpretation_ids = []
+
+    proposed_effects = patch.get("proposed_effects")
+    if not isinstance(proposed_effects, list):
+        errors.append("proposed_effects must be a list")
+        proposed_effects = []
+
+    if not isinstance(patch.get("recommended_revision_actions"), list):
+        errors.append("recommended_revision_actions must be a list")
+    if not isinstance(patch.get("uncertainty_notes"), list):
+        errors.append("uncertainty_notes must be a list")
+
+    for index, effect in enumerate(proposed_effects):
+        if not isinstance(effect, dict):
+            errors.append(f"proposed_effects[{index}] must be an object")
+            continue
+        for field in ["target_id", "target_type", "effect", "reason"]:
+            if field not in effect:
+                errors.append(f"proposed_effects[{index}] missing {field}")
+        if effect.get("target_type") not in EVIDENCE_PATCH_TARGET_TYPES:
+            errors.append(
+                f"proposed_effects[{index}] target_type must be one of {sorted(EVIDENCE_PATCH_TARGET_TYPES)}"
+            )
+        if effect.get("effect") not in EVIDENCE_PATCH_EFFECTS:
+            errors.append(
+                f"proposed_effects[{index}] effect must be one of {sorted(EVIDENCE_PATCH_EFFECTS)}"
+            )
+
+    if news_card is None:
+        return errors
+
+    if patch.get("scenario_id") != news_card.get("scenario_id"):
+        errors.append(
+            f"patch scenario_id {patch.get('scenario_id')} does not match card scenario_id {news_card.get('scenario_id')}"
+        )
+
+    claim_ids = _ids(_as_list(news_card.get("actor_claims")), "claim_id")
+    interpretation_ids = _ids(_as_list(news_card.get("interpretations")), "interpretation_id")
+    counter_ids = _ids(_as_list(news_card.get("counter_branches")), "counter_branch_id")
+    verdict = news_card.get("editorial_verdict", {})
+    verdict_ids = {verdict.get("verdict_id")} if isinstance(verdict, dict) and verdict.get("verdict_id") else set()
+
+    for claim_id in _as_list(affected_claim_ids):
+        if claim_id not in claim_ids:
+            errors.append(f"affected_claim_ids references unknown claim {claim_id}")
+
+    for interpretation_id in _as_list(affected_interpretation_ids):
+        if interpretation_id not in interpretation_ids:
+            errors.append(f"affected_interpretation_ids references unknown interpretation {interpretation_id}")
+
+    target_sets = {
+        "claim": claim_ids,
+        "interpretation": interpretation_ids,
+        "counter_branch": counter_ids,
+        "verdict": verdict_ids,
+    }
+    for index, effect in enumerate(proposed_effects):
+        if not isinstance(effect, dict):
+            continue
+        target_type = effect.get("target_type")
+        target_id = effect.get("target_id")
+        if target_type in target_sets and target_id not in target_sets[target_type]:
+            errors.append(
+                f"proposed_effects[{index}] target_id {target_id} is unknown for target_type {target_type}"
+            )
+
+    return errors
+
+
+def get_evidence_patch_for_scenario(
+    patches: list[dict[str, Any]], scenario_id: str
+) -> dict[str, Any] | None:
+    """Return the first deterministic evidence patch for a scenario."""
+    for patch in patches:
+        if isinstance(patch, dict) and patch.get("scenario_id") == scenario_id:
+            return patch
+    return None
+
+
+def _patch_source_id(patch: dict[str, Any]) -> str | None:
+    source = patch.get("new_source_record")
+    if isinstance(source, dict):
+        source_id = source.get("source_id")
+        return str(source_id) if source_id else None
+    return None
+
+
+def _patch_date(patch: dict[str, Any]) -> str:
+    source = patch.get("new_source_record")
+    published_at = source.get("published_at") if isinstance(source, dict) else None
+    return str(published_at or "").split("T")[0] or "unknown_date"
+
+
+def _next_version_label(news_card: dict[str, Any]) -> str:
+    timeline = _as_list(news_card.get("version_timeline"))
+    latest = timeline[-1].get("version_label") if timeline and isinstance(timeline[-1], dict) else None
+    latest_text = str(latest or "")
+    if latest_text.startswith("v") and latest_text[1:].isdigit():
+        return f"proposed_v{int(latest_text[1:]) + 1:02d}"
+    return "proposed_next"
+
+
+def _effect_to_verdict(effect: str | None) -> str:
+    return REVISION_VERDICT_EFFECTS.get(str(effect), "requires_review")
+
+
+def _claim_effects(patch: dict[str, Any], claim_id: str) -> list[dict[str, Any]]:
+    return [
+        effect
+        for effect in _as_list(patch.get("proposed_effects"))
+        if isinstance(effect, dict)
+        and effect.get("target_type") == "claim"
+        and effect.get("target_id") == claim_id
+    ]
+
+
+def _select_proposed_verdict_effect(patch: dict[str, Any]) -> str:
+    effects = [effect for effect in _as_list(patch.get("proposed_effects")) if isinstance(effect, dict)]
+    for effect in effects:
+        if effect.get("target_type") == "verdict":
+            return _effect_to_verdict(effect.get("effect"))
+    for preferred in ["requires_review", "weakens", "narrows", "complicates", "supports_counter_branch", "strengthens"]:
+        if any(effect.get("effect") == preferred for effect in effects):
+            return _effect_to_verdict(preferred)
+    return "requires_review"
+
+
+def _claim_status_suggestion(current_status: str, effects: list[dict[str, Any]]) -> tuple[str, str]:
+    effect_values = {str(effect.get("effect")) for effect in effects if effect.get("effect")}
+    if "weakens" in effect_values:
+        return "weakened_by_patch_review", "weakened"
+    if "narrows" in effect_values:
+        return "narrowed_by_patch_review", "narrowed"
+    if "strengthens" in effect_values:
+        return "strengthened_by_patch_review", "strengthened"
+    if "supports_counter_branch" in effect_values or "complicates" in effect_values:
+        return "requires_counter_branch_review", "unresolved"
+    return current_status or "requires_review", "unresolved"
+
+
+def build_revision_proposal(news_card: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    """Build a deterministic, non-mutating revision proposal for one patch."""
+    patch_id = str(patch.get("patch_id", "unknown_patch"))
+    card_id = str(news_card.get("card_id", "unknown_card"))
+    source_id = _patch_source_id(patch) or "unknown_source"
+    affected_claim_ids = _unique_strings(_as_list(patch.get("affected_claim_ids")))
+    affected_interpretation_ids = _unique_strings(_as_list(patch.get("affected_interpretation_ids")))
+    proposed_effects = [effect for effect in _as_list(patch.get("proposed_effects")) if isinstance(effect, dict)]
+    proposed_verdict_effect = _select_proposed_verdict_effect(patch)
+    next_version_label = _next_version_label(news_card)
+    patch_date = _patch_date(patch)
+    verdict = news_card.get("editorial_verdict", {})
+    version_diff = news_card.get("version_diff", {})
+
+    claim_suggestions = []
+    drift_suggestions = []
+    for claim_id in affected_claim_ids:
+        claim = _claim_by_id(news_card, claim_id)
+        current_status = str(claim.get("status", "review")) if isinstance(claim, dict) else "review"
+        effects = _claim_effects(patch, claim_id)
+        suggested_status, direction = _claim_status_suggestion(current_status, effects)
+        reasons = _unique_strings([effect.get("reason") for effect in effects])
+        claim_suggestions.append(
+            {
+                "claim_id": claim_id,
+                "claim_text": claim.get("claim_text") if isinstance(claim, dict) else "",
+                "current_status": current_status,
+                "suggested_status": suggested_status,
+                "direction": direction,
+                "supporting_patch_effects": [effect.get("effect") for effect in effects],
+                "reason": " ".join(reasons) or patch.get("new_evidence_summary", ""),
+            }
+        )
+        drift_suggestions.append(
+            {
+                "drift_id": f"drift_suggestion_{claim_id}_{patch_id}",
+                "target_claim_id": claim_id,
+                "from_status": current_status,
+                "to_status": suggested_status,
+                "direction": direction,
+                "driver_evidence_ids": [source_id],
+                "drift_summary": (
+                    f"Patch {patch_id} suggests handling {claim_id} as {direction} "
+                    f"without rewriting the canonical claim."
+                ),
+                "current_handling": "Review the patch before promoting this suggested drift into the canonical card.",
+            }
+        )
+
+    graph = get_claim_graph(news_card)
+    focus_claim_id = affected_claim_ids[0] if affected_claim_ids else None
+    neighbors = get_graph_neighbors(graph, focus_claim_id) if focus_claim_id else {}
+    paths = get_paths_to_verdict(graph, focus_claim_id) if focus_claim_id else []
+    subgraph = get_selected_claim_subgraph(news_card, focus_claim_id, radius=2) if focus_claim_id else None
+
+    reviewer_questions = _unique_strings(
+        [
+            "Does the patch source justify changing any affected claim status?",
+            "Should the proposed timeline event become the next canonical version after review?",
+            "Does the patch strengthen a counter-branch or require verdict revision?",
+        ]
+        + _as_list(patch.get("uncertainty_notes"))
+    )
+    recommended_next_checks = _unique_strings(
+        _as_list(patch.get("recommended_revision_actions"))
+        + [
+            "Compare the patch timestamp against the current version timeline.",
+            "Keep the patch source separate until a reviewer approves canonical revision.",
+        ]
+    )
+
+    timeline_event_suggestion = {
+        "version_id": f"version_suggestion_{patch_id}",
+        "version_label": next_version_label,
+        "date": patch_date,
+        "trigger": patch.get("patch_type", "evidence_patch"),
+        "summary": patch.get("new_evidence_summary", ""),
+        "evidence_ids": [source_id],
+        "judgment_at_version": f"Patch suggests the current verdict should {proposed_verdict_effect}.",
+        "confidence_at_version": "review_required",
+        "open_questions": _as_list(patch.get("uncertainty_notes")),
+        "canonical_status": "not_applied",
+    }
+
+    proposal = {
+        "proposal_id": f"revision_proposal_{card_id}_{patch_id}",
+        "proposal_version": "0.9",
+        "proposal_type": "sisyphus_revision_proposal",
+        "base_card_id": news_card.get("card_id"),
+        "scenario_id": news_card.get("scenario_id"),
+        "patch_id": patch.get("patch_id"),
+        "new_source_id": source_id,
+        "affected_claim_ids": affected_claim_ids,
+        "affected_interpretation_ids": affected_interpretation_ids,
+        "current_verdict": deepcopy(verdict) if isinstance(verdict, dict) else {},
+        "proposed_verdict_effect": proposed_verdict_effect,
+        "claim_status_suggestions": claim_suggestions,
+        "timeline_event_suggestion": timeline_event_suggestion,
+        "claim_drift_suggestions": drift_suggestions,
+        "version_diff_suggestion": {
+            "diff_id": f"diff_suggestion_{patch_id}",
+            "from_version": (
+                _as_list(news_card.get("version_timeline"))[-1].get("version_label")
+                if _as_list(news_card.get("version_timeline"))
+                and isinstance(_as_list(news_card.get("version_timeline"))[-1], dict)
+                else news_card.get("version")
+            ),
+            "to_version": next_version_label,
+            "previous_judgment": (
+                verdict.get("verdict_text", "")
+                if isinstance(verdict, dict)
+                else str(version_diff.get("updated_judgment", ""))
+            ),
+            "updated_judgment": f"Review whether the patch should {proposed_verdict_effect} the current verdict.",
+            "new_evidence_ids": [source_id],
+            "confidence_delta": {
+                "patch_effect": proposed_verdict_effect,
+                "canonical_status": "not_applied",
+            },
+            "unchanged_uncertainties": _unique_strings(
+                _as_list(patch.get("uncertainty_notes"))
+                + _as_list(verdict.get("reader_warnings") if isinstance(verdict, dict) else [])
+            ),
+        },
+        "graph_impact_summary": {
+            "focus_claim_id": focus_claim_id,
+            "new_source_graph_status": "not_inserted_into_canonical_graph",
+            "affected_claim_count": len(affected_claim_ids),
+            "affected_interpretation_count": len(affected_interpretation_ids),
+            "neighbor_node_count": len(_as_list(neighbors.get("neighbor_nodes"))),
+            "path_to_verdict_count": len(paths),
+            "selected_subgraph_node_count": len(_as_list(subgraph.get("nodes") if isinstance(subgraph, dict) else [])),
+            "selected_subgraph_edge_count": len(_as_list(subgraph.get("edges") if isinstance(subgraph, dict) else [])),
+        },
+        "reviewer_questions": reviewer_questions,
+        "recommended_next_checks": recommended_next_checks,
+        "proposal_summary": (
+            f"Patch {patch_id} adds synthetic source {source_id} and proposes a "
+            f"{proposed_verdict_effect} review for {len(affected_claim_ids)} affected claim(s)."
+        ),
+        "limitations": [
+            "This proposal is deterministic review context, not an authoritative card update.",
+            "The new source is not appended to the canonical news_card source_ids.",
+            "The canonical card, timeline, drift entries, graph, and verdict are not mutated.",
+            "Synthetic demo fixtures are not real-world evidence.",
+        ],
+    }
+    return proposal
+
+
+def validate_revision_proposal(
+    proposal: dict[str, Any], news_card: dict[str, Any] | None = None
+) -> list[str]:
+    """Return validation errors for a non-mutating revision proposal."""
+    if not isinstance(proposal, dict):
+        return ["revision proposal must be an object"]
+
+    errors: list[str] = []
+    required = [
+        "proposal_id",
+        "proposal_version",
+        "proposal_type",
+        "base_card_id",
+        "patch_id",
+        "new_source_id",
+        "affected_claim_ids",
+        "proposal_summary",
+        "limitations",
+    ]
+    for field in required:
+        if field not in proposal:
+            errors.append(f"revision proposal missing {field}")
+
+    _require_prefix(errors, "revision_proposal.proposal_id", proposal.get("proposal_id"), "revision_proposal_")
+    if proposal.get("proposal_version") != "0.9":
+        errors.append("revision proposal proposal_version must be 0.9")
+    if proposal.get("proposal_type") != "sisyphus_revision_proposal":
+        errors.append("revision proposal proposal_type must be sisyphus_revision_proposal")
+    if not proposal.get("base_card_id"):
+        errors.append("revision proposal base_card_id is required")
+    if not proposal.get("patch_id"):
+        errors.append("revision proposal patch_id is required")
+    if not proposal.get("new_source_id"):
+        errors.append("revision proposal new_source_id is required")
+    if not isinstance(proposal.get("affected_claim_ids"), list):
+        errors.append("revision proposal affected_claim_ids must be a list")
+    if not str(proposal.get("proposal_summary", "")).strip():
+        errors.append("revision proposal proposal_summary is required")
+    if not isinstance(proposal.get("limitations"), list):
+        errors.append("revision proposal limitations must be a list")
+
+    if news_card is None:
+        return errors
+
+    if proposal.get("base_card_id") != news_card.get("card_id"):
+        errors.append(
+            f"revision proposal base_card_id {proposal.get('base_card_id')} does not match {news_card.get('card_id')}"
+        )
+    claim_ids = _ids(_as_list(news_card.get("actor_claims")), "claim_id")
+    for claim_id in _as_list(proposal.get("affected_claim_ids")):
+        if claim_id not in claim_ids:
+            errors.append(f"revision proposal affected_claim_ids references unknown claim {claim_id}")
+
+    return errors
+
+
+def summarize_revision_proposal_for_agent(proposal: dict[str, Any]) -> dict[str, Any]:
+    """Return a compact summary of the proposed revision for downstream agents."""
+    return {
+        "proposal_id": proposal.get("proposal_id"),
+        "proposal_version": proposal.get("proposal_version"),
+        "patch_id": proposal.get("patch_id"),
+        "base_card_id": proposal.get("base_card_id"),
+        "proposed_verdict_effect": proposal.get("proposed_verdict_effect"),
+        "affected_claim_ids": _as_list(proposal.get("affected_claim_ids")),
+        "new_source_id": proposal.get("new_source_id"),
+        "proposal_summary": proposal.get("proposal_summary", ""),
+        "reviewer_questions": _as_list(proposal.get("reviewer_questions")),
+        "recommended_next_checks": _as_list(proposal.get("recommended_next_checks")),
+    }
+
+
+def export_revision_packet(news_card: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    """Build a downstream revision packet without mutating the canonical card."""
+    proposal = build_revision_proposal(news_card, patch)
+    affected_claim_ids = _as_list(proposal.get("affected_claim_ids"))
+    focus_claim_id = affected_claim_ids[0] if affected_claim_ids else None
+    graph = get_claim_graph(news_card)
+    graph_context = {
+        "focus_claim_id": focus_claim_id,
+        "graph_summary": graph.get("graph_summary", ""),
+        "neighbors": get_graph_neighbors(graph, focus_claim_id) if focus_claim_id else {},
+        "paths_to_verdict": get_paths_to_verdict(graph, focus_claim_id) if focus_claim_id else [],
+        "selected_subgraph": (
+            get_selected_claim_subgraph(news_card, focus_claim_id, radius=2)
+            if focus_claim_id
+            else None
+        ),
+        "graph_packet": export_agent_graph_packet(news_card, focus_ref_id=focus_claim_id, radius=2),
+        "new_source_graph_status": "patch_source_not_inserted_into_canonical_graph",
+    }
+    reviewer_packet = export_reviewer_packet(
+        news_card,
+        "claim_status_review" if focus_claim_id else "verdict_change_review",
+        focus_ref_id=focus_claim_id,
+    )
+    packet = {
+        "packet_id": f"revision_packet_{news_card.get('card_id', 'unknown')}_{patch.get('patch_id', 'unknown_patch')}",
+        "packet_version": "0.9",
+        "packet_type": "sisyphus_revision_packet",
+        "canonical_card_id": news_card.get("card_id"),
+        "scenario_id": news_card.get("scenario_id"),
+        "patch_id": patch.get("patch_id"),
+        "revision_proposal": proposal,
+        "revision_proposal_summary": summarize_revision_proposal_for_agent(proposal),
+        "graph_context": graph_context,
+        "reviewer_packet": reviewer_packet,
+        "agent_instructions": [
+            "Treat the evidence patch as a proposed update, not a canonical fact insertion.",
+            "Validate affected claim IDs before changing card status, timeline, drift, or verdict fields.",
+            "Keep the patch source separate from canonical source_ids until a reviewer approves the revision.",
+            "Return any accepted change as a new version event, claim drift entry, and version diff update.",
+        ],
+        "reuse_guidance": [
+            "Use revision_proposal for the human-readable change plan.",
+            "Use graph_context to inspect affected claim paths before revising the verdict.",
+            "Use reviewer_packet for the deterministic claim-status review context.",
+        ],
+        "limitations": [
+            "Packet generation is deterministic and local; no live ingestion or model call is performed.",
+            "The canonical news_card is not mutated by this packet.",
+            "Synthetic demo fixtures are not real-world evidence.",
+        ],
+    }
+    packet_errors = validate_revision_packet(packet)
+    if packet_errors:
+        packet["validation_errors"] = packet_errors
+    return packet
+
+
+def validate_revision_packet(packet: dict[str, Any]) -> list[str]:
+    """Return validation errors for downstream revision packets."""
+    if not isinstance(packet, dict):
+        return ["revision packet must be an object"]
+
+    errors: list[str] = []
+    required = [
+        "packet_id",
+        "packet_version",
+        "packet_type",
+        "canonical_card_id",
+        "scenario_id",
+        "patch_id",
+        "revision_proposal",
+        "agent_instructions",
+        "reuse_guidance",
+        "limitations",
+    ]
+    for field in required:
+        if field not in packet:
+            errors.append(f"revision packet missing {field}")
+
+    _require_prefix(errors, "revision_packet.packet_id", packet.get("packet_id"), "revision_packet_")
+    if packet.get("packet_version") != "0.9":
+        errors.append("revision packet packet_version must be 0.9")
+    if packet.get("packet_type") != "sisyphus_revision_packet":
+        errors.append("revision packet packet_type must be sisyphus_revision_packet")
+    for field in ["canonical_card_id", "scenario_id", "patch_id"]:
+        if not packet.get(field):
+            errors.append(f"revision packet {field} is required")
+    for field in ["agent_instructions", "reuse_guidance", "limitations"]:
+        if not isinstance(packet.get(field), list):
+            errors.append(f"revision packet {field} must be a list")
+
+    proposal = packet.get("revision_proposal")
+    errors.extend(f"revision_proposal: {error}" for error in validate_revision_proposal(proposal))
+    return errors
+
+
 def validate_news_card(news_card: dict[str, Any]) -> list[str]:
     """Return schema-like validation errors for the canonical news_card object."""
     required = [
@@ -2642,6 +3190,8 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     graph_packet = export_agent_graph_packet(news_card, focus_ref_id=focus_claim_id)
     reviewer_packet = export_reviewer_packet(news_card, "next_agent_handoff", focus_ref_id=focus_claim_id)
     scenario_authoring_packet = export_scenario_authoring_packet(load_scenario_authoring_template())
+    evidence_patch = get_evidence_patch_for_scenario(load_evidence_patches(), str(news_card.get("scenario_id", "")))
+    revision_packet = export_revision_packet(news_card, evidence_patch) if evidence_patch else None
     paths = {
         "news_card": output_path / "sisyphus_news_card.json",
         "records_jsonl": output_path / "sisyphus_records.jsonl",
@@ -2649,6 +3199,7 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
         "graph_packet": output_path / "sisyphus_graph_packet.json",
         "reviewer_packet": output_path / "sisyphus_reviewer_packet.json",
         "scenario_authoring_packet": output_path / "sisyphus_scenario_authoring_packet.json",
+        "revision_packet": output_path / "sisyphus_revision_packet.json",
     }
     paths["news_card"].write_text(json.dumps(news_card, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["records_jsonl"].write_text(to_jsonl([news_card, packet]) + "\n", encoding="utf-8")
@@ -2657,6 +3208,10 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     paths["reviewer_packet"].write_text(json.dumps(reviewer_packet, indent=2, ensure_ascii=False), encoding="utf-8")
     paths["scenario_authoring_packet"].write_text(
         json.dumps(scenario_authoring_packet, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    paths["revision_packet"].write_text(
+        json.dumps(revision_packet or {}, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
     return paths
@@ -3279,6 +3834,153 @@ def render_reviewer_presets_html(news_card: dict[str, Any]) -> str:
           <h4>Preset Summaries</h4>
           <div class="graph-path-list">{''.join(packet_cards)}</div>
         </section>
+        """,
+    )
+
+
+def render_revision_proposal_html(news_card: dict[str, Any], patch: dict[str, Any] | None) -> str:
+    """Render a compact evidence update simulation and revision packet preview."""
+    if patch is None:
+        return _wrap_html(
+            "revision-proposal",
+            """
+            <h3>Evidence Update Simulation</h3>
+            <p class="muted">No evidence patch is available for the selected scenario.</p>
+            """,
+        )
+
+    patch_errors = validate_evidence_patch(patch, news_card)
+    proposal = build_revision_proposal(news_card, patch)
+    proposal_errors = validate_revision_proposal(proposal, news_card)
+    packet = export_revision_packet(news_card, patch)
+    packet_errors = validate_revision_packet(packet)
+    source = patch.get("new_source_record", {}) if isinstance(patch.get("new_source_record"), dict) else {}
+    claim_text_by_id = {
+        claim.get("claim_id"): claim.get("claim_text", "")
+        for claim in _as_list(news_card.get("actor_claims"))
+        if isinstance(claim, dict)
+    }
+
+    affected_claim_rows = "".join(
+        f"""
+        <tr>
+          <td><code>{escape(str(claim_id))}</code></td>
+          <td>{escape(str(claim_text_by_id.get(claim_id, '')))}</td>
+        </tr>
+        """
+        for claim_id in _as_list(proposal.get("affected_claim_ids"))
+    ) or "<tr><td colspan='2' class='muted'>No affected claims listed.</td></tr>"
+
+    status_rows = "".join(
+        f"""
+        <tr>
+          <td><code>{escape(str(item.get('claim_id', '')))}</code></td>
+          <td>{escape(str(item.get('current_status', '')))}</td>
+          <td>{escape(str(item.get('suggested_status', '')))}</td>
+          <td>{escape(str(item.get('reason', '')))}</td>
+        </tr>
+        """
+        for item in _as_list(proposal.get("claim_status_suggestions"))
+        if isinstance(item, dict)
+    ) or "<tr><td colspan='4' class='muted'>No claim status suggestions.</td></tr>"
+
+    drift_rows = "".join(
+        f"""
+        <article class="drift-item">
+          <div class="timeline-topline">
+            <span class="direction-badge">{escape(str(item.get('direction', 'review')))}</span>
+            <code>{escape(str(item.get('target_claim_id', '')))}</code>
+          </div>
+          <p><strong>Status:</strong> {escape(str(item.get('from_status', '')))} -&gt; {escape(str(item.get('to_status', '')))}</p>
+          <p>{escape(str(item.get('drift_summary', '')))}</p>
+        </article>
+        """
+        for item in _as_list(proposal.get("claim_drift_suggestions"))
+        if isinstance(item, dict)
+    )
+
+    timeline = proposal.get("timeline_event_suggestion", {})
+    questions = "".join(
+        f"<li>{escape(str(question))}</li>"
+        for question in _as_list(proposal.get("reviewer_questions"))
+    )
+    checks = "".join(
+        f"<li>{escape(str(check))}</li>"
+        for check in _as_list(proposal.get("recommended_next_checks"))
+    )
+    error_rows = "".join(
+        f"<li>{escape(str(error))}</li>"
+        for error in [*patch_errors, *proposal_errors, *packet_errors]
+    )
+    validation_block = (
+        f"<section><h4>Validation issues</h4><ul>{error_rows}</ul></section>"
+        if error_rows
+        else "<p class='muted'>Patch, proposal, and packet validation pass for this deterministic fixture.</p>"
+    )
+
+    return _wrap_html(
+        "revision-proposal",
+        f"""
+        <h3>Evidence Update Simulation</h3>
+        <p class="warning-note">The patch is reviewable evidence context. It does not mutate the canonical card, source IDs, timeline, drift entries, graph, or verdict.</p>
+        <div class="summary-grid">
+          <div class="summary-card ok"><span>Patch</span><strong>{escape(str(patch.get('patch_type', 'patch')))}</strong></div>
+          <div class="summary-card ok"><span>Source</span><strong>{escape(str(source.get('source_type', 'source')))}</strong></div>
+          <div class="summary-card ok"><span>Effect</span><strong>{escape(str(proposal.get('proposed_verdict_effect', 'review')))}</strong></div>
+          <div class="summary-card ok"><span>Packet</span><strong>0.9</strong></div>
+        </div>
+        <section>
+          <h4>{escape(str(patch.get('patch_title', 'Evidence patch')))}</h4>
+          <p>{escape(str(patch.get('new_evidence_summary', '')))}</p>
+          <p class="muted">Patch source: <code>{escape(str(proposal.get('new_source_id', '')))}</code></p>
+        </section>
+        <section>
+          <h4>Affected Claims</h4>
+          <table>
+            <thead><tr><th>Claim ID</th><th>Claim text</th></tr></thead>
+            <tbody>{affected_claim_rows}</tbody>
+          </table>
+        </section>
+        <section>
+          <h4>Claim Status Suggestions</h4>
+          <table>
+            <thead><tr><th>Claim</th><th>Current</th><th>Suggested</th><th>Reason</th></tr></thead>
+            <tbody>{status_rows}</tbody>
+          </table>
+        </section>
+        <div class="grid two">
+          <section>
+            <h4>Timeline Suggestion</h4>
+            <article class="timeline-item">
+              <div class="timeline-topline">
+                <span class="version-pill">{escape(str(timeline.get('version_label', 'proposed_next')))}</span>
+                <span class="muted">{escape(str(timeline.get('date', '')))}</span>
+                <span class="mini">trigger: {escape(str(timeline.get('trigger', '')))}</span>
+              </div>
+              <p>{escape(str(timeline.get('summary', '')))}</p>
+              <p><strong>Judgment:</strong> {escape(str(timeline.get('judgment_at_version', '')))}</p>
+            </article>
+          </section>
+          <section>
+            <h4>Claim Drift Suggestions</h4>
+            <div class="drift-list">{drift_rows}</div>
+          </section>
+        </div>
+        <div class="grid two">
+          <section>
+            <h4>Reviewer Questions</h4>
+            <ul>{questions}</ul>
+          </section>
+          <section>
+            <h4>Recommended Next Checks</h4>
+            <ol>{checks}</ol>
+          </section>
+        </div>
+        {validation_block}
+        <details>
+          <summary>Revision packet JSON</summary>
+          <pre>{escape(json.dumps(packet, indent=2, ensure_ascii=False))}</pre>
+        </details>
         """,
     )
 
