@@ -800,6 +800,88 @@
       },
       "additionalProperties": true
     },
+    "agent_workflow_trace": {
+      "type": "object",
+      "required": [
+        "trace_id",
+        "trace_version",
+        "trace_type",
+        "card_id",
+        "scenario_id",
+        "mode",
+        "steps",
+        "output_counts",
+        "artifact_outputs",
+        "agentic_summary",
+        "non_goals",
+        "limitations"
+      ],
+      "properties": {
+        "trace_id": { "type": "string", "pattern": "^agent_workflow_trace_" },
+        "trace_version": { "const": "1.1" },
+        "trace_type": { "const": "sisyphus_agent_workflow_trace" },
+        "card_id": { "type": "string", "pattern": "^news_" },
+        "scenario_id": { "type": "string" },
+        "scenario_name": { "type": "string" },
+        "mode": { "type": "string" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["step_id", "label", "status", "summary"],
+            "properties": {
+              "step_id": { "type": "string", "pattern": "^step_" },
+              "label": { "type": "string" },
+              "status": { "type": "string", "enum": ["PASS", "WARN", "SKIPPED", "FAIL"] },
+              "input_refs": { "type": "array", "items": { "type": "string" } },
+              "output_refs": { "type": "array", "items": { "type": "string" } },
+              "summary": { "type": "string" },
+              "agentic_role": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "output_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "artifact_outputs": { "type": "array", "items": { "type": "object" } },
+        "agentic_summary": { "type": "string" },
+        "non_goals": { "type": "array", "items": { "type": "string" } },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "run_summary": {
+      "type": "object",
+      "required": [
+        "run_summary_id",
+        "summary_version",
+        "card_id",
+        "scenario_id",
+        "headline",
+        "what_the_agent_did",
+        "why_it_is_agentic",
+        "key_outputs",
+        "exported_artifacts",
+        "quality_status"
+      ],
+      "properties": {
+        "run_summary_id": { "type": "string", "pattern": "^run_summary_" },
+        "summary_version": { "const": "1.1" },
+        "card_id": { "type": "string", "pattern": "^news_" },
+        "scenario_id": { "type": "string" },
+        "headline": { "type": "string" },
+        "what_the_agent_did": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "why_it_is_agentic": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "key_outputs": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "exported_artifacts": { "type": "array", "items": { "type": "object" } },
+        "quality_status": { "type": "string", "enum": ["PASS", "WARN", "FAIL"] },
+        "quality_check_count": { "type": "integer", "minimum": 0 },
+        "revision_available": { "type": "boolean" },
+        "comparison_available": { "type": "boolean" },
+        "next_review_actions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
     "editorial_verdict": {
       "type": "object",
       "required": ["verdict_id", "short_label", "verdict_text", "confidence", "reader_warnings"],
@@ -974,6 +1056,8 @@
     { "$ref": "#/$defs/revision_proposal" },
     { "$ref": "#/$defs/revision_packet" },
     { "$ref": "#/$defs/revision_comparison" },
+    { "$ref": "#/$defs/agent_workflow_trace" },
+    { "$ref": "#/$defs/run_summary" },
     { "$ref": "#/$defs/record_set" }
   ]
 }

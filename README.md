@@ -71,6 +71,7 @@ schemas/sisyphus_schema.json
 examples/sisyphus_watch_records.jsonl
 examples/city_heatwave_demo.md
 examples/evidence_update_demo.md
+examples/agent_workflow_trace_demo.md
 ```
 
 ## Run Locally
@@ -126,7 +127,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, evidence update simulation, revision comparison view, scenario authoring preview, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
+The first screen explains the problem, the workflow, and the default synthetic scenario. The notebook then renders the agent workflow trace, run summary, human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, evidence update simulation, revision comparison view, scenario authoring preview, branch view, JSON export, JSONL preview, agent packet preview, and PASS/FAIL evaluation table.
 
 To switch scenarios in the notebook, change:
 
@@ -257,6 +258,16 @@ Revision comparisons make evidence-update proposals easier to review by showing 
 
 Comparison objects summarize affected claims, proposed effects, verdict impact, timeline and drift suggestions, unchanged context, reviewer questions, and recommended next checks. They do not mutate canonical cards, add patch sources to `source_ids`, or change existing packet versions.
 
+## Agent Workflow Trace v1.1
+
+The notebook includes a deterministic Agent Workflow Trace near the top so reviewers can see what the agent did before reading detailed sections:
+
+- `build_agent_workflow_trace()` records what the deterministic agent read, extracted, structured, reviewed, revised, and exported.
+- `build_run_summary()` creates a compact reviewer-facing summary with key outputs, quality status, and next review actions.
+- `render_agent_workflow_trace_html()` renders the trace, run summary, output counts, step table, and exported artifacts in the notebook.
+
+The trace is a visibility layer over existing deterministic helpers. It does not require live ingestion, a database, an external API, or a model call.
+
 ## Schema
 
 `schemas/sisyphus_schema.json` documents the record shapes for:
@@ -285,6 +296,8 @@ Comparison objects summarize affected claims, proposed effects, verdict impact, 
 - `revision_proposal`
 - `revision_packet`
 - `revision_comparison`
+- `agent_workflow_trace`
+- `run_summary`
 - `editorial_verdict`
 - `agent_packet`
 
