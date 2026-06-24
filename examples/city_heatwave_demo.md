@@ -18,14 +18,14 @@ This example is synthetic. It is not real news and does not describe a real city
 2. A community group later reported that several listed centers were closed, had limited hours, lacked signage, or were hard to reach.
 3. The city updated the list, clarified hours, removed unavailable locations, and added transport support, shifting the judgment toward a partially corrected implementation gap.
 
-## Fact Layer
+## Source-bound Findings
 
 - `fact_city_announces_50_cooling_centers_2026_06_10_001`: The fictional city announced that 50 cooling centers would be open during a severe heatwave.
 - `fact_community_reports_access_problems_2026_06_12_001`: A fictional community volunteer group reported access problems at some listed cooling centers.
 - `fact_city_updates_list_and_hours_2026_06_14_001`: The fictional city later updated the cooling center list and clarified opening hours.
 - `fact_city_adds_transport_support_2026_06_14_001`: The fictional city added free shuttle support for older residents and medically vulnerable residents in hardest-hit neighborhoods.
 
-## Actor Claim Layer
+## Claim History
 
 - `claim_city_all_centers_open_2026_06_10_001`: The city claimed residents could find safe, air-conditioned spaces across the city.
 - `claim_city_list_will_update_2026_06_10_001`: The city claimed the list would be updated as conditions changed.
@@ -38,13 +38,13 @@ This example is synthetic. It is not real news and does not describe a real city
 - `action_city_removes_unavailable_locations_2026_06_14_001`: Removed unavailable locations and corrected addresses for several facilities.
 - `action_city_adds_transport_support_2026_06_14_001`: Added free shuttle support for older and medically vulnerable residents.
 
-## Interpretation Branch
+## Interpretation Branches
 
 `interp_emergency_service_implementation_gap_2026_06_15_001`
 
 The case suggests an implementation gap between emergency-service public claims and real-world accessibility. The later update reduces concern about a simple bad-faith overclaim but increases the importance of versioned public communication during emergencies.
 
-## Counter-Branch
+## Competing / Cautionary Branch
 
 `counter_fast_changing_conditions_2026_06_15_001`
 
@@ -58,7 +58,7 @@ The initial gap may reflect fast-changing emergency conditions, staffing constra
 
 This is labeled as metaphor and opinion, not evidence.
 
-## Version Diff
+## Sisyphus Judgment Diff
 
 **Previous judgment:** The announcement sounded adequate based on the city's initial statement, but real-world accessibility was unknown.
 
@@ -87,7 +87,7 @@ This is labeled as metaphor and opinion, not evidence.
 
 **Primary path:** `src_community_cooling_center_access_report_2026_06_12` -> `claim_community_access_gap_2026_06_12_001` -> `diff_city_heatwave_v00_to_v01_2026_06_15` -> `verdict_city_heatwave_cooling_centers_2026_06_15_v01`
 
-**Node/edge summary:** 29 nodes and 46 edges connect sources, facts, actor claims, actions, interpretations, counter-branches, timeline events, claim drift entries, version diff, unresolved questions, and verdict.
+**Node/edge summary:** 29 nodes and 46 edges connect sources, source-bound findings, actor claims, actions, interpretation branches, timeline events, claim drift entries, version diff, unresolved questions, and current judgment.
 
 **Why this matters:** the card can be reused as a relation map instead of a set of independent lists, while still keeping every graph edge tied back to source-bound IDs.
 
@@ -113,10 +113,10 @@ This is labeled as metaphor and opinion, not evidence.
 
 ## Adding Another Scenario
 
-Use `examples/scenario_authoring_template.json` as the starting point for another synthetic public-claim scenario. Run the authoring checklist, generate a draft skeleton, then fill evidence-bound facts, claims, actions, interpretations, counter-branches, timeline events, and drift entries before promoting anything into deterministic demo records.
+Use `examples/scenario_authoring_template.json` as the starting point for another synthetic public-claim scenario. Run the authoring checklist, generate a draft skeleton, then fill source-bound findings, claims, actions, interpretation branches, timeline events, and drift entries before promoting anything into deterministic demo records.
 
 See `examples/school_air_quality_demo.md` for the first promoted authoring-workflow dogfood scenario.
 
-## Editorial Verdict
+## Current Source-bound Judgment
 
-This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect facts, counter-branches, and remaining uncertainties before accepting a stronger accusation.
+This case is best treated as a public-service communication and implementation-gap case. The city's initial claim was not fully reliable at street level, but the later correction weakens a simple bad-faith framing. Readers should inspect source-bound findings, counter-branches, and remaining uncertainties before accepting a stronger accusation.
