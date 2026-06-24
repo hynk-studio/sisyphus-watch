@@ -4,7 +4,7 @@ Selected scenario: `city_heatwave_cooling_centers`
 
 ## Compact Run Summary
 
-The deterministic agent reads four synthetic source fixtures, separates facts from actor claims and actions, builds timeline/drift/graph structure, exports review packets, then simulates a non-mutating evidence update.
+The deterministic agent reads four synthetic source fixtures, separates source-bound findings from actor claims and actions, builds epistemic layer, timeline/drift/graph structure, exports review packets, then simulates a non-mutating evidence update.
 
 ## Output Counts
 
@@ -23,20 +23,22 @@ The deterministic agent reads four synthetic source fixtures, separates facts fr
 2. Source hygiene check: treat source text as untrusted input.
 3. Fact extraction: keep facts source-bound.
 4. Actor claim extraction: keep public claims separate from facts.
-5. Claim graph build: connect sources, facts, claims, actions, timeline events, drift, and verdicts.
-6. Reviewer preset generation: create deterministic review queries.
-7. Evidence patch intake: load a synthetic follow-up audit without mutating the canonical card.
-8. Revision comparison generation: show current state vs proposed revision state.
+5. Epistemic layer separation: render findings, claims, interpretation branches, and current judgment as separate lanes.
+6. Claim graph build: connect sources, facts, claims, actions, timeline events, drift, and verdicts.
+7. Reviewer preset generation: create deterministic review queries.
+8. Evidence patch intake: load a synthetic follow-up audit without mutating the canonical card.
+9. Revision comparison generation: show current state vs proposed revision state.
 
 ## Reviewer Path
 
-Start with the Submission Summary and Agent Workflow Trace, then inspect the Human Card, Version Timeline, Claim Drift, Claim Graph, Reviewer Presets, Evidence Update Simulation, Revision Comparison View, and Evaluation. The Kaggle mid-check checklist confirms the deterministic reviewer path and expected `/kaggle/working` artifacts.
+Start with the Submission Summary, Reviewer Dashboard, Agent Workflow Trace, and Epistemic Layer Separation, then inspect the Human Card, Version Timeline, Claim Drift, Claim Graph, Reviewer Presets, Evidence Update Simulation, Revision Comparison View, and Evaluation. The Kaggle mid-check checklist confirms the deterministic reviewer path and expected `/kaggle/working` artifacts.
 
 ## Exported Artifacts
 
 - `sisyphus_news_card.json`
 - `sisyphus_records.jsonl`
 - `sisyphus_agent_packet.json`
+- `sisyphus_epistemic_layers.json`
 - `sisyphus_graph_packet.json`
 - `sisyphus_reviewer_packet.json`
 - `sisyphus_scenario_authoring_packet.json`
@@ -47,7 +49,7 @@ Start with the Submission Summary and Agent Workflow Trace, then inspect the Hum
 
 ## Why This Is More Than a Generic Summarizer
 
-This is more than a generic summarizer because the workflow preserves provenance, separates facts from claims and actions, tracks claim drift over versions, builds graph context, packages reviewer queries, and handles new evidence as a reviewable patch instead of rewriting the canonical card.
+This is more than a generic summarizer because the workflow preserves provenance, separates source-bound findings from claims, keeps interpretation branches distinct from current judgment, tracks claim status drift over versions, builds graph context, packages reviewer queries, and handles new evidence as a reviewable patch instead of rewriting the canonical card.
 
 ## Limitations
 

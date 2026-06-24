@@ -196,11 +196,150 @@
         "to_status": { "type": "string" },
         "direction": {
           "type": "string",
-          "enum": ["strengthened", "weakened", "narrowed", "corrected", "unresolved"]
+          "enum": [
+            "strengthened",
+            "weakened",
+            "narrowed",
+            "complicated",
+            "superseded",
+            "unsupported",
+            "corrected",
+            "unresolved"
+          ]
         },
         "driver_evidence_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "drift_summary": { "type": "string" },
         "current_handling": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "source_bound_finding_summary": {
+      "type": "object",
+      "required": ["finding_id", "summary"],
+      "properties": {
+        "finding_id": { "type": "string" },
+        "summary": { "type": "string" },
+        "source_ids": { "type": "array", "items": { "type": "string" } },
+        "evidence_ids": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "type": "string" },
+        "source_bound": { "type": "boolean" },
+        "derived_from": { "type": "string" },
+        "epistemic_role": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "claim_history_summary": {
+      "type": "object",
+      "required": ["claim_id", "claim_text"],
+      "properties": {
+        "claim_id": { "type": "string", "pattern": "^claim_" },
+        "actor": { "type": "string" },
+        "claim_text": { "type": "string" },
+        "claim_type": { "type": "string" },
+        "status": { "type": "string" },
+        "source_ids": { "type": "array", "items": { "type": "string" } },
+        "status_changes": { "type": "array", "items": { "type": "object" } },
+        "epistemic_role": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "interpretation_branch_summary": {
+      "type": "object",
+      "required": ["branch_id", "branch_type", "summary"],
+      "properties": {
+        "branch_id": { "type": "string" },
+        "branch_type": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "target_id": { "type": "string" },
+        "target_type": { "type": "string" },
+        "evidence_ids": { "type": "array", "items": { "type": "string" } },
+        "alternative_interpretations": { "type": "array", "items": { "type": "string" } },
+        "risk_notes": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "type": "string" },
+        "what_would_change_this": { "type": "string" },
+        "epistemic_role": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "source_bound_judgment_summary": {
+      "type": "object",
+      "required": ["current_synthesis", "source_bound", "revisable"],
+      "properties": {
+        "judgment_id": { "type": ["string", "null"] },
+        "short_label": { "type": ["string", "null"] },
+        "current_synthesis": { "type": "string" },
+        "confidence": { "type": ["string", "null"] },
+        "source_bound": { "type": "boolean" },
+        "revisable": { "type": "boolean" },
+        "version_diff_id": { "type": ["string", "null"] },
+        "previous_judgment": { "type": ["string", "null"] },
+        "updated_judgment": { "type": ["string", "null"] },
+        "new_evidence_ids": { "type": "array", "items": { "type": "string" } },
+        "unchanged_uncertainties": { "type": "array", "items": { "type": "string" } },
+        "reader_warnings": { "type": "array", "items": { "type": "string" } },
+        "epistemic_role": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "epistemic_layers": {
+      "type": "object",
+      "required": [
+        "epistemic_layers_version",
+        "card_id",
+        "scenario_id",
+        "source_bound_findings",
+        "claim_history",
+        "interpretation_branches",
+        "source_bound_judgment",
+        "layer_counts",
+        "separation_notes"
+      ],
+      "properties": {
+        "epistemic_layers_version": { "const": "1.5" },
+        "card_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "source_bound_findings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/source_bound_finding_summary" },
+          "minItems": 1
+        },
+        "claim_history": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/claim_history_summary" },
+          "minItems": 1
+        },
+        "interpretation_branches": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/interpretation_branch_summary" },
+          "minItems": 1
+        },
+        "source_bound_judgment": { "$ref": "#/$defs/source_bound_judgment_summary" },
+        "epistemic_timeline": { "type": "array", "items": { "type": "object" } },
+        "layer_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "separation_notes": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": true
+    },
+    "epistemic_layers_export": {
+      "type": "object",
+      "required": [
+        "record_type",
+        "epistemic_layers_version",
+        "card_id",
+        "scenario_id",
+        "epistemic_layers",
+        "agent_summary",
+        "validation_errors"
+      ],
+      "properties": {
+        "record_type": { "const": "sisyphus_epistemic_layers" },
+        "epistemic_layers_version": { "const": "1.5" },
+        "card_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "epistemic_layers": { "$ref": "#/$defs/epistemic_layers" },
+        "agent_summary": { "type": "object" },
+        "validation_errors": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": true
     },
@@ -1086,6 +1225,7 @@
     { "$ref": "#/$defs/agent_packet" },
     { "$ref": "#/$defs/graph_packet" },
     { "$ref": "#/$defs/reviewer_packet" },
+    { "$ref": "#/$defs/epistemic_layers_export" },
     { "$ref": "#/$defs/scenario_authoring_template" },
     { "$ref": "#/$defs/scenario_authoring_packet" },
     { "$ref": "#/$defs/evidence_patch" },

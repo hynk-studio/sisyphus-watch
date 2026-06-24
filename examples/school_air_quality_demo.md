@@ -31,7 +31,7 @@ The broad classroom safety claim weakened after room-level observations and the 
 
 `Fictional Unified School District` -> `v00` -> `v01_after_room_observations_and_corrected_update` -> `Air-quality communication gap with partial remediation`
 
-This path shows the initial district claim flowing through the version timeline and version diff into the editorial verdict.
+This path shows the initial district claim flowing through the version timeline and version diff into the current source-bound judgment.
 
 ## Reviewer Preset Example
 

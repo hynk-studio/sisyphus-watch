@@ -1,26 +1,26 @@
 # Sisyphus Watch
 
-**Kaggle-facing title:** Sisyphus Watch: Version Control for Public Claims
+**Kaggle-facing title:** Sisyphus Watch: Version Control and Epistemic Separation for Public Claims
 
-Sisyphus Watch is an AI-agent demo that turns public news-like sources into versioned claim cards. It separates facts, actor claims, actions, interpretations, counter-branches, bias notes, version timelines, claim drift, claim graphs, and version diffs so people and AI agents can reason beyond the news cycle.
+Sisyphus Watch is an AI-agent demo that turns public news-like sources into versioned claim cards. It separates source-bound findings, actor claims, interpretation branches, current source-bound judgment, actions, bias notes, version timelines, claim drift, claim graphs, and version diffs so people and AI agents can reason beyond the news cycle.
 
 This first build is a Kaggle Code-native vertical slice for the Kaggle 5-Day AI Agents Intensive Vibe Coding Course with Google. It is not a production news platform.
 
 ## What It Is
 
-Sisyphus Watch is claim-version-control for public reasoning. It takes messy public-interest source text and produces:
+Sisyphus Watch is claim-version-control and epistemic separation for public reasoning. It takes messy public-interest source text and produces:
 
 - source hygiene notes
-- cold, source-bound facts
-- actor claims separated from facts
+- cold, source-bound findings from the existing `facts` field
+- actor claims separated from findings
 - actions taken by actors
 - evidence-linked interpretations
 - counter-branches that keep alternatives visible
 - bias, opinion, and metaphor notes
 - version timelines that track public claims from initial statement to observation to correction or update
-- claim drift records that show whether specific claims were weakened, strengthened, narrowed, corrected, or remain unresolved
+- claim drift records that show whether the status of specific claims was strengthened, weakened, narrowed, complicated, superseded, unsupported, corrected, or left unresolved
 - claim_graph relation maps that connect sources, facts, claims, actions, interpretations, counter-branches, timeline events, drift entries, version diffs, unresolved questions, and verdicts
-- version diffs that show how judgment changes over time
+- version diffs that show how the current source-bound judgment changes over time
 - human-readable card rendering
 - agent-readable JSON and JSONL records
 
@@ -29,6 +29,12 @@ Sisyphus Watch is claim-version-control for public reasoning. It takes messy pub
 Sisyphus Watch is not a generic news summarizer. It does not decide truth automatically, perform independent verification, crawl the live web, rank content, or infer strategic intent without evidence.
 
 The default demo uses synthetic fixtures. They are realistic enough to show the workflow, but they are not real news and do not describe a real city or organization.
+
+## Epistemic Layer Separation
+
+Sisyphus Watch separates findings, claims, interpretation branches, and source-bound judgment. This prevents claims or interpretations from being silently promoted into facts.
+
+`claim_drift` tracks the changing epistemic status of claims, not general facts and not the judgment itself. `source_bound_judgment` is the current Sisyphus synthesis based on included sources; it is revisable, not final truth.
 
 ## Demo Scenarios
 
@@ -50,12 +56,12 @@ The demo shows the claim-version-control flow:
 
 ```text
 initial public claim
--> observed implementation gap
--> claim drift
+-> source-bound findings
+-> claim status drift
 -> claim graph relation map
--> counter-explanation
+-> competing interpretation branches
 -> updated action
--> revised judgment
+-> current source-bound judgment
 ```
 
 ## Files
@@ -72,6 +78,7 @@ examples/sisyphus_watch_records.jsonl
 examples/city_heatwave_demo.md
 examples/evidence_update_demo.md
 examples/agent_workflow_trace_demo.md
+examples/epistemic_layer_separation_demo.md
 ```
 
 ## Run Locally
@@ -84,6 +91,8 @@ python3 - <<'PY'
 import sys
 sys.path.insert(0, "src")
 from sisyphus_watch_demo import (
+    build_epistemic_layers,
+    validate_epistemic_layers,
     find_project_root,
     get_news_cards,
     load_demo_sources,
@@ -100,10 +109,12 @@ print(f"root={root}")
 print(f"sources={len(sources)}")
 for card in cards:
     checks = run_quality_checks(card)
+    layers = build_epistemic_layers(card)
     negative = run_negative_validation_self_test(card)
     packet = build_agent_packet(card)
     print(card["card_id"], checks, negative.keys(), packet["packet_version"])
     assert all(row["status"] == "PASS" for row in checks)
+    assert not validate_epistemic_layers(layers, card)
     assert packet["packet_version"] == "0.4"
 PY
 ```
@@ -127,7 +138,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first screen explains the submission summary, reviewer path, agent workflow, and default synthetic scenario. The notebook then renders the agent workflow trace, run summary, human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, scenario authoring preview, evidence update simulation, revision comparison view, branch view, JSON export, JSONL preview, agent packet preview, downloadable artifacts, PASS/FAIL evaluation table, and Kaggle mid-check checklist.
+The first screen explains the submission summary, reviewer path, epistemic layer separation, agent workflow, and default synthetic scenario. The notebook then renders the agent workflow trace, run summary, epistemic layer separation, human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, scenario authoring preview, evidence update simulation, revision comparison view, branch view, JSON export, JSONL preview, agent packet preview, downloadable artifacts, PASS/FAIL evaluation table, and Kaggle mid-check checklist.
 
 To switch scenarios in the notebook, change:
 
@@ -151,8 +162,8 @@ SCENARIO_ID = "school_air_quality_alert_communication"
 
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
 2. Run all cells with the default `SCENARIO_ID = "city_heatwave_cooling_centers"`.
-3. Read **Submission Summary** and **Agent Workflow Trace** first to understand the deterministic agent run.
-4. Inspect **Human Card View**, **Version Timeline**, **Claim Drift**, **Claim Graph**, **Reviewer Query Presets**, **Evidence Update Simulation**, and **Revision Comparison View**.
+3. Read **Submission Summary**, **Reviewer Dashboard**, and **Agent Workflow Trace** first to understand the deterministic agent run.
+4. Inspect **Epistemic Layer Separation**, **Human Card View**, **Version Timeline**, **Claim Drift**, **Claim Graph**, **Reviewer Query Presets**, **Evidence Update Simulation**, and **Revision Comparison View**.
 5. Check **Downloadable Export Artifacts**, **Evaluation**, and **Kaggle Mid-Check Checklist** before saving a Kaggle notebook version.
 
 Demo mode does not require an API key or network access.
@@ -173,6 +184,17 @@ It always works without secrets, network access, or optional model packages. Thi
 - `public_transit_delay_communication`
 - `school_air_quality_alert_communication`
 
+## Epistemic Layer Readout v1.5
+
+The v1.5 readout is derived from existing card fields and keeps card and packet versions unchanged:
+
+- `build_epistemic_layers()` maps `facts` to `source_bound_findings`, `actor_claims` to `claim_history`, `interpretations` and `counter_branches` to `interpretation_branches`, and `editorial_verdict` / `version_diff` to `source_bound_judgment`.
+- `render_epistemic_layers_html()` shows four reviewer lanes: Findings, Claims, Interpretation Branches, and Current Sisyphus Judgment.
+- `summarize_epistemic_layers_for_agent()` produces a compact agent-readable warning and counts.
+- `write_export_artifacts()` also writes `sisyphus_epistemic_layers.json`.
+
+No live ingestion, crawler, database, external API, or model call is added.
+
 ## Agent Packet v0.4
 
 `build_agent_packet()` now emits `packet_version: "0.4"` with reusable context for downstream agents:
@@ -181,6 +203,7 @@ It always works without secrets, network access, or optional model packages. Thi
 - compact version timeline and claim drift summaries
 - latest version label and current verdict ID
 - changed, weakened, strengthened, and unresolved claim ID buckets
+- claim-status drift vocabulary that distinguishes strengthened, weakened, narrowed, complicated, superseded, unsupported, corrected, and unresolved handling
 - stable fact, claim, and action IDs
 - unresolved questions
 - what to watch next
@@ -287,6 +310,12 @@ The trace is a visibility layer over existing deterministic helpers. It does not
 - `version_diff`
 - `version_event`
 - `claim_drift`
+- `source_bound_finding_summary`
+- `claim_history_summary`
+- `interpretation_branch_summary`
+- `source_bound_judgment_summary`
+- `epistemic_layers`
+- `epistemic_layers_export`
 - `graph_node`
 - `graph_edge`
 - `claim_graph`
