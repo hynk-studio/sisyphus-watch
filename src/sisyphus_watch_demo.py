@@ -4345,6 +4345,98 @@ def render_evaluation_summary_html(checks: list[dict[str, str]], news_card: dict
     )
 
 
+def render_reviewer_dashboard_html(news_card: dict[str, Any], patch: dict[str, Any] | None = None) -> str:
+    """Render a reviewer-first dashboard using existing workflow summary data."""
+    trace = build_agent_workflow_trace(news_card, patch)
+    run_summary = build_run_summary(news_card, patch)
+    midcheck = build_kaggle_midcheck_summary(news_card, patch)
+    counts = trace.get("output_counts", {})
+    artifacts = [
+        str(item.get("filename"))
+        for item in _as_list(trace.get("artifact_outputs"))
+        if isinstance(item, dict) and item.get("status") == "PASS" and item.get("filename")
+    ]
+    scenario_name = str(news_card.get("scenario_name") or news_card.get("title") or "Selected scenario")
+    scenario_id = str(news_card.get("scenario_id", "unknown_scenario"))
+    revision_available = "yes" if run_summary.get("revision_available") else "no"
+    comparison_available = "yes" if run_summary.get("comparison_available") else "no"
+    patch_title = str(patch.get("patch_title", "Evidence patch loaded")) if isinstance(patch, dict) else "No patch loaded"
+    quality_status = str(run_summary.get("quality_status", "review"))
+    overall_status = str(midcheck.get("overall_status", quality_status))
+    cards = [
+        (
+            "Scenario",
+            scenario_name,
+            f"Selected ID: {scenario_id}",
+        ),
+        (
+            "Agent workflow",
+            "Read -> extract -> structure -> review",
+            "Sources become facts, claims, actions, timeline, drift, graph, and packets.",
+        ),
+        (
+            "Structured outputs",
+            f"{counts.get('fact_count', 0)} facts / {counts.get('actor_claim_count', 0)} claims",
+            f"{counts.get('timeline_event_count', 0)} timeline events, {counts.get('claim_drift_count', 0)} drift entries, {counts.get('graph_node_count', 0)} graph nodes.",
+        ),
+        (
+            "Evidence update",
+            f"Revision: {revision_available}; comparison: {comparison_available}",
+            patch_title,
+        ),
+        (
+            "Exports",
+            f"{len(artifacts)} files",
+            "Human card, JSONL, agent, graph, reviewer, authoring, revision, trace, and run-summary artifacts.",
+        ),
+        (
+            "Status",
+            overall_status,
+            f"Quality checks: {quality_status}. Demo mode remains deterministic and API-key free.",
+        ),
+    ]
+    card_html = "".join(
+        f"""
+        <article class="dashboard-card">
+          <span>{escape(label)}</span>
+          <strong>{escape(value)}</strong>
+          <p>{escape(summary)}</p>
+        </article>
+        """
+        for label, value, summary in cards
+    )
+    artifact_preview = "".join(f"<li><code>{escape(name)}</code></li>" for name in artifacts[:6])
+    if len(artifacts) > 6:
+        artifact_preview += f"<li>{len(artifacts) - 6} more export file(s) are listed in Downloadable Export Artifacts.</li>"
+    review_path = "".join(
+        f"<li>{escape(item)}</li>"
+        for item in [
+            "Start with the Human Card for the current public-claim state.",
+            "Use Version Timeline and Claim Drift to see what changed.",
+            "Use Claim Graph and Reviewer Presets to inspect agent-readable review structure.",
+            "Use Evidence Update and Revision Comparison to review non-mutating proposed changes.",
+        ]
+    )
+    return _wrap_html(
+        "reviewer-dashboard",
+        f"""
+        <h3>Reviewer Dashboard</h3>
+        <p class="section-purpose">A first-glance map of the selected deterministic run before the detailed notebook sections.</p>
+        <div class="reviewer-dashboard-grid">{card_html}</div>
+        <div class="grid two">
+          <section>
+            <h4>Main generated artifacts</h4>
+            <ul>{artifact_preview}</ul>
+          </section>
+          <section>
+            <h4>Recommended reading order</h4>
+            <ol>{review_path}</ol>
+          </section>
+        </div>
+        """,
+    )
+
+
 def render_agent_workflow_trace_html(news_card: dict[str, Any], patch: dict[str, Any] | None = None) -> str:
     """Render the deterministic agent workflow trace and run summary."""
     exported = export_agent_workflow_trace(news_card, patch)
@@ -4405,6 +4497,7 @@ def render_agent_workflow_trace_html(news_card: dict[str, Any], patch: dict[str,
         "agent-workflow-trace",
         f"""
         <h3>Agent Workflow Trace</h3>
+        <p class="section-purpose">What the agent read, extracted, structured, reviewed, revised, and exported.</p>
         <p class="warning-note">{escape(str(trace.get('agentic_summary', '')))}</p>
         <div class="summary-grid">
           <div class="summary-card {quality_class}"><span>Quality</span><strong>{escape(str(run_summary.get('quality_status', 'review')))}</strong></div>
@@ -4429,20 +4522,22 @@ def render_agent_workflow_trace_html(news_card: dict[str, Any], patch: dict[str,
           <h4>Output Counts</h4>
           <div class="summary-grid">{count_rows}</div>
         </section>
-        <section>
-          <h4>Workflow Step Trace</h4>
+        <details class="metadata-details">
+          <summary>Workflow step table</summary>
           <table>
             <thead><tr><th>Step</th><th>Label</th><th>Status</th><th>Summary</th><th>Agentic role</th></tr></thead>
             <tbody>{step_rows}</tbody>
           </table>
-        </section>
+        </details>
         <div class="grid two">
           <section>
-            <h4>Export Artifacts</h4>
-            <table>
-              <thead><tr><th>Artifact</th><th>Status</th><th>Purpose</th></tr></thead>
-              <tbody>{artifact_rows}</tbody>
-            </table>
+            <details class="metadata-details">
+              <summary>Export artifact table</summary>
+              <table>
+                <thead><tr><th>Artifact</th><th>Status</th><th>Purpose</th></tr></thead>
+                <tbody>{artifact_rows}</tbody>
+              </table>
+            </details>
           </section>
           <section>
             <h4>Next Review Actions</h4>
@@ -5414,22 +5509,24 @@ def _wrap_html(class_name: str, body: str) -> str:
         grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
         gap: 18px;
         align-items: stretch;
-        background: linear-gradient(135deg, #0d2d28 0%, #18495d 62%, #8f6817 100%);
-        color: #f9fffb;
+        background: #ffffff;
+        color: #17211f;
+        border: 1px solid #cddbd5;
+        border-top: 5px solid #1d6b5a;
         border-radius: 8px;
         padding: 22px;
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14);
+        box-shadow: 0 2px 8px rgba(23, 33, 31, 0.08);
       }}
       .card-header {{
         display: block;
-        background: linear-gradient(135deg, #10342f 0%, #1d5368 100%);
+        background: #ffffff;
       }}
       .eyebrow {{
         text-transform: uppercase;
         letter-spacing: 0;
         font-size: 12px;
         font-weight: 800;
-        color: #dff3e8;
+        color: #1d6b5a;
         opacity: 1;
       }}
       .intro-panel h1, .card-header h2 {{
@@ -5437,19 +5534,19 @@ def _wrap_html(class_name: str, body: str) -> str:
         font-size: 34px;
         line-height: 1.12;
         letter-spacing: 0;
-        color: #ffffff;
-        text-shadow: 0 1px 1px rgba(0,0,0,0.26);
+        color: #10231f;
+        text-shadow: none;
       }}
       .lede {{
-        color: #f1fbf6;
+        color: #253b36;
         font-size: 19px;
         font-weight: 650;
         line-height: 1.42;
         margin: 0 0 16px;
       }}
       .comparison-card {{
-        border: 1px solid rgba(255,255,255,0.42);
-        background: rgba(8,22,24,0.52);
+        border: 1px solid #cddbd5;
+        background: #f7fbf8;
         border-radius: 8px;
         padding: 15px;
       }}
@@ -5457,18 +5554,18 @@ def _wrap_html(class_name: str, body: str) -> str:
         padding: 11px 0;
       }}
       .comparison-block + .comparison-block {{
-        border-top: 1px solid rgba(255,255,255,0.34);
+        border-top: 1px solid #d8e5df;
       }}
       .comparison-block span {{
         display: block;
-        color: #f8d978;
+        color: #1d6b5a;
         font-size: 12px;
         font-weight: 800;
         opacity: 1;
         text-transform: uppercase;
       }}
       .comparison-block p {{
-        color: #ffffff;
+        color: #17211f;
         font-size: 15px;
         line-height: 1.45;
         margin: 6px 0 0;
@@ -5507,8 +5604,8 @@ def _wrap_html(class_name: str, body: str) -> str:
         background: #eefaf4;
       }}
       .card-header .badge {{
-        border-color: rgba(255,255,255,0.62);
-        background: rgba(255,255,255,0.94);
+        border-color: #b7d8cd;
+        background: #eefaf4;
       }}
       .mini {{
         border-color: #d1ded8;
@@ -5534,11 +5631,17 @@ def _wrap_html(class_name: str, body: str) -> str:
         border: 1px solid #d7a622;
       }}
       .warning-note {{
+        border: 1px solid #ecd28c;
         border-left: 4px solid #b88411;
-        background: #fff5d6;
+        background: #fff8e3;
         border-radius: 6px;
         padding: 11px 13px;
         color: #382f18;
+      }}
+      .section-purpose {{
+        margin: -4px 0 14px;
+        color: #384b46;
+        font-size: 15px;
       }}
       section {{
         margin-top: 18px;
@@ -5689,6 +5792,48 @@ def _wrap_html(class_name: str, body: str) -> str:
       .summary-card.warn strong {{
         color: #8a1d27;
       }}
+      .reviewer-dashboard-grid {{
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }}
+      .dashboard-card, .reviewer-step {{
+        border: 1px solid #cedbd5;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 14px;
+        box-shadow: 0 1px 3px rgba(23, 33, 31, 0.05);
+      }}
+      .dashboard-card span, .reviewer-step span {{
+        display: block;
+        color: #435650;
+        font-size: 12px;
+        font-weight: 850;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+      }}
+      .dashboard-card strong {{
+        color: #10231f;
+        display: block;
+        font-size: 18px;
+        line-height: 1.25;
+        margin-bottom: 6px;
+      }}
+      .dashboard-card p, .reviewer-step p {{
+        margin: 0;
+      }}
+      .reviewer-step-grid {{
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }}
+      .reviewer-step strong {{
+        color: #1d6b5a;
+        display: block;
+        font-size: 16px;
+        line-height: 1.25;
+        margin-bottom: 6px;
+      }}
       .branch-row {{
         display: grid;
         grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
@@ -5759,7 +5904,7 @@ def _wrap_html(class_name: str, body: str) -> str:
         margin: 10px 0;
       }}
       @media (max-width: 780px) {{
-        .intro-panel, .card-header, .grid.two, .branch-row, .summary-grid, .graph-metrics {{
+        .intro-panel, .card-header, .grid.two, .branch-row, .summary-grid, .graph-metrics, .reviewer-dashboard-grid, .reviewer-step-grid {{
           grid-template-columns: 1fr;
         }}
         .arrow {{
