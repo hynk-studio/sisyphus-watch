@@ -30,6 +30,86 @@ Sisyphus Watch is not a generic news summarizer. It does not decide truth automa
 
 The default demo uses synthetic fixtures. They are realistic enough to show the workflow, but they are not real news and do not describe a real city or organization.
 
+## Course Concepts Demonstrated
+
+Sisyphus Watch explicitly demonstrates these Kaggle Agents capstone concepts:
+
+- **Agent / Multi-agent system / ADK - Code:** `src/sisyphus_watch_adk_demo.py` models the workflow as DiscoveryAgent, EpistemicSeparationAgent, RevisionHandoffAgent, and SisyphusOrchestratorAgent. It detects Google ADK when available and otherwise runs the same deterministic fallback sequence.
+- **MCP Server - Code:** `src/sisyphus_watch_mcp_server.py` exposes deterministic Sisyphus cards, agent packets, claim graphs, guided flows, and security notes as MCP-style tools/resources, with a fallback manifest when `mcp` is not installed.
+- **Security features - Code / Notebook:** API-key resolution is explicit and optional, source text is treated as untrusted input, generated image prompts are not evidence, live paths validate/fallback, and optional Google AI discovery candidates cannot mutate the canonical card in the default path.
+- **Deployability - README / Notebook / Video:** The notebook runs deterministically in Kaggle with attached `data/`, `src/`, `schemas/`, and `examples/` folders, exports artifacts to `/kaggle/working`, and can be shown from the public GitHub repo if no live endpoint is deployed.
+
+## Agent / ADK-Style Architecture
+
+`src/sisyphus_watch_adk_demo.py` demonstrates a small orchestrated agent system:
+
+- **DiscoveryAgent:** loads deterministic fixture discovery, or can represent an optional Google AI discovery packet when that path is enabled elsewhere.
+- **EpistemicSeparationAgent:** summarizes source-bound findings, actor claims, actions, interpretations, counter-branches, and current source-bound judgment.
+- **RevisionHandoffAgent:** packages claim graph context, evidence patch context, and reviewer/agent handoff artifacts.
+- **SisyphusOrchestratorAgent:** runs the sequence and returns a structured trace with steps, output counts, security notes, deployability notes, and reusable artifacts.
+
+Google ADK is optional. If ADK is unavailable, the module still runs a deterministic fallback orchestrator with the same conceptual steps. The default execution requires no API key, no network, and no external service.
+
+## MCP Server Demo
+
+`src/sisyphus_watch_mcp_server.py` exposes deterministic artifacts for downstream AI agents. When the optional `mcp` package is installed, it registers a FastMCP server named **Sisyphus Watch** using local stdio transport by default. When `mcp` is unavailable, importing the module still works and direct execution prints a JSON capability manifest.
+
+MCP-style tools:
+
+- `list_sisyphus_scenarios()`
+- `get_sisyphus_card()`
+- `get_sisyphus_agent_packet()`
+- `get_sisyphus_claim_graph()`
+- `get_sisyphus_guided_flow()`
+- `get_sisyphus_security_notes()`
+
+MCP resources when FastMCP is available:
+
+- `sisyphus://scenarios`
+- `sisyphus://scenario/{scenario_id}/card`
+- `sisyphus://scenario/{scenario_id}/agent-packet`
+- `sisyphus://scenario/{scenario_id}/claim-graph`
+
+Run the local MCP demo:
+
+```bash
+python3 src/sisyphus_watch_mcp_server.py
+```
+
+If FastMCP is installed, the command runs the server over stdio by default. If FastMCP is absent, it prints the manifest and exits successfully. It does not start network listeners or require API keys by default.
+
+## Security Features
+
+The demo keeps secrets and evidence boundaries explicit:
+
+- `resolve_google_api_key()` checks an explicit `api_key` argument, then Kaggle Notebook Secrets with `UserSecretsClient().get_secret("GOOGLE_API_KEY")`, then `os.environ.get("GOOGLE_API_KEY")`.
+- API keys are never printed, logged, exported, or stored.
+- Source text is treated as untrusted input and never as instructions.
+- Generated image prompts are visual summaries, not evidence.
+- Google AI discovery candidates are review inputs, not canonical evidence.
+- Default canonical card mutation is disabled; deterministic cards come from `data/precomputed_records.json`.
+- Optional live paths fall back safely on missing key, missing SDK, API failure, parse failure, validation failure, or schema failure.
+
+## Deployability and Reproducibility
+
+Default Kaggle execution remains deterministic, no-key, and no-network. Attach these folders as Kaggle dataset/input folders:
+
+- `data/`
+- `src/`
+- `schemas/`
+- `examples/`
+
+Optional Google AI discovery can use `GOOGLE_API_KEY` from Kaggle Notebook Secrets, but `RUN_GOOGLE_DISCOVERY = False` and `RUN_LIVE_MODE = False` remain the default reviewer path.
+
+Local smoke commands:
+
+```bash
+python3 -m py_compile src/sisyphus_watch_demo.py src/sisyphus_watch_adk_demo.py src/sisyphus_watch_mcp_server.py
+python3 scripts/smoke_course_concepts.py
+```
+
+On Kaggle, export artifacts are written to `/kaggle/working`. If no live endpoint is deployed, the public GitHub repository can serve as the project link and the notebook can serve as the runnable deployment artifact.
+
 ## Epistemic Layer Separation
 
 Sisyphus Watch separates findings, claims, interpretation branches, and source-bound judgment. This prevents claims or interpretations from being silently promoted into facts.
@@ -70,6 +150,8 @@ initial public claim
 README.md
 notebooks/sisyphus_watch_kaggle_demo.ipynb
 src/sisyphus_watch_demo.py
+src/sisyphus_watch_adk_demo.py
+src/sisyphus_watch_mcp_server.py
 data/demo_sources.json
 data/precomputed_records.json
 data/evidence_patches.json
@@ -79,6 +161,7 @@ examples/city_heatwave_demo.md
 examples/evidence_update_demo.md
 examples/agent_workflow_trace_demo.md
 examples/epistemic_layer_separation_demo.md
+scripts/smoke_course_concepts.py
 ```
 
 ## Run Locally
