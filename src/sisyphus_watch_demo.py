@@ -313,6 +313,78 @@ def _clip_text(value: Any, limit: int = 240) -> str:
     return text[: max(0, limit - 3)].rstrip() + "..."
 
 
+def _wrap_table_html(table_html: str) -> str:
+    """Wrap rendered tables so notebook outputs can scroll horizontally."""
+    return f"<div class=\"sisyphus-table-wrap\">{table_html}</div>"
+
+
+def _status_badge(label: Any, ok: bool | None = None) -> str:
+    value = str(label)
+    if ok is None:
+        status_class = "warn" if value.upper() in {"WARN", "WARNING"} else "pass"
+    else:
+        status_class = "pass" if ok else "warn"
+    return f"<span class=\"status {status_class}\">{escape(value)}</span>"
+
+
+def _render_badges(items: list[Any]) -> str:
+    badges: list[str] = []
+    for item in items:
+        if isinstance(item, tuple):
+            label = str(item[0])
+            variant = str(item[1]) if len(item) > 1 else ""
+        else:
+            label = str(item)
+            variant = ""
+        variant_class = f" {escape(variant)}" if variant else ""
+        badges.append(f"<span class=\"badge{variant_class}\">{escape(label)}</span>")
+    return f"<div class=\"badge-row\">{''.join(badges)}</div>" if badges else ""
+
+
+def _render_key_value_rows(rows: list[tuple[Any, Any, bool | None]]) -> str:
+    rendered = []
+    for label, value, ok in rows:
+        rendered.append(
+            f"""
+            <div class="kv-row">
+              <span>{escape(str(label))}</span>
+              <strong>{escape(str(value))}</strong>
+              {_status_badge("PASS" if ok else "WARN", ok) if ok is not None else ""}
+            </div>
+            """
+        )
+    return f"<div class=\"kv-list\">{''.join(rendered)}</div>"
+
+
+def _render_feature_row(
+    title: Any,
+    summary: Any,
+    badge: str | None = None,
+    details_html: str | None = None,
+    number: int | None = None,
+) -> str:
+    badge_html = _status_badge(badge, badge.upper() != "WARN") if badge else ""
+    marker = f"<span class=\"feature-number\">{number}</span>" if number is not None else ""
+    details = (
+        f"<details class=\"id-details\"><summary>Details</summary>{details_html}</details>"
+        if details_html
+        else ""
+    )
+    return f"""
+    <article class="feature-row">
+      {marker}
+      <div class="feature-copy">
+        <div class="feature-heading">
+          <strong>{escape(str(title))}</strong>
+          {badge_html}
+        </div>
+        <p>{escape(str(summary))}</p>
+        {details}
+      </div>
+    </article>
+    """
+
+
 def _graph_date_slug(news_card: dict[str, Any]) -> str:
     created_at = str(news_card.get("created_at", ""))
     if len(created_at) >= 10:
@@ -2531,22 +2603,31 @@ def render_user_problem_card_html(problem_packet: dict[str, Any]) -> str:
     """Render the guided demo's initial user problem."""
     rules = "".join(f"<li>{escape(str(rule))}</li>" for rule in _as_list(problem_packet.get("source_hygiene_rules")))
     flow = "".join(f"<li>{escape(str(step))}</li>" for step in _as_list(problem_packet.get("expected_review_flow")))
+    problem_text = str(problem_packet.get("problem_text", ""))
+    problem_preview = _clip_text(problem_text, 180)
+    mode = str(problem_packet.get("mode", "deterministic_fixture_discovery"))
+    problem_details = (
+        f"<details class=\"id-details\"><summary>Full user problem</summary><p>{escape(problem_text)}</p></details>"
+        if problem_text and problem_text != problem_preview
+        else ""
+    )
     return _wrap_html(
         "user-problem-card",
         f"""
         <h3>User Problem</h3>
-        <p class="section-purpose">The notebook starts from a public-interest question, then separates candidate-source discovery from canonical Sisyphus card processing.</p>
-        <div class="summary-grid">
-          <div class="summary-card ok"><span>Scenario</span><strong>{escape(str(problem_packet.get('scenario_id', 'scenario')))}</strong></div>
-          <div class="summary-card ok"><span>Mode</span><strong>{escape(str(problem_packet.get('mode', 'demo')))}</strong></div>
-          <div class="summary-card ok"><span>Packet</span><strong>{escape(str(problem_packet.get('record_type', 'user_problem_packet')))}</strong></div>
-          <div class="summary-card ok"><span>Goal</span><strong>Versioned claims</strong></div>
-        </div>
+        <p class="section-purpose">A public-interest question becomes a bounded review task before any source text reaches the canonical card.</p>
+        {_render_key_value_rows([
+            ("Scenario", problem_packet.get("scenario_id", "scenario"), True),
+            ("Mode", mode, True),
+            ("Packet", problem_packet.get("record_type", "user_problem_packet"), True),
+            ("Goal", "versioned claims", True),
+        ])}
         <section>
           <h4>Question Asked</h4>
-          <p class="warning-note">{escape(str(problem_packet.get('problem_text', '')))}</p>
+          <p class="callout">{escape(problem_preview)}</p>
+          {problem_details}
         </section>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Source Hygiene Rules</h4>
             <ul>{rules}</ul>
@@ -2705,19 +2786,28 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
         if not isinstance(candidate, dict):
             continue
         url = str(candidate.get("url") or "")
-        url_html = f"<a href=\"{escape(url)}\">source</a>" if url else "<span class='muted'>fixture/no URL</span>"
+        url_html = f"<a href=\"{escape(url)}\">open source</a>" if url else "<span class='muted'>fixture/no URL</span>"
+        source_id = str(candidate.get("source_id", "candidate"))
+        title = _clip_text(candidate.get("title", ""), 90)
+        source_type = str(candidate.get("source_type", "source"))
+        published_at = str(candidate.get("published_at", ""))
+        snippet = _clip_text(candidate.get("snippet") or candidate.get("summary") or "", 160)
+        why_selected = _clip_text(candidate.get("why_selected", ""), 120)
+        trust_note = _clip_text(candidate.get("trust_or_limit_note", ""), 120)
         candidate_rows.append(
             f"""
-            <tr>
-              <td><code>{escape(str(candidate.get('source_id', '')))}</code></td>
-              <td>{escape(str(candidate.get('title', '')))}</td>
-              <td>{escape(str(candidate.get('source_type', '')))}</td>
-              <td>{escape(str(candidate.get('published_at', '')))}</td>
-              <td>{escape(_clip_text(candidate.get('snippet') or candidate.get('summary') or '', 180))}</td>
-              <td>{escape(_clip_text(candidate.get('why_selected', ''), 140))}</td>
-              <td>{escape(_clip_text(candidate.get('trust_or_limit_note', ''), 140))}</td>
-              <td>{url_html}</td>
-            </tr>
+            <article class="source-row">
+              <div class="source-topline">
+                <code>{escape(source_id)}</code>
+                <span class="mini">{escape(source_type)}</span>
+                <span class="mini">{escape(published_at or "undated")}</span>
+              </div>
+              <h4>{escape(title)}</h4>
+              <p>{escape(snippet)}</p>
+              <p class="muted"><strong>Why selected:</strong> {escape(why_selected)}</p>
+              <p class="muted"><strong>Trust / limit:</strong> {escape(trust_note)}</p>
+              <p>{url_html}</p>
+            </article>
             """
         )
     coverage_limits = "".join(f"<li>{escape(str(item))}</li>" for item in _as_list(discovery_packet.get("coverage_limits")))
@@ -2730,7 +2820,11 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
         f"<li>{escape(str(item))}</li>" for item in _as_list(discovery_packet.get("credential_lookup_order"))
     )
     fallback = str(discovery_packet.get("fallback_reason") or "")
-    fallback_block = f"<p class='warning-note'><strong>Fallback:</strong> {escape(fallback)}</p>" if fallback else ""
+    fallback_block = (
+        f"<details class='id-details'><summary>Fallback reason</summary><p>{escape(fallback)}</p></details>"
+        if fallback
+        else ""
+    )
     validation_block = (
         "<section><h4>Discovery Packet Validation Issues</h4><ul>"
         + "".join(f"<li>{escape(error)}</li>" for error in errors)
@@ -2742,28 +2836,29 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
         "discovery-packet",
         f"""
         <h3>Discovery Packet</h3>
-        <p class="section-purpose">Deterministic fixture discovery is the default. Optional Google AI discovery is a reviewer-facing candidate panel; candidates are review inputs, not canonical evidence or card mutations.</p>
-        <div class="summary-grid">
-          <div class="summary-card ok"><span>Mode</span><strong>{escape(mode)}</strong></div>
-          <div class="summary-card {'warn' if network_used else 'ok'}"><span>Network used</span><strong>{str(network_used).lower()}</strong></div>
-          <div class="summary-card {'warn' if api_used else 'ok'}"><span>API used</span><strong>{str(api_used).lower()}</strong></div>
-          <div class="summary-card ok"><span>Sources</span><strong>{escape(str(discovery_packet.get('source_count', len(candidate_rows))))}</strong></div>
-          <div class="summary-card warn"><span>Canonical role</span><strong>review-only</strong></div>
-        </div>
+        <p class="section-purpose">Deterministic fixture discovery is the default. Google AI discovery is optional and review-only.</p>
+        {_render_badges([
+            ("deterministic fixture discovery", "accent"),
+            ("no canonical mutation", "warn"),
+            ("candidate review inputs", "warn"),
+        ])}
+        {_render_key_value_rows([
+            ("Mode", mode, True),
+            ("Network used", str(network_used).lower(), not network_used),
+            ("API used", str(api_used).lower(), not api_used),
+            ("Candidate sources", discovery_packet.get("source_count", len(candidate_rows)), True),
+        ])}
         {fallback_block}
-        <p class="warning-note">Google AI discovery, when enabled, does not mutate the canonical Sisyphus card in this notebook unless <code>RUN_LIVE_MODE</code> or a future reviewed regeneration path is enabled.</p>
+        <p class="callout">Discovery candidates are not canonical evidence and do not mutate the Sisyphus card in the default notebook path.</p>
         <section>
           <h4>Question / Query</h4>
-          <p>{escape(str(discovery_packet.get('query_or_problem', '')))}</p>
+          <p>{escape(_clip_text(discovery_packet.get('query_or_problem', ''), 180))}</p>
         </section>
         <section>
           <h4>Candidate Sources</h4>
-          <table>
-            <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Published</th><th>Snippet</th><th>Why selected</th><th>Trust / limit note</th><th>URL</th></tr></thead>
-            <tbody>{''.join(candidate_rows)}</tbody>
-          </table>
+          <div class="source-list-vertical">{''.join(candidate_rows)}</div>
         </section>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Coverage Limits</h4>
             <ul>{coverage_limits}</ul>
@@ -4958,36 +5053,9 @@ def build_guided_flow_summary(
 
 def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
     """Render the guided user problem -> discovery -> Sisyphus flow."""
-    steps = []
-    for step in _as_list(flow_summary.get("steps")):
-        if not isinstance(step, dict):
-            continue
-        outputs = "".join(f"<li><code>{escape(str(item))}</code></li>" for item in _as_list(step.get("outputs"))[:8])
-        if len(_as_list(step.get("outputs"))) > 8:
-            outputs += f"<li>{len(_as_list(step.get('outputs'))) - 8} more output(s)</li>"
-        steps.append(
-            f"""
-            <article class="reviewer-step">
-              <span>{escape(str(step.get('step_id', 'step')))}</span>
-              <strong>{escape(str(step.get('label', 'Guided step')))}</strong>
-              <p>{escape(str(step.get('summary', '')))}</p>
-              <details class="id-details">
-                <summary>Outputs</summary>
-                <ul>{outputs}</ul>
-              </details>
-            </article>
-            """
-        )
-
     counts = flow_summary.get("output_counts", {}) if isinstance(flow_summary.get("output_counts"), dict) else {}
-    count_cards = "".join(
-        f"""
-        <div class="summary-card ok">
-          <span>{escape(str(label).replace('_', ' '))}</span>
-          <strong>{escape(str(value))}</strong>
-        </div>
-        """
-        for label, value in counts.items()
+    count_rows = _render_key_value_rows(
+        [(str(label).replace("_", " "), value, True) for label, value in counts.items()]
     )
     artifacts = "".join(
         f"<li><code>{escape(str(item))}</code></li>" for item in _as_list(flow_summary.get("agent_artifacts_to_reuse"))
@@ -4996,31 +5064,93 @@ def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
         f"<li>{escape(str(item))}</li>" for item in _as_list(flow_summary.get("downstream_agent_guidance"))
     )
     fallback = str(flow_summary.get("fallback_reason") or "")
-    fallback_block = f"<p class='warning-note'><strong>Fallback:</strong> {escape(fallback)}</p>" if fallback else ""
+    fallback_block = (
+        f"<details class='id-details'><summary>Fallback reason</summary><p>{escape(fallback)}</p></details>"
+        if fallback
+        else ""
+    )
     boundary = str(flow_summary.get("canonical_card_boundary") or "")
-    boundary_block = f"<p class='warning-note'>{escape(boundary)}</p>" if boundary else ""
+    boundary_block = f"<p class='callout'>{escape(boundary)}</p>" if boundary else ""
+    raw_steps = [step for step in _as_list(flow_summary.get("steps")) if isinstance(step, dict)]
+    raw_step_details = "".join(
+        f"""
+        <li>
+          <strong>{escape(str(step.get('label', 'Guided step')))}</strong>
+          <p>{escape(_clip_text(step.get('summary', ''), 220))}</p>
+        </li>
+        """
+        for step in raw_steps
+    )
+    story_steps = [
+        (
+            "User asks",
+            "A public-interest question defines the review target before evidence is processed.",
+            "PASS",
+            f"<p><strong>Problem:</strong> {escape(_clip_text(flow_summary.get('problem_text') or '', 260))}</p>",
+        ),
+        (
+            "Discovery prepares candidate sources",
+            "Fixture discovery supplies candidate records for review and downstream handoff.",
+            "PASS",
+            f"<p>Mode: <code>{escape(str(flow_summary.get('discovery_mode', 'deterministic_fixture_discovery')))}</code>; normalized sources: {escape(str(flow_summary.get('normalized_source_count', 0)))}</p>",
+        ),
+        (
+            "Source hygiene keeps inputs untrusted",
+            "Source text is data, not instructions, and candidate status stays explicit.",
+            "PASS",
+            "<p>Optional Google AI candidates remain review inputs and cannot mutate the canonical card.</p>",
+        ),
+        (
+            "Sisyphus separates findings / claims / actions / interpretations",
+            "The card preserves epistemic layers instead of flattening them into one summary.",
+            "PASS",
+            f"<ul>{raw_step_details}</ul>" if raw_step_details else None,
+        ),
+        (
+            "Timeline and claim drift track change over time",
+            "Version events and drift records show how claims strengthen, weaken, narrow, or remain unresolved.",
+            "PASS",
+            f"<p>Timeline events: {escape(str(counts.get('timeline_events', 0)))}; drift records: {escape(str(counts.get('claim_drift_records', 0)))}</p>",
+        ),
+        (
+            "Claim graph exposes reusable relationships",
+            "Graph nodes and edges make evidence and claim relationships reusable by downstream agents.",
+            "PASS",
+            f"<p>Graph nodes: {escape(str(counts.get('graph_nodes', 0)))}; graph edges: {escape(str(counts.get('graph_edges', 0)))}</p>",
+        ),
+        (
+            "Source-bound judgment and packets are exported",
+            "The run ends with human-readable cards plus reviewer and agent packets.",
+            "PASS",
+            f"<ul>{artifacts}</ul>",
+        ),
+    ]
+    step_rows = "".join(
+        _render_feature_row(title, summary, badge=badge, details_html=details, number=index)
+        for index, (title, summary, badge, details) in enumerate(story_steps, start=1)
+    )
     return _wrap_html(
         "guided-flow",
         f"""
         <h3>Sisyphus Guided Flow</h3>
-        <p class="section-purpose">This is the first-run reviewer story: user question, discovery mode, candidate sources normalized for review/handoff, deterministic canonical-card processing, and reusable agent packets.</p>
-        <div class="summary-grid">
-          <div class="summary-card ok"><span>Discovery mode</span><strong>{escape(str(flow_summary.get('discovery_mode', 'demo')))}</strong></div>
-          <div class="summary-card {'warn' if flow_summary.get('network_used') else 'ok'}"><span>Network used</span><strong>{str(bool(flow_summary.get('network_used'))).lower()}</strong></div>
-          <div class="summary-card {'warn' if flow_summary.get('api_used') else 'ok'}"><span>API used</span><strong>{str(bool(flow_summary.get('api_used'))).lower()}</strong></div>
-          <div class="summary-card ok"><span>Normalized sources</span><strong>{escape(str(flow_summary.get('normalized_source_count', 0)))}</strong></div>
-        </div>
+        <p class="section-purpose">The first-run reviewer story: ask, discover, separate, track, graph, review, and export.</p>
+        {_render_key_value_rows([
+            ("Discovery mode", flow_summary.get("discovery_mode", "deterministic_fixture_discovery"), True),
+            ("Network used", str(bool(flow_summary.get("network_used"))).lower(), not bool(flow_summary.get("network_used"))),
+            ("API used", str(bool(flow_summary.get("api_used"))).lower(), not bool(flow_summary.get("api_used"))),
+            ("Normalized sources", flow_summary.get("normalized_source_count", 0), True),
+        ])}
         {fallback_block}
         {boundary_block}
         <section>
-          <h4>Six-Step Processing Path</h4>
-          <div class="reviewer-step-grid">{''.join(steps)}</div>
+          <h4>Guided Story</h4>
+          <div class="feature-list">{step_rows}</div>
         </section>
         <section>
           <h4>Version-Control Outputs</h4>
-          <div class="summary-grid">{count_cards}</div>
+          {count_rows}
         </section>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Downstream Agent Artifacts</h4>
             <ul>{artifacts}</ul>
@@ -5069,20 +5199,53 @@ def render_plain_summary_vs_sisyphus_html(
         f"""
         <h3>Plain Summary vs Sisyphus Watch</h3>
         <p class="section-purpose">The same source set can be compressed into a summary, or preserved as version-controlled claim analysis.</p>
-        <div class="grid two">
-          <section class="dashboard-card">
-            <span>Plain summary</span>
-            <strong>One paragraph</strong>
+        <div class="report-columns">
+          <section class="report-panel">
+            <span class="eyebrow">Plain summary</span>
+            <h4>One paragraph</h4>
             <p>{escape(summary_paragraph)}</p>
             <ul>{plain_list}</ul>
           </section>
-          <section class="dashboard-card">
-            <span>Sisyphus Watch</span>
-            <strong>Version-controlled claim analysis</strong>
+          <section class="report-panel accent-panel">
+            <span class="eyebrow">Sisyphus Watch</span>
+            <h4>Version-controlled claim analysis</h4>
             <p>Discovery mode: <code>{escape(discovery_mode)}</code>. The notebook keeps source hygiene, epistemic layers, version changes, graph relations, and agent handoff artifacts visible. Optional Google AI discovery candidates remain review inputs unless a reviewed live regeneration path is enabled.</p>
             <ul>{sisyphus_list}</ul>
           </section>
         </div>
+        """,
+    )
+
+
+def render_agent_capability_strip_html() -> str:
+    """Render the compact top-of-notebook agent pipeline."""
+    capabilities = [
+        ("Ask", "Frame a public-interest claim question.", "PASS"),
+        ("Discover", "Prepare candidate sources for review.", "PASS"),
+        ("Separate", "Keep findings, claims, actions, and interpretations apart.", "PASS"),
+        ("Track Drift", "Show how claim status changes over time.", "PASS"),
+        ("Build Graph", "Expose reusable evidence and claim relationships.", "PASS"),
+        ("Review Patch", "Compare new evidence without mutation.", "PASS"),
+        ("Export Packets", "Write human and agent review artifacts.", "PASS"),
+    ]
+    rows = "".join(
+        f"""
+        <article class="capability-step">
+          <div class="feature-heading">
+            <strong>{escape(title)}</strong>
+            {_status_badge(status, True)}
+          </div>
+          <p>{escape(summary)}</p>
+        </article>
+        """
+        for title, summary, status in capabilities
+    )
+    return _wrap_html(
+        "agent-capability-strip",
+        f"""
+        <h3>Agent Capability Strip</h3>
+        <p class="section-purpose">Ask -> Discover -> Separate -> Track Drift -> Build Graph -> Review Patch -> Export Packets.</p>
+        <div class="capability-strip">{rows}</div>
         """,
     )
 
@@ -5098,62 +5261,50 @@ def render_judge_quickstart_html(
     """Render the first reviewer path panel for Kaggle judges."""
     problem_packet = problem_packet or {}
     discovery_packet = discovery_packet or {}
-    graph = get_claim_graph(news_card)
-    artifacts = _artifact_outputs(revision_available=evidence_patch is not None)
-    counts = [
-        ("Facts", len(_as_list(news_card.get("facts")))),
-        ("Claims", len(_as_list(news_card.get("actor_claims")))),
-        ("Actions", len(_as_list(news_card.get("actions")))),
-        ("Timeline", len(_as_list(news_card.get("version_timeline")))),
-        ("Drift", len(_as_list(news_card.get("claim_drift")))),
-        ("Graph nodes", len(_as_list(graph.get("nodes")))),
-        ("Graph edges", len(_as_list(graph.get("edges")))),
-        ("Exports", sum(1 for artifact in artifacts if artifact.get("status") == "PASS")),
-    ]
-    count_cards = "".join(
-        f"""
-        <div class="summary-card ok">
-          <span>{escape(label)}</span>
-          <strong>{escape(str(value))}</strong>
-        </div>
-        """
-        for label, value in counts
-    )
     concept_rows = [
         (
-            "Agent / ADK-style multi-agent system",
-            "DiscoveryAgent, EpistemicSeparationAgent, RevisionHandoffAgent, SisyphusOrchestratorAgent.",
+            "Agent / ADK-style",
+            "Discovery, separation, revision, and handoff run as a deterministic trace.",
             "PASS" if adk_manifest else "VISIBLE",
-            "pass",
         ),
         (
             "MCP Server",
-            "Sisyphus card, agent packet, claim graph, guided flow, and security notes exposed as MCP-style tools/resources.",
+            "Cards, graph, guided flow, and security notes are exposed as tools/resources.",
             "PASS" if mcp_manifest else "VISIBLE",
-            "pass",
         ),
         (
-            "Security features",
-            "Kaggle Secrets resolver, source hygiene, fallback validation, and no Google AI candidate card mutation.",
+            "Security",
+            "Secrets are optional and source text stays untrusted.",
             "PASS",
-            "pass",
         ),
         (
             "Deployability",
-            "Deterministic Kaggle inputs, no-key run, /kaggle/working exports, and smoke scripts.",
+            "Runs in Kaggle with attached inputs and /kaggle/working exports.",
             "PASS",
-            "pass",
         ),
     ]
-    concept_table = "".join(
-        f"""
-        <tr>
-          <td>{escape(concept)}</td>
-          <td>{escape(evidence)}</td>
-          <td><span class="status {status_class}">{escape(status)}</span></td>
-        </tr>
-        """
-        for concept, evidence, status, status_class in concept_rows
+    concept_html = "".join(
+        _render_feature_row(concept, evidence, badge=status)
+        for concept, evidence, status in concept_rows
+    )
+    agent_outputs = [
+        "findings",
+        "actor claims",
+        "actions",
+        "interpretations",
+        "timeline",
+        "claim drift",
+        "claim graph",
+        "reviewer/agent packets",
+    ]
+    agent_output_list = "".join(f"<li>{escape(item)}</li>" for item in agent_outputs)
+    default_badges = _render_badges(
+        [
+            ("deterministic", "accent"),
+            ("no API key", "accent"),
+            ("no network", "accent"),
+            ("review-only Google AI candidates", "warn"),
+        ]
     )
     review_steps = [
         "Guided Demo",
@@ -5167,46 +5318,45 @@ def render_judge_quickstart_html(
     review_order = "".join(f"<li>{escape(step)}</li>" for step in review_steps)
     discovery_mode = str(discovery_packet.get("mode") or problem_packet.get("mode") or "deterministic_fixture_discovery")
     problem_text = str(problem_packet.get("problem_text") or "What changed, and what evidence supports the current judgment?")
+    problem_preview = _clip_text(problem_text, 180)
     scenario_id = str(news_card.get("scenario_id") or problem_packet.get("scenario_id") or "selected_scenario")
+    scenario_title = str(news_card.get("title") or news_card.get("scenario_name") or "Selected deterministic card")
     return _wrap_html(
         "judge-quickstart",
         f"""
         <h3>Judge Quickstart</h3>
-        <p class="section-purpose"><strong>Sisyphus Watch</strong> turns messy public-interest information into source-bound, version-controlled claim analysis for humans and downstream agents.</p>
-        <div class="summary-grid">
-          <div class="summary-card ok"><span>Default path</span><strong>deterministic</strong></div>
-          <div class="summary-card ok"><span>API key</span><strong>not required</strong></div>
-          <div class="summary-card ok"><span>Network</span><strong>not required</strong></div>
-          <div class="summary-card warn"><span>Google AI candidates</span><strong>review-only</strong></div>
-        </div>
-        <div class="grid two">
-          <section class="dashboard-card">
-            <span>Selected scenario</span>
-            <strong>{escape(scenario_id)}</strong>
-            <p>{escape(str(news_card.get('title') or news_card.get('scenario_name') or 'Selected deterministic card'))}</p>
-          </section>
-          <section class="dashboard-card">
-            <span>User problem</span>
-            <strong>{escape(discovery_mode)}</strong>
+        <p class="lede-small">Sisyphus Watch prevents public claims, later evidence, interpretations, and current judgment from collapsing into a misleading summary.</p>
+        {default_badges}
+        {_render_key_value_rows([
+            ("Selected scenario", scenario_title, True),
+            ("scenario_id", scenario_id, True),
+            ("Discovery mode", discovery_mode, True),
+            ("Evidence patch", "available" if evidence_patch is not None else "not loaded", evidence_patch is not None),
+        ])}
+        <section>
+          <h4>User Problem</h4>
+          <p class="callout">{escape(problem_preview)}</p>
+          <details class="id-details">
+            <summary>Full problem text</summary>
             <p>{escape(problem_text)}</p>
-          </section>
-        </div>
-        <p class="warning-note">Optional Google AI discovery candidates are reviewer inputs, not canonical evidence or card mutations. The default canonical Sisyphus card remains selected from deterministic records by <code>SCENARIO_ID</code>.</p>
+          </details>
+        </section>
+        <section>
+          <h4>What the Agent Produces</h4>
+          <ul class="compact-list">{agent_output_list}</ul>
+        </section>
         <section>
           <h4>Course Concepts Covered</h4>
-          <table>
-            <thead><tr><th>Concept</th><th>Evidence</th><th>Status</th></tr></thead>
-            <tbody>{concept_table}</tbody>
-          </table>
+          <div class="feature-list compact">{concept_html}</div>
         </section>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Recommended Review Order</h4>
             <ol>{review_order}</ol>
           </section>
           <section>
-            <h4>Agent-Reusable Output Counts</h4>
-            <div class="summary-grid">{count_cards}</div>
+            <h4>Review Boundary</h4>
+            <p class="callout">Google AI discovery candidates are review inputs, not canonical evidence or card mutations.</p>
           </section>
         </div>
         """,
@@ -5216,54 +5366,31 @@ def render_judge_quickstart_html(
 def render_run_status_html(run_status: dict[str, Any]) -> str:
     """Render compact execution-state status for the notebook run."""
     fallback_reasons = [str(item) for item in _as_list(run_status.get("fallback_reasons")) if str(item).strip()]
-    fallback_text = "; ".join(fallback_reasons) if fallback_reasons else "none"
     row_specs = [
         ("RUN_GOOGLE_DISCOVERY", str(run_status.get("run_google_discovery", False)), not bool(run_status.get("run_google_discovery"))),
         ("RUN_LIVE_MODE", str(run_status.get("run_live_mode", False)), not bool(run_status.get("run_live_mode"))),
         ("Discovery mode", str(run_status.get("discovery_mode", "deterministic_fixture_discovery")), True),
         ("Record mode", str(run_status.get("record_mode", "demo")), True),
-        ("Fallback reason", fallback_text, not fallback_reasons),
-        ("Selected card ID", str(run_status.get("selected_card_id", "unknown")), True),
-        ("Selected scenario ID", str(run_status.get("selected_scenario_id", "unknown")), True),
-        ("Available demo cards", str(run_status.get("available_demo_card_count", 0)), True),
+        ("Selected scenario", str(run_status.get("selected_scenario_id", "unknown")), True),
+        ("Selected card", str(run_status.get("selected_card_id", "unknown")), True),
         ("Evidence patch", "available" if run_status.get("evidence_patch_available") else "missing", bool(run_status.get("evidence_patch_available"))),
         ("Export target", str(run_status.get("export_path_target", "/kaggle/working")), True),
     ]
-    cards = [
-        ("Discovery", str(run_status.get("discovery_mode", "deterministic_fixture_discovery")), True),
-        ("Live mode", str(bool(run_status.get("run_live_mode"))).lower(), not bool(run_status.get("run_live_mode"))),
-        ("Google discovery", str(bool(run_status.get("run_google_discovery"))).lower(), not bool(run_status.get("run_google_discovery"))),
-        ("Fallback", "none" if not fallback_reasons else "present", not fallback_reasons),
-    ]
-    rendered_cards = "".join(
-        f"""
-        <div class="summary-card {'ok' if ok else 'warn'}">
-          <span>{escape(label)}</span>
-          <strong>{escape(value)}</strong>
-        </div>
-        """
-        for label, value, ok in cards
-    )
-    rows = "".join(
-        f"""
-        <tr>
-          <td>{escape(label)}</td>
-          <td>{escape(value)}</td>
-          <td><span class="status {'pass' if ok else 'warn'}">{'PASS' if ok else 'WARN'}</span></td>
-        </tr>
-        """
-        for label, value, ok in row_specs
+    rows = _render_key_value_rows(row_specs)
+    fallback_block = (
+        "<details class='id-details'><summary>Fallback reasons</summary><ul>"
+        + "".join(f"<li>{escape(reason)}</li>" for reason in fallback_reasons)
+        + "</ul></details>"
+        if fallback_reasons
+        else "<p class='muted'>No fallback reasons for this deterministic run.</p>"
     )
     return _wrap_html(
         "run-status",
         f"""
         <h3>Run Status</h3>
-        <p class="section-purpose">This panel shows the actual execution path for this notebook run before the detailed artifact sections.</p>
-        <div class="summary-grid">{rendered_cards}</div>
-        <table>
-          <thead><tr><th>Setting</th><th>Value</th><th>Status</th></tr></thead>
-          <tbody>{rows}</tbody>
-        </table>
+        <p class="section-purpose">The actual execution path for this notebook run.</p>
+        {rows}
+        {fallback_block}
         """,
     )
 
@@ -5281,58 +5408,61 @@ def render_course_concepts_html(
     ]
     mcp_tools = [str(item) for item in _as_list(mcp_manifest.get("tools"))]
     mcp_resources = [str(item) for item in _as_list(mcp_manifest.get("resources"))]
-    rows = [
-        (
-            "Agent / ADK-style multi-agent system",
-            ", ".join(agent_names),
-            f"ADK optional; deterministic fallback available; {len(_as_list(adk_demo_trace.get('steps')))} trace steps.",
-            "pass",
-        ),
-        (
-            "MCP Server",
-            f"{len(mcp_tools)} tools and {len(mcp_resources)} resources from src/sisyphus_watch_mcp_server.py.",
-            "FastMCP optional; fallback manifest available; stdio/local by default.",
-            "pass",
-        ),
-        (
-            "Security features",
-            "Kaggle Secrets resolver, no key printing/logging/export/storage, source hygiene, validation/fallback, no canonical mutation.",
-            "Default path requires no API key and no network.",
-            "pass",
-        ),
-        (
-            "Deployability",
-            "Kaggle dataset/input folders, deterministic no-key run, /kaggle/working exports, smoke scripts.",
-            "Reproducible local/Kaggle path.",
-            "pass",
-        ),
-    ]
-    table_rows = "".join(
-        f"""
-        <tr>
-          <td>{escape(concept)}</td>
-          <td>{escape(evidence)}</td>
-          <td>{escape(status)}</td>
-          <td><span class="status {status_class}">PASS</span></td>
-        </tr>
-        """
-        for concept, evidence, status, status_class in rows
+    agent_details = (
+        "<p><strong>Agents:</strong> "
+        + escape(", ".join(agent_names))
+        + f"</p><p><strong>Trace:</strong> {escape(str(len(_as_list(adk_demo_trace.get('steps')))))} deterministic step(s).</p>"
     )
-    cards = [
-        ("Agent fallback", "available", True),
-        ("ADK package", "optional", True),
-        ("MCP fallback", "available", True),
-        ("FastMCP package", "optional", True),
-        ("Default API key", "not required", True),
-    ]
-    rendered_cards = "".join(
-        f"""
-        <div class="summary-card ok">
-          <span>{escape(label)}</span>
-          <strong>{escape(value)}</strong>
-        </div>
-        """
-        for label, value, _ok in cards
+    mcp_details = (
+        "<p><strong>Tools:</strong></p><ul>"
+        + "".join(f"<li><code>{escape(tool)}</code></li>" for tool in mcp_tools)
+        + "</ul><p><strong>Resources:</strong></p><ul>"
+        + "".join(f"<li><code>{escape(resource)}</code></li>" for resource in mcp_resources)
+        + "</ul>"
+    )
+    security_details = """
+        <ul>
+          <li>Key resolver checks explicit argument, Kaggle Secrets, then environment without displaying values.</li>
+          <li>Source text remains untrusted data, never instructions.</li>
+          <li>Live discovery candidates cannot mutate the canonical deterministic card.</li>
+          <li>Fallbacks preserve the no-key, no-network reviewer path.</li>
+        </ul>
+    """
+    deploy_details = """
+        <ul>
+          <li>Attach data/, src/, schemas/, and examples/ as Kaggle inputs.</li>
+          <li>Default export target is /kaggle/working.</li>
+          <li>Smoke commands: python3 -m py_compile src/sisyphus_watch_demo.py src/sisyphus_watch_adk_demo.py src/sisyphus_watch_mcp_server.py</li>
+          <li>Smoke commands: python3 scripts/smoke_course_concepts.py</li>
+        </ul>
+    """
+    concept_rows = "".join(
+        [
+            _render_feature_row(
+                "Agent / ADK-style multi-agent system",
+                "Discovery, separation, revision, and handoff run as a deterministic agent trace.",
+                badge="PASS",
+                details_html=agent_details,
+            ),
+            _render_feature_row(
+                "MCP Server",
+                "Deterministic cards, graph, guided flow, and security notes are exposed as MCP-style tools/resources.",
+                badge="PASS",
+                details_html=mcp_details,
+            ),
+            _render_feature_row(
+                "Security features",
+                "Secrets stay optional; source text stays untrusted; live candidates cannot mutate the canonical card.",
+                badge="PASS",
+                details_html=security_details,
+            ),
+            _render_feature_row(
+                "Deployability",
+                "The notebook runs in Kaggle with no key, no network, attached dataset folders, and /kaggle/working exports.",
+                badge="PASS",
+                details_html=deploy_details,
+            ),
+        ]
     )
     manifest_summary = {
         "adk_manifest": adk_manifest,
@@ -5357,12 +5487,15 @@ def render_course_concepts_html(
         "course-concepts",
         f"""
         <h3>Course Concepts Demonstrated</h3>
-        <p class="section-purpose">The default notebook demonstrates the capstone concepts with local deterministic execution; optional ADK, FastMCP, Google AI, and live extraction paths are not required.</p>
-        <div class="summary-grid">{rendered_cards}</div>
-        <table>
-          <thead><tr><th>Course concept</th><th>Evidence in this repo</th><th>Default behavior</th><th>Status</th></tr></thead>
-          <tbody>{table_rows}</tbody>
-        </table>
+        <p class="section-purpose">The deterministic notebook path demonstrates the rubric concepts without requiring optional ADK, FastMCP, Google AI, or live extraction packages.</p>
+        {_render_badges([
+            ("Agent fallback available", "accent"),
+            ("ADK optional", "accent"),
+            ("MCP fallback available", "accent"),
+            ("FastMCP optional", "accent"),
+            ("No default API key", "accent"),
+        ])}
+        <div class="feature-list">{concept_rows}</div>
         <details>
           <summary>Capability manifest JSON</summary>
           <pre>{escape(json.dumps(manifest_summary, indent=2, ensure_ascii=False))}</pre>
@@ -5381,11 +5514,11 @@ def render_export_artifacts_overview_html(
     active_count = sum(1 for artifact in artifacts if artifact.get("status") == "PASS")
     rows = "".join(
         f"""
-        <tr>
-          <td><code>{escape(str(artifact.get('filename')))}</code></td>
-          <td>{escape(str(artifact.get('summary')))}</td>
-          <td><span class="status {'pass' if artifact.get('status') == 'PASS' else 'warn'}">{escape(str(artifact.get('status')))}</span></td>
-        </tr>
+        <div class="file-row">
+          <code>{escape(str(artifact.get('filename')))}</code>
+          <p>{escape(_clip_text(artifact.get('summary'), 140))}</p>
+          {_status_badge(artifact.get('status', 'WARN'), artifact.get('status') == 'PASS')}
+        </div>
         """
         for artifact in artifacts
     )
@@ -5394,16 +5527,13 @@ def render_export_artifacts_overview_html(
         f"""
         <h3>Export Artifacts</h3>
         <p class="section-purpose">These files are the downstream-agent handoff surface. On Kaggle, the next cell writes them to <code>{escape(export_path_target)}</code>.</p>
-        <div class="summary-grid">
-          <div class="summary-card ok"><span>Configured files</span><strong>{len(artifacts)}</strong></div>
-          <div class="summary-card ok"><span>Active files</span><strong>{active_count}</strong></div>
-          <div class="summary-card ok"><span>Card ID</span><strong>{escape(str(news_card.get('card_id', 'unknown')))}</strong></div>
-          <div class="summary-card ok"><span>Target</span><strong>{escape(export_path_target)}</strong></div>
-        </div>
-        <table>
-          <thead><tr><th>Filename</th><th>Purpose</th><th>Status</th></tr></thead>
-          <tbody>{rows}</tbody>
-        </table>
+        {_render_key_value_rows([
+            ("Configured files", len(artifacts), True),
+            ("Active files", active_count, active_count == len(artifacts)),
+            ("Card ID", news_card.get("card_id", "unknown"), True),
+            ("Target", export_path_target, True),
+        ])}
+        <div class="file-list">{rows}</div>
         """,
     )
 
@@ -5435,11 +5565,11 @@ def render_submission_readiness_html(
     pass_count = sum(1 for _label, ok, _details in readiness if ok)
     rows = "".join(
         f"""
-        <tr>
-          <td>{escape(label)}</td>
-          <td><span class="status {'pass' if ok else 'warn'}">{'PASS' if ok else 'WARN'}</span></td>
-          <td>{escape(details)}</td>
-        </tr>
+        <div class="check-row">
+          <span>{escape(label)}</span>
+          {_status_badge("PASS" if ok else "WARN", ok)}
+          <p>{escape(_clip_text(details, 140))}</p>
+        </div>
         """
         for label, ok, details in readiness
     )
@@ -5448,16 +5578,13 @@ def render_submission_readiness_html(
         f"""
         <h3>Submission Readiness</h3>
         <p class="section-purpose">This panel summarizes whether the judge walkthrough is configured for reproducible Kaggle evaluation.</p>
-        <div class="summary-grid">
-          <div class="summary-card {'ok' if pass_count == len(readiness) else 'warn'}"><span>Readiness</span><strong>{pass_count}/{len(readiness)}</strong></div>
-          <div class="summary-card ok"><span>Card</span><strong>{escape(str(news_card.get('card_id', 'unknown')))}</strong></div>
-          <div class="summary-card ok"><span>Scenario</span><strong>{escape(str(news_card.get('scenario_id', 'unknown')))}</strong></div>
-          <div class="summary-card ok"><span>Exports</span><strong>{len(artifacts)}</strong></div>
-        </div>
-        <table>
-          <thead><tr><th>Readiness item</th><th>Status</th><th>Details</th></tr></thead>
-          <tbody>{rows}</tbody>
-        </table>
+        {_render_key_value_rows([
+            ("Readiness", f"{pass_count}/{len(readiness)}", pass_count == len(readiness)),
+            ("Card", news_card.get("card_id", "unknown"), True),
+            ("Scenario", news_card.get("scenario_id", "unknown"), True),
+            ("Exports", len(artifacts), True),
+        ])}
+        <div class="check-list">{rows}</div>
         """,
     )
 
@@ -5954,7 +6081,7 @@ def render_reviewer_dashboard_html(news_card: dict[str, Any], patch: dict[str, A
     ]
     card_html = "".join(
         f"""
-        <article class="dashboard-card">
+        <article class="report-panel">
           <span>{escape(label)}</span>
           <strong>{escape(value)}</strong>
           <p>{escape(summary)}</p>
@@ -5980,8 +6107,8 @@ def render_reviewer_dashboard_html(news_card: dict[str, Any], patch: dict[str, A
         f"""
         <h3>Reviewer Dashboard</h3>
         <p class="section-purpose">A first-glance map of the selected deterministic run before the detailed notebook sections.</p>
-        <div class="reviewer-dashboard-grid">{card_html}</div>
-        <div class="grid two">
+        <div class="reviewer-panel-list">{card_html}</div>
+        <div class="report-columns">
           <section>
             <h4>Main generated artifacts</h4>
             <ul>{artifact_preview}</ul>
@@ -6126,15 +6253,8 @@ def render_epistemic_layers_html(news_card: dict[str, Any]) -> str:
         "epistemic-layers",
         f"""
         <h3>Epistemic Layer Separation</h3>
-        <p class="section-purpose">
-          Sisyphus Watch is a claim-version-control and epistemic-separation agent demo. It keeps source-bound
-          findings, attributed claims, interpretation branches, and current judgment in separate lanes.
-        </p>
-        <p class="warning-note">
-          This is not a truth oracle. It does not collapse claims into facts, does not treat interpretation as fact,
-          keeps competing interpretations visible, and treats later evidence as a change to claim and interpretation
-          status rather than final truth.
-        </p>
+        <p class="section-purpose">What to look for: Check that findings, claims, interpretations, and judgment stay separate.</p>
+        <p class="muted">This is not a truth oracle; later evidence changes claim and interpretation status rather than becoming final truth.</p>
         <div class="epistemic-grid">
           <section class="epistemic-lane findings">
             <h4>Findings</h4>
@@ -6263,7 +6383,7 @@ def render_agent_workflow_trace_html(news_card: dict[str, Any], patch: dict[str,
         </div>
         <section>
           <h4>{escape(str(run_summary.get('headline', 'Run summary')))}</h4>
-          <div class="grid two">
+          <div class="report-columns">
             <div>
               <h4>What the agent did</h4>
               <ul>{what_did}</ul>
@@ -6285,7 +6405,7 @@ def render_agent_workflow_trace_html(news_card: dict[str, Any], patch: dict[str,
             <tbody>{step_rows}</tbody>
           </table>
         </details>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <details class="metadata-details">
               <summary>Export artifact table</summary>
@@ -6361,7 +6481,7 @@ def render_kaggle_midcheck_summary_html(news_card: dict[str, Any], patch: dict[s
             <tbody>{check_rows}</tbody>
           </table>
         </section>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Expected /kaggle/working Artifacts</h4>
             <ul>{artifacts}</ul>
@@ -6439,6 +6559,7 @@ def render_card_html(news_card: dict[str, Any]) -> str:
             <span class="badge">{escape(news_card['image_prompt']['label'])}</span>
           </div>
         </section>
+        <p class="section-purpose">What to look for: Read the canonical card as a layered public-claim record.</p>
         <section class="summary">
           <h3>3-line Summary</h3>
           <ol>{summary}</ol>
@@ -6450,12 +6571,12 @@ def render_card_html(news_card: dict[str, Any]) -> str:
           <ul class="source-list">{sources}</ul>
           <p><strong>Visual prompt:</strong> {escape(news_card['image_prompt']['prompt'])}</p>
         </details>
-        <div class="grid two">
+        <div class="report-columns">
           <section><h3>Source-bound Findings</h3>{facts}</section>
           <section><h3>Claim History</h3>{claims}</section>
         </div>
         <section><h3>Action Layer</h3>{actions}</section>
-        <div class="grid two">
+        <div class="report-columns">
           <section><h3>Interpretation Branches</h3>{interpretations}</section>
           <section><h3>Competing / Cautionary Branches</h3>{counters}</section>
         </div>
@@ -6464,7 +6585,7 @@ def render_card_html(news_card: dict[str, Any]) -> str:
           <h3>Sisyphus Judgment Diff</h3>
           <p><strong>Previous judgment:</strong> {escape(diff['previous_judgment'])}</p>
           <p><strong>Updated judgment:</strong> {escape(diff['updated_judgment'])}</p>
-          <div class="grid two compact">
+          <div class="report-columns compact">
             <div><h4>Confidence delta</h4><ul>{confidence_delta}</ul></div>
             <div><h4>Unchanged uncertainties</h4><ul>{unchanged}</ul></div>
           </div>
@@ -6516,7 +6637,7 @@ def render_version_timeline_html(news_card: dict[str, Any]) -> str:
         "version-timeline",
         f"""
         <h3>Version Timeline</h3>
-        <p class="section-purpose">Version events show how the current source-bound judgment changed without merging findings, claims, and interpretations.</p>
+        <p class="section-purpose">What to look for: Watch how the public claim changes across versions.</p>
         <div class="timeline-list">{''.join(rendered_events)}</div>
         """,
     )
@@ -6561,10 +6682,7 @@ def render_claim_drift_html(news_card: dict[str, Any]) -> str:
         "claim-drift",
         f"""
         <h3>Claim Drift</h3>
-        <p class="section-purpose">
-          Claim drift tracks changes in the epistemic status of actor claims. It is not a direct measure of
-          ground truth, not merely a list of new facts, and not the current Sisyphus judgment.
-        </p>
+        <p class="section-purpose">What to look for: Inspect which claims strengthened, weakened, narrowed, or remain unresolved.</p>
         <div class="drift-list">{''.join(rendered_drifts)}</div>
         """,
     )
@@ -6607,6 +6725,7 @@ def render_claim_graph_html(news_card: dict[str, Any]) -> str:
         "claim-graph",
         f"""
         <h3>Claim Graph</h3>
+        <p class="section-purpose">What to look for: Follow reusable evidence and claim relationships for downstream agents.</p>
         <p>{escape(str(graph.get('graph_summary', '')))}</p>
         <div class="graph-metrics">
           <div class="summary-card ok"><span>Nodes</span><strong>{len(nodes)}</strong></div>
@@ -6618,7 +6737,7 @@ def render_claim_graph_html(news_card: dict[str, Any]) -> str:
           <h4>Primary Path</h4>
           <div class="graph-path-list">{''.join(primary_paths)}</div>
         </section>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Node counts by type</h4>
             <table><thead><tr><th>Node type</th><th>Count</th></tr></thead><tbody>{count_rows(node_counts)}</tbody></table>
@@ -6703,7 +6822,7 @@ def render_graph_query_preview_html(news_card: dict[str, Any]) -> str:
           <div class="summary-card ok"><span>Neighbors</span><strong>{len(neighbors.get('neighbor_nodes', []))}</strong></div>
           <div class="summary-card ok"><span>Subgraph</span><strong>{len(subgraph.get('nodes', []))}/{len(subgraph.get('edges', []))}</strong></div>
         </div>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Neighbor nodes</h4>
             <table>
@@ -6882,7 +7001,8 @@ def render_revision_proposal_html(news_card: dict[str, Any], patch: dict[str, An
         "revision-proposal",
         f"""
         <h3>Evidence Update Simulation</h3>
-        <p class="warning-note">The patch is reviewable evidence context. It does not mutate the canonical card, source IDs, timeline, drift entries, graph, or verdict.</p>
+        <p class="section-purpose">What to look for: Review new evidence without mutating the canonical card.</p>
+        <p class="callout">The patch is reviewable evidence context. It does not mutate the canonical card, source IDs, timeline, drift entries, graph, or verdict.</p>
         <div class="summary-grid">
           <div class="summary-card ok"><span>Patch</span><strong>{escape(str(patch.get('patch_type', 'patch')))}</strong></div>
           <div class="summary-card ok"><span>Source</span><strong>{escape(str(source.get('source_type', 'source')))}</strong></div>
@@ -6908,7 +7028,7 @@ def render_revision_proposal_html(news_card: dict[str, Any], patch: dict[str, An
             <tbody>{status_rows}</tbody>
           </table>
         </section>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Timeline Suggestion</h4>
             <article class="timeline-item">
@@ -6926,7 +7046,7 @@ def render_revision_proposal_html(news_card: dict[str, Any], patch: dict[str, An
             <div class="drift-list">{drift_rows}</div>
           </section>
         </div>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Reviewer Questions</h4>
             <ul>{questions}</ul>
@@ -7013,14 +7133,18 @@ def render_revision_comparison_html(news_card: dict[str, Any], patch: dict[str, 
         "revision-comparison",
         f"""
         <h3>Revision Comparison View</h3>
-        <p class="warning-note">{escape(str(comparison.get('non_mutation_notice', 'This comparison does not mutate the canonical card.')))}</p>
+        <p class="section-purpose">What to look for: Compare what would change, what remains stable, and what stays uncertain.</p>
+        <details class="id-details">
+          <summary>Non-mutation boundary</summary>
+          <p>{escape(str(comparison.get('non_mutation_notice', 'This comparison does not mutate the canonical card.')))}</p>
+        </details>
         <div class="summary-grid">
           <div class="summary-card ok"><span>Comparison</span><strong>{escape(str(comparison.get('comparison_version', '1.0')))}</strong></div>
           <div class="summary-card ok"><span>Claims</span><strong>{len(_as_list(comparison.get('affected_claim_comparisons')))}</strong></div>
           <div class="summary-card ok"><span>Verdict Effect</span><strong>{escape(str(verdict.get('proposed_verdict_effect', 'review') if isinstance(verdict, dict) else 'review'))}</strong></div>
           <div class="summary-card ok"><span>Patch</span><strong>{escape(str(patch.get('patch_type', 'patch')))}</strong></div>
         </div>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Current State</h4>
             <p>{escape(str(comparison.get('current_state_summary', '')))}</p>
@@ -7039,7 +7163,7 @@ def render_revision_comparison_html(news_card: dict[str, Any], patch: dict[str, 
             <tbody>{claim_rows}</tbody>
           </table>
         </section>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Verdict Comparison</h4>
             <p><strong>Current:</strong> {escape(str(verdict.get('current_short_label', '') if isinstance(verdict, dict) else ''))} ({escape(str(verdict.get('current_confidence', '') if isinstance(verdict, dict) else ''))})</p>
@@ -7063,7 +7187,7 @@ def render_revision_comparison_html(news_card: dict[str, Any], patch: dict[str, 
             <div class="summary-card ok"><span>Subgraph</span><strong>{escape(str(graph.get('selected_subgraph_node_count', 0) if isinstance(graph, dict) else 0))}/{escape(str(graph.get('selected_subgraph_edge_count', 0) if isinstance(graph, dict) else 0))}</strong></div>
           </div>
         </section>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Reviewer Questions</h4>
             <ul>{questions}</ul>
@@ -7117,7 +7241,7 @@ def render_scenario_authoring_preview_html(template: dict[str, Any]) -> str:
           <div class="summary-card {'ok' if checklist.get('ready_for_card_authoring') else 'warn'}"><span>Ready</span><strong>{'yes' if checklist.get('ready_for_card_authoring') else 'no'}</strong></div>
           <div class="summary-card ok"><span>Packet</span><strong>{escape(str(packet.get('packet_version')))}</strong></div>
         </div>
-        <div class="grid two">
+        <div class="report-columns">
           <section>
             <h4>Missing sections</h4>
             <ul>{missing_rows}</ul>
@@ -7250,477 +7374,443 @@ def _render_items(items: list[dict[str, Any]], id_key: str, text_key: str, layer
 
 
 def _wrap_html(class_name: str, body: str) -> str:
+    wrapped_body = body.replace("<table", '<div class="sisyphus-table-wrap"><table').replace("</table>", "</table></div>")
     return f"""
     <style>
-      .{class_name}, .intro-hero, .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table, .evaluation-summary {{
+      .sisyphus-block, .sisyphus-block * {{
+        box-sizing: border-box;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }}
+      .sisyphus-block {{
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: #17211f;
-        line-height: 1.48;
-      }}
-      .{class_name}, .intro-hero, .sisyphus-card, .branch-view, .json-export, .quality-checks, .source-table, .evaluation-summary {{
-        border: 1px solid #cddbd5;
+        line-height: 1.55;
+        font-size: 14px;
+        border: 1px solid #d7e1dc;
         border-radius: 8px;
         background: #fbfcfa;
-        padding: 20px;
+        padding: 18px;
         margin: 16px 0;
-        box-shadow: 0 2px 8px rgba(23, 33, 31, 0.08);
+        box-shadow: 0 1px 5px rgba(23, 33, 31, 0.06);
       }}
-      .intro-panel, .card-header {{
-        display: grid;
-        grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-        gap: 18px;
+      .sisyphus-block section {{
+        margin-top: 18px;
+      }}
+      .sisyphus-block h1, .sisyphus-block h2, .sisyphus-block h3, .sisyphus-block h4, .sisyphus-block h5 {{
+        color: #10231f;
+        letter-spacing: 0;
+      }}
+      .sisyphus-block h3 {{
+        margin: 0 0 10px;
+        font-size: 20px;
+        line-height: 1.25;
+        font-weight: 850;
+      }}
+      .sisyphus-block h4 {{
+        margin: 0 0 8px;
+        font-size: 15px;
+        line-height: 1.3;
+        font-weight: 800;
+      }}
+      .sisyphus-block h5 {{
+        margin: 0 0 7px;
+        font-size: 14px;
+        line-height: 1.3;
+        font-weight: 800;
+      }}
+      .sisyphus-block p {{
+        margin: 7px 0;
+      }}
+      .sisyphus-block ul, .sisyphus-block ol {{
+        margin: 7px 0 0;
+        padding-left: 22px;
+      }}
+      .sisyphus-block li + li {{
+        margin-top: 4px;
+      }}
+      .sisyphus-block .section-purpose {{
+        margin: -2px 0 14px;
+        color: #384b46;
+        font-size: 14px;
+        line-height: 1.55;
+      }}
+      .sisyphus-block .lede-small {{
+        color: #243b35;
+        font-size: 16px;
+        line-height: 1.5;
+        font-weight: 680;
+        margin: 0 0 14px;
+      }}
+      .sisyphus-block .muted {{
+        color: #53635f;
+      }}
+      .sisyphus-block .eyebrow {{
+        display: inline-block;
+        color: #1d6b5a;
+        font-size: 12px;
+        line-height: 1.25;
+        font-weight: 850;
+        text-transform: uppercase;
+      }}
+      .sisyphus-block .intro-panel, .sisyphus-block .card-header {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
         align-items: stretch;
         background: #ffffff;
         color: #17211f;
-        border: 1px solid #cddbd5;
-        border-top: 5px solid #1d6b5a;
+        border: 1px solid #d7e1dc;
+        border-top: 4px solid #1d6b5a;
         border-radius: 8px;
-        padding: 22px;
-        box-shadow: 0 2px 8px rgba(23, 33, 31, 0.08);
+        padding: 18px;
+        box-shadow: 0 1px 5px rgba(23, 33, 31, 0.05);
       }}
-      .card-header {{
-        display: block;
-        background: #ffffff;
+      .sisyphus-block .intro-copy, .sisyphus-block .comparison-card {{
+        flex: 1 1 16rem;
+        min-width: 0;
       }}
-      .eyebrow {{
-        text-transform: uppercase;
-        letter-spacing: 0;
-        font-size: 12px;
-        font-weight: 800;
-        color: #1d6b5a;
-        opacity: 1;
-      }}
-      .intro-panel h1, .card-header h2 {{
+      .sisyphus-block .intro-panel h1, .sisyphus-block .card-header h2 {{
         margin: 8px 0 10px;
-        font-size: 34px;
+        font-size: 30px;
         line-height: 1.12;
-        letter-spacing: 0;
-        color: #10231f;
-        text-shadow: none;
+        font-weight: 900;
       }}
-      .lede {{
+      .sisyphus-block .lede {{
         color: #253b36;
-        font-size: 19px;
+        font-size: 17px;
         font-weight: 650;
-        line-height: 1.42;
-        margin: 0 0 16px;
+        line-height: 1.45;
+        margin: 0 0 14px;
       }}
-      .comparison-card {{
-        border: 1px solid #cddbd5;
-        background: #f7fbf8;
+      .sisyphus-block .comparison-card, .sisyphus-block .report-panel, .sisyphus-block .feature-row,
+      .sisyphus-block .source-row, .sisyphus-block .timeline-item, .sisyphus-block .drift-item,
+      .sisyphus-block .graph-path, .sisyphus-block .layer-item, .sisyphus-block .epistemic-entry,
+      .sisyphus-block .epistemic-lane, .sisyphus-block .branch-node, .sisyphus-block .diff,
+      .sisyphus-block .verdict, .sisyphus-block .summary-card, .sisyphus-block .capability-step {{
+        border: 1px solid #d7e1dc;
         border-radius: 8px;
-        padding: 15px;
+        background: #ffffff;
+        padding: 12px;
+        box-shadow: 0 1px 3px rgba(23, 33, 31, 0.04);
       }}
-      .comparison-block {{
-        padding: 11px 0;
+      .sisyphus-block .accent-panel {{
+        border-left: 4px solid #1d6b5a;
+        background: #f7fbf8;
       }}
-      .comparison-block + .comparison-block {{
-        border-top: 1px solid #d8e5df;
+      .sisyphus-block .comparison-block {{
+        padding: 10px 0;
       }}
-      .comparison-block span {{
+      .sisyphus-block .comparison-block + .comparison-block {{
+        border-top: 1px solid #dce7e1;
+      }}
+      .sisyphus-block .comparison-block span {{
         display: block;
         color: #1d6b5a;
         font-size: 12px;
         font-weight: 800;
-        opacity: 1;
         text-transform: uppercase;
       }}
-      .comparison-block p {{
-        color: #17211f;
-        font-size: 15px;
-        line-height: 1.45;
-        margin: 6px 0 0;
+      .sisyphus-block .comparison-block.strong p {{
+        font-weight: 800;
       }}
-      .comparison-block.strong p {{
-        font-weight: 850;
-      }}
-      .verdict-badge {{
-        display: inline-flex;
-        max-width: 100%;
-        border-radius: 999px;
-        border: 1px solid #d7a622;
-        background: #ffe08a;
-        color: #17211f;
-        padding: 6px 11px;
-        font-size: 13px;
-        font-weight: 850;
-        line-height: 1.2;
-      }}
-      .badge-row, .source-list, .meta, .evidence {{
+      .sisyphus-block .badge-row, .sisyphus-block .source-list, .sisyphus-block .meta,
+      .sisyphus-block .evidence, .sisyphus-block .timeline-topline, .sisyphus-block .summary-grid,
+      .sisyphus-block .graph-metrics, .sisyphus-block .capability-strip {{
         display: flex;
         flex-wrap: wrap;
-        gap: 9px;
+        gap: 8px;
+        align-items: flex-start;
       }}
-      .badge, .mini, .status {{
+      .sisyphus-block .badge, .sisyphus-block .mini, .sisyphus-block .status,
+      .sisyphus-block .version-pill, .sisyphus-block .direction-badge, .sisyphus-block .verdict-badge {{
+        display: inline-flex;
+        align-items: center;
         border: 1px solid transparent;
         border-radius: 999px;
         padding: 4px 9px;
         font-size: 12px;
-        font-weight: 750;
+        font-weight: 800;
         line-height: 1.25;
       }}
-      .badge {{
-        border-color: #b7d8cd;
-        color: #0e332e;
-        background: #eefaf4;
+      .sisyphus-block .badge, .sisyphus-block .mini {{
+        border-color: #c9d9d2;
+        color: #203b35;
+        background: #eef6f2;
       }}
-      .card-header .badge {{
-        border-color: #b7d8cd;
-        background: #eefaf4;
+      .sisyphus-block .badge.accent, .sisyphus-block .status.pass {{
+        border-color: #abd5c4;
+        color: #0f5c36;
+        background: #e2f4ea;
       }}
-      .mini {{
-        border-color: #d1ded8;
-        color: #243d38;
-        background: #edf5f1;
+      .sisyphus-block .badge.warn, .sisyphus-block .status.warn,
+      .sisyphus-block .direction-badge {{
+        border-color: #ead08b;
+        color: #764a00;
+        background: #fff3cf;
       }}
-      .version-pill, .direction-badge {{
-        display: inline-flex;
-        align-items: center;
-        border-radius: 999px;
-        padding: 4px 9px;
-        font-size: 12px;
-        font-weight: 800;
+      .sisyphus-block .status.fail {{
+        border-color: #e5bac1;
+        color: #8a1d27;
+        background: #f8dfe3;
       }}
-      .version-pill {{
+      .sisyphus-block .version-pill, .sisyphus-block .verdict-badge {{
         color: #15312d;
-        background: #d7ebe3;
-        border: 1px solid #a7ccbd;
+        background: #dceee7;
+        border-color: #aacfc0;
       }}
-      .direction-badge {{
-        color: #17211f;
-        background: #ffe08a;
-        border: 1px solid #d7a622;
-      }}
-      .warning-note {{
-        border: 1px solid #ecd28c;
+      .sisyphus-block .callout, .sisyphus-block .warning-note {{
+        border: 1px solid #ead08b;
         border-left: 4px solid #b88411;
-        background: #fff8e3;
-        border-radius: 6px;
-        padding: 11px 13px;
+        background: #fff9e8;
+        border-radius: 8px;
+        padding: 10px 12px;
         color: #382f18;
       }}
-      .section-purpose {{
-        margin: -4px 0 14px;
-        color: #384b46;
-        font-size: 15px;
+      .sisyphus-block .report-columns {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        align-items: stretch;
       }}
-      section {{
-        margin-top: 18px;
-      }}
-      h3 {{
-        margin: 0 0 12px;
-        font-size: 20px;
-        line-height: 1.25;
-        font-weight: 800;
-        letter-spacing: 0;
-      }}
-      h4 {{
-        margin: 0 0 9px;
-        font-size: 15px;
-        line-height: 1.3;
-        font-weight: 800;
-      }}
-      h5 {{
-        margin: 0 0 8px;
-        font-size: 14px;
-        line-height: 1.3;
-        font-weight: 800;
-      }}
-      .summary ol {{
-        margin: 0;
-        padding-left: 22px;
-      }}
-      .muted {{
-        color: #4d5d59;
-      }}
-      .source-list {{
-        padding-left: 0;
-        list-style: none;
-      }}
-      code {{
-        background: #edf5f1;
-        border: 1px solid #cbd9d3;
-        border-radius: 6px;
-        padding: 2px 5px;
-        font-size: 12px;
-      }}
-      .metadata-details, .id-details {{
-        border: 1px solid #d2ded9;
-        border-radius: 8px;
-        background: #ffffff;
-        padding: 10px 12px;
-        margin-top: 12px;
-      }}
-      .grid {{
-        display: grid;
-        gap: 15px;
-      }}
-      .grid.two {{
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }}
-      .compact ul {{
-        margin-top: 0;
-      }}
-      .layer-item {{
-        border: 1px solid #cedbd5;
-        border-left: 5px solid #617d72;
-        border-radius: 8px;
-        padding: 14px;
-        margin: 11px 0;
-        background: white;
-        box-shadow: 0 1px 3px rgba(23, 33, 31, 0.05);
-      }}
-      .layer-item.claim {{ border-left-color: #8a6f2a; }}
-      .layer-item.action {{ border-left-color: #2f6f95; }}
-      .layer-item.interpretation {{ border-left-color: #7a4d8f; }}
-      .layer-item.counter {{ border-left-color: #b35c38; }}
-      .layer-item.bias {{ border-left-color: #9b3d4f; }}
-      .epistemic-grid {{
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-        align-items: start;
-      }}
-      .epistemic-lane {{
-        border: 1px solid #c8d8d2;
-        border-top: 5px solid #617d72;
-        border-radius: 8px;
-        background: #ffffff;
-        padding: 13px;
+      .sisyphus-block .report-columns > * {{
+        flex: 1 1 16rem;
         min-width: 0;
       }}
-      .epistemic-lane.findings {{ border-top-color: #1d6b5a; }}
-      .epistemic-lane.claims {{ border-top-color: #8a6f2a; }}
-      .epistemic-lane.interpretations {{ border-top-color: #7a4d8f; }}
-      .epistemic-lane.judgment {{ border-top-color: #b88411; }}
-      .epistemic-lane > p {{
-        color: #384b46;
-        font-size: 13px;
-        margin: 0 0 11px;
+      .sisyphus-block .kv-list, .sisyphus-block .feature-list, .sisyphus-block .source-list-vertical,
+      .sisyphus-block .timeline-list, .sisyphus-block .drift-list, .sisyphus-block .graph-path-list,
+      .sisyphus-block .file-list, .sisyphus-block .check-list, .sisyphus-block .reviewer-panel-list {{
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
       }}
-      .epistemic-entry {{
-        border: 1px solid #d3dfda;
-        border-left: 4px solid #617d72;
-        border-radius: 8px;
-        background: #fbfcfa;
-        padding: 11px;
-        margin-top: 10px;
+      .sisyphus-block .kv-row, .sisyphus-block .file-row, .sisyphus-block .check-row {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        align-items: baseline;
+        border-bottom: 1px solid #e2ebe6;
+        padding: 9px 0;
       }}
-      .epistemic-entry.findings {{ border-left-color: #1d6b5a; }}
-      .epistemic-entry.claims {{ border-left-color: #8a6f2a; }}
-      .epistemic-entry.interpretations {{ border-left-color: #7a4d8f; }}
-      .epistemic-entry.judgment {{ border-left-color: #b88411; }}
-      .epistemic-entry p {{
-        margin: 6px 0 9px;
-      }}
-      .item-id {{
-        color: #51615d;
+      .sisyphus-block .kv-row span, .sisyphus-block .file-row code, .sisyphus-block .check-row span {{
+        color: #435650;
         font-size: 12px;
-        font-weight: 700;
-        word-break: break-word;
+        font-weight: 850;
+        text-transform: uppercase;
       }}
-      .layer-item p {{
-        margin: 4px 0 11px;
+      .sisyphus-block .kv-row strong {{
+        flex: 1 1 14rem;
+        color: #10231f;
+        font-size: 14px;
       }}
-      .timeline-list, .drift-list {{
-        display: grid;
+      .sisyphus-block .file-row p, .sisyphus-block .check-row p {{
+        flex: 1 1 18rem;
+        margin: 0;
+      }}
+      .sisyphus-block .feature-row {{
+        display: flex;
         gap: 11px;
+        align-items: flex-start;
+        border-left: 4px solid #1d6b5a;
       }}
-      .timeline-item, .drift-item {{
-        border: 1px solid #cedbd5;
-        border-radius: 8px;
-        background: white;
-        padding: 14px;
-        box-shadow: 0 1px 3px rgba(23, 33, 31, 0.05);
+      .sisyphus-block .feature-list.compact .feature-row {{
+        padding: 10px;
       }}
-      .timeline-item p, .drift-item p {{
-        margin: 8px 0;
+      .sisyphus-block .feature-number {{
+        flex: 0 0 auto;
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #0e332e;
+        background: #e2f4ea;
+        border: 1px solid #abd5c4;
+        font-size: 13px;
+        font-weight: 850;
       }}
-      .timeline-topline {{
+      .sisyphus-block .feature-copy {{
+        flex: 1 1 auto;
+        min-width: 0;
+      }}
+      .sisyphus-block .feature-heading {{
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
         align-items: center;
       }}
-      .graph-metrics {{
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
-        margin: 12px 0;
+      .sisyphus-block .feature-heading strong {{
+        font-size: 15px;
+        color: #10231f;
       }}
-      .graph-path-list {{
-        display: grid;
-        gap: 10px;
+      .sisyphus-block .feature-row p, .sisyphus-block .capability-step p {{
+        margin: 6px 0 0;
+        color: #384b46;
       }}
-      .graph-path {{
-        border: 1px solid #dce5e0;
-        border-radius: 8px;
-        background: white;
-        padding: 12px;
+      .sisyphus-block .capability-step {{
+        flex: 1 1 10rem;
+        min-width: 0;
+        background: #ffffff;
       }}
-      .graph-path p {{
-        margin: 8px 0 0;
+      .sisyphus-block .summary-card {{
+        flex: 1 1 10rem;
+        min-width: 0;
       }}
-      .diff, .verdict {{
-        background: #eef5f1;
-        border: 1px solid #d2ded9;
-        border-radius: 8px;
-        padding: 14px;
-      }}
-      .summary-grid {{
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
-      }}
-      .summary-card {{
-        border: 1px solid #cedbd5;
-        border-radius: 8px;
-        background: white;
-        padding: 14px;
-        box-shadow: 0 1px 3px rgba(23, 33, 31, 0.05);
-      }}
-      .summary-card span {{
+      .sisyphus-block .summary-card span {{
         display: block;
         color: #435650;
         font-size: 12px;
         font-weight: 850;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
         text-transform: uppercase;
       }}
-      .summary-card strong {{
-        font-size: 19px;
-        line-height: 1.2;
+      .sisyphus-block .summary-card strong {{
+        display: block;
+        color: #10231f;
+        font-size: 17px;
+        line-height: 1.25;
       }}
-      .summary-card.ok strong {{
-        color: #0f5c36;
-      }}
-      .summary-card.warn strong {{
-        color: #8a5b11;
-      }}
-      .reviewer-dashboard-grid {{
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-      }}
-      .dashboard-card, .reviewer-step {{
-        border: 1px solid #cedbd5;
+      .sisyphus-block .metadata-details, .sisyphus-block .id-details {{
+        border: 1px solid #dbe6e1;
         border-radius: 8px;
         background: #ffffff;
-        padding: 14px;
-        box-shadow: 0 1px 3px rgba(23, 33, 31, 0.05);
+        padding: 10px 12px;
+        margin-top: 10px;
       }}
-      .dashboard-card span, .reviewer-step span {{
-        display: block;
-        color: #435650;
+      .sisyphus-block summary {{
+        cursor: pointer;
+        font-weight: 750;
+      }}
+      .sisyphus-block code {{
+        background: #eef6f2;
+        border: 1px solid #cbd9d3;
+        border-radius: 6px;
+        padding: 2px 5px;
         font-size: 12px;
-        font-weight: 850;
-        margin-bottom: 6px;
-        text-transform: uppercase;
+        white-space: normal;
       }}
-      .dashboard-card strong {{
-        color: #10231f;
-        display: block;
-        font-size: 18px;
-        line-height: 1.25;
-        margin-bottom: 6px;
-      }}
-      .dashboard-card p, .reviewer-step p {{
-        margin: 0;
-      }}
-      .reviewer-step-grid {{
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
-      }}
-      .reviewer-step strong {{
-        color: #1d6b5a;
-        display: block;
-        font-size: 16px;
-        line-height: 1.25;
-        margin-bottom: 6px;
-      }}
-      .branch-row {{
-        display: grid;
-        grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
-        gap: 8px;
-        align-items: center;
-      }}
-      .branch-node {{
-        border: 1px solid #cedbd5;
-        border-radius: 8px;
-        padding: 14px;
-        min-height: 92px;
-        background: white;
-      }}
-      .branch-node span {{
-        display: block;
-        color: #435650;
-        font-size: 12px;
-        font-weight: 800;
-        margin-bottom: 6px;
-      }}
-      .verdict-node {{
-        background: #edf7f2;
-      }}
-      .arrow {{
-        font-weight: 800;
-        color: #52635e;
-      }}
-      table {{
-        border-collapse: collapse;
-        width: 100%;
-        font-size: 14px;
-        line-height: 1.42;
-      }}
-      th, td {{
-        border-bottom: 1px solid #d6e1dc;
-        padding: 10px;
-        text-align: left;
-        vertical-align: top;
-      }}
-      th {{
-        background: #eaf2ee;
-        color: #223a35;
-        font-weight: 800;
-      }}
-      .status.pass {{
-        border-color: #a7d9bd;
-        color: #0f5c36;
-        background: #dff4e8;
-      }}
-      .status.warn {{
-        border-color: #ecd28c;
-        color: #7a4a00;
-        background: #fff3cf;
-      }}
-      .status.fail {{
-        border-color: #e7b8bf;
-        color: #8a1d27;
-        background: #f8dfe3;
-      }}
-      pre {{
+      .sisyphus-block pre {{
         white-space: pre-wrap;
         word-break: break-word;
         background: #111b19;
         color: #e7f5ef;
         border-radius: 8px;
-        padding: 14px;
-        max-height: 520px;
+        padding: 12px;
+        max-height: 420px;
         overflow: auto;
       }}
-      summary {{
-        cursor: pointer;
-        font-weight: 700;
+      .sisyphus-block .sisyphus-table-wrap {{
+        overflow-x: auto;
+        width: 100%;
         margin: 10px 0;
       }}
+      .sisyphus-block table {{
+        border-collapse: collapse;
+        width: 100%;
+        table-layout: fixed;
+        font-size: 13px;
+        line-height: 1.45;
+      }}
+      .sisyphus-block th, .sisyphus-block td {{
+        border-bottom: 1px solid #dce7e1;
+        padding: 9px;
+        text-align: left;
+        vertical-align: top;
+      }}
+      .sisyphus-block th {{
+        background: #eef5f1;
+        color: #223a35;
+        font-weight: 800;
+      }}
+      .sisyphus-block .source-list {{
+        padding-left: 0;
+        list-style: none;
+      }}
+      .sisyphus-block .source-row h4 {{
+        margin-top: 8px;
+      }}
+      .sisyphus-block .source-topline {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        align-items: center;
+      }}
+      .sisyphus-block .compact-list {{
+        columns: 2;
+      }}
+      .sisyphus-block .layer-item {{
+        border-left: 4px solid #617d72;
+        margin: 10px 0;
+      }}
+      .sisyphus-block .layer-item.claim {{ border-left-color: #8a6f2a; }}
+      .sisyphus-block .layer-item.action {{ border-left-color: #2f6f95; }}
+      .sisyphus-block .layer-item.interpretation {{ border-left-color: #7a4d8f; }}
+      .sisyphus-block .layer-item.counter {{ border-left-color: #b35c38; }}
+      .sisyphus-block .layer-item.bias {{ border-left-color: #9b3d4f; }}
+      .sisyphus-block .epistemic-grid {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-start;
+      }}
+      .sisyphus-block .epistemic-lane {{
+        flex: 1 1 16rem;
+        min-width: 0;
+        border-top: 4px solid #617d72;
+      }}
+      .sisyphus-block .epistemic-lane.findings {{ border-top-color: #1d6b5a; }}
+      .sisyphus-block .epistemic-lane.claims {{ border-top-color: #8a6f2a; }}
+      .sisyphus-block .epistemic-lane.interpretations {{ border-top-color: #7a4d8f; }}
+      .sisyphus-block .epistemic-lane.judgment {{ border-top-color: #b88411; }}
+      .sisyphus-block .epistemic-entry {{
+        border-left: 4px solid #617d72;
+        background: #fbfcfa;
+        margin-top: 10px;
+      }}
+      .sisyphus-block .epistemic-entry.findings {{ border-left-color: #1d6b5a; }}
+      .sisyphus-block .epistemic-entry.claims {{ border-left-color: #8a6f2a; }}
+      .sisyphus-block .epistemic-entry.interpretations {{ border-left-color: #7a4d8f; }}
+      .sisyphus-block .epistemic-entry.judgment {{ border-left-color: #b88411; }}
+      .sisyphus-block .item-id {{
+        color: #51615d;
+        font-size: 12px;
+        font-weight: 700;
+      }}
+      .sisyphus-block .diff, .sisyphus-block .verdict {{
+        background: #f2f8f5;
+      }}
+      .sisyphus-block .branch-row {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: stretch;
+      }}
+      .sisyphus-block .branch-node {{
+        flex: 1 1 12rem;
+        min-height: 0;
+      }}
+      .sisyphus-block .arrow {{
+        align-self: center;
+        font-weight: 800;
+        color: #52635e;
+      }}
       @media (max-width: 780px) {{
-        .intro-panel, .card-header, .grid.two, .branch-row, .summary-grid, .graph-metrics, .reviewer-dashboard-grid, .reviewer-step-grid, .epistemic-grid {{
-          grid-template-columns: 1fr;
+        .sisyphus-block {{
+          padding: 14px;
+          font-size: 13px;
         }}
-        .arrow {{
+        .sisyphus-block .intro-panel h1, .sisyphus-block .card-header h2 {{
+          font-size: 25px;
+        }}
+        .sisyphus-block .compact-list {{
+          columns: 1;
+        }}
+        .sisyphus-block .arrow {{
           display: none;
         }}
       }}
     </style>
-    <div class="{escape(class_name)}">{body}</div>
+    <div class="sisyphus-block {escape(class_name)}">{wrapped_body}</div>
     """

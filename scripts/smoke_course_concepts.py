@@ -27,6 +27,7 @@ from sisyphus_watch_demo import (  # noqa: E402
     load_demo_sources,
     load_evidence_patches,
     load_precomputed_records,
+    render_agent_capability_strip_html,
     render_discovery_packet_html,
     render_course_concepts_html,
     render_export_artifacts_overview_html,
@@ -131,6 +132,7 @@ def main() -> int:
             adk_manifest=adk_manifest,
             mcp_manifest=mcp_manifest,
         ),
+        render_agent_capability_strip_html(),
         render_run_status_html(run_status),
         render_user_problem_card_html(problem_packet),
         render_discovery_packet_html(discovery_packet),
@@ -148,6 +150,19 @@ def main() -> int:
         ),
     ]
     assert all(isinstance(output, str) and output.strip() for output in html_outputs)
+    assert all("sisyphus-block" in output for output in html_outputs)
+    combined_html = "\n".join(html_outputs)
+    assert "overflow-wrap" in combined_html
+    assert "sisyphus-table-wrap" in combined_html
+    fragile_layout_markers = [
+        "repeat(" + "auto-fit",
+        "grid-template-columns:" + "repeat(" + "auto-fit",
+        "grid " + "two",
+        "dashboard" + "-card",
+    ]
+    for marker in fragile_layout_markers:
+        assert marker not in combined_html
+    assert "summary-grid" not in combined_html or "display: flex" in combined_html
 
     print("course-concepts-smoke-ok")
     return 0
