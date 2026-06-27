@@ -28,9 +28,15 @@ from sisyphus_watch_demo import (  # noqa: E402
     load_evidence_patches,
     load_precomputed_records,
     render_discovery_packet_html,
+    render_course_concepts_html,
+    render_export_artifacts_overview_html,
     render_guided_flow_html,
+    render_judge_quickstart_html,
     render_plain_summary_vs_sisyphus_html,
+    render_run_status_html,
+    render_submission_readiness_html,
     render_user_problem_card_html,
+    run_quality_checks,
     select_news_card,
 )
 from sisyphus_watch_mcp_server import (  # noqa: E402
@@ -103,11 +109,43 @@ def main() -> int:
         discovery_packet=discovery_packet,
         evidence_patch=evidence_patch,
     )
+    checks = run_quality_checks(selected_card)
+    run_status = {
+        "run_google_discovery": False,
+        "run_live_mode": False,
+        "discovery_mode": discovery_packet.get("mode"),
+        "record_mode": records.get("mode", "demo"),
+        "fallback_reasons": [],
+        "selected_card_id": selected_card.get("card_id"),
+        "selected_scenario_id": selected_card.get("scenario_id"),
+        "available_demo_card_count": len(records.get("news_cards", [])),
+        "evidence_patch_available": evidence_patch is not None,
+        "export_path_target": "/kaggle/working",
+    }
     html_outputs = [
+        render_judge_quickstart_html(
+            selected_card,
+            problem_packet=problem_packet,
+            discovery_packet=discovery_packet,
+            evidence_patch=evidence_patch,
+            adk_manifest=adk_manifest,
+            mcp_manifest=mcp_manifest,
+        ),
+        render_run_status_html(run_status),
         render_user_problem_card_html(problem_packet),
         render_discovery_packet_html(discovery_packet),
         render_guided_flow_html(local_guided_flow),
         render_plain_summary_vs_sisyphus_html(selected_card, discovery_packet),
+        render_course_concepts_html(adk_manifest, adk_trace, mcp_manifest),
+        render_export_artifacts_overview_html(selected_card, evidence_patch),
+        render_submission_readiness_html(
+            selected_card,
+            evidence_patch,
+            checks,
+            discovery_packet=discovery_packet,
+            adk_manifest=adk_manifest,
+            mcp_manifest=mcp_manifest,
+        ),
     ]
     assert all(isinstance(output, str) and output.strip() for output in html_outputs)
 

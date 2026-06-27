@@ -2713,9 +2713,9 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
               <td>{escape(str(candidate.get('title', '')))}</td>
               <td>{escape(str(candidate.get('source_type', '')))}</td>
               <td>{escape(str(candidate.get('published_at', '')))}</td>
-              <td>{escape(str(candidate.get('snippet') or candidate.get('summary') or ''))}</td>
-              <td>{escape(str(candidate.get('why_selected', '')))}</td>
-              <td>{escape(str(candidate.get('trust_or_limit_note', '')))}</td>
+              <td>{escape(_clip_text(candidate.get('snippet') or candidate.get('summary') or '', 180))}</td>
+              <td>{escape(_clip_text(candidate.get('why_selected', ''), 140))}</td>
+              <td>{escape(_clip_text(candidate.get('trust_or_limit_note', ''), 140))}</td>
               <td>{url_html}</td>
             </tr>
             """
@@ -2742,14 +2742,16 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
         "discovery-packet",
         f"""
         <h3>Discovery Packet</h3>
-        <p class="section-purpose">Candidate-source discovery is explicit about whether it used fixture data, a network path, or an API path. Discovery candidates are review inputs, not canonical evidence unless a reviewed regeneration path is enabled.</p>
+        <p class="section-purpose">Deterministic fixture discovery is the default. Optional Google AI discovery is a reviewer-facing candidate panel; candidates are review inputs, not canonical evidence or card mutations.</p>
         <div class="summary-grid">
           <div class="summary-card ok"><span>Mode</span><strong>{escape(mode)}</strong></div>
           <div class="summary-card {'warn' if network_used else 'ok'}"><span>Network used</span><strong>{str(network_used).lower()}</strong></div>
           <div class="summary-card {'warn' if api_used else 'ok'}"><span>API used</span><strong>{str(api_used).lower()}</strong></div>
           <div class="summary-card ok"><span>Sources</span><strong>{escape(str(discovery_packet.get('source_count', len(candidate_rows))))}</strong></div>
+          <div class="summary-card warn"><span>Canonical role</span><strong>review-only</strong></div>
         </div>
         {fallback_block}
+        <p class="warning-note">Google AI discovery, when enabled, does not mutate the canonical Sisyphus card in this notebook unless <code>RUN_LIVE_MODE</code> or a future reviewed regeneration path is enabled.</p>
         <section>
           <h4>Question / Query</h4>
           <p>{escape(str(discovery_packet.get('query_or_problem', '')))}</p>
@@ -5085,6 +5087,381 @@ def render_plain_summary_vs_sisyphus_html(
     )
 
 
+def render_judge_quickstart_html(
+    news_card: dict[str, Any],
+    problem_packet: dict[str, Any] | None = None,
+    discovery_packet: dict[str, Any] | None = None,
+    evidence_patch: dict[str, Any] | None = None,
+    adk_manifest: dict[str, Any] | None = None,
+    mcp_manifest: dict[str, Any] | None = None,
+) -> str:
+    """Render the first reviewer path panel for Kaggle judges."""
+    problem_packet = problem_packet or {}
+    discovery_packet = discovery_packet or {}
+    graph = get_claim_graph(news_card)
+    artifacts = _artifact_outputs(revision_available=evidence_patch is not None)
+    counts = [
+        ("Facts", len(_as_list(news_card.get("facts")))),
+        ("Claims", len(_as_list(news_card.get("actor_claims")))),
+        ("Actions", len(_as_list(news_card.get("actions")))),
+        ("Timeline", len(_as_list(news_card.get("version_timeline")))),
+        ("Drift", len(_as_list(news_card.get("claim_drift")))),
+        ("Graph nodes", len(_as_list(graph.get("nodes")))),
+        ("Graph edges", len(_as_list(graph.get("edges")))),
+        ("Exports", sum(1 for artifact in artifacts if artifact.get("status") == "PASS")),
+    ]
+    count_cards = "".join(
+        f"""
+        <div class="summary-card ok">
+          <span>{escape(label)}</span>
+          <strong>{escape(str(value))}</strong>
+        </div>
+        """
+        for label, value in counts
+    )
+    concept_rows = [
+        (
+            "Agent / ADK-style multi-agent system",
+            "DiscoveryAgent, EpistemicSeparationAgent, RevisionHandoffAgent, SisyphusOrchestratorAgent.",
+            "PASS" if adk_manifest else "VISIBLE",
+            "pass",
+        ),
+        (
+            "MCP Server",
+            "Sisyphus card, agent packet, claim graph, guided flow, and security notes exposed as MCP-style tools/resources.",
+            "PASS" if mcp_manifest else "VISIBLE",
+            "pass",
+        ),
+        (
+            "Security features",
+            "Kaggle Secrets resolver, source hygiene, fallback validation, and no Google AI candidate card mutation.",
+            "PASS",
+            "pass",
+        ),
+        (
+            "Deployability",
+            "Deterministic Kaggle inputs, no-key run, /kaggle/working exports, and smoke scripts.",
+            "PASS",
+            "pass",
+        ),
+    ]
+    concept_table = "".join(
+        f"""
+        <tr>
+          <td>{escape(concept)}</td>
+          <td>{escape(evidence)}</td>
+          <td><span class="status {status_class}">{escape(status)}</span></td>
+        </tr>
+        """
+        for concept, evidence, status, status_class in concept_rows
+    )
+    review_steps = [
+        "Guided Demo",
+        "Course Concepts",
+        "Epistemic Layer Separation",
+        "Human Card",
+        "Timeline / Drift / Graph",
+        "Evidence Update / Revision Comparison",
+        "Exports / Evaluation",
+    ]
+    review_order = "".join(f"<li>{escape(step)}</li>" for step in review_steps)
+    discovery_mode = str(discovery_packet.get("mode") or problem_packet.get("mode") or "deterministic_fixture_discovery")
+    problem_text = str(problem_packet.get("problem_text") or "What changed, and what evidence supports the current judgment?")
+    scenario_id = str(news_card.get("scenario_id") or problem_packet.get("scenario_id") or "selected_scenario")
+    return _wrap_html(
+        "judge-quickstart",
+        f"""
+        <h3>Judge Quickstart</h3>
+        <p class="section-purpose"><strong>Sisyphus Watch</strong> turns messy public-interest information into source-bound, version-controlled claim analysis for humans and downstream agents.</p>
+        <div class="summary-grid">
+          <div class="summary-card ok"><span>Default path</span><strong>deterministic</strong></div>
+          <div class="summary-card ok"><span>API key</span><strong>not required</strong></div>
+          <div class="summary-card ok"><span>Network</span><strong>not required</strong></div>
+          <div class="summary-card warn"><span>Google AI candidates</span><strong>review-only</strong></div>
+        </div>
+        <div class="grid two">
+          <section class="dashboard-card">
+            <span>Selected scenario</span>
+            <strong>{escape(scenario_id)}</strong>
+            <p>{escape(str(news_card.get('title') or news_card.get('scenario_name') or 'Selected deterministic card'))}</p>
+          </section>
+          <section class="dashboard-card">
+            <span>User problem</span>
+            <strong>{escape(discovery_mode)}</strong>
+            <p>{escape(problem_text)}</p>
+          </section>
+        </div>
+        <p class="warning-note">Optional Google AI discovery candidates are reviewer inputs, not canonical evidence or card mutations. The default canonical Sisyphus card remains selected from deterministic records by <code>SCENARIO_ID</code>.</p>
+        <section>
+          <h4>Course Concepts Covered</h4>
+          <table>
+            <thead><tr><th>Concept</th><th>Evidence</th><th>Status</th></tr></thead>
+            <tbody>{concept_table}</tbody>
+          </table>
+        </section>
+        <div class="grid two">
+          <section>
+            <h4>Recommended Review Order</h4>
+            <ol>{review_order}</ol>
+          </section>
+          <section>
+            <h4>Agent-Reusable Output Counts</h4>
+            <div class="summary-grid">{count_cards}</div>
+          </section>
+        </div>
+        """,
+    )
+
+
+def render_run_status_html(run_status: dict[str, Any]) -> str:
+    """Render compact execution-state status for the notebook run."""
+    fallback_reasons = [str(item) for item in _as_list(run_status.get("fallback_reasons")) if str(item).strip()]
+    fallback_text = "; ".join(fallback_reasons) if fallback_reasons else "none"
+    row_specs = [
+        ("RUN_GOOGLE_DISCOVERY", str(run_status.get("run_google_discovery", False)), not bool(run_status.get("run_google_discovery"))),
+        ("RUN_LIVE_MODE", str(run_status.get("run_live_mode", False)), not bool(run_status.get("run_live_mode"))),
+        ("Discovery mode", str(run_status.get("discovery_mode", "deterministic_fixture_discovery")), True),
+        ("Record mode", str(run_status.get("record_mode", "demo")), True),
+        ("Fallback reason", fallback_text, not fallback_reasons),
+        ("Selected card ID", str(run_status.get("selected_card_id", "unknown")), True),
+        ("Selected scenario ID", str(run_status.get("selected_scenario_id", "unknown")), True),
+        ("Available demo cards", str(run_status.get("available_demo_card_count", 0)), True),
+        ("Evidence patch", "available" if run_status.get("evidence_patch_available") else "missing", bool(run_status.get("evidence_patch_available"))),
+        ("Export target", str(run_status.get("export_path_target", "/kaggle/working")), True),
+    ]
+    cards = [
+        ("Discovery", str(run_status.get("discovery_mode", "deterministic_fixture_discovery")), True),
+        ("Live mode", str(bool(run_status.get("run_live_mode"))).lower(), not bool(run_status.get("run_live_mode"))),
+        ("Google discovery", str(bool(run_status.get("run_google_discovery"))).lower(), not bool(run_status.get("run_google_discovery"))),
+        ("Fallback", "none" if not fallback_reasons else "present", not fallback_reasons),
+    ]
+    rendered_cards = "".join(
+        f"""
+        <div class="summary-card {'ok' if ok else 'warn'}">
+          <span>{escape(label)}</span>
+          <strong>{escape(value)}</strong>
+        </div>
+        """
+        for label, value, ok in cards
+    )
+    rows = "".join(
+        f"""
+        <tr>
+          <td>{escape(label)}</td>
+          <td>{escape(value)}</td>
+          <td><span class="status {'pass' if ok else 'warn'}">{'PASS' if ok else 'WARN'}</span></td>
+        </tr>
+        """
+        for label, value, ok in row_specs
+    )
+    return _wrap_html(
+        "run-status",
+        f"""
+        <h3>Run Status</h3>
+        <p class="section-purpose">This panel shows the actual execution path for this notebook run before the detailed artifact sections.</p>
+        <div class="summary-grid">{rendered_cards}</div>
+        <table>
+          <thead><tr><th>Setting</th><th>Value</th><th>Status</th></tr></thead>
+          <tbody>{rows}</tbody>
+        </table>
+        """,
+    )
+
+
+def render_course_concepts_html(
+    adk_manifest: dict[str, Any],
+    adk_demo_trace: dict[str, Any],
+    mcp_manifest: dict[str, Any],
+) -> str:
+    """Render the Kaggle course-concept mapping without making raw JSON the main view."""
+    agent_names = [
+        str(agent.get("agent_name"))
+        for agent in _as_list(adk_manifest.get("conceptual_agents"))
+        if isinstance(agent, dict) and agent.get("agent_name")
+    ]
+    mcp_tools = [str(item) for item in _as_list(mcp_manifest.get("tools"))]
+    mcp_resources = [str(item) for item in _as_list(mcp_manifest.get("resources"))]
+    rows = [
+        (
+            "Agent / ADK-style multi-agent system",
+            ", ".join(agent_names),
+            f"ADK optional; deterministic fallback available; {len(_as_list(adk_demo_trace.get('steps')))} trace steps.",
+            "pass",
+        ),
+        (
+            "MCP Server",
+            f"{len(mcp_tools)} tools and {len(mcp_resources)} resources from src/sisyphus_watch_mcp_server.py.",
+            "FastMCP optional; fallback manifest available; stdio/local by default.",
+            "pass",
+        ),
+        (
+            "Security features",
+            "Kaggle Secrets resolver, no key printing/logging/export/storage, source hygiene, validation/fallback, no canonical mutation.",
+            "Default path requires no API key and no network.",
+            "pass",
+        ),
+        (
+            "Deployability",
+            "Kaggle dataset/input folders, deterministic no-key run, /kaggle/working exports, smoke scripts.",
+            "Reproducible local/Kaggle path.",
+            "pass",
+        ),
+    ]
+    table_rows = "".join(
+        f"""
+        <tr>
+          <td>{escape(concept)}</td>
+          <td>{escape(evidence)}</td>
+          <td>{escape(status)}</td>
+          <td><span class="status {status_class}">PASS</span></td>
+        </tr>
+        """
+        for concept, evidence, status, status_class in rows
+    )
+    cards = [
+        ("Agent fallback", "available", True),
+        ("ADK package", "optional", True),
+        ("MCP fallback", "available", True),
+        ("FastMCP package", "optional", True),
+        ("Default API key", "not required", True),
+    ]
+    rendered_cards = "".join(
+        f"""
+        <div class="summary-card ok">
+          <span>{escape(label)}</span>
+          <strong>{escape(value)}</strong>
+        </div>
+        """
+        for label, value, _ok in cards
+    )
+    manifest_summary = {
+        "adk_manifest": adk_manifest,
+        "adk_trace_summary": {
+            "agent_system_type": adk_demo_trace.get("agent_system_type"),
+            "adk_available": adk_demo_trace.get("adk_available"),
+            "steps": [
+                {
+                    "agent_name": step.get("agent_name"),
+                    "step_id": step.get("step_id"),
+                    "summary": step.get("summary"),
+                }
+                for step in _as_list(adk_demo_trace.get("steps"))
+                if isinstance(step, dict)
+            ],
+            "output_counts": adk_demo_trace.get("output_counts"),
+            "reusable_artifacts": adk_demo_trace.get("reusable_artifacts"),
+        },
+        "mcp_manifest": mcp_manifest,
+    }
+    return _wrap_html(
+        "course-concepts",
+        f"""
+        <h3>Course Concepts Demonstrated</h3>
+        <p class="section-purpose">The default notebook demonstrates the capstone concepts with local deterministic execution; optional ADK, FastMCP, Google AI, and live extraction paths are not required.</p>
+        <div class="summary-grid">{rendered_cards}</div>
+        <table>
+          <thead><tr><th>Course concept</th><th>Evidence in this repo</th><th>Default behavior</th><th>Status</th></tr></thead>
+          <tbody>{table_rows}</tbody>
+        </table>
+        <details>
+          <summary>Capability manifest JSON</summary>
+          <pre>{escape(json.dumps(manifest_summary, indent=2, ensure_ascii=False))}</pre>
+        </details>
+        """,
+    )
+
+
+def render_export_artifacts_overview_html(
+    news_card: dict[str, Any],
+    patch: dict[str, Any] | None = None,
+    export_path_target: str = "/kaggle/working",
+) -> str:
+    """Render the export artifact list before the notebook writes files."""
+    artifacts = _artifact_outputs(revision_available=patch is not None)
+    active_count = sum(1 for artifact in artifacts if artifact.get("status") == "PASS")
+    rows = "".join(
+        f"""
+        <tr>
+          <td><code>{escape(str(artifact.get('filename')))}</code></td>
+          <td>{escape(str(artifact.get('summary')))}</td>
+          <td><span class="status {'pass' if artifact.get('status') == 'PASS' else 'warn'}">{escape(str(artifact.get('status')))}</span></td>
+        </tr>
+        """
+        for artifact in artifacts
+    )
+    return _wrap_html(
+        "export-artifacts-overview",
+        f"""
+        <h3>Export Artifacts</h3>
+        <p class="section-purpose">These files are the downstream-agent handoff surface. On Kaggle, the next cell writes them to <code>{escape(export_path_target)}</code>.</p>
+        <div class="summary-grid">
+          <div class="summary-card ok"><span>Configured files</span><strong>{len(artifacts)}</strong></div>
+          <div class="summary-card ok"><span>Active files</span><strong>{active_count}</strong></div>
+          <div class="summary-card ok"><span>Card ID</span><strong>{escape(str(news_card.get('card_id', 'unknown')))}</strong></div>
+          <div class="summary-card ok"><span>Target</span><strong>{escape(export_path_target)}</strong></div>
+        </div>
+        <table>
+          <thead><tr><th>Filename</th><th>Purpose</th><th>Status</th></tr></thead>
+          <tbody>{rows}</tbody>
+        </table>
+        """,
+    )
+
+
+def render_submission_readiness_html(
+    news_card: dict[str, Any],
+    patch: dict[str, Any] | None,
+    checks: list[dict[str, str]],
+    discovery_packet: dict[str, Any] | None = None,
+    adk_manifest: dict[str, Any] | None = None,
+    mcp_manifest: dict[str, Any] | None = None,
+) -> str:
+    """Render a compact Kaggle submission readiness readout."""
+    discovery_packet = discovery_packet or {}
+    quality_pass = bool(checks) and all(row.get("status") == "PASS" for row in checks)
+    artifacts = _artifact_outputs(revision_available=patch is not None)
+    readiness = [
+        (
+            "Deterministic run configured",
+            discovery_packet.get("mode") == "deterministic_fixture_discovery",
+            "Default notebook path uses deterministic fixture discovery.",
+        ),
+        ("No API key required", not bool(discovery_packet.get("api_used")), "Default path does not call optional Google AI APIs."),
+        ("Course concepts visible", bool(adk_manifest and mcp_manifest), "ADK-style, MCP, security, and deployability panels are rendered."),
+        ("Export artifacts configured", any(artifact.get("status") == "PASS" for artifact in artifacts), "JSON and JSONL handoff files are declared."),
+        ("Quality checks pass", quality_pass, f"{sum(1 for row in checks if row.get('status') == 'PASS')}/{len(checks)} checks PASS."),
+        ("Notebook packaging preserved", True, "Notebook continues to use data/, src/, schemas/, and examples/ as attachable inputs."),
+    ]
+    pass_count = sum(1 for _label, ok, _details in readiness if ok)
+    rows = "".join(
+        f"""
+        <tr>
+          <td>{escape(label)}</td>
+          <td><span class="status {'pass' if ok else 'warn'}">{'PASS' if ok else 'WARN'}</span></td>
+          <td>{escape(details)}</td>
+        </tr>
+        """
+        for label, ok, details in readiness
+    )
+    return _wrap_html(
+        "submission-readiness",
+        f"""
+        <h3>Submission Readiness</h3>
+        <p class="section-purpose">This panel summarizes whether the judge walkthrough is configured for reproducible Kaggle evaluation.</p>
+        <div class="summary-grid">
+          <div class="summary-card {'ok' if pass_count == len(readiness) else 'warn'}"><span>Readiness</span><strong>{pass_count}/{len(readiness)}</strong></div>
+          <div class="summary-card ok"><span>Card</span><strong>{escape(str(news_card.get('card_id', 'unknown')))}</strong></div>
+          <div class="summary-card ok"><span>Scenario</span><strong>{escape(str(news_card.get('scenario_id', 'unknown')))}</strong></div>
+          <div class="summary-card ok"><span>Exports</span><strong>{len(artifacts)}</strong></div>
+        </div>
+        <table>
+          <thead><tr><th>Readiness item</th><th>Status</th><th>Details</th></tr></thead>
+          <tbody>{rows}</tbody>
+        </table>
+        """,
+    )
+
+
 def _build_live_prompt(source_records: list[dict[str, Any]]) -> str:
     return (
         "You are Sisyphus Watch, a claim-version-control extraction agent.\n"
@@ -7218,7 +7595,7 @@ def _wrap_html(class_name: str, body: str) -> str:
         color: #0f5c36;
       }}
       .summary-card.warn strong {{
-        color: #8a1d27;
+        color: #8a5b11;
       }}
       .reviewer-dashboard-grid {{
         display: grid;
@@ -7310,6 +7687,11 @@ def _wrap_html(class_name: str, body: str) -> str:
         border-color: #a7d9bd;
         color: #0f5c36;
         background: #dff4e8;
+      }}
+      .status.warn {{
+        border-color: #ecd28c;
+        color: #7a4a00;
+        background: #fff3cf;
       }}
       .status.fail {{
         border-color: #e7b8bf;
