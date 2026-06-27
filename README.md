@@ -138,7 +138,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first screen explains the submission summary, reviewer path, epistemic layer separation, agent workflow, and default synthetic scenario. The notebook then renders the agent workflow trace, run summary, epistemic layer separation, human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, scenario authoring preview, evidence update simulation, revision comparison view, branch view, JSON export, JSONL preview, agent packet preview, downloadable artifacts, PASS/FAIL evaluation table, and Kaggle mid-check checklist.
+The first reviewer path is **Guided Demo: Ask, Discover, Process**. It starts from a user problem, shows deterministic fixture discovery by default, explains the optional Google AI discovery panel, and displays candidate source records normalized for review and handoff. In the default Kaggle path, the canonical Sisyphus card still comes from deterministic records selected by `SCENARIO_ID`; optional Google AI discovery candidates do not become canonical evidence or mutate the card unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled. The notebook then renders the reviewer dashboard, agent workflow trace, run summary, epistemic layer separation, human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, scenario authoring preview, evidence update simulation, revision comparison view, branch view, JSON export, JSONL preview, agent packet preview, downloadable artifacts, PASS/FAIL evaluation table, and Kaggle mid-check checklist.
 
 To switch scenarios in the notebook, change:
 
@@ -161,12 +161,31 @@ SCENARIO_ID = "school_air_quality_alert_communication"
 ## Kaggle Review Path
 
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
-2. Run all cells with the default `SCENARIO_ID = "city_heatwave_cooling_centers"`.
-3. Read **Submission Summary**, **Reviewer Dashboard**, and **Agent Workflow Trace** first to understand the deterministic agent run.
-4. Inspect **Epistemic Layer Separation**, **Human Card View**, **Version Timeline**, **Claim Drift**, **Claim Graph**, **Reviewer Query Presets**, **Evidence Update Simulation**, and **Revision Comparison View**.
-5. Check **Downloadable Export Artifacts**, **Evaluation**, and **Kaggle Mid-Check Checklist** before saving a Kaggle notebook version.
+2. Read **Guided Demo: Ask, Discover, Process**.
+3. Confirm the default `deterministic_fixture_discovery` mode: no API key, no network, local fixture sources only, and deterministic Sisyphus card processing from `SCENARIO_ID`.
+4. Inspect **User Problem**, **Discovery Packet**, and **Sisyphus Guided Flow**.
+5. Confirm optional Google AI discovery uses `GOOGLE_API_KEY` from Kaggle Notebook Secrets when `RUN_GOOGLE_DISCOVERY = True`, and that its candidates are review inputs rather than canonical card mutations.
+6. Then inspect **Reviewer Dashboard**, **Agent Workflow Trace**, **Epistemic Layer Separation**, **Human Card View**, **Version Timeline**, **Claim Drift**, **Claim Graph**, **Revision Comparison View**, **Downloadable Export Artifacts**, **Evaluation**, and **Kaggle Mid-Check Checklist**.
 
-Demo mode does not require an API key or network access.
+Default Kaggle evaluation remains deterministic and does not require an API key or network access. It uses deterministic fixture discovery plus deterministic Sisyphus card processing.
+
+Optional Google AI discovery can be enabled in the notebook with:
+
+```python
+RUN_GOOGLE_DISCOVERY = True
+```
+
+This optional path is a candidate-source discovery panel for reviewer inspection. Unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled, Google AI discovery candidates are not canonical evidence and do not mutate the canonical Sisyphus card.
+
+When enabled, `resolve_google_api_key()` supports the Kaggle Notebook Secrets pattern:
+
+```python
+from kaggle_secrets import UserSecretsClient
+user_secrets = UserSecretsClient()
+secret_value_0 = user_secrets.get_secret("GOOGLE_API_KEY")
+```
+
+If the secret is absent, the optional SDK is unavailable, the API call fails, parsing fails, or validation fails, the notebook safely falls back to deterministic fixture discovery. The API key is never printed, logged, exported, or stored.
 
 For a cleaner Kaggle dataset package, exclude `.git`, `__pycache__`, and notebook checkpoint folders.
 
@@ -218,10 +237,12 @@ The notebook includes a conservative optional live regeneration path in `maybe_r
 To try it:
 
 1. Set `RUN_LIVE_MODE = True` in the notebook.
-2. Provide `GOOGLE_API_KEY` through Kaggle secrets or the local environment.
+2. Provide `GOOGLE_API_KEY` through Kaggle Notebook Secrets or the local environment.
 3. Optionally set `SISYPHUS_GEMINI_MODEL`; otherwise it uses `gemini-2.5-flash`.
 
 Live mode treats source text as untrusted data, asks for JSON only, and normalizes the response into the same schema. If the key is missing, the package is unavailable, parsing fails, validation fails, or the API call fails, the notebook falls back to deterministic demo records. It never prints or stores the API key.
+
+The same resolver is used by optional Google AI discovery and optional Gemini live extraction. It checks an explicit argument first, then Kaggle Notebook Secrets with `UserSecretsClient().get_secret("GOOGLE_API_KEY")`, then `os.environ.get("GOOGLE_API_KEY")`.
 
 ## Claim Graph v0.4
 
