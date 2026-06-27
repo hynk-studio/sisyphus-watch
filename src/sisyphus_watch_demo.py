@@ -2520,8 +2520,8 @@ def build_user_problem_packet(problem_text: str, scenario_id: str, mode: str) ->
         "expected_review_flow": [
             "Ask a public-interest question.",
             "Discover or load candidate sources.",
-            "Normalize source records while keeping source text untrusted.",
-            "Process sources into Sisyphus Watch claim-version-control outputs.",
+            "Normalize candidate sources for review and downstream handoff while keeping source text untrusted.",
+            "Process the selected canonical source set into Sisyphus Watch claim-version-control outputs.",
             "Reuse agent-readable JSON/JSONL packets downstream.",
         ],
     }
@@ -2535,7 +2535,7 @@ def render_user_problem_card_html(problem_packet: dict[str, Any]) -> str:
         "user-problem-card",
         f"""
         <h3>User Problem</h3>
-        <p class="section-purpose">The notebook starts from a public-interest question, then shows how discovery and Sisyphus processing change the shape of the answer.</p>
+        <p class="section-purpose">The notebook starts from a public-interest question, then separates candidate-source discovery from canonical Sisyphus card processing.</p>
         <div class="summary-grid">
           <div class="summary-card ok"><span>Scenario</span><strong>{escape(str(problem_packet.get('scenario_id', 'scenario')))}</strong></div>
           <div class="summary-card ok"><span>Mode</span><strong>{escape(str(problem_packet.get('mode', 'demo')))}</strong></div>
@@ -2639,7 +2639,7 @@ def normalize_discovery_packet_to_source_records(discovery_packet: dict[str, Any
     for index, candidate in enumerate(_as_list(discovery_packet.get("candidate_sources")), start=1):
         if not isinstance(candidate, dict):
             continue
-        source_id = str(candidate.get("source_id") or f"src_discovery_candidate_{index:02d}")
+        source_id = _candidate_source_id(candidate, index)
         key_observations = " ".join(str(item) for item in _as_list(candidate.get("key_claims_or_observations")))
         text = " ".join(
             part
@@ -2742,7 +2742,7 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
         "discovery-packet",
         f"""
         <h3>Discovery Packet</h3>
-        <p class="section-purpose">Candidate-source discovery is explicit about whether it used fixture data, a network path, or an API path.</p>
+        <p class="section-purpose">Candidate-source discovery is explicit about whether it used fixture data, a network path, or an API path. Discovery candidates are review inputs, not canonical evidence unless a reviewed regeneration path is enabled.</p>
         <div class="summary-grid">
           <div class="summary-card ok"><span>Mode</span><strong>{escape(mode)}</strong></div>
           <div class="summary-card {'warn' if network_used else 'ok'}"><span>Network used</span><strong>{str(network_used).lower()}</strong></div>
@@ -4621,9 +4621,9 @@ def _fallback_discovery_packet(
 
 def _candidate_source_id(candidate: dict[str, Any], index: int) -> str:
     existing = str(candidate.get("source_id") or "").strip()
-    if existing:
+    if existing.startswith("src_"):
         return existing
-    basis = candidate.get("url") or candidate.get("title") or f"candidate_{index:02d}"
+    basis = existing or candidate.get("url") or candidate.get("title") or f"candidate_{index:02d}"
     return f"src_google_ai_candidate_{_safe_slug(basis, f'candidate_{index:02d}')[:60]}"
 
 
@@ -4671,7 +4671,8 @@ def _normalize_google_ai_discovery_payload(
             str(item) for item in _as_list(packet.get("coverage_limits"))
         ]
         or [
-            "Live discovery candidates are not canonical Sisyphus evidence until normalized and reviewed.",
+            "Google AI discovery candidates are reviewer inputs, not canonical Sisyphus evidence.",
+            "Unless RUN_LIVE_MODE or a future reviewed source-to-card regeneration path is enabled, candidates do not mutate the canonical card.",
             "Google AI discovery is optional and may vary; the default Kaggle path remains deterministic.",
         ],
         "recommended_next_checks": [
@@ -4852,7 +4853,8 @@ def build_guided_flow_summary(
             "label": "Step 2: Google AI discovery or deterministic fixture discovery gathers candidate sources.",
             "summary": (
                 f"{discovery_mode} returned {discovery.get('source_count', len(normalized_sources))} candidate source(s). "
-                f"Network used: {bool(discovery.get('network_used'))}; API used: {bool(discovery.get('api_used'))}."
+                f"Network used: {bool(discovery.get('network_used'))}; API used: {bool(discovery.get('api_used'))}. "
+                "Optional Google AI candidates are for reviewer inspection and handoff."
             ),
             "outputs": [str(source_id) for source_id in _as_list(discovery.get("search_queries"))] or source_ids,
         },
@@ -4860,8 +4862,8 @@ def build_guided_flow_summary(
             "step_id": "step_3_source_hygiene",
             "label": "Step 3: Source hygiene / source normalization keeps source text untrusted.",
             "summary": (
-                f"{len(normalized_sources)} discovery candidate(s) can be normalized for review; "
-                f"{len(source_records)} canonical fixture source record(s) feed the deterministic card."
+                f"{len(normalized_sources)} discovery candidate(s) can be normalized for review/handoff; "
+                f"{len(source_records)} canonical fixture source record(s) feed the deterministic card in the default Kaggle path."
             ),
             "outputs": source_ids,
         },
@@ -4936,6 +4938,12 @@ def build_guided_flow_summary(
             "version_diff_id": version_diff.get("diff_id"),
             "confidence_delta": version_diff.get("confidence_delta"),
         },
+        "canonical_card_boundary": (
+            "Discovery candidates are normalized for review and downstream handoff. In the default Kaggle path, "
+            "the canonical Sisyphus news_card remains selected from deterministic records by SCENARIO_ID. "
+            "Google AI discovery does not mutate the canonical card unless RUN_LIVE_MODE or a future reviewed "
+            "source-to-card regeneration path is enabled."
+        ),
         "steps": steps,
         "agent_artifacts_to_reuse": agent_artifacts,
         "downstream_agent_guidance": [
@@ -4987,11 +4995,13 @@ def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
     )
     fallback = str(flow_summary.get("fallback_reason") or "")
     fallback_block = f"<p class='warning-note'><strong>Fallback:</strong> {escape(fallback)}</p>" if fallback else ""
+    boundary = str(flow_summary.get("canonical_card_boundary") or "")
+    boundary_block = f"<p class='warning-note'>{escape(boundary)}</p>" if boundary else ""
     return _wrap_html(
         "guided-flow",
         f"""
         <h3>Sisyphus Guided Flow</h3>
-        <p class="section-purpose">This is the first-run reviewer story: user question, discovery mode, normalized source records, claim-version processing, and reusable agent packets.</p>
+        <p class="section-purpose">This is the first-run reviewer story: user question, discovery mode, candidate sources normalized for review/handoff, deterministic canonical-card processing, and reusable agent packets.</p>
         <div class="summary-grid">
           <div class="summary-card ok"><span>Discovery mode</span><strong>{escape(str(flow_summary.get('discovery_mode', 'demo')))}</strong></div>
           <div class="summary-card {'warn' if flow_summary.get('network_used') else 'ok'}"><span>Network used</span><strong>{str(bool(flow_summary.get('network_used'))).lower()}</strong></div>
@@ -4999,6 +5009,7 @@ def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
           <div class="summary-card ok"><span>Normalized sources</span><strong>{escape(str(flow_summary.get('normalized_source_count', 0)))}</strong></div>
         </div>
         {fallback_block}
+        {boundary_block}
         <section>
           <h4>Six-Step Processing Path</h4>
           <div class="reviewer-step-grid">{''.join(steps)}</div>
@@ -5066,7 +5077,7 @@ def render_plain_summary_vs_sisyphus_html(
           <section class="dashboard-card">
             <span>Sisyphus Watch</span>
             <strong>Version-controlled claim analysis</strong>
-            <p>Discovery mode: <code>{escape(discovery_mode)}</code>. The notebook keeps source hygiene, epistemic layers, version changes, graph relations, and agent handoff artifacts visible.</p>
+            <p>Discovery mode: <code>{escape(discovery_mode)}</code>. The notebook keeps source hygiene, epistemic layers, version changes, graph relations, and agent handoff artifacts visible. Optional Google AI discovery candidates remain review inputs unless a reviewed live regeneration path is enabled.</p>
             <ul>{sisyphus_list}</ul>
           </section>
         </div>

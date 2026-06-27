@@ -138,7 +138,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The first reviewer path is **Guided Demo: Ask, Discover, Process**. It starts from a user problem, shows deterministic fixture discovery by default, explains the optional Google AI discovery path, displays normalized candidate source records, then shows how Sisyphus Watch turns those sources into versioned claim analysis. The notebook then renders the reviewer dashboard, agent workflow trace, run summary, epistemic layer separation, human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, scenario authoring preview, evidence update simulation, revision comparison view, branch view, JSON export, JSONL preview, agent packet preview, downloadable artifacts, PASS/FAIL evaluation table, and Kaggle mid-check checklist.
+The first reviewer path is **Guided Demo: Ask, Discover, Process**. It starts from a user problem, shows deterministic fixture discovery by default, explains the optional Google AI discovery panel, and displays candidate source records normalized for review and handoff. In the default Kaggle path, the canonical Sisyphus card still comes from deterministic records selected by `SCENARIO_ID`; optional Google AI discovery candidates do not become canonical evidence or mutate the card unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled. The notebook then renders the reviewer dashboard, agent workflow trace, run summary, epistemic layer separation, human card view, version timeline, claim drift, claim graph, graph query preview, reviewer presets, scenario authoring preview, evidence update simulation, revision comparison view, branch view, JSON export, JSONL preview, agent packet preview, downloadable artifacts, PASS/FAIL evaluation table, and Kaggle mid-check checklist.
 
 To switch scenarios in the notebook, change:
 
@@ -162,18 +162,20 @@ SCENARIO_ID = "school_air_quality_alert_communication"
 
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
 2. Read **Guided Demo: Ask, Discover, Process**.
-3. Confirm the default `deterministic_fixture_discovery` mode: no API key, no network, and local fixture sources only.
+3. Confirm the default `deterministic_fixture_discovery` mode: no API key, no network, local fixture sources only, and deterministic Sisyphus card processing from `SCENARIO_ID`.
 4. Inspect **User Problem**, **Discovery Packet**, and **Sisyphus Guided Flow**.
-5. Confirm optional Google AI discovery uses `GOOGLE_API_KEY` from Kaggle Notebook Secrets when `RUN_GOOGLE_DISCOVERY = True`.
+5. Confirm optional Google AI discovery uses `GOOGLE_API_KEY` from Kaggle Notebook Secrets when `RUN_GOOGLE_DISCOVERY = True`, and that its candidates are review inputs rather than canonical card mutations.
 6. Then inspect **Reviewer Dashboard**, **Agent Workflow Trace**, **Epistemic Layer Separation**, **Human Card View**, **Version Timeline**, **Claim Drift**, **Claim Graph**, **Revision Comparison View**, **Downloadable Export Artifacts**, **Evaluation**, and **Kaggle Mid-Check Checklist**.
 
-Default Kaggle evaluation remains deterministic and does not require an API key or network access.
+Default Kaggle evaluation remains deterministic and does not require an API key or network access. It uses deterministic fixture discovery plus deterministic Sisyphus card processing.
 
 Optional Google AI discovery can be enabled in the notebook with:
 
 ```python
 RUN_GOOGLE_DISCOVERY = True
 ```
+
+This optional path is a candidate-source discovery panel for reviewer inspection. Unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled, Google AI discovery candidates are not canonical evidence and do not mutate the canonical Sisyphus card.
 
 When enabled, `resolve_google_api_key()` supports the Kaggle Notebook Secrets pattern:
 
