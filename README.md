@@ -243,12 +243,15 @@ SCENARIO_ID = "school_air_quality_alert_communication"
 
 ## Kaggle Review Path
 
+The notebook is organized as a judge walkthrough. Start with **Judge Quickstart**, **Guided Demo: Ask, Discover, Process**, and **Course Concepts Demonstrated**; raw JSON remains available in collapsible details, but the main path is human-readable.
+
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
-2. Read **Guided Demo: Ask, Discover, Process**.
+2. Read **Judge Quickstart** and **Guided Demo: Ask, Discover, Process**.
 3. Confirm the default `deterministic_fixture_discovery` mode: no API key, no network, local fixture sources only, and deterministic Sisyphus card processing from `SCENARIO_ID`.
 4. Inspect **User Problem**, **Discovery Packet**, and **Sisyphus Guided Flow**.
 5. Confirm optional Google AI discovery uses `GOOGLE_API_KEY` from Kaggle Notebook Secrets when `RUN_GOOGLE_DISCOVERY = True`, and that its candidates are review inputs rather than canonical card mutations.
-6. Then inspect **Reviewer Dashboard**, **Agent Workflow Trace**, **Epistemic Layer Separation**, **Human Card View**, **Version Timeline**, **Claim Drift**, **Claim Graph**, **Revision Comparison View**, **Downloadable Export Artifacts**, **Evaluation**, and **Kaggle Mid-Check Checklist**.
+6. Inspect **Course Concepts Demonstrated** for the ADK-style agent system, MCP server, security, and deployability mapping.
+7. Then inspect **Reviewer Dashboard**, **Agent Workflow Trace**, **Epistemic Layer Separation**, **Human Card View**, **Version Timeline**, **Claim Drift**, **Claim Graph**, **Revision Comparison View**, **Downloadable Export Artifacts**, **Evaluation**, and **Kaggle Mid-Check Checklist**.
 
 Default Kaggle evaluation remains deterministic and does not require an API key or network access. It uses deterministic fixture discovery plus deterministic Sisyphus card processing.
 
