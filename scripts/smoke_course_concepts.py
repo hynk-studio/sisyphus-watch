@@ -34,11 +34,13 @@ from sisyphus_watch_demo import (  # noqa: E402
     render_case_hook_html,
     render_discovery_packet_html,
     render_course_concepts_html,
+    render_evaluation_summary_html,
     render_export_artifacts_overview_html,
     render_guided_flow_html,
     render_judge_quickstart_html,
     render_plain_summary_vs_sisyphus_html,
     render_product_brief_html,
+    render_quality_checks_html,
     render_review_map_html,
     render_run_status_html,
     render_submission_readiness_html,
@@ -149,6 +151,8 @@ def main() -> int:
     assert selected_card.get("claim_graph", {}).get("nodes")
     assert selected_card.get("claim_graph", {}).get("edges")
     checks = run_quality_checks(selected_card)
+    assert checks
+    assert all(row.get("status") == "PASS" for row in checks)
     run_status = {
         "run_google_discovery": False,
         "run_live_mode": False,
@@ -197,6 +201,8 @@ def main() -> int:
             adk_manifest=adk_manifest,
             mcp_manifest=mcp_manifest,
         ),
+        render_evaluation_summary_html(checks, selected_card),
+        render_quality_checks_html(checks),
     ]
     assert all(isinstance(output, str) and output.strip() for output in html_outputs)
     assert all("sisyphus-block" in output for output in html_outputs)
