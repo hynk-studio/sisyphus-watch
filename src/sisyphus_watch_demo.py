@@ -306,6 +306,14 @@ def _safe_slug(value: Any, fallback: str = "item") -> str:
     return "".join(char for char in text if char.isalnum() or char == "_") or fallback
 
 
+def _snapshot_label(record: dict[str, Any]) -> str:
+    if record.get("is_public_source_snapshot") is True:
+        return "public-source frozen snapshot"
+    if record.get("is_real_case_snapshot") is True:
+        return "real-case frozen snapshot"
+    return "synthetic fixture"
+
+
 def _clip_text(value: Any, limit: int = 240) -> str:
     text = " ".join(str(value or "").split())
     if len(text) <= limit:
@@ -1301,7 +1309,7 @@ def export_agent_graph_packet(
         ],
         "limitations": [
             "Graph traversal is deterministic and local; it does not query a database or external graph service.",
-            "Synthetic demo fixtures are not real-world evidence.",
+            "Synthetic fixtures are not real-world evidence; public-source snapshots are frozen and not live verification.",
             "Missing paths should be read as absent graph connectivity, not as proof that no relationship exists.",
         ],
     }
@@ -2016,7 +2024,7 @@ def _next_agent_handoff_query(news_card: dict[str, Any], focus_ref_id: str | Non
         "graph_packet": graph_packet,
         "downstream_instructions": [
             "Start with answer_summary, then inspect selected_subgraph edges.",
-            "Do not treat synthetic demo fixtures as real evidence.",
+            "Do not treat synthetic fixtures as real evidence or public-source snapshots as live verification.",
             "Return any new evidence as source-bound finding, claim, or action IDs before changing judgment handling.",
         ],
     }
@@ -2141,7 +2149,7 @@ def export_reviewer_packet(
         ],
         "limitations": [
             "Reviewer packets are deterministic JSON packets and do not call an LLM.",
-            "Synthetic demo fixtures are not real-world evidence.",
+            "Synthetic fixtures are not real-world evidence; public-source snapshots are frozen and not live verification.",
             "Graph paths show encoded card relationships, not independent proof.",
         ],
     }
@@ -2489,7 +2497,7 @@ def validate_scenario_authoring_packet(packet: dict[str, Any]) -> list[str]:
 
 
 def load_demo_sources(path: str | Path | None = None) -> list[dict[str, Any]]:
-    """Load synthetic source fixtures and validate their basic shape."""
+    """Load deterministic source records and validate their basic shape."""
     source_path = Path(path) if path else DEFAULT_SOURCE_PATH
     records = _read_json(source_path)
     if not isinstance(records, list):
@@ -2499,7 +2507,7 @@ def load_demo_sources(path: str | Path | None = None) -> list[dict[str, Any]]:
     for index, record in enumerate(records):
         errors.extend(f"source[{index}]: {error}" for error in validate_source_record(record))
     if errors:
-        raise ValueError("Invalid demo source fixtures:\n" + "\n".join(errors))
+        raise ValueError("Invalid demo source records:\n" + "\n".join(errors))
     return records
 
 
@@ -2545,7 +2553,7 @@ def select_news_card(records: dict[str, Any], scenario_id: str | None = None) ->
 def filter_sources_for_card(
     source_records: list[dict[str, Any]], news_card: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """Return source fixtures referenced by the selected card."""
+    """Return source records referenced by the selected card."""
     source_ids = set(news_card.get("source_ids", []))
     return [source for source in source_records if source.get("source_id") in source_ids]
 
@@ -2690,9 +2698,9 @@ def build_deterministic_discovery_packet(
         "source_count": len(candidates),
         "candidate_sources": candidates,
         "coverage_limits": [
-            "Default Kaggle execution uses local synthetic fixture sources only.",
+            "Default Kaggle execution uses local deterministic source records only.",
             "No live web search, crawling, ranking, or independent verification occurred.",
-            "Fixture coverage is intentionally narrow so reviewers can inspect the full claim-version-control flow.",
+            "The selected source set is intentionally narrow so reviewers can inspect the full claim-version-control flow.",
         ],
     }
     if fallback_reason:
@@ -2821,7 +2829,7 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
         <h3>Discovery Packet</h3>
         <p class="section-purpose">Discovery prepares source candidates while keeping optional live results review-only.</p>
         {_render_badges([
-            ("deterministic fixture discovery", "accent"),
+            ("deterministic source discovery", "accent"),
             ("no canonical mutation", "warn"),
             ("candidate review inputs", "warn"),
         ])}
@@ -2858,7 +2866,7 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
 
 
 def validate_source_record(record: dict[str, Any]) -> list[str]:
-    """Return validation errors for one source fixture."""
+    """Return validation errors for one deterministic source record."""
     required = [
         "source_id",
         "source_type",
@@ -2877,8 +2885,23 @@ def validate_source_record(record: dict[str, Any]) -> list[str]:
     for field in required:
         if field not in record:
             errors.append(f"missing {field}")
-    if record.get("is_synthetic_demo_fixture") is not True:
-        errors.append("is_synthetic_demo_fixture must be true")
+    is_synthetic = record.get("is_synthetic_demo_fixture") is True
+    is_public_snapshot = record.get("is_public_source_snapshot") is True
+    if not is_synthetic and not is_public_snapshot:
+        errors.append("source must be either synthetic fixture or public source snapshot")
+    if is_public_snapshot:
+        required_markers = {
+            "real_case_snapshot",
+            "public_source_snapshot",
+            "deterministic",
+            "not_live_verification",
+        }
+        markers = {str(item) for item in _as_list(record.get("snapshot_markers"))}
+        missing_markers = required_markers - markers
+        if missing_markers:
+            errors.append(f"public source snapshot missing markers: {sorted(missing_markers)}")
+        if not str(record.get("url") or "").startswith("https://"):
+            errors.append("public source snapshot must include https URL")
     _require_prefix(errors, "source_id", record.get("source_id"), "src_")
     if len(str(record.get("text", "")).strip()) < 80:
         errors.append("text is too short to demonstrate extraction")
@@ -3227,14 +3250,14 @@ def build_revision_proposal(news_card: dict[str, Any], patch: dict[str, Any]) ->
         "reviewer_questions": reviewer_questions,
         "recommended_next_checks": recommended_next_checks,
         "proposal_summary": (
-            f"Patch {patch_id} adds synthetic source {source_id} and proposes a "
+            f"Patch {patch_id} adds review source {source_id} and proposes a "
             f"{proposed_verdict_effect} review for {len(affected_claim_ids)} affected claim(s)."
         ),
         "limitations": [
             "This proposal is deterministic review context, not an authoritative card update.",
             "The new source is not appended to the canonical news_card source_ids.",
             "The canonical card, timeline, drift entries, graph, and verdict are not mutated.",
-            "Synthetic demo fixtures are not real-world evidence.",
+            "Synthetic fixtures are not real-world evidence; public-source snapshots are frozen and not live verification.",
         ],
     }
     return proposal
@@ -3361,7 +3384,7 @@ def export_revision_packet(news_card: dict[str, Any], patch: dict[str, Any]) -> 
         "limitations": [
             "Packet generation is deterministic and local; no live ingestion or model call is performed.",
             "The canonical news_card is not mutated by this packet.",
-            "Synthetic demo fixtures are not real-world evidence.",
+            "Synthetic fixtures are not real-world evidence; public-source snapshots are frozen and not live verification.",
         ],
     }
     packet_errors = validate_revision_packet(packet)
@@ -3727,7 +3750,7 @@ def build_agent_workflow_trace(news_card: dict[str, Any], patch: dict[str, Any] 
             "PASS",
             source_ids,
             source_ids,
-            f"Read {len(source_ids)} synthetic source fixture reference(s) for the selected card.",
+            f"Read {len(source_ids)} deterministic source record reference(s) for the selected card.",
             "Collect bounded, reviewable source inputs before extraction.",
         ),
         step(
@@ -3737,7 +3760,7 @@ def build_agent_workflow_trace(news_card: dict[str, Any], patch: dict[str, Any] 
             "PASS",
             source_ids,
             [str(news_card.get("source_hygiene_note", ""))],
-            "Labeled sources as synthetic fixtures and kept source text as untrusted input.",
+            "Labeled sources as deterministic fixtures or snapshots and kept source text as untrusted input.",
             "Prevent prompt injection and avoid treating fixture text as instructions.",
         ),
         step(
@@ -3952,7 +3975,7 @@ def build_agent_workflow_trace(news_card: dict[str, Any], patch: dict[str, Any] 
         "output_counts": output_counts,
         "artifact_outputs": artifact_outputs,
         "agentic_summary": (
-            "Sisyphus Watch reads bounded source fixtures, separates source-bound findings from claims, "
+            "Sisyphus Watch reads bounded source records, separates source-bound findings from claims, "
             "interpretation branches, and current judgment, then builds timeline, drift, graph, reviewer, and revision outputs."
         ),
         "non_goals": [
@@ -3964,7 +3987,7 @@ def build_agent_workflow_trace(news_card: dict[str, Any], patch: dict[str, Any] 
             "No canonical card mutation occurs during evidence patch review.",
         ],
         "limitations": [
-            "Synthetic demo fixtures are not real-world evidence.",
+            "Synthetic fixtures are not real-world evidence; public-source snapshots are frozen and not live verification.",
             "The trace is deterministic and describes local helper outputs.",
             "Reviewer approval is still required before promoting revision suggestions.",
         ],
@@ -4054,7 +4077,7 @@ def build_run_summary(news_card: dict[str, Any], patch: dict[str, Any] | None = 
         "scenario_id": news_card.get("scenario_id"),
         "headline": f"Deterministic agent workflow trace for {news_card.get('scenario_name', news_card.get('title', 'selected scenario'))}.",
         "what_the_agent_did": [
-            f"Read {counts.get('source_count', 0)} synthetic source fixture(s).",
+            f"Read {counts.get('source_count', 0)} deterministic source record(s).",
             f"Separated {counts.get('fact_count', 0)} source-bound finding(s), {counts.get('actor_claim_count', 0)} actor claim(s), and {counts.get('action_count', 0)} action(s).",
             f"Built {counts.get('timeline_event_count', 0)} timeline event(s), {counts.get('claim_drift_count', 0)} drift entr(y/ies), and a graph with {counts.get('graph_node_count', 0)} node(s).",
             "Exported agent, epistemic-layer, graph, reviewer, scenario-authoring, and workflow artifacts.",
@@ -4096,7 +4119,7 @@ def build_run_summary(news_card: dict[str, Any], patch: dict[str, Any] | None = 
                 "Review workflow trace steps before inspecting detailed card sections.",
                 "Use reviewer presets and graph paths before changing a verdict.",
                 "Start with Epistemic Layer Separation to keep findings, claims, interpretations, and judgment distinct.",
-                "Keep synthetic fixture status visible in downstream outputs.",
+                "Keep fixture or snapshot status visible in downstream outputs.",
             ]
         ),
     }
@@ -4389,6 +4412,24 @@ def validate_news_card(news_card: dict[str, Any]) -> list[str]:
         errors.append("summary_3_line must contain exactly 3 lines")
 
     _require_prefix(errors, "card_id", news_card.get("card_id"), "news_")
+
+    is_synthetic_card = news_card.get("is_synthetic_demo_fixture") is True
+    is_public_snapshot_card = news_card.get("is_public_source_snapshot") is True
+    if not is_synthetic_card:
+        if not is_public_snapshot_card:
+            errors.append("non-synthetic card must be marked as public source snapshot")
+        required_markers = {
+            "real_case_snapshot",
+            "public_source_snapshot",
+            "deterministic",
+            "not_live_verification",
+        }
+        markers = {str(item) for item in _as_list(news_card.get("snapshot_markers"))}
+        missing_markers = required_markers - markers
+        if missing_markers:
+            errors.append(f"public source snapshot card missing markers: {sorted(missing_markers)}")
+        if news_card.get("is_live_verification") is not False:
+            errors.append("public source snapshot card must set is_live_verification to false")
 
     for fact in facts:
         if not isinstance(fact, dict):
@@ -4780,7 +4821,7 @@ def maybe_run_google_ai_discovery(
             problem_text,
             fallback_source_records,
             scenario_id,
-            "GOOGLE_API_KEY was not available from explicit input, Kaggle Notebook Secrets, or environment; using deterministic fixture discovery.",
+            "GOOGLE_API_KEY was not available from explicit input, Kaggle Notebook Secrets, or environment; using deterministic source discovery.",
         )
 
     try:
@@ -4878,7 +4919,7 @@ def maybe_run_live_extraction(
             "generated_at": _now_iso(),
             "source_records": source_records,
             "news_card": news_card,
-            "live_note": "Generated from synthetic fixtures using optional live mode.",
+            "live_note": "Generated from selected source records using optional live mode.",
         }
     except Exception as exc:  # pragma: no cover - live network path is optional
         return fallback_to_demo_records(f"Live extraction failed safely: {exc}")
@@ -4932,7 +4973,7 @@ def build_guided_flow_summary(
         },
         {
             "step_id": "step_2_discovery",
-            "label": "Step 2: Google AI discovery or deterministic fixture discovery gathers candidate sources.",
+            "label": "Step 2: Google AI discovery or deterministic source discovery gathers candidate sources.",
             "summary": (
                 f"{discovery_mode} returned {discovery.get('source_count', len(normalized_sources))} candidate source(s). "
                 f"Network used: {bool(discovery.get('network_used'))}; API used: {bool(discovery.get('api_used'))}. "
@@ -4945,7 +4986,7 @@ def build_guided_flow_summary(
             "label": "Step 3: Source hygiene / source normalization keeps source text untrusted.",
             "summary": (
                 f"{len(normalized_sources)} discovery candidate(s) can be normalized for review/handoff; "
-                f"{len(source_records)} canonical fixture source record(s) feed the deterministic card in the default Kaggle path."
+                f"{len(source_records)} canonical deterministic source record(s) feed the card in the default Kaggle path."
             ),
             "outputs": source_ids,
         },
@@ -5030,7 +5071,7 @@ def build_guided_flow_summary(
         "agent_artifacts_to_reuse": agent_artifacts,
         "downstream_agent_guidance": [
             "Reuse JSON/JSONL packets, stable IDs, graph paths, and unresolved questions.",
-            "Do not reuse fixture text as real-world evidence.",
+            "Preserve fixture or snapshot status when reusing source text.",
             "Do not treat source-bound judgment as final truth.",
         ],
     }
@@ -5073,7 +5114,7 @@ def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
         ),
         (
             "Discovery prepares candidate sources",
-            "Fixture discovery supplies candidate records for review and downstream handoff.",
+            "Deterministic discovery supplies candidate records for review and downstream handoff.",
             "PASS",
             f"<p>Mode: <code>{escape(str(flow_summary.get('discovery_mode', 'deterministic_fixture_discovery')))}</code>; normalized sources: {escape(str(flow_summary.get('normalized_source_count', 0)))}</p>",
         ),
@@ -5150,6 +5191,127 @@ def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
     )
 
 
+def render_case_hook_html(
+    news_card: dict[str, Any],
+    discovery_packet: dict[str, Any] | None = None,
+    surface_model: dict[str, Any] | None = None,
+) -> str:
+    """Render the notebook's first story panel."""
+    verdict = news_card.get("editorial_verdict", {}) if isinstance(news_card.get("editorial_verdict"), dict) else {}
+    version_diff = news_card.get("version_diff", {}) if isinstance(news_card.get("version_diff"), dict) else {}
+    timeline = [item for item in _as_list(news_card.get("version_timeline")) if isinstance(item, dict)]
+    core_state = surface_model.get("core_state", {}) if isinstance(surface_model, dict) else {}
+    discovery_mode = (
+        str(discovery_packet.get("mode"))
+        if isinstance(discovery_packet, dict) and discovery_packet.get("mode")
+        else "deterministic_fixture_discovery"
+    )
+    case_title = str(news_card.get("case_title") or news_card.get("scenario_name") or news_card.get("title") or "Selected case")
+    hook = str(news_card.get("case_hook") or "When public stories change, summaries can lie.")
+    initial = str(
+        news_card.get("initial_public_expectation")
+        or (timeline[0].get("summary") if timeline else "")
+        or "Initial public framing is preserved as the starting claim state."
+    )
+    changed = str(
+        news_card.get("what_changed")
+        or version_diff.get("updated_judgment")
+        or "Later source-bound evidence changed the current judgment."
+    )
+    summary_loss = str(
+        news_card.get("plain_summary_loss")
+        or "A plain summary can compress the final state and lose how claim status changed."
+    )
+    preserves = str(
+        news_card.get("sisyphus_preserves")
+        or "Sisyphus preserves findings, actor claims, actions, interpretations, timeline, drift, graph, and current judgment."
+    )
+    rows = [
+        ("Initial public expectation", initial, "PASS"),
+        ("What changed", changed, "PASS"),
+        ("Why a plain summary loses the important part", summary_loss, "WARN"),
+        ("What Sisyphus preserves", preserves, "PASS"),
+    ]
+    story_rows = "".join(
+        _render_feature_row(title, summary, badge=badge, number=index)
+        for index, (title, summary, badge) in enumerate(rows, start=1)
+    )
+    return _wrap_html(
+        "case-hook",
+        f"""
+        <section class="intro-panel">
+          <div class="intro-copy">
+            <span class="eyebrow">Case</span>
+            <h1>{escape(case_title)}</h1>
+            <p class="lede">{escape(hook)}</p>
+            {_render_badges([
+                (_snapshot_label(news_card), "accent"),
+                ("deterministic", "accent"),
+                ("not live verification", "warn"),
+                ("source-bound judgment", "accent"),
+            ])}
+          </div>
+        </section>
+        <section>
+          <h4>Story State</h4>
+          <div class="feature-list">{story_rows}</div>
+        </section>
+        <section>
+          <h4>Run Boundary</h4>
+          {_render_key_value_rows([
+              ("Discovery mode", discovery_mode, True),
+              ("Canonical card", core_state.get("canonical_card_id", news_card.get("card_id", "unknown")), True),
+              ("Scenario", core_state.get("scenario_id", news_card.get("scenario_id", "unknown")), True),
+              ("Current judgment", verdict.get("short_label", "source-bound review"), True),
+          ])}
+        </section>
+        """,
+    )
+
+
+def render_what_changed_html(news_card: dict[str, Any]) -> str:
+    """Render a compact story-change panel from timeline and drift."""
+    timeline = [item for item in _as_list(news_card.get("version_timeline")) if isinstance(item, dict)]
+    drift = [item for item in _as_list(news_card.get("claim_drift")) if isinstance(item, dict)]
+    timeline_rows = "".join(
+        _render_feature_row(
+            f"{event.get('version_label', 'version')} - {event.get('date', 'date')}",
+            event.get("summary", ""),
+            badge="PASS",
+        )
+        for event in timeline[:4]
+    )
+    drift_items = "".join(
+        f"""
+        <article class="drift-item">
+          <div class="timeline-topline">
+            <span class="direction-badge">{escape(str(item.get('direction', 'changed')))}</span>
+            <code>{escape(str(item.get('target_claim_id', 'claim')))}</code>
+          </div>
+          <p>{escape(_clip_text(item.get('drift_summary', ''), 220))}</p>
+        </article>
+        """
+        for item in drift[:6]
+    )
+    return _wrap_html(
+        "what-changed",
+        f"""
+        <h3>What Changed?</h3>
+        <p class="section-purpose">The story shifted from expected crewed Starliner return to an uncrewed Starliner return decision and a different crew return path.</p>
+        <div class="report-columns">
+          <section class="report-panel">
+            <h4>Version Events</h4>
+            <div class="feature-list compact">{timeline_rows}</div>
+          </section>
+          <section class="report-panel accent-panel">
+            <h4>Claim Drift</h4>
+            <div class="drift-list">{drift_items}</div>
+          </section>
+        </div>
+        """,
+    )
+
+
 def render_plain_summary_vs_sisyphus_html(
     news_card: dict[str, Any],
     discovery_packet: dict[str, Any] | None = None,
@@ -5179,8 +5341,8 @@ def render_plain_summary_vs_sisyphus_html(
     return _wrap_html(
         "plain-vs-sisyphus",
         f"""
-        <h3>Plain Summary vs Sisyphus Watch</h3>
-        <p class="section-purpose">A plain summary compresses the case; Sisyphus Watch preserves versioned structure.</p>
+        <h3>Plain Summary vs Claim-Version Control</h3>
+        <p class="section-purpose">A plain summary compresses the case; Sisyphus preserves the changing claim structure.</p>
         <div class="report-columns">
           <section class="report-panel">
             <span class="eyebrow">Plain summary</span>
@@ -5771,7 +5933,7 @@ def render_agent_contact_surface_html(
             ),
             _render_feature_row(
                 "Respect review boundaries",
-                "Do not treat synthetic fixtures as real evidence or mutate the canonical card from review-only discovery candidates.",
+                "Do not treat synthetic fixtures as real evidence, public-source snapshots as live verification, or review-only discovery candidates as canonical mutations.",
                 badge="PASS",
             ),
         ]
@@ -5809,7 +5971,7 @@ def render_agent_contact_surface_html(
           <h4>Do Not Consume</h4>
           <ul>
             <li>Do not use rendered HTML as the agent contract.</li>
-            <li>Do not treat synthetic fixtures as real evidence.</li>
+            <li>Do not treat synthetic fixtures as real evidence or public-source snapshots as live verification.</li>
             <li>Do not mutate the canonical card from review-only discovery candidates.</li>
           </ul>
         </section>
@@ -5976,7 +6138,7 @@ def render_submission_readiness_html(
         (
             "Deterministic run configured",
             discovery_packet.get("mode") == "deterministic_fixture_discovery",
-            "Default notebook path uses deterministic fixture discovery.",
+            "Default notebook path uses deterministic source discovery.",
         ),
         ("No API key required", not bool(discovery_packet.get("api_used")), "Default path does not call optional Google AI APIs."),
         ("Course concepts visible", bool(adk_manifest and mcp_manifest), "ADK-style, MCP, security, and deployability panels are rendered."),
@@ -6153,7 +6315,7 @@ def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
         "reuse_guidance": [
             "Use this packet as structured public-claim memory, not final truth.",
             "Keep source-bound findings, actor claims, actions, interpretation branches, counter-branches, and bias notes separate.",
-            "Do not treat synthetic demo fixtures as real-world evidence.",
+            "Preserve whether sources are synthetic fixtures or frozen public-source snapshots.",
             "Do not remove unresolved questions when reusing the current source-bound judgment.",
         ],
         "agent_instructions": [
@@ -6161,7 +6323,7 @@ def build_agent_packet(news_card: dict[str, Any]) -> dict[str, Any]:
             "Do not merge actor claims into source-bound findings.",
             "Use counter-branches before escalating to stronger accusations.",
             "Do not treat generated image prompts as evidence.",
-            "Keep synthetic demo fixture status visible in downstream outputs.",
+            "Keep fixture or snapshot status visible in downstream outputs.",
         ],
         "limitations": [
             "This packet does not perform independent verification.",
@@ -6929,6 +7091,13 @@ def render_kaggle_midcheck_summary_html(news_card: dict[str, Any], patch: dict[s
 
 def render_sources_table_html(source_records: list[dict[str, Any]]) -> str:
     rows = []
+    has_public_snapshot = any(source.get("is_public_source_snapshot") is True for source in source_records)
+    table_title = "Deterministic Source Records" if has_public_snapshot else "Demo Source Fixtures"
+    warning = (
+        "Frozen public-source snapshots and synthetic fixtures are local deterministic records, not live verification."
+        if has_public_snapshot
+        else "Synthetic public-interest fixtures. These are not real news and do not describe a real city."
+    )
     for source in source_records:
         full_text = escape(source["text"])
         rows.append(
@@ -6944,8 +7113,8 @@ def render_sources_table_html(source_records: list[dict[str, Any]]) -> str:
     return _wrap_html(
         "source-table",
         f"""
-        <h3>Demo Source Fixtures</h3>
-        <p class="warning-note">Synthetic public-interest fixtures. These are not real news and do not describe a real city.</p>
+        <h3>{escape(table_title)}</h3>
+        <p class="warning-note">{escape(warning)}</p>
         <table>
           <thead><tr><th>Source ID</th><th>Type</th><th>Actor</th><th>Title</th><th>Reliability note</th><th>Text</th></tr></thead>
           <tbody>{''.join(rows)}</tbody>
@@ -6966,6 +7135,7 @@ def render_card_html(news_card: dict[str, Any]) -> str:
     bias = _render_items(news_card["bias_notes"], "bias_note_id", "note_text", "bias")
     diff = news_card["version_diff"]
     verdict = news_card["editorial_verdict"]
+    snapshot_label = _snapshot_label(news_card)
 
     confidence_delta = "".join(
         f"<li><strong>{escape(key)}</strong>: {escape(value)}</li>"
@@ -6982,7 +7152,7 @@ def render_card_html(news_card: dict[str, Any]) -> str:
           <div class="badge-row">
             <span class="badge">confidence: {escape(news_card.get('confidence', 'review'))}</span>
             <span class="badge">version {escape(news_card['version'])}</span>
-            <span class="badge">synthetic fixture</span>
+            <span class="badge">{escape(snapshot_label)}</span>
             <span class="badge">{escape(news_card['image_prompt']['label'])}</span>
           </div>
         </section>

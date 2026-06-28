@@ -31,6 +31,7 @@ from sisyphus_watch_demo import (  # noqa: E402
     load_precomputed_records,
     render_agent_capability_strip_html,
     render_agent_contact_surface_html,
+    render_case_hook_html,
     render_discovery_packet_html,
     render_course_concepts_html,
     render_export_artifacts_overview_html,
@@ -43,6 +44,7 @@ from sisyphus_watch_demo import (  # noqa: E402
     render_submission_readiness_html,
     render_surface_model_html,
     render_user_problem_card_html,
+    render_what_changed_html,
     run_quality_checks,
     select_news_card,
     write_export_artifacts,
@@ -58,8 +60,8 @@ from sisyphus_watch_mcp_server import (  # noqa: E402
 )
 
 
-SCENARIO_ID = "city_heatwave_cooling_centers"
-PROBLEM_TEXT = "What changed in this public-interest claim, and what evidence supports the current judgment?"
+SCENARIO_ID = "starliner_crew_return_decision"
+PROBLEM_TEXT = "How did the public story around Boeing Starliner Crew Flight Test shift from an expected crewed Starliner return to NASA's uncrewed return decision and a different crew return path?"
 
 
 def main() -> int:
@@ -81,10 +83,15 @@ def main() -> int:
     assert mcp_manifest["requires_api_key_for_default_tools"] is False
 
     scenarios = list_sisyphus_scenarios()
-    assert len(scenarios) >= 3
+    scenario_ids = {scenario.get("scenario_id") for scenario in scenarios}
+    assert len(scenarios) >= 4
+    assert SCENARIO_ID in scenario_ids
+    assert "city_heatwave_cooling_centers" in scenario_ids
+    assert "school_air_quality_alert_communication" in scenario_ids
 
     card = get_sisyphus_card(SCENARIO_ID)
     assert str(card["card_id"]).startswith("news_")
+    assert card["scenario_id"] == SCENARIO_ID
 
     agent_packet = get_sisyphus_agent_packet(SCENARIO_ID)
     assert agent_packet.get("packet_version")
@@ -106,8 +113,16 @@ def main() -> int:
 
     sources = load_demo_sources()
     records = load_precomputed_records()
+    default_card = select_news_card(records)
+    assert default_card["scenario_id"] == SCENARIO_ID
+    assert str(default_card["card_id"]).startswith("news_")
     selected_card = select_news_card(records, SCENARIO_ID)
+    assert selected_card["scenario_id"] == SCENARIO_ID
+    assert str(selected_card["card_id"]).startswith("news_")
     selected_sources = filter_sources_for_card(sources, selected_card)
+    assert selected_sources
+    assert all(source.get("is_public_source_snapshot") is True for source in selected_sources)
+    assert all(source.get("url") for source in selected_sources)
     evidence_patch = get_evidence_patch_for_scenario(load_evidence_patches(), SCENARIO_ID)
     discovery_packet = build_deterministic_discovery_packet(PROBLEM_TEXT, selected_sources, SCENARIO_ID)
     problem_packet = build_user_problem_packet(PROBLEM_TEXT, SCENARIO_ID, "deterministic_fixture_discovery")
@@ -129,6 +144,10 @@ def main() -> int:
     assert "human_review_workflow" in surface_model
     assert "agent_contact_surface" in surface_model
     assert "boundary_rules" in surface_model
+    assert selected_card.get("claim_drift")
+    assert selected_card.get("version_timeline")
+    assert selected_card.get("claim_graph", {}).get("nodes")
+    assert selected_card.get("claim_graph", {}).get("edges")
     checks = run_quality_checks(selected_card)
     run_status = {
         "run_google_discovery": False,
@@ -143,6 +162,8 @@ def main() -> int:
         "export_path_target": "/kaggle/working",
     }
     html_outputs = [
+        render_case_hook_html(selected_card, discovery_packet, surface_model),
+        render_what_changed_html(selected_card),
         render_product_brief_html(selected_card),
         render_review_map_html(
             surface_model,
