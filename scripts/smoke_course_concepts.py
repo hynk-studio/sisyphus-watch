@@ -20,6 +20,7 @@ from sisyphus_watch_adk_demo import (  # noqa: E402
     run_sisyphus_adk_demo,
 )
 from sisyphus_watch_demo import (  # noqa: E402
+    build_case_selector_options,
     build_deterministic_discovery_packet,
     build_guided_flow_summary,
     build_surface_model,
@@ -32,6 +33,8 @@ from sisyphus_watch_demo import (  # noqa: E402
     render_agent_capability_strip_html,
     render_agent_contact_surface_html,
     render_case_hook_html,
+    render_case_selector_html,
+    render_case_source_links_html,
     render_discovery_packet_html,
     render_course_concepts_html,
     render_evaluation_summary_html,
@@ -64,6 +67,33 @@ from sisyphus_watch_mcp_server import (  # noqa: E402
 
 SCENARIO_ID = "starliner_crew_return_decision"
 PROBLEM_TEXT = "How did the public story around Boeing Starliner Crew Flight Test shift from an expected crewed Starliner return to NASA's uncrewed return decision and a different crew return path?"
+REAL_CASE_IDS = [
+    "starliner_crew_return_decision",
+    "crowdstrike_windows_outage_2024",
+    "voyager1_data_recovery_2024",
+]
+SYNTHETIC_SCENARIO_IDS = [
+    "city_heatwave_cooling_centers",
+    "public_transit_delay_communication",
+    "school_air_quality_alert_communication",
+]
+REQUIRED_SNAPSHOT_MARKERS = {
+    "real_case_snapshot",
+    "public_source_snapshot",
+    "deterministic",
+    "not_live_verification",
+}
+PROBLEM_TEXT_BY_SCENARIO = {
+    SCENARIO_ID: PROBLEM_TEXT,
+    "crowdstrike_windows_outage_2024": (
+        "How did the public story around the July 2024 CrowdStrike Windows outage shift from a broad outage "
+        "to a source-bound account of a Falcon content update issue, affected systems, remediation, and root-cause review?"
+    ),
+    "voyager1_data_recovery_2024": (
+        "How did the public story around Voyager 1 shift from unreadable spacecraft data to a source-bound "
+        "recovery story involving flight data system troubleshooting and restored data return?"
+    ),
+}
 
 
 def main() -> int:
@@ -86,10 +116,9 @@ def main() -> int:
 
     scenarios = list_sisyphus_scenarios()
     scenario_ids = {scenario.get("scenario_id") for scenario in scenarios}
-    assert len(scenarios) >= 4
-    assert SCENARIO_ID in scenario_ids
-    assert "city_heatwave_cooling_centers" in scenario_ids
-    assert "school_air_quality_alert_communication" in scenario_ids
+    assert len(scenarios) >= 6
+    for scenario_id in REAL_CASE_IDS + SYNTHETIC_SCENARIO_IDS:
+        assert scenario_id in scenario_ids
 
     card = get_sisyphus_card(SCENARIO_ID)
     assert str(card["card_id"]).startswith("news_")
@@ -118,14 +147,58 @@ def main() -> int:
     default_card = select_news_card(records)
     assert default_card["scenario_id"] == SCENARIO_ID
     assert str(default_card["card_id"]).startswith("news_")
+
+    selector_options = build_case_selector_options(records, sources, SCENARIO_ID)
+    selector_html = render_case_selector_html(selector_options, SCENARIO_ID)
+    assert isinstance(selector_html, str) and selector_html.strip()
+    for scenario_id in REAL_CASE_IDS:
+        assert scenario_id in selector_html
+
+    evidence_patches = load_evidence_patches()
+    real_case_html_outputs = [selector_html]
+    for scenario_id in REAL_CASE_IDS:
+        case_card = select_news_card(records, scenario_id)
+        assert str(case_card["card_id"]).startswith("news_")
+        assert case_card["scenario_id"] == scenario_id
+        assert case_card.get("is_public_source_snapshot") is True
+        assert case_card.get("is_live_verification") is False
+        assert REQUIRED_SNAPSHOT_MARKERS <= {str(item) for item in case_card.get("snapshot_markers", [])}
+        assert len(case_card.get("version_timeline", [])) >= 3
+        assert len(case_card.get("claim_drift", [])) >= 4
+        assert case_card.get("claim_graph", {}).get("nodes")
+        assert case_card.get("claim_graph", {}).get("edges")
+
+        case_sources = filter_sources_for_card(sources, case_card)
+        assert len(case_sources) >= 2
+        for source in case_sources:
+            assert str(source.get("url", "")).startswith("https://")
+            assert source.get("is_public_source_snapshot") is True
+            assert source.get("is_live_verification") is False
+            assert REQUIRED_SNAPSHOT_MARKERS <= {str(item) for item in source.get("snapshot_markers", [])}
+
+        case_checks = run_quality_checks(case_card)
+        assert case_checks
+        assert all(row.get("status") == "PASS" for row in case_checks)
+        case_problem = PROBLEM_TEXT_BY_SCENARIO.get(scenario_id, PROBLEM_TEXT)
+        case_discovery_packet = build_deterministic_discovery_packet(case_problem, case_sources, scenario_id)
+        real_case_html_outputs.extend(
+            [
+                render_case_hook_html(case_card, case_discovery_packet),
+                render_what_changed_html(case_card),
+                render_case_source_links_html(case_sources),
+            ]
+        )
+    assert all(isinstance(output, str) and output.strip() for output in real_case_html_outputs)
+    assert all("sisyphus-block" in output for output in real_case_html_outputs)
+
     selected_card = select_news_card(records, SCENARIO_ID)
     assert selected_card["scenario_id"] == SCENARIO_ID
     assert str(selected_card["card_id"]).startswith("news_")
     selected_sources = filter_sources_for_card(sources, selected_card)
     assert selected_sources
     assert all(source.get("is_public_source_snapshot") is True for source in selected_sources)
-    assert all(source.get("url") for source in selected_sources)
-    evidence_patch = get_evidence_patch_for_scenario(load_evidence_patches(), SCENARIO_ID)
+    assert all(str(source.get("url", "")).startswith("https://") for source in selected_sources)
+    evidence_patch = get_evidence_patch_for_scenario(evidence_patches, SCENARIO_ID)
     discovery_packet = build_deterministic_discovery_packet(PROBLEM_TEXT, selected_sources, SCENARIO_ID)
     problem_packet = build_user_problem_packet(PROBLEM_TEXT, SCENARIO_ID, "deterministic_fixture_discovery")
     local_guided_flow = build_guided_flow_summary(
@@ -166,7 +239,9 @@ def main() -> int:
         "export_path_target": "/kaggle/working",
     }
     html_outputs = [
+        selector_html,
         render_case_hook_html(selected_card, discovery_packet, surface_model),
+        render_case_source_links_html(selected_sources),
         render_what_changed_html(selected_card),
         render_product_brief_html(selected_card),
         render_review_map_html(

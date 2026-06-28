@@ -149,6 +149,12 @@ QUERY_PRESETS = {
     },
 }
 
+REAL_CASE_SCENARIO_ORDER = [
+    "starliner_crew_return_decision",
+    "crowdstrike_windows_outage_2024",
+    "voyager1_data_recovery_2024",
+]
+
 SCENARIO_AUTHORING_REQUIREMENTS = {
     "scenario_id": {"type": "string", "min_count": 1},
     "scenario_name": {"type": "string", "min_count": 1},
@@ -2556,6 +2562,225 @@ def filter_sources_for_card(
     """Return source records referenced by the selected card."""
     source_ids = set(news_card.get("source_ids", []))
     return [source for source in source_records if source.get("source_id") in source_ids]
+
+
+def _story_field(news_card: dict[str, Any], *field_names: str, fallback: str = "") -> str:
+    for field_name in field_names:
+        value = news_card.get(field_name)
+        if isinstance(value, str) and value.strip():
+            return " ".join(value.split())
+    return fallback
+
+
+def build_case_selector_options(
+    records: dict[str, Any],
+    source_records: list[dict[str, Any]] | None = None,
+    selected_scenario_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Build compact case selector metadata for notebook rendering."""
+    cards = [card for card in get_news_cards(records) if isinstance(card, dict)]
+    selected_id = selected_scenario_id or records.get("default_scenario_id")
+    card_by_scenario_id = {str(card.get("scenario_id")): card for card in cards if card.get("scenario_id")}
+    ordered_cards = [
+        card_by_scenario_id[scenario_id]
+        for scenario_id in REAL_CASE_SCENARIO_ORDER
+        if scenario_id in card_by_scenario_id
+    ] + [
+        card
+        for card in cards
+        if str(card.get("scenario_id")) not in REAL_CASE_SCENARIO_ORDER
+    ]
+
+    options: list[dict[str, Any]] = []
+    for card in ordered_cards:
+        selected_sources = filter_sources_for_card(source_records or [], card) if source_records is not None else []
+        source_titles = [
+            str(source.get("title"))
+            for source in selected_sources
+            if isinstance(source, dict) and source.get("title")
+        ]
+        source_urls = [
+            str(source.get("url"))
+            for source in selected_sources
+            if isinstance(source, dict) and source.get("url")
+        ]
+        if source_records is None:
+            source_count = len(_as_list(card.get("source_ids")))
+        else:
+            source_count = len(selected_sources)
+        scenario_id = str(card.get("scenario_id", "unknown_scenario"))
+        is_real_case = scenario_id in REAL_CASE_SCENARIO_ORDER or card.get("is_real_case_snapshot") is True
+        options.append(
+            {
+                "scenario_id": scenario_id,
+                "title": _story_field(card, "scenario_name", "case_title", "title", fallback=scenario_id),
+                "case_type": "real-case snapshot" if is_real_case else "synthetic example",
+                "one_line_hook": _story_field(
+                    card,
+                    "story_hook",
+                    "case_hook",
+                    fallback="A public story changes as source-bound evidence arrives.",
+                ),
+                "why_it_matters": _story_field(
+                    card,
+                    "why_it_matters",
+                    "public_interest_reason",
+                    "what_changed",
+                    fallback="Shows how Sisyphus preserves changing claim state.",
+                ),
+                "source_count": source_count,
+                "source_titles": source_titles,
+                "source_urls": source_urls,
+                "selected": scenario_id == selected_id,
+            }
+        )
+    return options
+
+
+def render_case_selector_html(options: list[dict[str, Any]], selected_scenario_id: str) -> str:
+    """Render a notebook-safe selector panel for real-case snapshots."""
+    option_by_id = {
+        str(option.get("scenario_id")): option
+        for option in _as_list(options)
+        if isinstance(option, dict) and option.get("scenario_id")
+    }
+    real_options = [
+        option_by_id[scenario_id]
+        for scenario_id in REAL_CASE_SCENARIO_ORDER
+        if scenario_id in option_by_id
+    ]
+    synthetic_options = [
+        option
+        for option_id, option in option_by_id.items()
+        if option_id not in REAL_CASE_SCENARIO_ORDER
+    ]
+
+    def source_links(option: dict[str, Any], limit: int = 3) -> str:
+        titles = [str(item) for item in _as_list(option.get("source_titles")) if str(item).strip()]
+        urls = [str(item) for item in _as_list(option.get("source_urls")) if str(item).strip()]
+        rows = []
+        for index, title in enumerate(titles[:limit]):
+            url = urls[index] if index < len(urls) else ""
+            link = (
+                f'<a href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">open source</a>'
+                if url.startswith("https://")
+                else "<span class=\"muted\">fixture source</span>"
+            )
+            rows.append(f"<li>{escape(_clip_text(title, 80))} · {link}</li>")
+        if not rows:
+            rows.append("<li class=\"muted\">Source records are loaded deterministically with the selected card.</li>")
+        return "<ul class=\"compact-list\">" + "".join(rows) + "</ul>"
+
+    def render_option(option: dict[str, Any], index: int) -> str:
+        scenario_id = str(option.get("scenario_id", "unknown_scenario"))
+        selected = scenario_id == selected_scenario_id
+        panel_class = "source-row accent-panel" if selected else "source-row"
+        status = ("selected", "accent") if selected else ("available", "warn")
+        return f"""
+        <article class="{panel_class}">
+          <div class="timeline-topline">
+            <span class="feature-number">{index}</span>
+            {_render_badges([status, (option.get("case_type", "case"), "accent")])}
+          </div>
+          <h4>{escape(str(option.get("title", scenario_id)))}</h4>
+          <p>{escape(_clip_text(option.get("one_line_hook", ""), 180))}</p>
+          <p class="muted"><strong>Why this case matters:</strong> {escape(_clip_text(option.get("why_it_matters", ""), 180))}</p>
+          {_render_key_value_rows([
+              ("SCENARIO_ID", scenario_id, selected),
+              ("Sources", option.get("source_count", 0), bool(option.get("source_count"))),
+          ])}
+          <details class="id-details" {"open" if selected else ""}>
+            <summary>Source titles and links</summary>
+            {source_links(option)}
+          </details>
+        </article>
+        """
+
+    real_rows = "".join(render_option(option, index) for index, option in enumerate(real_options, start=1))
+    synthetic_rows = "".join(
+        _render_feature_row(
+            option.get("title", option.get("scenario_id", "synthetic scenario")),
+            f"{option.get('scenario_id', 'scenario')} · {option.get('source_count', 0)} deterministic fixture source(s).",
+            badge="PASS" if option.get("scenario_id") == selected_scenario_id else "WARN",
+        )
+        for option in synthetic_options
+    )
+    synthetic_details = (
+        f"""
+        <details class="id-details">
+          <summary>Secondary synthetic examples</summary>
+          <div class="feature-list compact">{synthetic_rows}</div>
+        </details>
+        """
+        if synthetic_rows
+        else ""
+    )
+
+    return _wrap_html(
+        "case-selector",
+        f"""
+        <h3>Choose a Case to Unfold</h3>
+        <p class="section-purpose">Change <code>SCENARIO_ID</code> in the config cell to select one deterministic public-story snapshot.</p>
+        {_render_badges([
+            ("3 real-case snapshots", "accent"),
+            ("no network required", "accent"),
+            ("canonical cards are frozen", "warn"),
+        ])}
+        <section>
+          <div class="source-list-vertical">{real_rows}</div>
+        </section>
+        {synthetic_details}
+        """,
+    )
+
+
+def render_case_source_links_html(selected_source_records: list[dict[str, Any]]) -> str:
+    """Render compact human-friendly source links for the selected case."""
+    rows = []
+    for source in selected_source_records:
+        if not isinstance(source, dict):
+            continue
+        url = str(source.get("url") or "")
+        link = (
+            f'<a href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">open source</a>'
+            if url.startswith("https://")
+            else "<span class=\"muted\">deterministic fixture</span>"
+        )
+        rows.append(
+            f"""
+            <article class="source-row">
+              <div class="timeline-topline">
+                {_render_badges([(_snapshot_label(source), "accent")])}
+                <code>{escape(str(source.get("source_id", "source")))}</code>
+              </div>
+              <h4>{escape(str(source.get("title", "Untitled source")))}</h4>
+              {_render_key_value_rows([
+                  ("Actor/source", f"{source.get('actor', 'unknown')} · {source.get('source_type', 'source')}", True),
+                  ("URL", "https source" if url.startswith("https://") else "fixture source", url.startswith("https://") or source.get("is_synthetic_demo_fixture") is True),
+              ])}
+              <p>{link}</p>
+              <p class="muted"><strong>Reliability:</strong> {escape(_clip_text(source.get("reliability_note", ""), 160))}</p>
+              <p class="muted"><strong>Limitations:</strong> {escape(_clip_text(source.get("limitations", ""), 160))}</p>
+            </article>
+            """
+        )
+    if not rows:
+        rows.append(
+            """
+            <article class="source-row">
+              <h4>No selected source records</h4>
+              <p class="muted">The selected scenario did not match loaded source records.</p>
+            </article>
+            """
+        )
+    return _wrap_html(
+        "case-source-links",
+        f"""
+        <h3>Source Links</h3>
+        <p class="section-purpose">Public links are shown for human review; the canonical card uses deterministic source-bound snapshot text.</p>
+        <div class="source-list-vertical">{''.join(rows)}</div>
+        """,
+    )
 
 
 def resolve_google_api_key(api_key: str | None = None) -> str | None:
@@ -5206,25 +5431,30 @@ def render_case_hook_html(
         if isinstance(discovery_packet, dict) and discovery_packet.get("mode")
         else "deterministic_fixture_discovery"
     )
-    case_title = str(news_card.get("case_title") or news_card.get("scenario_name") or news_card.get("title") or "Selected case")
-    hook = str(news_card.get("case_hook") or "When public stories change, summaries can lie.")
-    initial = str(
-        news_card.get("initial_public_expectation")
-        or (timeline[0].get("summary") if timeline else "")
-        or "Initial public framing is preserved as the starting claim state."
+    case_title = _story_field(news_card, "scenario_name", "case_title", "title", fallback="Selected case")
+    hook = _story_field(news_card, "story_hook", "case_hook", fallback="When public stories change, summaries can lie.")
+    initial = _story_field(
+        news_card,
+        "initial_expectation",
+        "initial_public_expectation",
+        fallback=(str(timeline[0].get("summary")) if timeline else "Initial public framing is preserved as the starting claim state."),
     )
-    changed = str(
-        news_card.get("what_changed")
-        or version_diff.get("updated_judgment")
-        or "Later source-bound evidence changed the current judgment."
+    changed = _story_field(
+        news_card,
+        "what_changed",
+        fallback=str(version_diff.get("updated_judgment") or "Later source-bound evidence changed the current judgment."),
     )
-    summary_loss = str(
-        news_card.get("plain_summary_loss")
-        or "A plain summary can compress the final state and lose how claim status changed."
+    summary_loss = _story_field(
+        news_card,
+        "why_summary_loses_state",
+        "plain_summary_loss",
+        fallback="A plain summary can compress the final state and lose how claim status changed.",
     )
-    preserves = str(
-        news_card.get("sisyphus_preserves")
-        or "Sisyphus preserves findings, actor claims, actions, interpretations, timeline, drift, graph, and current judgment."
+    preserves = _story_field(
+        news_card,
+        "what_sisyphus_preserves",
+        "sisyphus_preserves",
+        fallback="Sisyphus preserves findings, actor claims, actions, interpretations, timeline, drift, graph, and current judgment.",
     )
     rows = [
         ("Initial public expectation", initial, "PASS"),
@@ -5273,6 +5503,11 @@ def render_what_changed_html(news_card: dict[str, Any]) -> str:
     """Render a compact story-change panel from timeline and drift."""
     timeline = [item for item in _as_list(news_card.get("version_timeline")) if isinstance(item, dict)]
     drift = [item for item in _as_list(news_card.get("claim_drift")) if isinstance(item, dict)]
+    section_purpose = _story_field(
+        news_card,
+        "what_changed",
+        fallback="The public story changed as source-bound evidence, uncertainty, and current judgment evolved.",
+    )
     timeline_rows = "".join(
         _render_feature_row(
             f"{event.get('version_label', 'version')} - {event.get('date', 'date')}",
@@ -5297,7 +5532,7 @@ def render_what_changed_html(news_card: dict[str, Any]) -> str:
         "what-changed",
         f"""
         <h3>What Changed?</h3>
-        <p class="section-purpose">The story shifted from expected crewed Starliner return to an uncrewed Starliner return decision and a different crew return path.</p>
+        <p class="section-purpose">{escape(section_purpose)}</p>
         <div class="report-columns">
           <section class="report-panel">
             <h4>Version Events</h4>

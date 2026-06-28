@@ -223,5 +223,97 @@
     "reliability_note": "Official NASA decision release used as the primary source for the revised crew-return plan and safety rationale.",
     "limitations": "Official NASA statement; it does not assign blame, make legal conclusions, or provide an independent engineering certification judgment.",
     "text": "PUBLIC SOURCE SNAPSHOT: NASA's August 24, 2024 news release says the agency decided Boeing's Starliner would return to Earth without crew. It states Butch Wilmore and Suni Williams would continue work as part of the Expedition 71/72 crew and return in February 2025 with two other Crew-9 members on a SpaceX Dragon spacecraft. NASA connected the decision to safety and risk reasoning, uncertainty about the spacecraft system, helium leaks, and reaction control thruster issues, and framed the choice as avoiding unnecessary risk for the crew."
+  },
+  {
+    "source_id": "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+    "scenario_id": "crowdstrike_windows_outage_2024",
+    "source_type": "official_remediation_guidance_public_snapshot",
+    "actor": "CrowdStrike",
+    "title": "Falcon content update remediation and guidance hub",
+    "url": "https://www.crowdstrike.com/falcon-content-update-remediation-and-guidance-hub/",
+    "published_at": "2024-07-19T00:00:00Z",
+    "retrieved_at": "2026-06-28T00:00:00Z",
+    "is_synthetic_demo_fixture": false,
+    "is_real_case_snapshot": true,
+    "is_public_source_snapshot": true,
+    "is_live_verification": false,
+    "snapshot_markers": [
+      "real_case_snapshot",
+      "public_source_snapshot",
+      "deterministic",
+      "not_live_verification"
+    ],
+    "reliability_note": "Official CrowdStrike guidance hub used as a frozen public-source snapshot for source-bound remediation and incident framing.",
+    "limitations": "Official company guidance and review material; not independent verification and not a legal or final engineering-certification judgment.",
+    "text": "PUBLIC SOURCE SNAPSHOT: CrowdStrike's Falcon content update remediation and guidance hub describes the July 2024 event as connected to a Falcon content update for Windows hosts. It says the event was not a cyberattack, says the issue was identified and a fix was deployed, and provides remediation guidance. The page also links the incident to Channel File 291 behavior and review material, including technical root-cause and process-improvement resources. This is frozen source-bound snapshot text, not live verification."
+  },
+  {
+    "source_id": "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+    "scenario_id": "crowdstrike_windows_outage_2024",
+    "source_type": "official_ecosystem_update_public_snapshot",
+    "actor": "Microsoft",
+    "title": "Helping our customers through the CrowdStrike outage",
+    "url": "https://blogs.microsoft.com/blog/2024/07/20/helping-our-customers-through-the-crowdstrike-outage/",
+    "published_at": "2024-07-20T00:00:00Z",
+    "retrieved_at": "2026-06-28T00:00:00Z",
+    "is_synthetic_demo_fixture": false,
+    "is_real_case_snapshot": true,
+    "is_public_source_snapshot": true,
+    "is_live_verification": false,
+    "snapshot_markers": [
+      "real_case_snapshot",
+      "public_source_snapshot",
+      "deterministic",
+      "not_live_verification"
+    ],
+    "reliability_note": "Official Microsoft ecosystem update used as a frozen public-source snapshot for Windows impact and customer-support framing.",
+    "limitations": "Microsoft ecosystem framing and estimate; it does not independently verify every affected organization or replace CrowdStrike technical review material.",
+    "text": "PUBLIC SOURCE SNAPSHOT: Microsoft's July 20, 2024 customer update describes work with CrowdStrike, customers, and cloud providers during the outage. Microsoft estimated CrowdStrike's update affected 8.5 million Windows devices, less than one percent of Windows machines, while noting broad economic and societal impacts from enterprise use of CrowdStrike. This record preserves ecosystem-impact framing as deterministic snapshot text, not live verification."
+  },
+  {
+    "source_id": "src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+    "scenario_id": "voyager1_data_recovery_2024",
+    "source_type": "official_mission_update_public_snapshot",
+    "actor": "NASA/JPL",
+    "title": "NASA's Voyager 1 resumes sending engineering updates to Earth",
+    "url": "https://www.jpl.nasa.gov/news/nasas-voyager-1-resumes-sending-engineering-updates-to-earth/",
+    "published_at": "2024-04-22T00:00:00Z",
+    "retrieved_at": "2026-06-28T00:00:00Z",
+    "is_synthetic_demo_fixture": false,
+    "is_real_case_snapshot": true,
+    "is_public_source_snapshot": true,
+    "is_live_verification": false,
+    "snapshot_markers": [
+      "real_case_snapshot",
+      "public_source_snapshot",
+      "deterministic",
+      "not_live_verification"
+    ],
+    "reliability_note": "Official NASA/JPL mission update used as a frozen public-source snapshot for engineering-data recovery status.",
+    "limitations": "Official mission update; it summarizes public status and does not provide complete spacecraft telemetry or independent engineering verification.",
+    "text": "PUBLIC SOURCE SNAPSHOT: NASA/JPL reported that Voyager 1 resumed sending usable engineering updates about spacecraft health and status. The update says that since November 14, 2023, Voyager 1 had not been sending readable science or engineering data, though it was receiving commands and otherwise operating normally. NASA/JPL tied the problem to the flight data subsystem and a memory issue affecting code that packaged science and engineering data. The team sent a workaround and confirmed engineering-data recovery before continuing work on science-data return."
+  },
+  {
+    "source_id": "src_jpl_voyager1_science_data_all_instruments_2024_06_13",
+    "scenario_id": "voyager1_data_recovery_2024",
+    "source_type": "official_mission_update_public_snapshot",
+    "actor": "NASA/JPL",
+    "title": "Voyager 1 returning science data from all four instruments",
+    "url": "https://www.jpl.nasa.gov/news/voyager-1-returning-science-data-from-all-four-instruments",
+    "published_at": "2024-06-13T00:00:00Z",
+    "retrieved_at": "2026-06-28T00:00:00Z",
+    "is_synthetic_demo_fixture": false,
+    "is_real_case_snapshot": true,
+    "is_public_source_snapshot": true,
+    "is_live_verification": false,
+    "snapshot_markers": [
+      "real_case_snapshot",
+      "public_source_snapshot",
+      "deterministic",
+      "not_live_verification"
+    ],
+    "reliability_note": "Official NASA/JPL mission update used as a frozen public-source snapshot for staged science-data recovery.",
+    "limitations": "Official status update; it reports public recovery milestones but does not make broader final judgments about every spacecraft subsystem.",
+    "text": "PUBLIC SOURCE SNAPSHOT: NASA/JPL reported that Voyager 1 was returning usable science data from all four instruments. The update says engineering data returned in April, that a May 19 command led two instruments to return science data immediately, and that additional work restored usable science data from the remaining two instruments. It also says minor work remained to clean up effects of the earlier issue. This record is deterministic snapshot text, not live verification."
   }
 ]
