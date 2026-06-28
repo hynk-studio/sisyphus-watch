@@ -296,6 +296,22 @@ The human workflow is for understanding. The agent contact surface is for reuse.
 
 Default Kaggle evaluation remains deterministic and does not require an API key or network access. It uses deterministic fixture discovery plus deterministic Sisyphus card processing.
 
+## Kaggle Dataset Version Sync
+
+The Kaggle notebook and attached dataset must come from the same GitHub commit. After merging a PR that changes `src/`, `data/`, `schemas/`, `examples/`, or notebook imports, create a new Kaggle dataset version and reattach it to the notebook. Restart the Kaggle kernel before **Run all**.
+
+If `ImportError` mentions a missing renderer or helper, the attached dataset is probably stale. The notebook includes a version/symbol guard that prints the resolved `sisyphus_watch_demo.py` path and fails clearly when required helpers are missing.
+
+Checklist:
+
+1. Merge latest PR.
+2. Export/upload latest repository folder as a Kaggle dataset.
+3. Confirm the dataset contains the latest `src/sisyphus_watch_demo.py`.
+4. Attach the new dataset version to the notebook.
+5. Restart the kernel.
+6. Run the version/symbol guard cell.
+7. Run all.
+
 Optional Google AI discovery can be enabled in the notebook with:
 
 ```python
