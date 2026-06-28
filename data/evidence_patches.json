@@ -255,5 +255,134 @@
       "Later technical details could narrow risk reasoning without assigning blame.",
       "Canonical judgment remains unchanged until a reviewed source-bound update is accepted."
     ]
+  },
+  {
+    "patch_id": "patch_crowdstrike_windows_outage_rca_review_2024_08_001",
+    "scenario_id": "crowdstrike_windows_outage_2024",
+    "patch_title": "Review-only later RCA and process-improvement candidate",
+    "patch_type": "follow_up_audit",
+    "is_synthetic_demo_fixture": true,
+    "new_source_record": {
+      "source_id": "src_patch_crowdstrike_later_rca_process_review_candidate_2024_08",
+      "source_type": "follow_up_audit",
+      "actor": "Sisyphus Watch review simulation",
+      "title": "Later RCA and process-improvement candidate for CrowdStrike outage",
+      "published_at": "2024-08-06T00:00:00Z",
+      "retrieved_at": "2026-06-28T00:00:00Z",
+      "reliability_note": "Synthetic review-only patch used to demonstrate non-mutating evidence intake for a real-case snapshot.",
+      "limitations": "Not a real source and not canonical evidence; it models how a later RCA or process-improvement update would be queued for human review before changing the card.",
+      "is_synthetic_demo_fixture": true,
+      "text": "DEMO PATCH ONLY: A hypothetical later RCA and process-improvement source adds detail about validation, content update behavior, and deployment controls after the CrowdStrike Windows outage. Sisyphus Watch would queue it as a review-only patch that could narrow root-cause and remediation claims, but it must not automatically rewrite the canonical CrowdStrike snapshot, graph, or verdict."
+    },
+    "affected_claim_ids": [
+      "claim_crowdstrike_falcon_update_issue_windows_hosts_2024_07_19_001",
+      "claim_crowdstrike_remediation_guidance_available_2024_07_19_001",
+      "claim_crowdstrike_review_process_improvement_material_2024_07_19_001"
+    ],
+    "affected_interpretation_ids": [
+      "interp_crowdstrike_public_technical_incident_story_2024_07_20_001"
+    ],
+    "new_evidence_summary": "A later RCA/process-improvement candidate would be reviewed as non-mutating evidence that could narrow root-cause and remediation claims.",
+    "proposed_effects": [
+      {
+        "target_id": "claim_crowdstrike_falcon_update_issue_windows_hosts_2024_07_19_001",
+        "target_type": "claim",
+        "effect": "narrows",
+        "reason": "Later technical detail could more precisely describe content update behavior without changing the canonical source-bound event framing automatically."
+      },
+      {
+        "target_id": "claim_crowdstrike_remediation_guidance_available_2024_07_19_001",
+        "target_type": "claim",
+        "effect": "complicates",
+        "reason": "Process-improvement details could show remediation and prevention were broader than a simple fix-deployed summary."
+      },
+      {
+        "target_id": "interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+        "target_type": "interpretation",
+        "effect": "requires_review",
+        "reason": "The interpretation should only change after a reviewer maps the later source to stable evidence IDs."
+      },
+      {
+        "target_id": "verdict_crowdstrike_windows_outage_2024_07_20_v01",
+        "target_type": "verdict",
+        "effect": "requires_review",
+        "reason": "The canonical verdict remains unchanged until the later source is accepted."
+      }
+    ],
+    "recommended_revision_actions": [
+      "Keep the patch outside canonical source_ids until reviewer approval.",
+      "Map accepted RCA/process details to new source-bound finding, claim, or action IDs.",
+      "Add a proposed next timeline event only after source review.",
+      "Do not regenerate the canonical card from optional discovery candidates."
+    ],
+    "uncertainty_notes": [
+      "The patch is a simulation, not a real CrowdStrike source.",
+      "Later RCA material could narrow technical explanation without assigning legal blame.",
+      "Canonical judgment remains unchanged until a reviewed source-bound update is accepted."
+    ]
+  },
+  {
+    "patch_id": "patch_voyager1_data_recovery_mission_status_2024_07_001",
+    "scenario_id": "voyager1_data_recovery_2024",
+    "patch_title": "Review-only later Voyager mission-status candidate",
+    "patch_type": "follow_up_audit",
+    "is_synthetic_demo_fixture": true,
+    "new_source_record": {
+      "source_id": "src_patch_voyager1_later_mission_status_candidate_2024_07",
+      "source_type": "follow_up_audit",
+      "actor": "Sisyphus Watch review simulation",
+      "title": "Later Voyager 1 mission-status candidate",
+      "published_at": "2024-07-15T00:00:00Z",
+      "retrieved_at": "2026-06-28T00:00:00Z",
+      "reliability_note": "Synthetic review-only patch used to demonstrate non-mutating evidence intake for a real-case snapshot.",
+      "limitations": "Not a real source and not canonical evidence; it models how a later NASA/JPL mission-status update would be queued for human review before changing the card.",
+      "is_synthetic_demo_fixture": true,
+      "text": "DEMO PATCH ONLY: A hypothetical later mission-status update adds detail about Voyager 1 instrument status, cleanup work, and ongoing health monitoring after science data resumed. Sisyphus Watch would queue it as a review-only patch that could narrow recovery-complete claims, but it must not automatically rewrite the canonical Voyager snapshot, graph, or verdict."
+    },
+    "affected_claim_ids": [
+      "claim_voyager1_engineering_data_restored_2024_04_22_001",
+      "claim_voyager1_science_data_all_instruments_restored_2024_06_13_001"
+    ],
+    "affected_interpretation_ids": [
+      "interp_voyager1_staged_engineering_recovery_story_2024_06_13_001"
+    ],
+    "new_evidence_summary": "A later mission-status candidate would be reviewed as non-mutating evidence that could narrow cleanup and recovery-complete claims.",
+    "proposed_effects": [
+      {
+        "target_id": "claim_voyager1_science_data_all_instruments_restored_2024_06_13_001",
+        "target_type": "claim",
+        "effect": "narrows",
+        "reason": "Later mission-status detail could separate restored science data from remaining cleanup or monitoring work."
+      },
+      {
+        "target_id": "counter_voyager1_recovery_was_incremental_not_instant_2024_06_13_001",
+        "target_type": "counter_branch",
+        "effect": "supports_counter_branch",
+        "reason": "A later update could support the existing counter-branch that recovery was staged and not instant."
+      },
+      {
+        "target_id": "interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+        "target_type": "interpretation",
+        "effect": "requires_review",
+        "reason": "The interpretation should only change after a reviewer maps the later mission-status source to stable evidence IDs."
+      },
+      {
+        "target_id": "verdict_voyager1_data_recovery_2024_06_13_v01",
+        "target_type": "verdict",
+        "effect": "requires_review",
+        "reason": "The canonical verdict remains unchanged until the later source is accepted."
+      }
+    ],
+    "recommended_revision_actions": [
+      "Keep the patch outside canonical source_ids until reviewer approval.",
+      "Map accepted mission-status detail to new source-bound finding, claim, or action IDs.",
+      "Add a proposed next timeline event only after source review.",
+      "Do not regenerate the canonical card from optional discovery candidates."
+    ],
+    "uncertainty_notes": [
+      "The patch is a simulation, not a real NASA/JPL source.",
+      "Later mission-status detail could narrow recovery status without erasing the staged recovery timeline.",
+      "Canonical judgment remains unchanged until a reviewed source-bound update is accepted."
+    ]
   }
 ]

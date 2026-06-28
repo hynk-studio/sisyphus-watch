@@ -1556,11 +1556,18 @@
           "label": "verdict keeps unresolved question visible"
         }
       ]
-    }
+    },
+    "story_hook": "A crewed spacecraft test began with an expected Starliner return path, then shifted after technical issues and uncertainty led NASA to return Starliner without crew.",
+    "initial_expectation": "The launch-time story centered on a crewed Starliner flight test with Wilmore and Williams expected to return to Earth aboard Starliner after the station test period.",
+    "why_summary_loses_state": "A plain summary can say Starliner launched and later returned without crew, but it loses how the return-path claim weakened, the risk judgment narrowed, and uncertainty drove the decision.",
+    "what_sisyphus_preserves": "Sisyphus preserves source-bound findings, actor claims, actions, interpretations, uncertainty, timeline events, drift records, graph paths, and the current judgment as separate reusable state.",
+    "why_it_matters": "The case shows a clear public claim-drift arc from expected crewed Starliner return path to an uncrewed return decision and different crew return path."
   },
   "default_scenario_id": "starliner_crew_return_decision",
   "scenario_ids": [
     "starliner_crew_return_decision",
+    "crowdstrike_windows_outage_2024",
+    "voyager1_data_recovery_2024",
     "city_heatwave_cooling_centers",
     "public_transit_delay_communication",
     "school_air_quality_alert_communication"
@@ -3115,6 +3122,2931 @@
             "edge_id": "edge_starliner_crew_return_decision_073_verdict_has_unresolved_question",
             "source_node_id": "node_verdict_starliner_crew_return_decision_2024_08_24_v01",
             "target_node_id": "node_unresolved_starliner_crew_return_decision_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
+        ]
+      },
+      "story_hook": "A crewed spacecraft test began with an expected Starliner return path, then shifted after technical issues and uncertainty led NASA to return Starliner without crew.",
+      "initial_expectation": "The launch-time story centered on a crewed Starliner flight test with Wilmore and Williams expected to return to Earth aboard Starliner after the station test period.",
+      "why_summary_loses_state": "A plain summary can say Starliner launched and later returned without crew, but it loses how the return-path claim weakened, the risk judgment narrowed, and uncertainty drove the decision.",
+      "what_sisyphus_preserves": "Sisyphus preserves source-bound findings, actor claims, actions, interpretations, uncertainty, timeline events, drift records, graph paths, and the current judgment as separate reusable state.",
+      "why_it_matters": "The case shows a clear public claim-drift arc from expected crewed Starliner return path to an uncrewed return decision and different crew return path."
+    },
+    {
+      "card_id": "news_crowdstrike_windows_outage_2024_07_20_v01",
+      "record_type": "news_card",
+      "card_type": "public_claim_version_control_card",
+      "title": "CrowdStrike Windows Outage and Falcon Content Update: Claim Drift Snapshot",
+      "case_title": "CrowdStrike Windows outage and Falcon content update",
+      "scenario_name": "CrowdStrike Windows outage and Falcon content update",
+      "scenario_id": "crowdstrike_windows_outage_2024",
+      "version": "v01",
+      "created_at": "2026-06-28T00:00:00Z",
+      "is_synthetic_demo_fixture": false,
+      "is_real_case_snapshot": true,
+      "is_public_source_snapshot": true,
+      "is_live_verification": false,
+      "snapshot_markers": [
+        "real_case_snapshot",
+        "public_source_snapshot",
+        "deterministic",
+        "not_live_verification"
+      ],
+      "snapshot_note": "Frozen public-source snapshot for reproducible judging; not live verification.",
+      "track": "Agents for Good",
+      "confidence": "medium_high",
+      "source_ids": [
+        "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+        "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20"
+      ],
+      "source_hygiene_note": "Public sources are treated as frozen source records. Source text remains untrusted input; findings, claims, actions, interpretations, drift, graph edges, and current judgment stay source-bound. This is deterministic and not live verification.",
+      "uncertainty": "The card preserves CrowdStrike and Microsoft source-bound public framing. It does not independently verify every affected device, assign blame, or make a legal or final engineering-certification judgment.",
+      "story_hook": "A global Windows outage was first experienced as a sudden disruption, then became a source-bound story about a Falcon content update, affected Windows hosts, remediation, and root-cause review.",
+      "case_hook": "A global Windows outage was first experienced as a sudden disruption, then became a source-bound story about a Falcon content update, affected Windows hosts, remediation, and root-cause review.",
+      "initial_expectation": "The early public and operational experience centered on a broad, disruptive Windows outage before the explanation narrowed around a CrowdStrike Falcon content update.",
+      "initial_public_expectation": "The early public and operational experience centered on a broad, disruptive Windows outage before the explanation narrowed around a CrowdStrike Falcon content update.",
+      "what_changed": "The story shifted from broad disruption and unclear cause to source-bound statements about a Falcon content update for Windows hosts, Microsoft ecosystem impact estimates, remediation guidance, and later root-cause/process review.",
+      "why_summary_loses_state": "A plain outage summary loses how cause, scope, remediation, and review status narrowed over time.",
+      "plain_summary_loss": "A plain outage summary loses how cause, scope, remediation, and review status narrowed over time.",
+      "what_sisyphus_preserves": "Sisyphus preserves the broad outage experience, source-bound technical framing, ecosystem impact, remediation actions, claim drift, and unresolved review boundaries as separate state.",
+      "sisyphus_preserves": "Sisyphus preserves the broad outage experience, source-bound technical framing, ecosystem impact, remediation actions, claim drift, and unresolved review boundaries as separate state.",
+      "why_it_matters": "The case shows why public technical incidents should not be flattened into a generic outage, cyberattack, or IT-failure label when official sources support a more precise claim history.",
+      "summary_3_line": [
+        "CrowdStrike described the July 2024 incident as connected to a Falcon content update for Windows hosts and stated it was not a cyberattack.",
+        "Microsoft estimated CrowdStrike's update affected 8.5 million Windows devices while describing broad customer and ecosystem impact.",
+        "The current source-bound judgment is a public technical-incident story whose cause, scope, remediation, and root-cause explanation narrowed over time."
+      ],
+      "image_prompt": {
+        "label": "Generated visual summary, not evidence",
+        "prompt": "A neutral incident-response briefing image showing Windows endpoints, a content update timeline, remediation notes, and ecosystem-impact markers; no logos used as evidence."
+      },
+      "facts": [
+        {
+          "fact_id": "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+          "text": "CrowdStrike connected the event to a Falcon content update for Windows hosts.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+          "text": "CrowdStrike stated the event was not a cyberattack.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+          "text": "CrowdStrike said the issue was identified and a fix was deployed, with remediation guidance available for affected customers.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_crowdstrike_channel_file_291_context_2024_07_19_001",
+          "text": "CrowdStrike guidance and review material linked the incident to Channel File 291 behavior and later technical root-cause review resources.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "confidence": "medium_high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+          "text": "Microsoft estimated CrowdStrike's update affected 8.5 million Windows devices, less than one percent of Windows machines.",
+          "source_ids": [
+            "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+          "text": "Microsoft described broad economic and societal impacts from the enterprise use of CrowdStrike.",
+          "source_ids": [
+            "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        }
+      ],
+      "actor_claims": [
+        {
+          "claim_id": "claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+          "actor": "Public/operational reports reflected in official response context",
+          "claim_text": "The incident was initially experienced as a broad Windows outage and disruption before a narrower technical framing became visible.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20"
+          ],
+          "claim_type": "initial_operational_framing",
+          "status": "narrowed_by_later_source_bound_technical_framing"
+        },
+        {
+          "claim_id": "claim_crowdstrike_falcon_update_issue_windows_hosts_2024_07_19_001",
+          "actor": "CrowdStrike",
+          "claim_text": "The event was connected to a Falcon content update for Windows hosts.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "claim_type": "technical_incident_framing",
+          "status": "strengthened_by_official_guidance_snapshot"
+        },
+        {
+          "claim_id": "claim_crowdstrike_not_cyberattack_2024_07_19_001",
+          "actor": "CrowdStrike",
+          "claim_text": "The event was not a cyberattack.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "claim_type": "boundary_clarification",
+          "status": "source_bound_official_statement"
+        },
+        {
+          "claim_id": "claim_microsoft_large_scale_windows_impact_2024_07_20_001",
+          "actor": "Microsoft",
+          "claim_text": "CrowdStrike's update affected an estimated 8.5 million Windows devices and had broad ecosystem impact.",
+          "source_ids": [
+            "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20"
+          ],
+          "claim_type": "ecosystem_impact_estimate",
+          "status": "source_bound_estimate"
+        },
+        {
+          "claim_id": "claim_crowdstrike_remediation_guidance_available_2024_07_19_001",
+          "actor": "CrowdStrike",
+          "claim_text": "CrowdStrike provided remediation guidance for affected customers after identifying the issue and deploying a fix.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "claim_type": "remediation_framing",
+          "status": "source_bound_guidance_available"
+        },
+        {
+          "claim_id": "claim_crowdstrike_review_process_improvement_material_2024_07_19_001",
+          "actor": "CrowdStrike",
+          "claim_text": "CrowdStrike review material connected the event to root-cause review and process-improvement follow-up.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "claim_type": "review_process_framing",
+          "status": "requires_review_before_any_canonical_expansion"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "action_crowdstrike_outage_disruption_observed_2024_07_19_001",
+          "actor": "Affected organizations and responders",
+          "action_text": "Experienced and responded to a broad Windows outage and disruption.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20"
+          ],
+          "action_type": "outage_response_context",
+          "date": "2024-07-19"
+        },
+        {
+          "action_id": "action_crowdstrike_issued_remediation_guidance_2024_07_19_001",
+          "actor": "CrowdStrike",
+          "action_text": "Issued guidance and remediation steps after identifying the issue and deploying a fix.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "action_type": "remediation_guidance",
+          "date": "2024-07-19"
+        },
+        {
+          "action_id": "action_microsoft_published_customer_support_update_2024_07_20_001",
+          "actor": "Microsoft",
+          "action_text": "Published a customer-support and ecosystem-impact update and described collaboration with CrowdStrike and cloud providers.",
+          "source_ids": [
+            "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20"
+          ],
+          "action_type": "customer_support_update",
+          "date": "2024-07-20"
+        },
+        {
+          "action_id": "action_crowdstrike_published_review_resources_2024_07_19_001",
+          "actor": "CrowdStrike",
+          "action_text": "Made review and root-cause material available through the guidance hub for later inspection.",
+          "source_ids": [
+            "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19"
+          ],
+          "action_type": "review_material_publication",
+          "date": "2024-07-19"
+        }
+      ],
+      "interpretations": [
+        {
+          "interpretation_id": "interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+          "title": "Technical-incident story with narrowed cause, scope, and remediation",
+          "interpretation_text": "This case is best handled as a public technical-incident story whose cause, scope, remediation, and root-cause explanation narrowed over time. It should not be flattened into a single outage summary.",
+          "evidence_ids": [
+            "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+            "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "action_crowdstrike_issued_remediation_guidance_2024_07_19_001"
+          ],
+          "alternative_interpretations": [
+            "A narrow interpretation is that the public story shifted from broad disruption to source-bound technical cause and remediation.",
+            "A cautionary interpretation is that the event should not be collapsed into a generic cyberattack or generic IT-failure label when the selected sources support a more precise account."
+          ],
+          "risk_notes": [
+            "Do not assign legal responsibility or blame from this source-bound card.",
+            "Do not treat source-bound estimates as a complete affected-device census.",
+            "Do not make final engineering-certification judgments from the included public snapshots alone."
+          ],
+          "confidence": "medium_high"
+        }
+      ],
+      "counter_branches": [
+        {
+          "counter_branch_id": "counter_crowdstrike_broad_impact_still_real_2024_07_20_001",
+          "title": "Broad operational impact can be real even when technical cause narrows",
+          "counter_text": "The source-bound narrowing toward a Falcon content update does not erase the broad operational impact Microsoft described. The card preserves both the narrower technical cause and wider ecosystem disruption without treating either as a full final account.",
+          "target_id": "interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+          "target_type": "interpretation",
+          "evidence_ids": [
+            "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+          ],
+          "confidence": "medium_high",
+          "what_would_change_this": "Additional official technical reviews, customer-impact audits, or independent incident analyses could narrow how much impact came from each operational dependency."
+        }
+      ],
+      "bias_notes": [
+        {
+          "bias_note_id": "bias_crowdstrike_avoid_generic_cyberattack_label_2024_07_19_001",
+          "source_id": "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+          "bias_type": "framing_boundary",
+          "note_text": "The canonical card avoids a generic cyberattack framing because CrowdStrike source-bound text states the event was not a cyberattack.",
+          "why_labeled": "This is a wording-risk label for public interpretation; it is not direct evidence about every early public rumor or every organization affected.",
+          "evidence_value": "Useful for source hygiene and tone control; excluded from source-bound finding extraction except as a labeled boundary."
+        }
+      ],
+      "version_diff": {
+        "diff_id": "diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+        "from_version": "v00_broad_outage_unclear_cause",
+        "to_version": "v01_falcon_update_windows_scope_and_remediation",
+        "previous_judgment": "The earliest public and operational story supported a broad outage/disruption framing while cause, scope, and remediation were not yet preserved as separate source-bound states.",
+        "updated_judgment": "This case is best handled as a public technical-incident story whose cause, scope, remediation, and root-cause explanation narrowed over time. It should not be flattened into a single outage summary.",
+        "new_evidence_ids": [
+          "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+          "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+          "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+          "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+          "fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+          "action_crowdstrike_issued_remediation_guidance_2024_07_19_001",
+          "action_microsoft_published_customer_support_update_2024_07_20_001"
+        ],
+        "confidence_delta": {
+          "broad_outage": "observed_disruption -> source_bound_but_incomplete_scope",
+          "technical_cause": "unclear -> narrowed_to_falcon_content_update_for_windows_hosts",
+          "cyberattack_framing": "possible_public_shortcut -> unsupported_by_included_official_source",
+          "remediation": "unclear -> guidance_and_fix_described_by_CrowdStrike",
+          "ecosystem_impact": "abstract_disruption -> Microsoft_estimate_and_broad_impact_framing"
+        },
+        "unchanged_uncertainties": [
+          "The card does not independently verify every affected device or organization.",
+          "The card does not assign legal responsibility, blame, or final engineering-certification conclusions.",
+          "The card keeps later root-cause/process-review material available for review without treating it as automatic canonical mutation."
+        ]
+      },
+      "version_timeline": [
+        {
+          "version_id": "version_crowdstrike_v00_broad_outage_disruption_2024_07_19",
+          "version_label": "v00",
+          "date": "2024-07-19",
+          "trigger": "broad_outage_disruption",
+          "summary": "The public and operational experience centered on a broad Windows disruption before the card separates cause, scope, and remediation.",
+          "evidence_ids": [
+            "claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+            "action_crowdstrike_outage_disruption_observed_2024_07_19_001"
+          ],
+          "judgment_at_version": "Broad disruption was visible, but source-bound cause and scope were not yet separated in the public story.",
+          "confidence_at_version": "medium",
+          "open_questions": [
+            "What caused the disruption and what systems were affected?"
+          ]
+        },
+        {
+          "version_id": "version_crowdstrike_v01_falcon_update_windows_hosts_2024_07_19",
+          "version_label": "v01",
+          "date": "2024-07-19",
+          "trigger": "falcon_content_update_guidance",
+          "summary": "CrowdStrike connected the event to a Falcon content update for Windows hosts, stated it was not a cyberattack, and issued remediation guidance.",
+          "evidence_ids": [
+            "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+            "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+            "action_crowdstrike_issued_remediation_guidance_2024_07_19_001"
+          ],
+          "judgment_at_version": "Cause and remediation narrowed to source-bound CrowdStrike framing, while broader impact still needed separate handling.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "How large was the ecosystem impact and how complex was recovery?"
+          ]
+        },
+        {
+          "version_id": "version_crowdstrike_v02_microsoft_ecosystem_impact_2024_07_20",
+          "version_label": "v02",
+          "date": "2024-07-20",
+          "trigger": "microsoft_customer_ecosystem_update",
+          "summary": "Microsoft estimated 8.5 million affected Windows devices and described broad customer and ecosystem impact.",
+          "evidence_ids": [
+            "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "action_microsoft_published_customer_support_update_2024_07_20_001"
+          ],
+          "judgment_at_version": "The story became both narrower technically and wider operationally: one product-update context with broad ecosystem consequences.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "What later root-cause and process-review details should be accepted into the canonical card?"
+          ]
+        }
+      ],
+      "claim_drift": [
+        {
+          "drift_id": "drift_crowdstrike_unknown_broad_outage_to_narrowed_update_issue_2024_07_20",
+          "target_claim_id": "claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+          "from_status": "broad_outage_unclear_cause",
+          "to_status": "narrowed_to_falcon_content_update_for_windows_hosts",
+          "direction": "narrowed",
+          "driver_evidence_ids": [
+            "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001"
+          ],
+          "drift_summary": "Unknown broad outage framing narrowed once CrowdStrike linked the event to a Falcon content update for Windows hosts.",
+          "current_handling": "Keep broad disruption as context while preserving the narrower source-bound technical cause separately."
+        },
+        {
+          "drift_id": "drift_crowdstrike_possible_cyberattack_to_unsupported_2024_07_19",
+          "target_claim_id": "claim_crowdstrike_not_cyberattack_2024_07_19_001",
+          "from_status": "possible_cyberattack_or_unclear_cause_shortcut",
+          "to_status": "unsupported_by_included_CrowdStrike_source",
+          "direction": "unsupported",
+          "driver_evidence_ids": [
+            "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001"
+          ],
+          "drift_summary": "Generic cyberattack shorthand is not supported by the included CrowdStrike source, which states the event was not a cyberattack.",
+          "current_handling": "Use the source-bound Falcon content update framing and keep cyberattack wording only as a rejected shorthand."
+        },
+        {
+          "drift_id": "drift_crowdstrike_falcon_update_windows_crashes_strengthened_2024_07_19",
+          "target_claim_id": "claim_crowdstrike_falcon_update_issue_windows_hosts_2024_07_19_001",
+          "from_status": "unclear_technical_cause",
+          "to_status": "strengthened_by_official_guidance_and_review_material",
+          "direction": "strengthened",
+          "driver_evidence_ids": [
+            "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "fact_crowdstrike_channel_file_291_context_2024_07_19_001"
+          ],
+          "drift_summary": "The claim that a Falcon content update affected Windows hosts strengthened with CrowdStrike guidance and review framing.",
+          "current_handling": "Treat as source-bound technical framing, not an independent final engineering certification."
+        },
+        {
+          "drift_id": "drift_crowdstrike_remediation_simple_to_complicated_2024_07_20",
+          "target_claim_id": "claim_crowdstrike_remediation_guidance_available_2024_07_19_001",
+          "from_status": "remediation_might_be_simple_or_immediate",
+          "to_status": "complicated_by_guidance_and_ecosystem_support_needs",
+          "direction": "complicated",
+          "driver_evidence_ids": [
+            "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+            "action_microsoft_published_customer_support_update_2024_07_20_001",
+            "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+          ],
+          "drift_summary": "The existence of a fix and guidance did not make recovery simple; Microsoft described broad customer support and ecosystem impact.",
+          "current_handling": "Preserve remediation guidance and recovery complexity as separate state."
+        },
+        {
+          "drift_id": "drift_crowdstrike_root_cause_understood_initially_to_revised_2024_07_20",
+          "target_claim_id": "claim_crowdstrike_review_process_improvement_material_2024_07_19_001",
+          "from_status": "root_cause_fully_understood_at_first_report",
+          "to_status": "review_material_requires_later_source_bound_inspection",
+          "direction": "weakened",
+          "driver_evidence_ids": [
+            "fact_crowdstrike_channel_file_291_context_2024_07_19_001",
+            "action_crowdstrike_published_review_resources_2024_07_19_001"
+          ],
+          "drift_summary": "The idea that root cause was fully understood at first report weakens because review material belongs in a later source-bound review step.",
+          "current_handling": "Keep root-cause and process-improvement material as reviewable evidence rather than automatic canonical expansion."
+        }
+      ],
+      "editorial_verdict": {
+        "verdict_id": "verdict_crowdstrike_windows_outage_2024_07_20_v01",
+        "short_label": "source-bound technical incident story",
+        "verdict_text": "This case is best handled as a public technical-incident story whose cause, scope, remediation, and root-cause explanation narrowed over time. It should not be flattened into a single outage summary.",
+        "confidence": "medium_high",
+        "source_bound": true,
+        "reader_warnings": [
+          "Do not collapse the case into a generic cyberattack label when the included CrowdStrike source says it was not a cyberattack.",
+          "Do not treat Microsoft's device estimate as a complete organization-level impact audit.",
+          "Do not assign blame or make legal conclusions from this deterministic card."
+        ],
+        "what_would_change_this": [
+          "A reviewed official RCA or independent audit could add a later version event.",
+          "New source-bound remediation data could narrow recovery-complexity claims."
+        ]
+      },
+      "claim_graph": {
+        "graph_id": "graph_crowdstrike_windows_outage_2024_2026_06_28_v01",
+        "nodes": [
+          {
+            "node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "summary": "src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+            "summary": "src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "summary": "CrowdStrike connected the event to a Falcon content update for Windows hosts.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+            "summary": "CrowdStrike stated the event was not a cyberattack.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+            "summary": "CrowdStrike said the issue was identified and a fix was deployed, with remediation guidance available for affected customers.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_crowdstrike_channel_file_291_context_2024_07_19_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_crowdstrike_channel_file_291_context_2024_07_19_001",
+            "summary": "CrowdStrike guidance and review material linked the incident to Channel File 291 behavior and later technical root-cause review resources.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "summary": "Microsoft estimated CrowdStrike's update affected 8.5 million Windows devices, less than one percent of Windows machines.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "summary": "Microsoft described broad economic and societal impacts from the enterprise use of CrowdStrike.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+            "node_type": "actor_claim",
+            "label": "Public/operational reports reflected in official response context",
+            "ref_id": "claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+            "summary": "The incident was initially experienced as a broad Windows outage and disruption before a narrower technical framing became visible.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_crowdstrike_falcon_update_issue_windows_hosts_2024_07_19_001",
+            "node_type": "actor_claim",
+            "label": "CrowdStrike",
+            "ref_id": "claim_crowdstrike_falcon_update_issue_windows_hosts_2024_07_19_001",
+            "summary": "The event was connected to a Falcon content update for Windows hosts.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_crowdstrike_not_cyberattack_2024_07_19_001",
+            "node_type": "actor_claim",
+            "label": "CrowdStrike",
+            "ref_id": "claim_crowdstrike_not_cyberattack_2024_07_19_001",
+            "summary": "The event was not a cyberattack.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_microsoft_large_scale_windows_impact_2024_07_20_001",
+            "node_type": "actor_claim",
+            "label": "Microsoft",
+            "ref_id": "claim_microsoft_large_scale_windows_impact_2024_07_20_001",
+            "summary": "CrowdStrike's update affected an estimated 8.5 million Windows devices and had broad ecosystem impact.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_crowdstrike_remediation_guidance_available_2024_07_19_001",
+            "node_type": "actor_claim",
+            "label": "CrowdStrike",
+            "ref_id": "claim_crowdstrike_remediation_guidance_available_2024_07_19_001",
+            "summary": "CrowdStrike provided remediation guidance for affected customers after identifying the issue and deploying a fix.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_crowdstrike_review_process_improvement_material_2024_07_19_001",
+            "node_type": "actor_claim",
+            "label": "CrowdStrike",
+            "ref_id": "claim_crowdstrike_review_process_improvement_material_2024_07_19_001",
+            "summary": "CrowdStrike review material connected the event to root-cause review and process-improvement follow-up.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_crowdstrike_outage_disruption_observed_2024_07_19_001",
+            "node_type": "action",
+            "label": "outage_response_context",
+            "ref_id": "action_crowdstrike_outage_disruption_observed_2024_07_19_001",
+            "summary": "Experienced and responded to a broad Windows outage and disruption.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_crowdstrike_issued_remediation_guidance_2024_07_19_001",
+            "node_type": "action",
+            "label": "remediation_guidance",
+            "ref_id": "action_crowdstrike_issued_remediation_guidance_2024_07_19_001",
+            "summary": "Issued guidance and remediation steps after identifying the issue and deploying a fix.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_microsoft_published_customer_support_update_2024_07_20_001",
+            "node_type": "action",
+            "label": "customer_support_update",
+            "ref_id": "action_microsoft_published_customer_support_update_2024_07_20_001",
+            "summary": "Published a customer-support and ecosystem-impact update and described collaboration with CrowdStrike and cloud providers.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_crowdstrike_published_review_resources_2024_07_19_001",
+            "node_type": "action",
+            "label": "review_material_publication",
+            "ref_id": "action_crowdstrike_published_review_resources_2024_07_19_001",
+            "summary": "Made review and root-cause material available through the guidance hub for later inspection.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "node_type": "interpretation",
+            "label": "Technical-incident story with narrowed cause, scope, and remediation",
+            "ref_id": "interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "summary": "This case is best handled as a public technical-incident story whose cause, scope, remediation, and root-cause explanation narrowed over time. It should not be flattened into a single outage summary.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_counter_crowdstrike_broad_impact_still_real_2024_07_20_001",
+            "node_type": "counter_branch",
+            "label": "Broad operational impact can be real even when technical cause narrows",
+            "ref_id": "counter_crowdstrike_broad_impact_still_real_2024_07_20_001",
+            "summary": "The source-bound narrowing toward a Falcon content update does not erase the broad operational impact Microsoft described. The card preserves both the narrower technical cause and wider ecosystem disruption without treating either as a full final account.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_bias_crowdstrike_avoid_generic_cyberattack_label_2024_07_19_001",
+            "node_type": "bias_note",
+            "label": "framing_boundary",
+            "ref_id": "bias_crowdstrike_avoid_generic_cyberattack_label_2024_07_19_001",
+            "summary": "The canonical card avoids a generic cyberattack framing because CrowdStrike source-bound text states the event was not a cyberattack.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_crowdstrike_v00_broad_outage_disruption_2024_07_19",
+            "node_type": "version_event",
+            "label": "v00",
+            "ref_id": "version_crowdstrike_v00_broad_outage_disruption_2024_07_19",
+            "summary": "The public and operational experience centered on a broad Windows disruption before the card separates cause, scope, and remediation.",
+            "confidence": "medium",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_crowdstrike_v01_falcon_update_windows_hosts_2024_07_19",
+            "node_type": "version_event",
+            "label": "v01",
+            "ref_id": "version_crowdstrike_v01_falcon_update_windows_hosts_2024_07_19",
+            "summary": "CrowdStrike connected the event to a Falcon content update for Windows hosts, stated it was not a cyberattack, and issued remediation guidance.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_crowdstrike_v02_microsoft_ecosystem_impact_2024_07_20",
+            "node_type": "version_event",
+            "label": "v02",
+            "ref_id": "version_crowdstrike_v02_microsoft_ecosystem_impact_2024_07_20",
+            "summary": "Microsoft estimated 8.5 million affected Windows devices and described broad customer and ecosystem impact.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_crowdstrike_unknown_broad_outage_to_narrowed_update_issue_2024_07_20",
+            "node_type": "claim_drift",
+            "label": "narrowed",
+            "ref_id": "drift_crowdstrike_unknown_broad_outage_to_narrowed_update_issue_2024_07_20",
+            "summary": "Unknown broad outage framing narrowed once CrowdStrike linked the event to a Falcon content update for Windows hosts.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_crowdstrike_possible_cyberattack_to_unsupported_2024_07_19",
+            "node_type": "claim_drift",
+            "label": "unsupported",
+            "ref_id": "drift_crowdstrike_possible_cyberattack_to_unsupported_2024_07_19",
+            "summary": "Generic cyberattack shorthand is not supported by the included CrowdStrike source, which states the event was not a cyberattack.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_crowdstrike_falcon_update_windows_crashes_strengthened_2024_07_19",
+            "node_type": "claim_drift",
+            "label": "strengthened",
+            "ref_id": "drift_crowdstrike_falcon_update_windows_crashes_strengthened_2024_07_19",
+            "summary": "The claim that a Falcon content update affected Windows hosts strengthened with CrowdStrike guidance and review framing.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_crowdstrike_remediation_simple_to_complicated_2024_07_20",
+            "node_type": "claim_drift",
+            "label": "complicated",
+            "ref_id": "drift_crowdstrike_remediation_simple_to_complicated_2024_07_20",
+            "summary": "The existence of a fix and guidance did not make recovery simple; Microsoft described broad customer support and ecosystem impact.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_crowdstrike_root_cause_understood_initially_to_revised_2024_07_20",
+            "node_type": "claim_drift",
+            "label": "weakened",
+            "ref_id": "drift_crowdstrike_root_cause_understood_initially_to_revised_2024_07_20",
+            "summary": "The idea that root cause was fully understood at first report weakens because review material belongs in a later source-bound review step.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "node_type": "version_diff",
+            "label": "v01_falcon_update_windows_scope_and_remediation",
+            "ref_id": "diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "summary": "This case is best handled as a public technical-incident story whose cause, scope, remediation, and root-cause explanation narrowed over time. It should not be flattened into a single outage summary.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "node_type": "verdict",
+            "label": "source-bound technical incident story",
+            "ref_id": "verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "summary": "This case is best handled as a public technical-incident story whose cause, scope, remediation, and root-cause explanation narrowed over time. It should not be flattened into a single outage summary.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_crowdstrike_windows_outage_2024_01",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 1",
+            "ref_id": "unresolved_crowdstrike_windows_outage_2024_01",
+            "summary": "The card does not independently verify every affected device or organization.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_crowdstrike_windows_outage_2024_02",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 2",
+            "ref_id": "unresolved_crowdstrike_windows_outage_2024_02",
+            "summary": "The card does not assign legal responsibility, blame, or final engineering-certification conclusions.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_crowdstrike_windows_outage_2024_03",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 3",
+            "ref_id": "unresolved_crowdstrike_windows_outage_2024_03",
+            "summary": "The card keeps later root-cause/process-review material available for review without treating it as automatic canonical mutation.",
+            "source_bound": true
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_001_source_supports_fact",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_002_source_supports_fact",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_003_source_supports_fact",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_004_source_supports_fact",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_fact_crowdstrike_channel_file_291_context_2024_07_19_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_crowdstrike_channel_file_291_context_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_005_source_supports_fact",
+            "source_node_id": "node_src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+            "target_node_id": "node_fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_006_source_supports_fact",
+            "source_node_id": "node_src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+            "target_node_id": "node_fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_007_source_contains_claim",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_008_source_contains_claim",
+            "source_node_id": "node_src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+            "target_node_id": "node_claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_009_source_contains_claim",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_claim_crowdstrike_falcon_update_issue_windows_hosts_2024_07_19_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_crowdstrike_falcon_update_issue_windows_hosts_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_010_source_contains_claim",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_claim_crowdstrike_not_cyberattack_2024_07_19_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_crowdstrike_not_cyberattack_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_011_source_contains_claim",
+            "source_node_id": "node_src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+            "target_node_id": "node_claim_microsoft_large_scale_windows_impact_2024_07_20_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_microsoft_large_scale_windows_impact_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_012_source_contains_claim",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_claim_crowdstrike_remediation_guidance_available_2024_07_19_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_crowdstrike_remediation_guidance_available_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_013_source_contains_claim",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_claim_crowdstrike_review_process_improvement_material_2024_07_19_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_crowdstrike_review_process_improvement_material_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_014_source_describes_action",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_action_crowdstrike_outage_disruption_observed_2024_07_19_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_crowdstrike_outage_disruption_observed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_015_source_describes_action",
+            "source_node_id": "node_src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+            "target_node_id": "node_action_crowdstrike_outage_disruption_observed_2024_07_19_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_crowdstrike_outage_disruption_observed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_016_source_describes_action",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_action_crowdstrike_issued_remediation_guidance_2024_07_19_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_crowdstrike_issued_remediation_guidance_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_017_source_describes_action",
+            "source_node_id": "node_src_microsoft_customer_guidance_crowdstrike_outage_2024_07_20",
+            "target_node_id": "node_action_microsoft_published_customer_support_update_2024_07_20_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_microsoft_published_customer_support_update_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_018_source_describes_action",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_action_crowdstrike_published_review_resources_2024_07_19_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_crowdstrike_published_review_resources_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_019_source_contains_bias_note",
+            "source_node_id": "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+            "target_node_id": "node_bias_crowdstrike_avoid_generic_cyberattack_label_2024_07_19_001",
+            "edge_type": "source_contains_bias_note",
+            "label": "source contains labeled bias note"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_020_fact_supports_interpretation",
+            "source_node_id": "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "target_node_id": "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_021_fact_supports_interpretation",
+            "source_node_id": "node_fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+            "target_node_id": "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_022_fact_supports_interpretation",
+            "source_node_id": "node_fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "target_node_id": "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_023_fact_supports_interpretation",
+            "source_node_id": "node_fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "target_node_id": "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_024_action_supports_interpretation",
+            "source_node_id": "node_action_crowdstrike_issued_remediation_guidance_2024_07_19_001",
+            "target_node_id": "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "edge_type": "action_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "action_crowdstrike_issued_remediation_guidance_2024_07_19_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_025_evidence_supports_counter_branch",
+            "source_node_id": "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "target_node_id": "node_counter_crowdstrike_broad_impact_still_real_2024_07_20_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_026_evidence_supports_counter_branch",
+            "source_node_id": "node_fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "target_node_id": "node_counter_crowdstrike_broad_impact_still_real_2024_07_20_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_027_evidence_supports_counter_branch",
+            "source_node_id": "node_fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "target_node_id": "node_counter_crowdstrike_broad_impact_still_real_2024_07_20_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_028_counter_branch_targets_interpretation",
+            "source_node_id": "node_counter_crowdstrike_broad_impact_still_real_2024_07_20_001",
+            "target_node_id": "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "edge_type": "counter_branch_targets_interpretation",
+            "label": "counter-branch targets review object",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_029_timeline_event_uses_evidence",
+            "source_node_id": "node_claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+            "target_node_id": "node_version_crowdstrike_v00_broad_outage_disruption_2024_07_19",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_030_timeline_event_uses_evidence",
+            "source_node_id": "node_action_crowdstrike_outage_disruption_observed_2024_07_19_001",
+            "target_node_id": "node_version_crowdstrike_v00_broad_outage_disruption_2024_07_19",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_crowdstrike_outage_disruption_observed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_031_timeline_event_updates_judgment",
+            "source_node_id": "node_version_crowdstrike_v00_broad_outage_disruption_2024_07_19",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+              "action_crowdstrike_outage_disruption_observed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_032_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "target_node_id": "node_version_crowdstrike_v01_falcon_update_windows_hosts_2024_07_19",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_033_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+            "target_node_id": "node_version_crowdstrike_v01_falcon_update_windows_hosts_2024_07_19",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_034_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+            "target_node_id": "node_version_crowdstrike_v01_falcon_update_windows_hosts_2024_07_19",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_035_timeline_event_uses_evidence",
+            "source_node_id": "node_action_crowdstrike_issued_remediation_guidance_2024_07_19_001",
+            "target_node_id": "node_version_crowdstrike_v01_falcon_update_windows_hosts_2024_07_19",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_crowdstrike_issued_remediation_guidance_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_036_timeline_event_updates_judgment",
+            "source_node_id": "node_version_crowdstrike_v01_falcon_update_windows_hosts_2024_07_19",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+              "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+              "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+              "action_crowdstrike_issued_remediation_guidance_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_037_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "target_node_id": "node_version_crowdstrike_v02_microsoft_ecosystem_impact_2024_07_20",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_038_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "target_node_id": "node_version_crowdstrike_v02_microsoft_ecosystem_impact_2024_07_20",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_039_timeline_event_uses_evidence",
+            "source_node_id": "node_action_microsoft_published_customer_support_update_2024_07_20_001",
+            "target_node_id": "node_version_crowdstrike_v02_microsoft_ecosystem_impact_2024_07_20",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_microsoft_published_customer_support_update_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_040_timeline_event_updates_judgment",
+            "source_node_id": "node_version_crowdstrike_v02_microsoft_ecosystem_impact_2024_07_20",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+              "action_microsoft_published_customer_support_update_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_041_claim_drift_targets_claim",
+            "source_node_id": "node_drift_crowdstrike_unknown_broad_outage_to_narrowed_update_issue_2024_07_20",
+            "target_node_id": "node_claim_crowdstrike_broad_outage_operational_framing_2024_07_19_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+              "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_042_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "target_node_id": "node_drift_crowdstrike_unknown_broad_outage_to_narrowed_update_issue_2024_07_20",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_043_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+            "target_node_id": "node_drift_crowdstrike_unknown_broad_outage_to_narrowed_update_issue_2024_07_20",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_044_claim_drift_targets_claim",
+            "source_node_id": "node_drift_crowdstrike_possible_cyberattack_to_unsupported_2024_07_19",
+            "target_node_id": "node_claim_crowdstrike_not_cyberattack_2024_07_19_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_045_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+            "target_node_id": "node_drift_crowdstrike_possible_cyberattack_to_unsupported_2024_07_19",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_046_claim_drift_targets_claim",
+            "source_node_id": "node_drift_crowdstrike_falcon_update_windows_crashes_strengthened_2024_07_19",
+            "target_node_id": "node_claim_crowdstrike_falcon_update_issue_windows_hosts_2024_07_19_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+              "fact_crowdstrike_channel_file_291_context_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_047_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "target_node_id": "node_drift_crowdstrike_falcon_update_windows_crashes_strengthened_2024_07_19",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_048_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_crowdstrike_channel_file_291_context_2024_07_19_001",
+            "target_node_id": "node_drift_crowdstrike_falcon_update_windows_crashes_strengthened_2024_07_19",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_crowdstrike_channel_file_291_context_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_049_claim_drift_targets_claim",
+            "source_node_id": "node_drift_crowdstrike_remediation_simple_to_complicated_2024_07_20",
+            "target_node_id": "node_claim_crowdstrike_remediation_guidance_available_2024_07_19_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+              "action_microsoft_published_customer_support_update_2024_07_20_001",
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_050_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+            "target_node_id": "node_drift_crowdstrike_remediation_simple_to_complicated_2024_07_20",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_051_evidence_drives_claim_drift",
+            "source_node_id": "node_action_microsoft_published_customer_support_update_2024_07_20_001",
+            "target_node_id": "node_drift_crowdstrike_remediation_simple_to_complicated_2024_07_20",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "action_microsoft_published_customer_support_update_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_052_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "target_node_id": "node_drift_crowdstrike_remediation_simple_to_complicated_2024_07_20",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_053_claim_drift_targets_claim",
+            "source_node_id": "node_drift_crowdstrike_root_cause_understood_initially_to_revised_2024_07_20",
+            "target_node_id": "node_claim_crowdstrike_review_process_improvement_material_2024_07_19_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_crowdstrike_channel_file_291_context_2024_07_19_001",
+              "action_crowdstrike_published_review_resources_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_054_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_crowdstrike_channel_file_291_context_2024_07_19_001",
+            "target_node_id": "node_drift_crowdstrike_root_cause_understood_initially_to_revised_2024_07_20",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_crowdstrike_channel_file_291_context_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_055_evidence_drives_claim_drift",
+            "source_node_id": "node_action_crowdstrike_published_review_resources_2024_07_19_001",
+            "target_node_id": "node_drift_crowdstrike_root_cause_understood_initially_to_revised_2024_07_20",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "action_crowdstrike_published_review_resources_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_056_version_diff_uses_evidence",
+            "source_node_id": "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_057_version_diff_uses_evidence",
+            "source_node_id": "node_fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_058_version_diff_uses_evidence",
+            "source_node_id": "node_fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_059_version_diff_uses_evidence",
+            "source_node_id": "node_fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_060_version_diff_uses_evidence",
+            "source_node_id": "node_fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_061_version_diff_uses_evidence",
+            "source_node_id": "node_action_crowdstrike_issued_remediation_guidance_2024_07_19_001",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "action_crowdstrike_issued_remediation_guidance_2024_07_19_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_062_version_diff_uses_evidence",
+            "source_node_id": "node_action_microsoft_published_customer_support_update_2024_07_20_001",
+            "target_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "action_microsoft_published_customer_support_update_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_063_version_diff_updates_verdict",
+            "source_node_id": "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+            "target_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "edge_type": "version_diff_updates_verdict",
+            "label": "version diff updates verdict",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+              "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+              "fact_crowdstrike_issue_identified_fix_deployed_2024_07_19_001",
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+              "action_crowdstrike_issued_remediation_guidance_2024_07_19_001",
+              "action_microsoft_published_customer_support_update_2024_07_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_064_verdict_depends_on_interpretation",
+            "source_node_id": "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "target_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "edge_type": "verdict_depends_on_interpretation",
+            "label": "verdict depends on interpretation",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+              "fact_crowdstrike_not_cyberattack_statement_2024_07_19_001",
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001",
+              "action_crowdstrike_issued_remediation_guidance_2024_07_19_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_065_verdict_tempered_by_counter_branch",
+            "source_node_id": "node_counter_crowdstrike_broad_impact_still_real_2024_07_20_001",
+            "target_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "edge_type": "verdict_tempered_by_counter_branch",
+            "label": "verdict is tempered by counter-branch",
+            "evidence_ids": [
+              "fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+              "fact_microsoft_estimated_affected_windows_devices_2024_07_20_001",
+              "fact_microsoft_broad_ecosystem_impact_2024_07_20_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_066_bias_note_attaches_to_interpretation",
+            "source_node_id": "node_bias_crowdstrike_avoid_generic_cyberattack_label_2024_07_19_001",
+            "target_node_id": "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+            "edge_type": "bias_note_attaches_to_interpretation",
+            "label": "bias note attaches to interpretation for review"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_067_bias_note_attaches_to_verdict",
+            "source_node_id": "node_bias_crowdstrike_avoid_generic_cyberattack_label_2024_07_19_001",
+            "target_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "edge_type": "bias_note_attaches_to_verdict",
+            "label": "bias note attaches to verdict for review"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_068_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "target_node_id": "node_unresolved_crowdstrike_windows_outage_2024_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_069_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "target_node_id": "node_unresolved_crowdstrike_windows_outage_2024_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_070_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "target_node_id": "node_unresolved_crowdstrike_windows_outage_2024_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
+        ],
+        "graph_summary": "Derived claim graph with 34 nodes and 70 edges linking sources, evidence, interpretations, counter-branches, timeline events, claim drift, version diff, and verdict.",
+        "primary_paths": [
+          {
+            "path_id": "path_crowdstrike_windows_outage_2024_version_diff_to_verdict",
+            "label": "Evidence to version diff to verdict",
+            "node_ids": [
+              "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+              "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+              "node_diff_crowdstrike_windows_outage_v00_to_v01_2024_07_20",
+              "node_verdict_crowdstrike_windows_outage_2024_07_20_v01"
+            ],
+            "edge_ids": [
+              "edge_crowdstrike_windows_outage_2024_001_source_supports_fact",
+              "edge_crowdstrike_windows_outage_2024_056_version_diff_uses_evidence",
+              "edge_crowdstrike_windows_outage_2024_063_version_diff_updates_verdict"
+            ],
+            "summary": "A source-bound evidence item changes the version diff, which updates the verdict."
+          },
+          {
+            "path_id": "path_crowdstrike_windows_outage_2024_interpretation_to_verdict",
+            "label": "Evidence to interpretation to verdict",
+            "node_ids": [
+              "node_src_crowdstrike_falcon_content_update_guidance_hub_2024_07_19",
+              "node_fact_crowdstrike_falcon_content_update_windows_hosts_2024_07_19_001",
+              "node_interp_crowdstrike_public_technical_incident_story_2024_07_20_001",
+              "node_verdict_crowdstrike_windows_outage_2024_07_20_v01"
+            ],
+            "edge_ids": [
+              "edge_crowdstrike_windows_outage_2024_001_source_supports_fact",
+              "edge_crowdstrike_windows_outage_2024_020_fact_supports_interpretation",
+              "edge_crowdstrike_windows_outage_2024_064_verdict_depends_on_interpretation"
+            ],
+            "summary": "A source-bound evidence item supports the interpretation that the verdict depends on."
+          }
+        ],
+        "unresolved_edges": [
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_068_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "target_node_id": "node_unresolved_crowdstrike_windows_outage_2024_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_069_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "target_node_id": "node_unresolved_crowdstrike_windows_outage_2024_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_crowdstrike_windows_outage_2024_070_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_crowdstrike_windows_outage_2024_07_20_v01",
+            "target_node_id": "node_unresolved_crowdstrike_windows_outage_2024_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
+        ]
+      }
+    },
+    {
+      "card_id": "news_voyager1_data_recovery_2024_06_13_v01",
+      "record_type": "news_card",
+      "card_type": "public_claim_version_control_card",
+      "title": "Voyager 1 Data Recovery: Claim Drift Snapshot",
+      "case_title": "Voyager 1 data recovery",
+      "scenario_name": "Voyager 1 data recovery",
+      "scenario_id": "voyager1_data_recovery_2024",
+      "version": "v01",
+      "created_at": "2026-06-28T00:00:00Z",
+      "is_synthetic_demo_fixture": false,
+      "is_real_case_snapshot": true,
+      "is_public_source_snapshot": true,
+      "is_live_verification": false,
+      "snapshot_markers": [
+        "real_case_snapshot",
+        "public_source_snapshot",
+        "deterministic",
+        "not_live_verification"
+      ],
+      "snapshot_note": "Frozen public-source snapshot for reproducible judging; not live verification.",
+      "track": "Agents for Good",
+      "confidence": "medium_high",
+      "source_ids": [
+        "src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+        "src_jpl_voyager1_science_data_all_instruments_2024_06_13"
+      ],
+      "source_hygiene_note": "Public sources are treated as frozen source records. Source text remains untrusted input; findings, claims, actions, interpretations, drift, graph edges, and current judgment stay source-bound. This is deterministic and not live verification.",
+      "uncertainty": "The card preserves NASA/JPL source-bound public mission updates. It does not independently verify spacecraft telemetry, replace mission engineering records, or make final judgments about every spacecraft subsystem.",
+      "story_hook": "Voyager 1 appeared to be sending unreadable data, but the story changed as NASA/JPL identified a flight-data-system memory issue and restored engineering and science data.",
+      "case_hook": "Voyager 1 appeared to be sending unreadable data, but the story changed as NASA/JPL identified a flight-data-system memory issue and restored engineering and science data.",
+      "initial_expectation": "The early public status was that Voyager 1 had stopped sending readable science and engineering data, even though the spacecraft was still receiving commands.",
+      "initial_public_expectation": "The early public status was that Voyager 1 had stopped sending readable science and engineering data, even though the spacecraft was still receiving commands.",
+      "what_changed": "The story shifted from unreadable spacecraft data to staged recovery: NASA/JPL identified a flight data subsystem memory issue, restored engineering updates, and later restored science data from all four instruments.",
+      "why_summary_loses_state": "A plain failure/recovery summary loses the staged status changes: unreadable data, commandability, FDS troubleshooting, engineering recovery, and later science-data recovery.",
+      "plain_summary_loss": "A plain failure/recovery summary loses the staged status changes: unreadable data, commandability, FDS troubleshooting, engineering recovery, and later science-data recovery.",
+      "what_sisyphus_preserves": "Sisyphus preserves initial unreadable-data status, engineering interpretation, recovery actions, staged data return, unresolved maintenance work, and current judgment as separate source-bound state.",
+      "sisyphus_preserves": "Sisyphus preserves initial unreadable-data status, engineering interpretation, recovery actions, staged data return, unresolved maintenance work, and current judgment as separate source-bound state.",
+      "why_it_matters": "The case shows how an engineering-recovery story can change in stages and why public summaries should distinguish not returning readable data from spacecraft loss.",
+      "summary_3_line": [
+        "NASA/JPL reported Voyager 1 had not been sending readable science or engineering data since November 14, 2023, while still receiving commands and otherwise operating normally.",
+        "NASA/JPL tied the problem to the flight data subsystem and a memory issue, then restored usable engineering updates before continuing science-data recovery work.",
+        "NASA/JPL later reported usable science data from all four instruments, making the current judgment a staged engineering-recovery story rather than a simple failure/recovery headline."
+      ],
+      "image_prompt": {
+        "label": "Generated visual summary, not evidence",
+        "prompt": "A quiet deep-space mission-control briefing image showing Voyager 1 telemetry, a flight data subsystem memory marker, and staged engineering-to-science data recovery timeline; no logos used as evidence."
+      },
+      "facts": [
+        {
+          "fact_id": "fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+          "text": "NASA/JPL said Voyager 1 had not been sending readable science or engineering data since November 14, 2023.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+          "text": "NASA/JPL said Voyager 1 was receiving commands and otherwise operating normally during the unreadable-data period.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+          "text": "NASA/JPL tied the issue to the flight data subsystem and a memory problem affecting code that packaged science and engineering data.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+          "text": "NASA/JPL reported Voyager 1 resumed sending usable engineering updates about spacecraft health and status.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+          "text": "NASA/JPL reported Voyager 1 was returning usable science data from all four instruments.",
+          "source_ids": [
+            "src_jpl_voyager1_science_data_all_instruments_2024_06_13"
+          ],
+          "confidence": "high",
+          "source_bound": true
+        },
+        {
+          "fact_id": "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+          "text": "NASA/JPL said minor work remained to clean up effects of the earlier issue after science data resumed.",
+          "source_ids": [
+            "src_jpl_voyager1_science_data_all_instruments_2024_06_13"
+          ],
+          "confidence": "medium_high",
+          "source_bound": true
+        }
+      ],
+      "actor_claims": [
+        {
+          "claim_id": "claim_voyager1_data_unreadable_initial_status_2023_11_14_001",
+          "actor": "NASA/JPL",
+          "claim_text": "Voyager 1 was not sending readable science or engineering data.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "claim_type": "initial_status",
+          "status": "narrowed_by_commandability_and_later_recovery"
+        },
+        {
+          "claim_id": "claim_voyager1_fds_memory_issue_interpretation_2024_04_22_001",
+          "actor": "NASA/JPL",
+          "claim_text": "The issue involved the flight data subsystem and a memory problem affecting data packaging.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "claim_type": "engineering_interpretation",
+          "status": "source_bound_engineering_explanation"
+        },
+        {
+          "claim_id": "claim_voyager1_engineering_data_restored_2024_04_22_001",
+          "actor": "NASA/JPL",
+          "claim_text": "Voyager 1 resumed sending usable engineering updates.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "claim_type": "recovery_status",
+          "status": "strengthened_by_official_update"
+        },
+        {
+          "claim_id": "claim_voyager1_science_data_pending_after_engineering_recovery_2024_04_22_001",
+          "actor": "NASA/JPL",
+          "claim_text": "After engineering updates resumed, science-data recovery still required additional work.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "claim_type": "remaining_recovery_work",
+          "status": "superseded_by_later_science_data_return"
+        },
+        {
+          "claim_id": "claim_voyager1_science_data_all_instruments_restored_2024_06_13_001",
+          "actor": "NASA/JPL",
+          "claim_text": "Voyager 1 was returning usable science data from all four instruments.",
+          "source_ids": [
+            "src_jpl_voyager1_science_data_all_instruments_2024_06_13"
+          ],
+          "claim_type": "later_recovery_status",
+          "status": "source_bound_current_status"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "action_voyager1_engineers_investigate_unreadable_data_2024_04_22_001",
+          "actor": "NASA/JPL engineering team",
+          "action_text": "Investigated the unreadable data issue and tied it to the flight data subsystem memory problem.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "action_type": "engineering_troubleshooting",
+          "date": "2024-04-22"
+        },
+        {
+          "action_id": "action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+          "actor": "NASA/JPL engineering team",
+          "action_text": "Sent a command to place affected code elsewhere in flight data subsystem memory.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "action_type": "spacecraft_command_workaround",
+          "date": "2024-04-18"
+        },
+        {
+          "action_id": "action_voyager1_engineering_data_returned_2024_04_20_001",
+          "actor": "Voyager 1 mission team",
+          "action_text": "Confirmed the workaround restored usable engineering updates from Voyager 1.",
+          "source_ids": [
+            "src_jpl_voyager1_engineering_updates_resume_2024_04_22"
+          ],
+          "action_type": "engineering_data_recovery",
+          "date": "2024-04-20"
+        },
+        {
+          "action_id": "action_voyager1_science_data_returned_all_instruments_2024_06_13_001",
+          "actor": "Voyager 1 mission team",
+          "action_text": "Restored usable science data return from all four instruments after additional commands and work.",
+          "source_ids": [
+            "src_jpl_voyager1_science_data_all_instruments_2024_06_13"
+          ],
+          "action_type": "science_data_recovery",
+          "date": "2024-06-13"
+        }
+      ],
+      "interpretations": [
+        {
+          "interpretation_id": "interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+          "title": "Staged engineering-recovery story, not a simple mission failure headline",
+          "interpretation_text": "This case is best handled as an engineering-recovery story where public status changed in stages, not as a simple failure/recovery headline.",
+          "evidence_ids": [
+            "fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+            "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+            "fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+            "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "fact_voyager1_science_data_all_four_instruments_2024_06_13_001"
+          ],
+          "alternative_interpretations": [
+            "A narrow interpretation is that unreadable data did not mean the spacecraft was simply lost or the mission was over.",
+            "A cautionary interpretation is that recovery was incremental: engineering data returned before science data from all four instruments resumed."
+          ],
+          "risk_notes": [
+            "Do not treat not returning readable data as equivalent to spacecraft loss.",
+            "Do not infer complete subsystem health beyond the included NASA/JPL public updates.",
+            "Do not make final mission-status judgments from this deterministic snapshot alone."
+          ],
+          "confidence": "medium_high"
+        }
+      ],
+      "counter_branches": [
+        {
+          "counter_branch_id": "counter_voyager1_recovery_was_incremental_not_instant_2024_06_13_001",
+          "title": "Recovery was incremental, not instant",
+          "counter_text": "The later science-data recovery does not erase the staged troubleshooting history. Engineering data returned first, science data from all four instruments came later, and NASA/JPL still described minor cleanup work.",
+          "target_id": "interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+          "target_type": "interpretation",
+          "evidence_ids": [
+            "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+          ],
+          "confidence": "medium_high",
+          "what_would_change_this": "A later official mission-status update could strengthen or narrow the recovery status by describing remaining cleanup, instrument status, or new anomalies."
+        }
+      ],
+      "bias_notes": [
+        {
+          "bias_note_id": "bias_voyager1_avoid_lost_dead_spacecraft_shorthand_2024_04_22_001",
+          "source_id": "src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+          "bias_type": "framing_boundary",
+          "note_text": "The canonical card distinguishes unreadable data from a lost or dead spacecraft because NASA/JPL said Voyager 1 was still receiving commands and otherwise operating normally.",
+          "why_labeled": "This is a wording-risk label for public interpretation; it is not a direct engineering health assessment beyond the included public source.",
+          "evidence_value": "Useful for source hygiene and tone control; excluded from source-bound finding extraction except as a labeled boundary."
+        }
+      ],
+      "version_diff": {
+        "diff_id": "diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+        "from_version": "v00_unreadable_data_and_open_troubleshooting",
+        "to_version": "v01_engineering_and_science_data_recovery",
+        "previous_judgment": "The early public status supported unreadable science and engineering data while the spacecraft remained commandable and troubleshooting continued.",
+        "updated_judgment": "This case is best handled as an engineering-recovery story where public status changed in stages, not as a simple failure/recovery headline.",
+        "new_evidence_ids": [
+          "fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+          "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+          "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+          "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+          "action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+          "action_voyager1_engineering_data_returned_2024_04_20_001",
+          "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+        ],
+        "confidence_delta": {
+          "unreadable_data": "broad_failure_status -> narrowed_by_commandability_and_troubleshooting_context",
+          "spacecraft_lost_or_dead": "possible_public_shortcut -> weakened_by_receiving_commands_status",
+          "engineering_data": "not_readable -> restored",
+          "science_data": "pending_after_engineering_recovery -> returned_from_all_four_instruments",
+          "recovery_complete": "tempting_headline -> narrowed_by_remaining_cleanup_work"
+        },
+        "unchanged_uncertainties": [
+          "The card does not independently inspect spacecraft telemetry or mission operations logs.",
+          "The card does not make final judgments about every subsystem or long-term mission risk.",
+          "A later NASA/JPL mission update could narrow remaining cleanup and instrument-status questions."
+        ]
+      },
+      "version_timeline": [
+        {
+          "version_id": "version_voyager1_v00_unreadable_data_since_2023_11_14",
+          "version_label": "v00",
+          "date": "2023-11-14",
+          "trigger": "unreadable_science_and_engineering_data",
+          "summary": "Voyager 1 was not returning readable science or engineering data, while NASA/JPL later said it could still receive commands and otherwise operate normally.",
+          "evidence_ids": [
+            "fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+            "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001"
+          ],
+          "judgment_at_version": "Initial public status should be framed as unreadable data, not confirmed spacecraft loss.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "What subsystem caused the unreadable data and could data return be restored?"
+          ]
+        },
+        {
+          "version_id": "version_voyager1_v01_fds_memory_workaround_engineering_data_2024_04_22",
+          "version_label": "v01",
+          "date": "2024-04-22",
+          "trigger": "engineering_updates_resumed",
+          "summary": "NASA/JPL tied the issue to the flight data subsystem memory problem and reported engineering updates had resumed after a workaround.",
+          "evidence_ids": [
+            "fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+            "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+            "action_voyager1_engineering_data_returned_2024_04_20_001"
+          ],
+          "judgment_at_version": "The story narrowed from unreadable data to a source-bound FDS memory issue with engineering-data recovery.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "Would science data return from all active instruments?"
+          ]
+        },
+        {
+          "version_id": "version_voyager1_v02_science_data_all_instruments_2024_06_13",
+          "version_label": "v02",
+          "date": "2024-06-13",
+          "trigger": "science_data_all_instruments_returned",
+          "summary": "NASA/JPL reported usable science data from all four instruments, while also noting minor cleanup work remained.",
+          "evidence_ids": [
+            "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+            "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+          ],
+          "judgment_at_version": "The current status is a staged engineering recovery with science-data return restored in the included public snapshot.",
+          "confidence_at_version": "medium_high",
+          "open_questions": [
+            "What later mission-status updates narrow remaining cleanup or instrument-status questions?"
+          ]
+        }
+      ],
+      "claim_drift": [
+        {
+          "drift_id": "drift_voyager1_unreadable_data_to_narrowed_commandable_status_2024_04_22",
+          "target_claim_id": "claim_voyager1_data_unreadable_initial_status_2023_11_14_001",
+          "from_status": "no_readable_science_or_engineering_data",
+          "to_status": "narrowed_by_receiving_commands_and_later_recovery",
+          "direction": "narrowed",
+          "driver_evidence_ids": [
+            "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+            "fact_voyager1_engineering_updates_resumed_2024_04_22_001"
+          ],
+          "drift_summary": "Unreadable-data status narrowed once NASA/JPL stated the spacecraft was still commandable and engineering updates resumed.",
+          "current_handling": "Preserve unreadable-data status without equating it to spacecraft loss."
+        },
+        {
+          "drift_id": "drift_voyager1_lost_dead_spacecraft_to_weakened_2024_04_22",
+          "target_claim_id": "claim_voyager1_data_unreadable_initial_status_2023_11_14_001",
+          "from_status": "spacecraft_may_be_lost_or_dead_shortcut",
+          "to_status": "weakened_by_commandability_statement",
+          "direction": "weakened",
+          "driver_evidence_ids": [
+            "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001"
+          ],
+          "drift_summary": "A lost/dead spacecraft shorthand weakens because NASA/JPL said Voyager 1 was receiving commands and otherwise operating normally.",
+          "current_handling": "Use precise language: not returning readable data, not lost spacecraft."
+        },
+        {
+          "drift_id": "drift_voyager1_engineering_data_restored_strengthened_2024_04_22",
+          "target_claim_id": "claim_voyager1_engineering_data_restored_2024_04_22_001",
+          "from_status": "engineering_data_not_readable",
+          "to_status": "strengthened_by_official_recovery_update",
+          "direction": "strengthened",
+          "driver_evidence_ids": [
+            "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "action_voyager1_engineering_data_returned_2024_04_20_001"
+          ],
+          "drift_summary": "Engineering-data recovery strengthened once NASA/JPL reported usable engineering updates had resumed.",
+          "current_handling": "Treat as an official public recovery milestone, not proof of complete science recovery at that point."
+        },
+        {
+          "drift_id": "drift_voyager1_science_data_pending_to_superseded_2024_06_13",
+          "target_claim_id": "claim_voyager1_science_data_pending_after_engineering_recovery_2024_04_22_001",
+          "from_status": "science_data_still_pending_after_engineering_update",
+          "to_status": "superseded_by_all_four_instruments_returning_data",
+          "direction": "superseded",
+          "driver_evidence_ids": [
+            "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+          ],
+          "drift_summary": "The pending science-data status was superseded by NASA/JPL reporting usable science data from all four instruments.",
+          "current_handling": "Preserve the staged sequence: engineering data first, science data later."
+        },
+        {
+          "drift_id": "drift_voyager1_recovery_complete_to_narrowed_cleanup_remaining_2024_06_13",
+          "target_claim_id": "claim_voyager1_science_data_all_instruments_restored_2024_06_13_001",
+          "from_status": "recovery_complete_headline",
+          "to_status": "narrowed_by_remaining_cleanup_work",
+          "direction": "narrowed",
+          "driver_evidence_ids": [
+            "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+          ],
+          "drift_summary": "Science-data return strengthened the recovery story, but NASA/JPL still noted minor cleanup work, narrowing any complete-recovery headline.",
+          "current_handling": "State science data resumed while keeping remaining cleanup visible."
+        }
+      ],
+      "editorial_verdict": {
+        "verdict_id": "verdict_voyager1_data_recovery_2024_06_13_v01",
+        "short_label": "staged engineering recovery story",
+        "verdict_text": "This case is best handled as an engineering-recovery story where public status changed in stages, not as a simple failure/recovery headline.",
+        "confidence": "medium_high",
+        "source_bound": true,
+        "reader_warnings": [
+          "Do not equate unreadable data with a lost spacecraft when the included NASA/JPL source says Voyager 1 was receiving commands.",
+          "Do not treat science-data recovery as proof that every subsystem question is permanently resolved.",
+          "Do not make final mission-status judgments from this deterministic snapshot alone."
+        ],
+        "what_would_change_this": [
+          "A later NASA/JPL mission-status update could narrow remaining cleanup or instrument-status questions.",
+          "New public engineering details could refine the FDS memory-issue interpretation."
+        ]
+      },
+      "claim_graph": {
+        "graph_id": "graph_voyager1_data_recovery_2024_2026_06_28_v01",
+        "nodes": [
+          {
+            "node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "summary": "src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_src_jpl_voyager1_science_data_all_instruments_2024_06_13",
+            "node_type": "source",
+            "label": "Source fixture",
+            "ref_id": "src_jpl_voyager1_science_data_all_instruments_2024_06_13",
+            "summary": "src_jpl_voyager1_science_data_all_instruments_2024_06_13",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+            "summary": "NASA/JPL said Voyager 1 had not been sending readable science or engineering data since November 14, 2023.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+            "summary": "NASA/JPL said Voyager 1 was receiving commands and otherwise operating normally during the unreadable-data period.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+            "summary": "NASA/JPL tied the issue to the flight data subsystem and a memory problem affecting code that packaged science and engineering data.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "summary": "NASA/JPL reported Voyager 1 resumed sending usable engineering updates about spacecraft health and status.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "summary": "NASA/JPL reported Voyager 1 was returning usable science data from all four instruments.",
+            "confidence": "high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+            "node_type": "fact",
+            "label": "Fact",
+            "ref_id": "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+            "summary": "NASA/JPL said minor work remained to clean up effects of the earlier issue after science data resumed.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_voyager1_data_unreadable_initial_status_2023_11_14_001",
+            "node_type": "actor_claim",
+            "label": "NASA/JPL",
+            "ref_id": "claim_voyager1_data_unreadable_initial_status_2023_11_14_001",
+            "summary": "Voyager 1 was not sending readable science or engineering data.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_voyager1_fds_memory_issue_interpretation_2024_04_22_001",
+            "node_type": "actor_claim",
+            "label": "NASA/JPL",
+            "ref_id": "claim_voyager1_fds_memory_issue_interpretation_2024_04_22_001",
+            "summary": "The issue involved the flight data subsystem and a memory problem affecting data packaging.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_voyager1_engineering_data_restored_2024_04_22_001",
+            "node_type": "actor_claim",
+            "label": "NASA/JPL",
+            "ref_id": "claim_voyager1_engineering_data_restored_2024_04_22_001",
+            "summary": "Voyager 1 resumed sending usable engineering updates.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_voyager1_science_data_pending_after_engineering_recovery_2024_04_22_001",
+            "node_type": "actor_claim",
+            "label": "NASA/JPL",
+            "ref_id": "claim_voyager1_science_data_pending_after_engineering_recovery_2024_04_22_001",
+            "summary": "After engineering updates resumed, science-data recovery still required additional work.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_claim_voyager1_science_data_all_instruments_restored_2024_06_13_001",
+            "node_type": "actor_claim",
+            "label": "NASA/JPL",
+            "ref_id": "claim_voyager1_science_data_all_instruments_restored_2024_06_13_001",
+            "summary": "Voyager 1 was returning usable science data from all four instruments.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_voyager1_engineers_investigate_unreadable_data_2024_04_22_001",
+            "node_type": "action",
+            "label": "engineering_troubleshooting",
+            "ref_id": "action_voyager1_engineers_investigate_unreadable_data_2024_04_22_001",
+            "summary": "Investigated the unreadable data issue and tied it to the flight data subsystem memory problem.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+            "node_type": "action",
+            "label": "spacecraft_command_workaround",
+            "ref_id": "action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+            "summary": "Sent a command to place affected code elsewhere in flight data subsystem memory.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_voyager1_engineering_data_returned_2024_04_20_001",
+            "node_type": "action",
+            "label": "engineering_data_recovery",
+            "ref_id": "action_voyager1_engineering_data_returned_2024_04_20_001",
+            "summary": "Confirmed the workaround restored usable engineering updates from Voyager 1.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_action_voyager1_science_data_returned_all_instruments_2024_06_13_001",
+            "node_type": "action",
+            "label": "science_data_recovery",
+            "ref_id": "action_voyager1_science_data_returned_all_instruments_2024_06_13_001",
+            "summary": "Restored usable science data return from all four instruments after additional commands and work.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "node_type": "interpretation",
+            "label": "Staged engineering-recovery story, not a simple mission failure headline",
+            "ref_id": "interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "summary": "This case is best handled as an engineering-recovery story where public status changed in stages, not as a simple failure/recovery headline.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_counter_voyager1_recovery_was_incremental_not_instant_2024_06_13_001",
+            "node_type": "counter_branch",
+            "label": "Recovery was incremental, not instant",
+            "ref_id": "counter_voyager1_recovery_was_incremental_not_instant_2024_06_13_001",
+            "summary": "The later science-data recovery does not erase the staged troubleshooting history. Engineering data returned first, science data from all four instruments came later, and NASA/JPL still described minor cleanup work.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_bias_voyager1_avoid_lost_dead_spacecraft_shorthand_2024_04_22_001",
+            "node_type": "bias_note",
+            "label": "framing_boundary",
+            "ref_id": "bias_voyager1_avoid_lost_dead_spacecraft_shorthand_2024_04_22_001",
+            "summary": "The canonical card distinguishes unreadable data from a lost or dead spacecraft because NASA/JPL said Voyager 1 was still receiving commands and otherwise operating normally.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_voyager1_v00_unreadable_data_since_2023_11_14",
+            "node_type": "version_event",
+            "label": "v00",
+            "ref_id": "version_voyager1_v00_unreadable_data_since_2023_11_14",
+            "summary": "Voyager 1 was not returning readable science or engineering data, while NASA/JPL later said it could still receive commands and otherwise operate normally.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_voyager1_v01_fds_memory_workaround_engineering_data_2024_04_22",
+            "node_type": "version_event",
+            "label": "v01",
+            "ref_id": "version_voyager1_v01_fds_memory_workaround_engineering_data_2024_04_22",
+            "summary": "NASA/JPL tied the issue to the flight data subsystem memory problem and reported engineering updates had resumed after a workaround.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_version_voyager1_v02_science_data_all_instruments_2024_06_13",
+            "node_type": "version_event",
+            "label": "v02",
+            "ref_id": "version_voyager1_v02_science_data_all_instruments_2024_06_13",
+            "summary": "NASA/JPL reported usable science data from all four instruments, while also noting minor cleanup work remained.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_voyager1_unreadable_data_to_narrowed_commandable_status_2024_04_22",
+            "node_type": "claim_drift",
+            "label": "narrowed",
+            "ref_id": "drift_voyager1_unreadable_data_to_narrowed_commandable_status_2024_04_22",
+            "summary": "Unreadable-data status narrowed once NASA/JPL stated the spacecraft was still commandable and engineering updates resumed.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_voyager1_lost_dead_spacecraft_to_weakened_2024_04_22",
+            "node_type": "claim_drift",
+            "label": "weakened",
+            "ref_id": "drift_voyager1_lost_dead_spacecraft_to_weakened_2024_04_22",
+            "summary": "A lost/dead spacecraft shorthand weakens because NASA/JPL said Voyager 1 was receiving commands and otherwise operating normally.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_voyager1_engineering_data_restored_strengthened_2024_04_22",
+            "node_type": "claim_drift",
+            "label": "strengthened",
+            "ref_id": "drift_voyager1_engineering_data_restored_strengthened_2024_04_22",
+            "summary": "Engineering-data recovery strengthened once NASA/JPL reported usable engineering updates had resumed.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_voyager1_science_data_pending_to_superseded_2024_06_13",
+            "node_type": "claim_drift",
+            "label": "superseded",
+            "ref_id": "drift_voyager1_science_data_pending_to_superseded_2024_06_13",
+            "summary": "The pending science-data status was superseded by NASA/JPL reporting usable science data from all four instruments.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_drift_voyager1_recovery_complete_to_narrowed_cleanup_remaining_2024_06_13",
+            "node_type": "claim_drift",
+            "label": "narrowed",
+            "ref_id": "drift_voyager1_recovery_complete_to_narrowed_cleanup_remaining_2024_06_13",
+            "summary": "Science-data return strengthened the recovery story, but NASA/JPL still noted minor cleanup work, narrowing any complete-recovery headline.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "node_type": "version_diff",
+            "label": "v01_engineering_and_science_data_recovery",
+            "ref_id": "diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "summary": "This case is best handled as an engineering-recovery story where public status changed in stages, not as a simple failure/recovery headline.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "node_type": "verdict",
+            "label": "staged engineering recovery story",
+            "ref_id": "verdict_voyager1_data_recovery_2024_06_13_v01",
+            "summary": "This case is best handled as an engineering-recovery story where public status changed in stages, not as a simple failure/recovery headline.",
+            "confidence": "medium_high",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_voyager1_data_recovery_2024_01",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 1",
+            "ref_id": "unresolved_voyager1_data_recovery_2024_01",
+            "summary": "The card does not independently inspect spacecraft telemetry or mission operations logs.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_voyager1_data_recovery_2024_02",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 2",
+            "ref_id": "unresolved_voyager1_data_recovery_2024_02",
+            "summary": "The card does not make final judgments about every subsystem or long-term mission risk.",
+            "source_bound": true
+          },
+          {
+            "node_id": "node_unresolved_voyager1_data_recovery_2024_03",
+            "node_type": "unresolved_question",
+            "label": "Unresolved question 3",
+            "ref_id": "unresolved_voyager1_data_recovery_2024_03",
+            "summary": "A later NASA/JPL mission update could narrow remaining cleanup and instrument-status questions.",
+            "source_bound": true
+          }
+        ],
+        "edges": [
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_001_source_supports_fact",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_002_source_supports_fact",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_003_source_supports_fact",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_voyager1_fds_memory_issue_identified_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_004_source_supports_fact",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_005_source_supports_fact",
+            "source_node_id": "node_src_jpl_voyager1_science_data_all_instruments_2024_06_13",
+            "target_node_id": "node_fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_006_source_supports_fact",
+            "source_node_id": "node_src_jpl_voyager1_science_data_all_instruments_2024_06_13",
+            "target_node_id": "node_fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+            "edge_type": "source_supports_fact",
+            "label": "source supports fact",
+            "evidence_ids": [
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_007_source_contains_claim",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_claim_voyager1_data_unreadable_initial_status_2023_11_14_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_voyager1_data_unreadable_initial_status_2023_11_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_008_source_contains_claim",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_claim_voyager1_fds_memory_issue_interpretation_2024_04_22_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_voyager1_fds_memory_issue_interpretation_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_009_source_contains_claim",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_claim_voyager1_engineering_data_restored_2024_04_22_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_voyager1_engineering_data_restored_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_010_source_contains_claim",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_claim_voyager1_science_data_pending_after_engineering_recovery_2024_04_22_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_voyager1_science_data_pending_after_engineering_recovery_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_011_source_contains_claim",
+            "source_node_id": "node_src_jpl_voyager1_science_data_all_instruments_2024_06_13",
+            "target_node_id": "node_claim_voyager1_science_data_all_instruments_restored_2024_06_13_001",
+            "edge_type": "source_contains_claim",
+            "label": "source contains actor claim",
+            "evidence_ids": [
+              "claim_voyager1_science_data_all_instruments_restored_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_012_source_describes_action",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_action_voyager1_engineers_investigate_unreadable_data_2024_04_22_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_voyager1_engineers_investigate_unreadable_data_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_013_source_describes_action",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_voyager1_team_sent_fds_workaround_2024_04_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_014_source_describes_action",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_action_voyager1_engineering_data_returned_2024_04_20_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_voyager1_engineering_data_returned_2024_04_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_015_source_describes_action",
+            "source_node_id": "node_src_jpl_voyager1_science_data_all_instruments_2024_06_13",
+            "target_node_id": "node_action_voyager1_science_data_returned_all_instruments_2024_06_13_001",
+            "edge_type": "source_describes_action",
+            "label": "source describes action",
+            "evidence_ids": [
+              "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_016_source_contains_bias_note",
+            "source_node_id": "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+            "target_node_id": "node_bias_voyager1_avoid_lost_dead_spacecraft_shorthand_2024_04_22_001",
+            "edge_type": "source_contains_bias_note",
+            "label": "source contains labeled bias note"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_017_fact_supports_interpretation",
+            "source_node_id": "node_fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+            "target_node_id": "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_018_fact_supports_interpretation",
+            "source_node_id": "node_fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+            "target_node_id": "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_019_fact_supports_interpretation",
+            "source_node_id": "node_fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+            "target_node_id": "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_voyager1_fds_memory_issue_identified_2024_04_22_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_020_fact_supports_interpretation",
+            "source_node_id": "node_fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "target_node_id": "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_021_fact_supports_interpretation",
+            "source_node_id": "node_fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "target_node_id": "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "edge_type": "fact_supports_interpretation",
+            "label": "evidence supports interpretation",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_022_evidence_supports_counter_branch",
+            "source_node_id": "node_fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "target_node_id": "node_counter_voyager1_recovery_was_incremental_not_instant_2024_06_13_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_023_evidence_supports_counter_branch",
+            "source_node_id": "node_fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "target_node_id": "node_counter_voyager1_recovery_was_incremental_not_instant_2024_06_13_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_024_evidence_supports_counter_branch",
+            "source_node_id": "node_fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+            "target_node_id": "node_counter_voyager1_recovery_was_incremental_not_instant_2024_06_13_001",
+            "edge_type": "evidence_supports_counter_branch",
+            "label": "evidence supports counter-branch",
+            "evidence_ids": [
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_025_counter_branch_targets_interpretation",
+            "source_node_id": "node_counter_voyager1_recovery_was_incremental_not_instant_2024_06_13_001",
+            "target_node_id": "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "edge_type": "counter_branch_targets_interpretation",
+            "label": "counter-branch targets review object",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_026_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+            "target_node_id": "node_version_voyager1_v00_unreadable_data_since_2023_11_14",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_027_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+            "target_node_id": "node_version_voyager1_v00_unreadable_data_since_2023_11_14",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_028_timeline_event_updates_judgment",
+            "source_node_id": "node_version_voyager1_v00_unreadable_data_since_2023_11_14",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+              "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_029_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+            "target_node_id": "node_version_voyager1_v01_fds_memory_workaround_engineering_data_2024_04_22",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_fds_memory_issue_identified_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_030_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "target_node_id": "node_version_voyager1_v01_fds_memory_workaround_engineering_data_2024_04_22",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_031_timeline_event_uses_evidence",
+            "source_node_id": "node_action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+            "target_node_id": "node_version_voyager1_v01_fds_memory_workaround_engineering_data_2024_04_22",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_voyager1_team_sent_fds_workaround_2024_04_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_032_timeline_event_uses_evidence",
+            "source_node_id": "node_action_voyager1_engineering_data_returned_2024_04_20_001",
+            "target_node_id": "node_version_voyager1_v01_fds_memory_workaround_engineering_data_2024_04_22",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_voyager1_engineering_data_returned_2024_04_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_033_timeline_event_updates_judgment",
+            "source_node_id": "node_version_voyager1_v01_fds_memory_workaround_engineering_data_2024_04_22",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+              "action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+              "action_voyager1_engineering_data_returned_2024_04_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_034_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "target_node_id": "node_version_voyager1_v02_science_data_all_instruments_2024_06_13",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_035_timeline_event_uses_evidence",
+            "source_node_id": "node_fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+            "target_node_id": "node_version_voyager1_v02_science_data_all_instruments_2024_06_13",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_036_timeline_event_uses_evidence",
+            "source_node_id": "node_action_voyager1_science_data_returned_all_instruments_2024_06_13_001",
+            "target_node_id": "node_version_voyager1_v02_science_data_all_instruments_2024_06_13",
+            "edge_type": "timeline_event_uses_evidence",
+            "label": "timeline event uses evidence",
+            "evidence_ids": [
+              "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_037_timeline_event_updates_judgment",
+            "source_node_id": "node_version_voyager1_v02_science_data_all_instruments_2024_06_13",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "timeline_event_updates_judgment",
+            "label": "timeline event updates judgment",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+              "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_038_claim_drift_targets_claim",
+            "source_node_id": "node_drift_voyager1_unreadable_data_to_narrowed_commandable_status_2024_04_22",
+            "target_node_id": "node_claim_voyager1_data_unreadable_initial_status_2023_11_14_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_039_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+            "target_node_id": "node_drift_voyager1_unreadable_data_to_narrowed_commandable_status_2024_04_22",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_040_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "target_node_id": "node_drift_voyager1_unreadable_data_to_narrowed_commandable_status_2024_04_22",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_041_claim_drift_targets_claim",
+            "source_node_id": "node_drift_voyager1_lost_dead_spacecraft_to_weakened_2024_04_22",
+            "target_node_id": "node_claim_voyager1_data_unreadable_initial_status_2023_11_14_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_042_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+            "target_node_id": "node_drift_voyager1_lost_dead_spacecraft_to_weakened_2024_04_22",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_043_claim_drift_targets_claim",
+            "source_node_id": "node_drift_voyager1_engineering_data_restored_strengthened_2024_04_22",
+            "target_node_id": "node_claim_voyager1_engineering_data_restored_2024_04_22_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+              "action_voyager1_engineering_data_returned_2024_04_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_044_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "target_node_id": "node_drift_voyager1_engineering_data_restored_strengthened_2024_04_22",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_045_evidence_drives_claim_drift",
+            "source_node_id": "node_action_voyager1_engineering_data_returned_2024_04_20_001",
+            "target_node_id": "node_drift_voyager1_engineering_data_restored_strengthened_2024_04_22",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "action_voyager1_engineering_data_returned_2024_04_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_046_claim_drift_targets_claim",
+            "source_node_id": "node_drift_voyager1_science_data_pending_to_superseded_2024_06_13",
+            "target_node_id": "node_claim_voyager1_science_data_pending_after_engineering_recovery_2024_04_22_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+              "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_047_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "target_node_id": "node_drift_voyager1_science_data_pending_to_superseded_2024_06_13",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_048_evidence_drives_claim_drift",
+            "source_node_id": "node_action_voyager1_science_data_returned_all_instruments_2024_06_13_001",
+            "target_node_id": "node_drift_voyager1_science_data_pending_to_superseded_2024_06_13",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_049_claim_drift_targets_claim",
+            "source_node_id": "node_drift_voyager1_recovery_complete_to_narrowed_cleanup_remaining_2024_06_13",
+            "target_node_id": "node_claim_voyager1_science_data_all_instruments_restored_2024_06_13_001",
+            "edge_type": "claim_drift_targets_claim",
+            "label": "claim drift targets actor claim",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_050_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "target_node_id": "node_drift_voyager1_recovery_complete_to_narrowed_cleanup_remaining_2024_06_13",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_051_evidence_drives_claim_drift",
+            "source_node_id": "node_fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+            "target_node_id": "node_drift_voyager1_recovery_complete_to_narrowed_cleanup_remaining_2024_06_13",
+            "edge_type": "evidence_drives_claim_drift",
+            "label": "evidence drives claim drift",
+            "evidence_ids": [
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_052_version_diff_uses_evidence",
+            "source_node_id": "node_fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_fds_memory_issue_identified_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_053_version_diff_uses_evidence",
+            "source_node_id": "node_fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_054_version_diff_uses_evidence",
+            "source_node_id": "node_fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_055_version_diff_uses_evidence",
+            "source_node_id": "node_fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_056_version_diff_uses_evidence",
+            "source_node_id": "node_action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "action_voyager1_team_sent_fds_workaround_2024_04_18_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_057_version_diff_uses_evidence",
+            "source_node_id": "node_action_voyager1_engineering_data_returned_2024_04_20_001",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "action_voyager1_engineering_data_returned_2024_04_20_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_058_version_diff_uses_evidence",
+            "source_node_id": "node_action_voyager1_science_data_returned_all_instruments_2024_06_13_001",
+            "target_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "edge_type": "version_diff_uses_evidence",
+            "label": "version diff uses evidence",
+            "evidence_ids": [
+              "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_059_version_diff_updates_verdict",
+            "source_node_id": "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+            "target_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "edge_type": "version_diff_updates_verdict",
+            "label": "version diff updates verdict",
+            "evidence_ids": [
+              "fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001",
+              "action_voyager1_team_sent_fds_workaround_2024_04_18_001",
+              "action_voyager1_engineering_data_returned_2024_04_20_001",
+              "action_voyager1_science_data_returned_all_instruments_2024_06_13_001"
+            ]
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_060_verdict_depends_on_interpretation",
+            "source_node_id": "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "target_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "edge_type": "verdict_depends_on_interpretation",
+            "label": "verdict depends on interpretation",
+            "evidence_ids": [
+              "fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+              "fact_voyager1_receiving_commands_operating_normally_2024_04_22_001",
+              "fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_061_verdict_tempered_by_counter_branch",
+            "source_node_id": "node_counter_voyager1_recovery_was_incremental_not_instant_2024_06_13_001",
+            "target_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "edge_type": "verdict_tempered_by_counter_branch",
+            "label": "verdict is tempered by counter-branch",
+            "evidence_ids": [
+              "fact_voyager1_engineering_updates_resumed_2024_04_22_001",
+              "fact_voyager1_science_data_all_four_instruments_2024_06_13_001",
+              "fact_voyager1_recovery_cleanup_work_remained_2024_06_13_001"
+            ],
+            "confidence": "medium_high"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_062_bias_note_attaches_to_interpretation",
+            "source_node_id": "node_bias_voyager1_avoid_lost_dead_spacecraft_shorthand_2024_04_22_001",
+            "target_node_id": "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+            "edge_type": "bias_note_attaches_to_interpretation",
+            "label": "bias note attaches to interpretation for review"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_063_bias_note_attaches_to_verdict",
+            "source_node_id": "node_bias_voyager1_avoid_lost_dead_spacecraft_shorthand_2024_04_22_001",
+            "target_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "edge_type": "bias_note_attaches_to_verdict",
+            "label": "bias note attaches to verdict for review"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_064_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "target_node_id": "node_unresolved_voyager1_data_recovery_2024_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_065_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "target_node_id": "node_unresolved_voyager1_data_recovery_2024_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_066_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "target_node_id": "node_unresolved_voyager1_data_recovery_2024_03",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          }
+        ],
+        "graph_summary": "Derived claim graph with 33 nodes and 66 edges linking sources, evidence, interpretations, counter-branches, timeline events, claim drift, version diff, and verdict.",
+        "primary_paths": [
+          {
+            "path_id": "path_voyager1_data_recovery_2024_version_diff_to_verdict",
+            "label": "Evidence to version diff to verdict",
+            "node_ids": [
+              "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+              "node_fact_voyager1_fds_memory_issue_identified_2024_04_22_001",
+              "node_diff_voyager1_data_recovery_v00_to_v01_2024_06_13",
+              "node_verdict_voyager1_data_recovery_2024_06_13_v01"
+            ],
+            "edge_ids": [
+              "edge_voyager1_data_recovery_2024_003_source_supports_fact",
+              "edge_voyager1_data_recovery_2024_052_version_diff_uses_evidence",
+              "edge_voyager1_data_recovery_2024_059_version_diff_updates_verdict"
+            ],
+            "summary": "A source-bound evidence item changes the version diff, which updates the verdict."
+          },
+          {
+            "path_id": "path_voyager1_data_recovery_2024_interpretation_to_verdict",
+            "label": "Evidence to interpretation to verdict",
+            "node_ids": [
+              "node_src_jpl_voyager1_engineering_updates_resume_2024_04_22",
+              "node_fact_voyager1_unreadable_science_engineering_data_since_2023_11_14_001",
+              "node_interp_voyager1_staged_engineering_recovery_story_2024_06_13_001",
+              "node_verdict_voyager1_data_recovery_2024_06_13_v01"
+            ],
+            "edge_ids": [
+              "edge_voyager1_data_recovery_2024_001_source_supports_fact",
+              "edge_voyager1_data_recovery_2024_017_fact_supports_interpretation",
+              "edge_voyager1_data_recovery_2024_060_verdict_depends_on_interpretation"
+            ],
+            "summary": "A source-bound evidence item supports the interpretation that the verdict depends on."
+          }
+        ],
+        "unresolved_edges": [
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_064_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "target_node_id": "node_unresolved_voyager1_data_recovery_2024_01",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_065_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "target_node_id": "node_unresolved_voyager1_data_recovery_2024_02",
+            "edge_type": "verdict_has_unresolved_question",
+            "label": "verdict keeps unresolved question visible"
+          },
+          {
+            "edge_id": "edge_voyager1_data_recovery_2024_066_verdict_has_unresolved_question",
+            "source_node_id": "node_verdict_voyager1_data_recovery_2024_06_13_v01",
+            "target_node_id": "node_unresolved_voyager1_data_recovery_2024_03",
             "edge_type": "verdict_has_unresolved_question",
             "label": "verdict keeps unresolved question visible"
           }

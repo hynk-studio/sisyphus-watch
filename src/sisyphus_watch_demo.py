@@ -149,6 +149,12 @@ QUERY_PRESETS = {
     },
 }
 
+REAL_CASE_SCENARIO_ORDER = [
+    "starliner_crew_return_decision",
+    "crowdstrike_windows_outage_2024",
+    "voyager1_data_recovery_2024",
+]
+
 SCENARIO_AUTHORING_REQUIREMENTS = {
     "scenario_id": {"type": "string", "min_count": 1},
     "scenario_name": {"type": "string", "min_count": 1},
@@ -2558,6 +2564,225 @@ def filter_sources_for_card(
     return [source for source in source_records if source.get("source_id") in source_ids]
 
 
+def _story_field(news_card: dict[str, Any], *field_names: str, fallback: str = "") -> str:
+    for field_name in field_names:
+        value = news_card.get(field_name)
+        if isinstance(value, str) and value.strip():
+            return " ".join(value.split())
+    return fallback
+
+
+def build_case_selector_options(
+    records: dict[str, Any],
+    source_records: list[dict[str, Any]] | None = None,
+    selected_scenario_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Build compact case selector metadata for notebook rendering."""
+    cards = [card for card in get_news_cards(records) if isinstance(card, dict)]
+    selected_id = selected_scenario_id or records.get("default_scenario_id")
+    card_by_scenario_id = {str(card.get("scenario_id")): card for card in cards if card.get("scenario_id")}
+    ordered_cards = [
+        card_by_scenario_id[scenario_id]
+        for scenario_id in REAL_CASE_SCENARIO_ORDER
+        if scenario_id in card_by_scenario_id
+    ] + [
+        card
+        for card in cards
+        if str(card.get("scenario_id")) not in REAL_CASE_SCENARIO_ORDER
+    ]
+
+    options: list[dict[str, Any]] = []
+    for card in ordered_cards:
+        selected_sources = filter_sources_for_card(source_records or [], card) if source_records is not None else []
+        source_titles = [
+            str(source.get("title"))
+            for source in selected_sources
+            if isinstance(source, dict) and source.get("title")
+        ]
+        source_urls = [
+            str(source.get("url"))
+            for source in selected_sources
+            if isinstance(source, dict) and source.get("url")
+        ]
+        if source_records is None:
+            source_count = len(_as_list(card.get("source_ids")))
+        else:
+            source_count = len(selected_sources)
+        scenario_id = str(card.get("scenario_id", "unknown_scenario"))
+        is_real_case = scenario_id in REAL_CASE_SCENARIO_ORDER or card.get("is_real_case_snapshot") is True
+        options.append(
+            {
+                "scenario_id": scenario_id,
+                "title": _story_field(card, "scenario_name", "case_title", "title", fallback=scenario_id),
+                "case_type": "real-case snapshot" if is_real_case else "synthetic example",
+                "one_line_hook": _story_field(
+                    card,
+                    "story_hook",
+                    "case_hook",
+                    fallback="A public story changes as source-bound evidence arrives.",
+                ),
+                "why_it_matters": _story_field(
+                    card,
+                    "why_it_matters",
+                    "public_interest_reason",
+                    "what_changed",
+                    fallback="Shows how Sisyphus preserves changing claim state.",
+                ),
+                "source_count": source_count,
+                "source_titles": source_titles,
+                "source_urls": source_urls,
+                "selected": scenario_id == selected_id,
+            }
+        )
+    return options
+
+
+def render_case_selector_html(options: list[dict[str, Any]], selected_scenario_id: str) -> str:
+    """Render a notebook-safe selector panel for real-case snapshots."""
+    option_by_id = {
+        str(option.get("scenario_id")): option
+        for option in _as_list(options)
+        if isinstance(option, dict) and option.get("scenario_id")
+    }
+    real_options = [
+        option_by_id[scenario_id]
+        for scenario_id in REAL_CASE_SCENARIO_ORDER
+        if scenario_id in option_by_id
+    ]
+    synthetic_options = [
+        option
+        for option_id, option in option_by_id.items()
+        if option_id not in REAL_CASE_SCENARIO_ORDER
+    ]
+
+    def source_links(option: dict[str, Any], limit: int = 3) -> str:
+        titles = [str(item) for item in _as_list(option.get("source_titles")) if str(item).strip()]
+        urls = [str(item) for item in _as_list(option.get("source_urls")) if str(item).strip()]
+        rows = []
+        for index, title in enumerate(titles[:limit]):
+            url = urls[index] if index < len(urls) else ""
+            link = (
+                f'<a href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">open source</a>'
+                if url.startswith("https://")
+                else "<span class=\"muted\">fixture source</span>"
+            )
+            rows.append(f"<li>{escape(_clip_text(title, 80))} · {link}</li>")
+        if not rows:
+            rows.append("<li class=\"muted\">Source records are loaded deterministically with the selected card.</li>")
+        return "<ul class=\"compact-list\">" + "".join(rows) + "</ul>"
+
+    def render_option(option: dict[str, Any], index: int) -> str:
+        scenario_id = str(option.get("scenario_id", "unknown_scenario"))
+        selected = scenario_id == selected_scenario_id
+        panel_class = "source-row accent-panel" if selected else "source-row"
+        status = ("selected", "accent") if selected else ("available", "warn")
+        return f"""
+        <article class="{panel_class}">
+          <div class="timeline-topline">
+            <span class="feature-number">{index}</span>
+            {_render_badges([status, (option.get("case_type", "case"), "accent")])}
+          </div>
+          <h4>{escape(str(option.get("title", scenario_id)))}</h4>
+          <p>{escape(_clip_text(option.get("one_line_hook", ""), 180))}</p>
+          <p class="muted"><strong>Why this case matters:</strong> {escape(_clip_text(option.get("why_it_matters", ""), 180))}</p>
+          {_render_key_value_rows([
+              ("SCENARIO_ID", scenario_id, selected),
+              ("Sources", option.get("source_count", 0), bool(option.get("source_count"))),
+          ])}
+          <details class="id-details" {"open" if selected else ""}>
+            <summary>Source titles and links</summary>
+            {source_links(option)}
+          </details>
+        </article>
+        """
+
+    real_rows = "".join(render_option(option, index) for index, option in enumerate(real_options, start=1))
+    synthetic_rows = "".join(
+        _render_feature_row(
+            option.get("title", option.get("scenario_id", "synthetic scenario")),
+            f"{option.get('scenario_id', 'scenario')} · {option.get('source_count', 0)} deterministic fixture source(s).",
+            badge="PASS" if option.get("scenario_id") == selected_scenario_id else "WARN",
+        )
+        for option in synthetic_options
+    )
+    synthetic_details = (
+        f"""
+        <details class="id-details">
+          <summary>Secondary synthetic examples</summary>
+          <div class="feature-list compact">{synthetic_rows}</div>
+        </details>
+        """
+        if synthetic_rows
+        else ""
+    )
+
+    return _wrap_html(
+        "case-selector",
+        f"""
+        <h3>Choose a Case to Unfold</h3>
+        <p class="section-purpose">Change <code>SCENARIO_ID</code> in the config cell to select one deterministic public-story snapshot.</p>
+        {_render_badges([
+            ("3 real-case snapshots", "accent"),
+            ("no network required", "accent"),
+            ("canonical cards are frozen", "warn"),
+        ])}
+        <section>
+          <div class="source-list-vertical">{real_rows}</div>
+        </section>
+        {synthetic_details}
+        """,
+    )
+
+
+def render_case_source_links_html(selected_source_records: list[dict[str, Any]]) -> str:
+    """Render compact human-friendly source links for the selected case."""
+    rows = []
+    for source in selected_source_records:
+        if not isinstance(source, dict):
+            continue
+        url = str(source.get("url") or "")
+        link = (
+            f'<a href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">open source</a>'
+            if url.startswith("https://")
+            else "<span class=\"muted\">deterministic fixture</span>"
+        )
+        rows.append(
+            f"""
+            <article class="source-row">
+              <div class="timeline-topline">
+                {_render_badges([(_snapshot_label(source), "accent")])}
+                <code>{escape(str(source.get("source_id", "source")))}</code>
+              </div>
+              <h4>{escape(str(source.get("title", "Untitled source")))}</h4>
+              {_render_key_value_rows([
+                  ("Actor/source", f"{source.get('actor', 'unknown')} · {source.get('source_type', 'source')}", True),
+                  ("URL", "https source" if url.startswith("https://") else "fixture source", url.startswith("https://") or source.get("is_synthetic_demo_fixture") is True),
+              ])}
+              <p>{link}</p>
+              <p class="muted"><strong>Reliability:</strong> {escape(_clip_text(source.get("reliability_note", ""), 160))}</p>
+              <p class="muted"><strong>Limitations:</strong> {escape(_clip_text(source.get("limitations", ""), 160))}</p>
+            </article>
+            """
+        )
+    if not rows:
+        rows.append(
+            """
+            <article class="source-row">
+              <h4>No selected source records</h4>
+              <p class="muted">The selected scenario did not match loaded source records.</p>
+            </article>
+            """
+        )
+    return _wrap_html(
+        "case-source-links",
+        f"""
+        <h3>Source Links</h3>
+        <p class="section-purpose">Public links are shown for human review; the canonical card uses deterministic source-bound snapshot text.</p>
+        <div class="source-list-vertical">{''.join(rows)}</div>
+        """,
+    )
+
+
 def resolve_google_api_key(api_key: str | None = None) -> str | None:
     """Resolve GOOGLE_API_KEY without printing, logging, exporting, or storing it."""
     if api_key is not None and str(api_key).strip():
@@ -2777,6 +3002,22 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
     mode = str(discovery_packet.get("mode", "unknown"))
     network_used = bool(discovery_packet.get("network_used"))
     api_used = bool(discovery_packet.get("api_used"))
+    is_google_ai_discovery = mode == "google_ai_discovery"
+    section_purpose = (
+        "Real API Operation returns candidate sources, URLs, and summaries for Sisyphus intake."
+        if is_google_ai_discovery
+        else "Demo Showcase uses deterministic source discovery for the selected prepared case."
+    )
+    callout = (
+        "API results become candidate sources for Sisyphus intake. Candidate sources are review-only until accepted."
+        if is_google_ai_discovery
+        else "Prepared source records are used for the selected demo case. Canonical demo cards are not mutated."
+    )
+    mode_badge = (
+        ("Real API Operation with Google AI", "warn")
+        if is_google_ai_discovery
+        else ("Demo Showcase source discovery", "accent")
+    )
     candidate_rows = []
     for candidate in _as_list(discovery_packet.get("candidate_sources")):
         if not isinstance(candidate, dict):
@@ -2827,11 +3068,11 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
         "discovery-packet",
         f"""
         <h3>Discovery Packet</h3>
-        <p class="section-purpose">Discovery prepares source candidates while keeping optional live results review-only.</p>
+        <p class="section-purpose">{escape(section_purpose)}</p>
         {_render_badges([
-            ("deterministic source discovery", "accent"),
-            ("no canonical mutation", "warn"),
-            ("candidate review inputs", "warn"),
+            mode_badge,
+            ("canonical demo cards are not mutated", "warn"),
+            ("candidate sources", "warn"),
         ])}
         {_render_key_value_rows([
             ("Mode", mode, True),
@@ -2840,7 +3081,7 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
             ("Candidate sources", discovery_packet.get("source_count", len(candidate_rows)), True),
         ])}
         {fallback_block}
-        <p class="callout">Optional Google AI candidates are review inputs, not canonical evidence or card mutations.</p>
+        <p class="callout">{escape(callout)}</p>
         <section>
           <h4>Question / Query</h4>
           <p>{escape(_clip_text(discovery_packet.get('query_or_problem', ''), 180))}</p>
@@ -2861,6 +3102,188 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
           <summary>Discovery packet JSON</summary>
           <pre>{escape(json.dumps(discovery_packet, indent=2, ensure_ascii=False))}</pre>
         </details>
+        """,
+    )
+
+
+def snapshot_canonical_state(news_card: dict[str, Any]) -> dict[str, Any]:
+    """Capture the canonical-card invariants that optional discovery must not change."""
+    graph = get_claim_graph(news_card)
+    return {
+        "card_id": news_card.get("card_id"),
+        "scenario_id": news_card.get("scenario_id"),
+        "source_ids": list(_as_list(news_card.get("source_ids"))),
+        "version_timeline_count": len(_as_list(news_card.get("version_timeline"))),
+        "claim_drift_count": len(_as_list(news_card.get("claim_drift"))),
+        "claim_graph_node_count": len(_as_list(graph.get("nodes"))),
+        "claim_graph_edge_count": len(_as_list(graph.get("edges"))),
+    }
+
+
+def compare_canonical_state(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    """Compare two canonical-state snapshots and report whether mutation occurred."""
+    fields = [
+        ("card_id", "card_id unchanged"),
+        ("scenario_id", "scenario_id unchanged"),
+        ("source_ids", "source_ids unchanged"),
+        ("version_timeline_count", "timeline count unchanged"),
+        ("claim_drift_count", "drift count unchanged"),
+        ("claim_graph_node_count", "claim graph node count unchanged"),
+        ("claim_graph_edge_count", "claim graph edge count unchanged"),
+    ]
+    checks: list[dict[str, str]] = []
+    for field_name, label in fields:
+        unchanged = before.get(field_name) == after.get(field_name)
+        checks.append(
+            {
+                "label": label,
+                "status": "PASS" if unchanged else "FAIL",
+                "summary": (
+                    "unchanged"
+                    if unchanged
+                    else f"before={before.get(field_name)!r}; after={after.get(field_name)!r}"
+                ),
+            }
+        )
+    canonical_mutation = any(row["status"] != "PASS" for row in checks)
+    return {
+        "status": "FAIL" if canonical_mutation else "PASS",
+        "canonical_mutation": canonical_mutation,
+        "checks": checks,
+        "before": before,
+        "after": after,
+    }
+
+
+def render_google_ai_exploration_html(
+    discovery_packet: dict[str, Any] | None = None,
+    *,
+    enabled: bool = False,
+    api_key_available: bool = False,
+    reason: str | None = None,
+) -> str:
+    """Render Google AI candidate sources as review-only intake context."""
+    discovery_packet = discovery_packet or {}
+    candidates = [item for item in _as_list(discovery_packet.get("candidate_sources")) if isinstance(item, dict)]
+    google_packet = discovery_packet.get("mode") == "google_ai_discovery" and bool(discovery_packet.get("api_used"))
+    if not enabled:
+        status = "SKIP"
+        status_reason = reason or "RUN_GOOGLE_AI_EXPLORATION is false; default run still works without an API key."
+    elif not api_key_available:
+        status = "SKIP"
+        status_reason = reason or "GOOGLE_API_KEY was not available; no Google AI call was made."
+    elif google_packet:
+        status = "PASS"
+        status_reason = "Google AI discovery returned candidate sources for Sisyphus intake."
+    else:
+        status = "SKIP"
+        status_reason = reason or str(discovery_packet.get("fallback_reason") or "Google AI discovery did not return candidate sources.")
+
+    rows = []
+    for candidate in candidates[:8]:
+        url = str(candidate.get("url") or "")
+        link = (
+            f'<a href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">open source</a>'
+            if url.startswith("https://")
+            else "<span class=\"muted\">candidate/no URL</span>"
+        )
+        rows.append(
+            f"""
+            <article class="source-row">
+              <div class="source-topline">
+                <code>{escape(str(candidate.get("source_id", "candidate")))}</code>
+                <span class="mini">review-only</span>
+              </div>
+              <h4>{escape(_clip_text(candidate.get("title", "Google AI candidate"), 110))}</h4>
+              <p>{escape(_clip_text(candidate.get("snippet") or candidate.get("summary") or "", 180))}</p>
+              <p class="muted"><strong>Why selected:</strong> {escape(_clip_text(candidate.get("why_selected", ""), 140))}</p>
+              <p>{link}</p>
+            </article>
+            """
+        )
+    if not rows:
+        rows.append(
+            """
+            <article class="source-row">
+              <h4>No live candidate sources displayed</h4>
+              <p class="muted">This section is disabled by default or skipped when no key is available.</p>
+            </article>
+            """
+        )
+
+    return _wrap_html(
+        "google-ai-exploration",
+        f"""
+        <h3>Real API Operation with Google AI</h3>
+        <p class="section-purpose">Real API Operation lets you inspect news or public issues you care about with Google AI discovery.</p>
+        {_render_badges([
+            (status, "accent" if status == "PASS" else "warn"),
+            ("review-only", "warn"),
+            ("canonical demo cards are not mutated", "accent"),
+        ])}
+        {_render_key_value_rows([
+            ("RUN_GOOGLE_AI_EXPLORATION", str(enabled), enabled),
+            ("GOOGLE_API_KEY available", "yes" if api_key_available else "no", api_key_available if enabled else None),
+            ("API used", str(bool(discovery_packet.get("api_used"))).lower(), not bool(discovery_packet.get("api_used")) if not enabled else bool(discovery_packet.get("api_used"))),
+            ("Candidate sources", len(candidates), True),
+            ("Canonical mutation", "false", True),
+        ])}
+        <p class="callout">{escape(status_reason)}</p>
+        <section>
+          <h4>Candidate Sources</h4>
+          <div class="source-list-vertical">{''.join(rows)}</div>
+        </section>
+        """,
+    )
+
+
+def render_google_ai_live_check_html(result: dict[str, Any]) -> str:
+    """Render optional Google AI live-check invariant results."""
+    status = str(result.get("status") or "SKIP")
+    reason = str(result.get("reason") or "")
+    comparison = result.get("canonical_comparison") if isinstance(result.get("canonical_comparison"), dict) else {}
+    canonical_mutation = bool(comparison.get("canonical_mutation", result.get("canonical_mutation", False)))
+    checks = [row for row in _as_list(comparison.get("checks")) if isinstance(row, dict)]
+    checks.extend(row for row in _as_list(result.get("checks")) if isinstance(row, dict))
+    if not checks:
+        checks = [
+            {
+                "label": "Live check skipped",
+                "status": status,
+                "summary": reason or "RUN_GOOGLE_AI_LIVE_CHECK is false by default.",
+            }
+        ]
+
+    rows = "".join(
+        f"""
+        <div class="check-row">
+          <span>{escape(str(row.get('label', 'check')))}</span>
+          {_status_badge(str(row.get('status', 'SKIP')), row.get('status') == 'PASS')}
+          <p>{escape(_clip_text(row.get('summary', ''), 150))}</p>
+        </div>
+        """
+        for row in checks
+    )
+    return _wrap_html(
+        "google-ai-live-check",
+        f"""
+        <h3>API Boundary Check</h3>
+        <p class="section-purpose">API Boundary Check confirms candidate sources are review-only until accepted.</p>
+        {_render_badges([
+            (status, "accent" if status == "PASS" else "warn"),
+            ("review-only", "warn"),
+            ("canonical demo cards are not mutated" if not canonical_mutation else "canonical mutation detected", "accent" if not canonical_mutation else "warn"),
+        ])}
+        {_render_key_value_rows([
+            ("RUN_GOOGLE_AI_LIVE_CHECK", str(bool(result.get("enabled"))), bool(result.get("enabled"))),
+            ("API used", str(bool(result.get("api_used"))).lower(), bool(result.get("api_used")) if result.get("enabled") else None),
+            ("Candidate sources", result.get("candidate_count", 0), True),
+            ("Canonical mutation", str(canonical_mutation).lower(), not canonical_mutation),
+            ("Quality checks", "PASS" if result.get("quality_checks_pass") else ("SKIP" if status == "SKIP" else "FAIL"), bool(result.get("quality_checks_pass")) if status != "SKIP" else None),
+            ("Secret leak check", "PASS" if result.get("secret_leak_check_pass") else ("SKIP" if status == "SKIP" else "FAIL"), bool(result.get("secret_leak_check_pass")) if status != "SKIP" else None),
+        ])}
+        <p class="callout">{escape(reason or 'Google AI live check is disabled by default.')}</p>
+        <div class="check-list">{rows}</div>
         """,
     )
 
@@ -4180,7 +4603,7 @@ def export_agent_workflow_trace(news_card: dict[str, Any], patch: dict[str, Any]
 
 
 def build_kaggle_midcheck_summary(news_card: dict[str, Any], patch: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Build a compact Kaggle reviewer-path readiness summary."""
+    """Build a compact notebook readiness summary."""
     card_id = str(news_card.get("card_id", "unknown_card"))
     scenario_id = str(news_card.get("scenario_id", "unknown_scenario"))
     card_errors = validate_news_card(news_card)
@@ -4977,7 +5400,7 @@ def build_guided_flow_summary(
             "summary": (
                 f"{discovery_mode} returned {discovery.get('source_count', len(normalized_sources))} candidate source(s). "
                 f"Network used: {bool(discovery.get('network_used'))}; API used: {bool(discovery.get('api_used'))}. "
-                "Optional Google AI candidates are for reviewer inspection and handoff."
+                "API candidates are review-only until accepted."
             ),
             "outputs": [str(source_id) for source_id in _as_list(discovery.get("search_queries"))] or source_ids,
         },
@@ -5206,25 +5629,30 @@ def render_case_hook_html(
         if isinstance(discovery_packet, dict) and discovery_packet.get("mode")
         else "deterministic_fixture_discovery"
     )
-    case_title = str(news_card.get("case_title") or news_card.get("scenario_name") or news_card.get("title") or "Selected case")
-    hook = str(news_card.get("case_hook") or "When public stories change, summaries can lie.")
-    initial = str(
-        news_card.get("initial_public_expectation")
-        or (timeline[0].get("summary") if timeline else "")
-        or "Initial public framing is preserved as the starting claim state."
+    case_title = _story_field(news_card, "scenario_name", "case_title", "title", fallback="Selected case")
+    hook = _story_field(news_card, "story_hook", "case_hook", fallback="When public stories change, summaries can lie.")
+    initial = _story_field(
+        news_card,
+        "initial_expectation",
+        "initial_public_expectation",
+        fallback=(str(timeline[0].get("summary")) if timeline else "Initial public framing is preserved as the starting claim state."),
     )
-    changed = str(
-        news_card.get("what_changed")
-        or version_diff.get("updated_judgment")
-        or "Later source-bound evidence changed the current judgment."
+    changed = _story_field(
+        news_card,
+        "what_changed",
+        fallback=str(version_diff.get("updated_judgment") or "Later source-bound evidence changed the current judgment."),
     )
-    summary_loss = str(
-        news_card.get("plain_summary_loss")
-        or "A plain summary can compress the final state and lose how claim status changed."
+    summary_loss = _story_field(
+        news_card,
+        "why_summary_loses_state",
+        "plain_summary_loss",
+        fallback="A plain summary can compress the final state and lose how claim status changed.",
     )
-    preserves = str(
-        news_card.get("sisyphus_preserves")
-        or "Sisyphus preserves findings, actor claims, actions, interpretations, timeline, drift, graph, and current judgment."
+    preserves = _story_field(
+        news_card,
+        "what_sisyphus_preserves",
+        "sisyphus_preserves",
+        fallback="Sisyphus preserves findings, actor claims, actions, interpretations, timeline, drift, graph, and current judgment.",
     )
     rows = [
         ("Initial public expectation", initial, "PASS"),
@@ -5273,6 +5701,11 @@ def render_what_changed_html(news_card: dict[str, Any]) -> str:
     """Render a compact story-change panel from timeline and drift."""
     timeline = [item for item in _as_list(news_card.get("version_timeline")) if isinstance(item, dict)]
     drift = [item for item in _as_list(news_card.get("claim_drift")) if isinstance(item, dict)]
+    section_purpose = _story_field(
+        news_card,
+        "what_changed",
+        fallback="The public story changed as source-bound evidence, uncertainty, and current judgment evolved.",
+    )
     timeline_rows = "".join(
         _render_feature_row(
             f"{event.get('version_label', 'version')} - {event.get('date', 'date')}",
@@ -5297,7 +5730,7 @@ def render_what_changed_html(news_card: dict[str, Any]) -> str:
         "what-changed",
         f"""
         <h3>What Changed?</h3>
-        <p class="section-purpose">The story shifted from expected crewed Starliner return to an uncrewed Starliner return decision and a different crew return path.</p>
+        <p class="section-purpose">{escape(section_purpose)}</p>
         <div class="report-columns">
           <section class="report-panel">
             <h4>Version Events</h4>
@@ -5514,17 +5947,19 @@ def render_review_map_html(
           </section>
         </div>
         <section>
-          <h4>Default Kaggle Path</h4>
+          <h4>Demo Showcase Path</h4>
           {default_badges}
           {_render_key_value_rows([
               ("RUN_GOOGLE_DISCOVERY", run_status.get("run_google_discovery", False), not bool(run_status.get("run_google_discovery"))),
+              ("RUN_GOOGLE_AI_EXPLORATION", run_status.get("run_google_ai_exploration", False), not bool(run_status.get("run_google_ai_exploration"))),
+              ("RUN_GOOGLE_AI_LIVE_CHECK", run_status.get("run_google_ai_live_check", False), not bool(run_status.get("run_google_ai_live_check"))),
               ("RUN_LIVE_MODE", run_status.get("run_live_mode", False), not bool(run_status.get("run_live_mode"))),
               ("Selected card", core_state.get("canonical_card_id", run_status.get("selected_card_id", "unknown")), True),
               ("Scenario", core_state.get("scenario_id", run_status.get("selected_scenario_id", "unknown")), True),
           ])}
         </section>
         <section>
-          <h4>Optional Google AI</h4>
+          <h4>Real API Operation with Google AI</h4>
           <p class="callout">{escape(optional_google)}</p>
         </section>
         <section>
@@ -5548,7 +5983,7 @@ def render_judge_quickstart_html(
     adk_manifest: dict[str, Any] | None = None,
     mcp_manifest: dict[str, Any] | None = None,
 ) -> str:
-    """Render the first reviewer path panel for Kaggle judges."""
+    """Render the first notebook review path panel."""
     problem_packet = problem_packet or {}
     discovery_packet = discovery_packet or {}
     concept_rows = [
@@ -5652,6 +6087,8 @@ def render_run_status_html(run_status: dict[str, Any]) -> str:
     fallback_reasons = [str(item) for item in _as_list(run_status.get("fallback_reasons")) if str(item).strip()]
     row_specs = [
         ("RUN_GOOGLE_DISCOVERY", str(run_status.get("run_google_discovery", False)), not bool(run_status.get("run_google_discovery"))),
+        ("RUN_GOOGLE_AI_EXPLORATION", str(run_status.get("run_google_ai_exploration", False)), not bool(run_status.get("run_google_ai_exploration"))),
+        ("RUN_GOOGLE_AI_LIVE_CHECK", str(run_status.get("run_google_ai_live_check", False)), not bool(run_status.get("run_google_ai_live_check"))),
         ("RUN_LIVE_MODE", str(run_status.get("run_live_mode", False)), not bool(run_status.get("run_live_mode"))),
         ("Discovery mode", str(run_status.get("discovery_mode", "deterministic_fixture_discovery")), True),
         ("Record mode", str(run_status.get("record_mode", "demo")), True),
@@ -5755,7 +6192,7 @@ def build_surface_model(
             "Human UI is a rendering layer, not the source of truth.",
             "Agent packets and JSON exports are the reusable machine surface.",
             "Both surfaces share the same canonical card and stable IDs.",
-            "Optional Google AI discovery candidates are review inputs, not canonical evidence or card mutations.",
+            "API candidates are review-only until accepted; canonical demo cards are not mutated.",
             "Evidence patches produce non-mutating review proposals until accepted.",
         ],
         "optional_capabilities": {
@@ -6009,7 +6446,7 @@ def render_course_concepts_html(
           <li>Key resolver checks explicit argument, Kaggle Secrets, then environment without displaying values.</li>
           <li>Source text remains untrusted data, never instructions.</li>
           <li>Live discovery candidates cannot mutate the canonical deterministic card.</li>
-          <li>Fallbacks preserve the no-key, no-network reviewer path.</li>
+          <li>Fallbacks preserve the no-key, no-network default run.</li>
         </ul>
     """
     deploy_details = """
@@ -6140,7 +6577,7 @@ def render_submission_readiness_html(
             discovery_packet.get("mode") == "deterministic_fixture_discovery",
             "Default notebook path uses deterministic source discovery.",
         ),
-        ("No API key required", not bool(discovery_packet.get("api_used")), "Default path does not call optional Google AI APIs."),
+        ("No API key required", not bool(discovery_packet.get("api_used")), "Default run does not call Google AI APIs."),
         ("Course concepts visible", bool(adk_manifest and mcp_manifest), "ADK-style, MCP, security, and deployability panels are rendered."),
         ("Export artifacts configured", any(artifact.get("status") == "PASS" for artifact in artifacts), "JSON and JSONL handoff files are declared."),
         ("Quality checks pass", quality_pass, f"{sum(1 for row in checks if row.get('status') == 'PASS')}/{len(checks)} checks PASS."),
@@ -6161,7 +6598,7 @@ def render_submission_readiness_html(
         "submission-readiness",
         f"""
         <h3>Submission Readiness</h3>
-        <p class="section-purpose">This panel summarizes whether the judge walkthrough is configured for reproducible Kaggle evaluation.</p>
+        <p class="section-purpose">This panel summarizes whether the demo showcase, human workflow, agent contact surface, and export artifacts are ready.</p>
         {_render_key_value_rows([
             ("Readiness", f"{pass_count}/{len(readiness)}", pass_count == len(readiness)),
             ("Card", news_card.get("card_id", "unknown"), True),
