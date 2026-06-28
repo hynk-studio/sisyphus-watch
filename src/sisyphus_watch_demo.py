@@ -3002,6 +3002,22 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
     mode = str(discovery_packet.get("mode", "unknown"))
     network_used = bool(discovery_packet.get("network_used"))
     api_used = bool(discovery_packet.get("api_used"))
+    is_google_ai_discovery = mode == "google_ai_discovery"
+    section_purpose = (
+        "Real API Operation returns candidate sources, URLs, and summaries for Sisyphus intake."
+        if is_google_ai_discovery
+        else "Demo Showcase uses deterministic source discovery for the selected prepared case."
+    )
+    callout = (
+        "API results become candidate sources for Sisyphus intake. Candidate sources are review-only until accepted."
+        if is_google_ai_discovery
+        else "Prepared source records are used for the selected demo case. Canonical demo cards are not mutated."
+    )
+    mode_badge = (
+        ("Real API Operation with Google AI", "warn")
+        if is_google_ai_discovery
+        else ("Demo Showcase source discovery", "accent")
+    )
     candidate_rows = []
     for candidate in _as_list(discovery_packet.get("candidate_sources")):
         if not isinstance(candidate, dict):
@@ -3052,9 +3068,9 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
         "discovery-packet",
         f"""
         <h3>Discovery Packet</h3>
-        <p class="section-purpose">Real API Operation returns candidate sources, URLs, and summaries for Sisyphus intake.</p>
+        <p class="section-purpose">{escape(section_purpose)}</p>
         {_render_badges([
-            ("deterministic source discovery", "accent"),
+            mode_badge,
             ("canonical demo cards are not mutated", "warn"),
             ("candidate sources", "warn"),
         ])}
@@ -3065,7 +3081,7 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
             ("Candidate sources", discovery_packet.get("source_count", len(candidate_rows)), True),
         ])}
         {fallback_block}
-        <p class="callout">API results become candidate sources for Sisyphus intake. Candidate sources are review-only until accepted.</p>
+        <p class="callout">{escape(callout)}</p>
         <section>
           <h4>Question / Query</h4>
           <p>{escape(_clip_text(discovery_packet.get('query_or_problem', ''), 180))}</p>
