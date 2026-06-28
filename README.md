@@ -28,7 +28,7 @@ Sisyphus Watch is claim-version-control and epistemic separation for public reas
 
 Sisyphus Watch is not a generic news summarizer. It does not decide truth automatically, perform independent verification, crawl the live web, rank content, or infer strategic intent without evidence.
 
-The default demo uses synthetic fixtures. They are realistic enough to show the workflow, but they are not real news and do not describe a real city or organization.
+The default Kaggle demo uses a frozen public-source snapshot of the NASA/Boeing Starliner Crew Flight Test return decision. It is deterministic and not live verification. Synthetic scenarios remain available as secondary schema and workflow examples.
 
 ## Two-Surface Architecture
 
@@ -82,7 +82,7 @@ Sisyphus Watch explicitly demonstrates these Kaggle Agents capstone concepts:
 
 `src/sisyphus_watch_adk_demo.py` demonstrates a small orchestrated agent system:
 
-- **DiscoveryAgent:** loads deterministic fixture discovery, or can represent an optional Google AI discovery packet when that path is enabled elsewhere.
+- **DiscoveryAgent:** loads deterministic source discovery, or can represent an optional Google AI discovery packet when that path is enabled elsewhere.
 - **EpistemicSeparationAgent:** summarizes source-bound findings, actor claims, actions, interpretations, counter-branches, and current source-bound judgment.
 - **RevisionHandoffAgent:** packages claim graph context, evidence patch context, and reviewer/agent handoff artifacts.
 - **SisyphusOrchestratorAgent:** runs the sequence and returns a structured trace with steps, output counts, security notes, deployability notes, and reusable artifacts.
@@ -140,6 +140,22 @@ Default Kaggle execution remains deterministic, no-key, and no-network. Attach t
 
 Optional Google AI discovery can use `GOOGLE_API_KEY` from Kaggle Notebook Secrets, but `RUN_GOOGLE_DISCOVERY = False` and `RUN_LIVE_MODE = False` remain the default reviewer path.
 
+## Kaggle Notebook Story Demo
+
+The notebook is organized around one real-case story: NASA/Boeing Starliner Crew Flight Test. It shows how a public claim changed over time and why a plain summary loses important state.
+
+Review path:
+
+1. Read the case hook.
+2. Compare plain summary vs Sisyphus.
+3. Follow What Changed, Timeline, Drift, and Graph.
+4. Inspect Evidence Patch / Revision Preview.
+5. Inspect Agent Contact Surface.
+6. Confirm Course Concepts.
+7. Check reproducibility and dataset version sync.
+
+The Starliner scenario is a public-source frozen snapshot, not live verification. Synthetic scenarios remain available. The default path is deterministic, no-key, and no-network. Optional Google AI discovery remains review-only, and JSON/JSONL/MCP are the agent contact surface.
+
 Local smoke commands:
 
 ```bash
@@ -157,7 +173,13 @@ Sisyphus Watch separates findings, claims, interpretation branches, and source-b
 
 ## Demo Scenarios
 
-Three synthetic scenarios are included. `city_heatwave_cooling_centers` remains the default Kaggle demo.
+Four deterministic scenarios are included. `starliner_crew_return_decision` is the default Kaggle story demo.
+
+**NASA/Boeing Starliner Crew Return Decision** (`starliner_crew_return_decision`)
+
+A frozen public-source snapshot follows NASA/Boeing Starliner Crew Flight Test from launch-time crewed return expectations to NASA's August 24, 2024 decision to return Starliner without crew and shift Wilmore and Williams to a different return path associated with Crew-9. The card is source-bound and cautious: it preserves technical uncertainty, safety framing, return-path drift, and current judgment without assigning blame or making a final engineering-certification decision.
+
+Synthetic scenarios remain available as secondary schema and workflow examples.
 
 **City Heatwave Cooling Centers** (`city_heatwave_cooling_centers`)
 
@@ -260,15 +282,21 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The notebook opens directly with the Sisyphus Watch product brief, review map, compact run status, and compact two-surface architecture readout. Version sync is checked in the setup cell before named helper imports. It then follows the human review workflow: User Problem, Discovery, Epistemic Separation, Human Card, Version Timeline, Claim Drift, Claim Graph, Evidence Patch, and Revision Comparison. Near exports, the **Agent Contact Surface** explains JSON/JSONL/MCP reuse before files are written to `/kaggle/working`. In the default Kaggle path, the canonical Sisyphus card still comes from deterministic records selected by `SCENARIO_ID`; optional Google AI discovery candidates do not become canonical evidence or mutate the card unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled.
+The notebook opens directly with the Starliner case hook, then follows the story path: Plain Summary vs Claim-Version Control, What Changed, Sisyphus Separation, Timeline, Drift, Graph, Evidence Patch / Revision Preview, and Agent Contact Surface. Course concepts, discovery details, two-surface architecture, run status, and dataset version sync appear later. In the default Kaggle path, the canonical Sisyphus card comes from deterministic records selected by `SCENARIO_ID`; optional Google AI discovery candidates do not become canonical evidence or mutate the card unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled.
 
 To switch scenarios in the notebook, change:
+
+```python
+SCENARIO_ID = "starliner_crew_return_decision"
+```
+
+to:
 
 ```python
 SCENARIO_ID = "city_heatwave_cooling_centers"
 ```
 
-to:
+or:
 
 ```python
 SCENARIO_ID = "public_transit_delay_communication"
@@ -282,19 +310,20 @@ SCENARIO_ID = "school_air_quality_alert_communication"
 
 ## Kaggle Review Path
 
-The notebook is organized as a polished, notebook-safe feature showcase UI for Kaggle review. It is designed as a clean analytical briefing, not a fragile dashboard: raw JSON is collapsed in details blocks, candidate sources and long IDs are clipped or wrapped for readability, and the default reviewer path remains deterministic, no-key, and no-network.
+The notebook is organized as a one-case story demo for Kaggle review. It is designed as a clean analytical briefing, not a fragile dashboard: raw JSON is collapsed in details blocks, candidate sources and long IDs are clipped or wrapped for readability, and the default reviewer path remains deterministic, no-key, and no-network.
 
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
-2. Read the opening Sisyphus Watch **Product Brief**.
-3. Read **Review Map** and compact **Run Status**.
-4. Follow the **Human Review Workflow** demo: problem, discovery, separation, human card, timeline, drift, graph, evidence patch, and revision comparison.
-5. Inspect **Course Concepts Demonstrated** for the ADK-style agent system, MCP server, security, and deployability mapping.
-6. Inspect **Agent Contact Surface** near exports.
-7. Download or reuse JSON/JSONL/MCP artifacts.
+2. Read the Starliner **Case Hook**.
+3. Compare **Plain Summary vs Claim-Version Control**.
+4. Follow **What Changed**, **Sisyphus Separation**, **Claim Timeline**, **Claim Drift**, and **Claim Graph**.
+5. Inspect **Evidence Patch / Revision Preview**.
+6. Inspect **Agent Contact Surface** and reuse JSON/JSONL/MCP artifacts.
+7. Confirm **Course Concepts / Technical Appendix**.
+8. Check **Reproducibility / Dataset Version Sync**.
 
 The human workflow is for understanding. The agent contact surface is for reuse. Core state is shared across both surfaces.
 
-Default Kaggle evaluation remains deterministic and does not require an API key or network access. It uses deterministic fixture discovery plus deterministic Sisyphus card processing.
+Default Kaggle evaluation remains deterministic and does not require an API key or network access. It uses deterministic source discovery plus deterministic Sisyphus card processing.
 
 If the setup cell fails, re-upload the matching Kaggle dataset version and restart the kernel before running the notebook again.
 
@@ -330,7 +359,7 @@ user_secrets = UserSecretsClient()
 secret_value_0 = user_secrets.get_secret("GOOGLE_API_KEY")
 ```
 
-If the secret is absent, the optional SDK is unavailable, the API call fails, parsing fails, or validation fails, the notebook safely falls back to deterministic fixture discovery. The API key is never printed, logged, exported, or stored.
+If the secret is absent, the optional SDK is unavailable, the API call fails, parsing fails, or validation fails, the notebook safely falls back to deterministic source discovery. The API key is never printed, logged, exported, or stored.
 
 For a cleaner Kaggle dataset package, exclude `.git`, `__pycache__`, and notebook checkpoint folders.
 
@@ -342,8 +371,9 @@ Demo mode loads:
 - `data/precomputed_records.json`
 - `data/evidence_patches.json` for the optional evidence update simulation
 
-It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path. The deterministic record set includes three demo cards while preserving the heatwave card as the default:
+It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path. The deterministic record set includes the Starliner public-source snapshot as the default plus three synthetic secondary cards:
 
+- `starliner_crew_return_decision`
 - `city_heatwave_cooling_centers`
 - `public_transit_delay_communication`
 - `school_air_quality_alert_communication`

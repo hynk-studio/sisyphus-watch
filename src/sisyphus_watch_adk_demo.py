@@ -28,13 +28,13 @@ from sisyphus_watch_demo import (
 )
 
 
-DEFAULT_SCENARIO_ID = "city_heatwave_cooling_centers"
-DEFAULT_PROBLEM_TEXT = "What changed in this public-interest claim, and what evidence supports the current judgment?"
+DEFAULT_SCENARIO_ID = "starliner_crew_return_decision"
+DEFAULT_PROBLEM_TEXT = "How did the public story around Boeing Starliner Crew Flight Test shift from an expected crewed Starliner return to NASA's uncrewed return decision and a different crew return path?"
 
 CONCEPTUAL_AGENTS = [
     {
         "agent_name": "DiscoveryAgent",
-        "responsibility": "Load deterministic fixture discovery, or inspect an optional Google AI discovery packet when enabled elsewhere.",
+        "responsibility": "Load deterministic source discovery, or inspect an optional Google AI discovery packet when enabled elsewhere.",
     },
     {
         "agent_name": "EpistemicSeparationAgent",
@@ -218,4 +218,3 @@ def run_sisyphus_adk_demo(
         },
         "manifest": manifest,
     }
-

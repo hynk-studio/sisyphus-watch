@@ -37,8 +37,8 @@ else:  # pragma: no cover - optional dependency
 
 
 SERVER_NAME = "Sisyphus Watch"
-DEFAULT_SCENARIO_ID = "city_heatwave_cooling_centers"
-DEFAULT_PROBLEM_TEXT = "What changed in this public-interest claim, and what evidence supports the current judgment?"
+DEFAULT_SCENARIO_ID = "starliner_crew_return_decision"
+DEFAULT_PROBLEM_TEXT = "How did the public story around Boeing Starliner Crew Flight Test shift from an expected crewed Starliner return to NASA's uncrewed return decision and a different crew return path?"
 
 MCP_TOOLS = [
     "list_sisyphus_scenarios",
@@ -205,4 +205,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

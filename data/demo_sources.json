@@ -154,5 +154,74 @@
     "limitations": "Editorial language can sharpen accountability questions but should not be treated as factual proof without source-bound support.",
     "text": "A fictional school safety column argued that the district's dashboard language gave families too little room-level context. The column wrote: A dashboard that says 'safe' while teachers prop doors open for air is not reassurance; it is a screensaver with authority. The piece also noted that calibration delays can be real operational problems and that the corrected update reduced the force of any claim that the district deliberately hid conditions. It urged readers to distinguish dashboard design failures, late family notifications, and sensor latency from direct evidence of intent.",
     "scenario_id": "school_air_quality_alert_communication"
+  },
+  {
+    "source_id": "src_nasa_starliner_cft_mission_page_2025_02_06",
+    "scenario_id": "starliner_crew_return_decision",
+    "source_type": "official_mission_page_public_snapshot",
+    "actor": "NASA",
+    "title": "Boeing Crew Flight Test mission page",
+    "url": "https://www.nasa.gov/mission/boeing-crewflighttest/",
+    "published_at": "2025-02-06T00:00:00Z",
+    "retrieved_at": "2026-06-28T00:00:00Z",
+    "is_synthetic_demo_fixture": false,
+    "is_real_case_snapshot": true,
+    "is_public_source_snapshot": true,
+    "is_live_verification": false,
+    "snapshot_markers": [
+      "real_case_snapshot",
+      "public_source_snapshot",
+      "deterministic",
+      "not_live_verification"
+    ],
+    "reliability_note": "Official NASA mission page used as a frozen public-source snapshot for source-bound mission framing.",
+    "limitations": "Official mission framing, not independent verification and not a complete engineering record of all later risk reviews.",
+    "text": "PUBLIC SOURCE SNAPSHOT: NASA's Boeing Crew Flight Test mission page identifies the mission as Starliner's first crewed flight test. It states NASA astronauts Butch Wilmore and Suni Williams launched aboard Boeing's Starliner spacecraft on June 5, 2024. The page frames the mission around Starliner transportation to the International Space Station and is used here only as a frozen source-bound snapshot, not live verification."
+  },
+  {
+    "source_id": "src_nasa_starliner_successful_launch_release_2024_06_05",
+    "scenario_id": "starliner_crew_return_decision",
+    "source_type": "official_news_release_public_snapshot",
+    "actor": "NASA",
+    "title": "LIFTOFF! NASA astronauts pilot first Starliner crewed test to station",
+    "url": "https://www.nasa.gov/news-release/liftoff-nasa-astronauts-pilot-first-starliner-crewed-test-to-station/",
+    "published_at": "2024-06-05T00:00:00Z",
+    "retrieved_at": "2026-06-28T00:00:00Z",
+    "is_synthetic_demo_fixture": false,
+    "is_real_case_snapshot": true,
+    "is_public_source_snapshot": true,
+    "is_live_verification": false,
+    "snapshot_markers": [
+      "real_case_snapshot",
+      "public_source_snapshot",
+      "deterministic",
+      "not_live_verification"
+    ],
+    "reliability_note": "Official NASA launch release used to capture the initial public mission expectation at launch time.",
+    "limitations": "Launch-day framing does not include later technical review outcomes and should not be read as final safety judgment.",
+    "text": "PUBLIC SOURCE SNAPSHOT: NASA's June 5, 2024 launch release says astronauts Butch Wilmore and Suni Williams launched on Boeing's Starliner spacecraft on a United Launch Alliance Atlas V rocket. The release described a planned stay of about one week at the International Space Station before returning to Earth aboard Starliner and said the test would help validate the transportation system for future station missions. This record preserves the initial public expectation only."
+  },
+  {
+    "source_id": "src_nasa_starliner_uncrewed_return_decision_2024_08_24",
+    "scenario_id": "starliner_crew_return_decision",
+    "source_type": "official_news_release_public_snapshot",
+    "actor": "NASA",
+    "title": "NASA decides to bring Starliner spacecraft back to Earth without crew",
+    "url": "https://www.nasa.gov/news-release/nasa-decides-to-bring-starliner-spacecraft-back-to-earth-without-crew/",
+    "published_at": "2024-08-24T00:00:00Z",
+    "retrieved_at": "2026-06-28T00:00:00Z",
+    "is_synthetic_demo_fixture": false,
+    "is_real_case_snapshot": true,
+    "is_public_source_snapshot": true,
+    "is_live_verification": false,
+    "snapshot_markers": [
+      "real_case_snapshot",
+      "public_source_snapshot",
+      "deterministic",
+      "not_live_verification"
+    ],
+    "reliability_note": "Official NASA decision release used as the primary source for the revised crew-return plan and safety rationale.",
+    "limitations": "Official NASA statement; it does not assign blame, make legal conclusions, or provide an independent engineering certification judgment.",
+    "text": "PUBLIC SOURCE SNAPSHOT: NASA's August 24, 2024 news release says the agency decided Boeing's Starliner would return to Earth without crew. It states Butch Wilmore and Suni Williams would continue work as part of the Expedition 71/72 crew and return in February 2025 with two other Crew-9 members on a SpaceX Dragon spacecraft. NASA connected the decision to safety and risk reasoning, uncertainty about the spacecraft system, helium leaks, and reaction control thruster issues, and framed the choice as avoiding unnecessary risk for the crew."
   }
 ]

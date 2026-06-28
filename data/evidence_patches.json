@@ -184,5 +184,76 @@
       "The memo is actor-issued and does not include independent classroom readings.",
       "The patch does not show exactly which families received delayed notices."
     ]
+  },
+  {
+    "patch_id": "patch_starliner_crew_return_decision_review_followup_2024_09_001",
+    "scenario_id": "starliner_crew_return_decision",
+    "patch_title": "Review-only later technical evidence candidate",
+    "patch_type": "follow_up_audit",
+    "is_synthetic_demo_fixture": true,
+    "new_source_record": {
+      "source_id": "src_patch_starliner_later_technical_review_candidate_2024_09",
+      "source_type": "follow_up_audit",
+      "actor": "Sisyphus Watch review simulation",
+      "title": "Later technical review candidate for Starliner return decision",
+      "published_at": "2024-09-10T00:00:00Z",
+      "retrieved_at": "2026-06-28T00:00:00Z",
+      "reliability_note": "Synthetic review-only patch used to demonstrate non-mutating evidence intake for a real-case snapshot.",
+      "limitations": "Not a real source and not canonical evidence; it models how a later official review would be queued for human review before changing the card.",
+      "is_synthetic_demo_fixture": true,
+      "text": "DEMO PATCH ONLY: A hypothetical later technical review candidate adds more detail about Starliner helium leak and reaction control thruster behavior. Sisyphus Watch would treat this as a source-bound patch for reviewer inspection. It could narrow or complicate the safety-uncertainty branch, but it must not automatically rewrite the canonical Starliner snapshot, timeline, graph, or verdict."
+    },
+    "affected_claim_ids": [
+      "claim_starliner_crewed_return_path_expected_2024_06_05_001",
+      "claim_nasa_safety_uncertainty_avoid_risk_2024_08_24_001",
+      "claim_nasa_crew9_return_path_for_wilmore_williams_2024_08_24_001"
+    ],
+    "affected_interpretation_ids": [
+      "interp_starliner_public_technical_risk_decision_story_2024_08_24_001"
+    ],
+    "new_evidence_summary": "A later technical review candidate would be queued as non-mutating evidence that could narrow or complicate the safety-uncertainty interpretation.",
+    "proposed_effects": [
+      {
+        "target_id": "claim_starliner_crewed_return_path_expected_2024_06_05_001",
+        "target_type": "claim",
+        "effect": "narrows",
+        "reason": "Later technical detail could more precisely explain why the expected Starliner crewed return path was not selected."
+      },
+      {
+        "target_id": "claim_nasa_safety_uncertainty_avoid_risk_2024_08_24_001",
+        "target_type": "claim",
+        "effect": "requires_review",
+        "reason": "A later technical review could change how much uncertainty remains around NASA's safety rationale."
+      },
+      {
+        "target_id": "interp_starliner_public_technical_risk_decision_story_2024_08_24_001",
+        "target_type": "interpretation",
+        "effect": "complicates",
+        "reason": "Additional technical detail could separate root-cause analysis from the public return-path decision story."
+      },
+      {
+        "target_id": "counter_starliner_test_data_still_produced_2024_08_24_001",
+        "target_type": "counter_branch",
+        "effect": "supports_counter_branch",
+        "reason": "A later review could support the idea that test data still matters even though the crew return path changed."
+      },
+      {
+        "target_id": "verdict_starliner_crew_return_decision_2024_08_24_v01",
+        "target_type": "verdict",
+        "effect": "requires_review",
+        "reason": "The canonical verdict should not change until the later source is inspected and mapped to stable evidence IDs."
+      }
+    ],
+    "recommended_revision_actions": [
+      "Keep the patch outside canonical source_ids until reviewer approval.",
+      "Map any accepted technical detail to new source-bound finding, claim, or action IDs.",
+      "Add a proposed next timeline event only after source review.",
+      "Do not regenerate the Starliner canonical card from optional discovery candidates."
+    ],
+    "uncertainty_notes": [
+      "The patch is a simulation, not a real NASA source.",
+      "Later technical details could narrow risk reasoning without assigning blame.",
+      "Canonical judgment remains unchanged until a reviewed source-bound update is accepted."
+    ]
   }
 ]
