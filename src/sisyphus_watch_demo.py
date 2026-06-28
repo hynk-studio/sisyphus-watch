@@ -3679,6 +3679,7 @@ def _artifact_outputs(revision_available: bool) -> list[dict[str, Any]]:
         ("scenario_authoring_packet", "sisyphus_scenario_authoring_packet.json", "Scenario authoring packet v0.7."),
         ("revision_packet", "sisyphus_revision_packet.json", "Revision packet v0.9."),
         ("revision_comparison", "sisyphus_revision_comparison.json", "Current-vs-proposed comparison v1.0."),
+        ("surface_model", "sisyphus_surface_model.json", "Two-surface architecture model v1.0."),
         ("agent_workflow_trace", "sisyphus_agent_workflow_trace.json", "Agent workflow trace v1.1."),
         ("run_summary", "sisyphus_run_summary.json", "Reviewer-facing run summary v1.1."),
     ]
@@ -4099,6 +4100,15 @@ def build_run_summary(news_card: dict[str, Any], patch: dict[str, Any] | None = 
             "revision proposal and comparison available" if revision_available else "revision proposal and comparison skipped",
         ],
         "exported_artifacts": trace.get("artifact_outputs", []),
+        "surface_roles": ["human_review_workflow", "agent_contact_surface"],
+        "surface_model_id": f"surface_model_{news_card.get('card_id', 'unknown_card')}",
+        "shared_core_state_refs": {
+            "canonical_card_id": news_card.get("card_id"),
+            "scenario_id": news_card.get("scenario_id"),
+            "source_ids": news_card.get("source_ids", []),
+            "claim_graph_id": get_claim_graph(news_card).get("graph_id"),
+            "evidence_patch_id": patch.get("patch_id") if isinstance(patch, dict) else None,
+        },
         "quality_status": quality_status,
         "quality_check_count": len(checks),
         "revision_available": revision_available,
@@ -5395,6 +5405,330 @@ def render_run_status_html(run_status: dict[str, Any]) -> str:
     )
 
 
+def build_surface_model(
+    news_card: dict[str, Any],
+    evidence_patch: dict[str, Any] | None = None,
+    discovery_packet: dict[str, Any] | None = None,
+    adk_manifest: dict[str, Any] | None = None,
+    mcp_manifest: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Describe the two Sisyphus Watch surfaces over the shared core state."""
+    graph = get_claim_graph(news_card)
+    graph_nodes = _as_list(graph.get("nodes"))
+    graph_edges = _as_list(graph.get("edges"))
+    mcp_tools = [str(item) for item in _as_list((mcp_manifest or {}).get("tools"))]
+    mcp_resources = [str(item) for item in _as_list((mcp_manifest or {}).get("resources"))]
+    adk_agents = [
+        str(agent.get("agent_name"))
+        for agent in _as_list((adk_manifest or {}).get("conceptual_agents"))
+        if isinstance(agent, dict) and agent.get("agent_name")
+    ]
+    discovery_candidates = _as_list((discovery_packet or {}).get("candidate_sources"))
+    return {
+        "model_type": "sisyphus_surface_model",
+        "model_version": "1.0",
+        "surface_model_id": f"surface_model_{news_card.get('card_id', 'unknown_card')}",
+        "core_state": {
+            "canonical_card_id": news_card.get("card_id"),
+            "scenario_id": news_card.get("scenario_id"),
+            "source_count": len(_as_list(news_card.get("source_ids"))),
+            "claim_count": len(_as_list(news_card.get("actor_claims"))),
+            "timeline_event_count": len(_as_list(news_card.get("version_timeline"))),
+            "claim_drift_count": len(_as_list(news_card.get("claim_drift"))),
+            "graph_node_count": len(graph_nodes),
+            "graph_edge_count": len(graph_edges),
+            "evidence_patch_available": evidence_patch is not None,
+        },
+        "human_review_workflow": {
+            "purpose": "Help humans understand public claim change over time.",
+            "sections": [
+                "Judge Quickstart",
+                "Agent Capability Strip",
+                "User Problem",
+                "Discovery Packet",
+                "Sisyphus Guided Flow",
+                "Plain Summary vs Sisyphus Watch",
+                "Epistemic Layer Separation",
+                "Human Card",
+                "Version Timeline",
+                "Claim Drift",
+                "Claim Graph",
+                "Evidence Update Simulation",
+                "Revision Comparison",
+                "Submission Readiness",
+            ],
+            "consumes": ["canonical news_card", "selected source records", "evidence patch", "quality checks"],
+            "emits": ["human-readable explanation", "review guidance", "submission readiness"],
+        },
+        "agent_contact_surface": {
+            "purpose": "Let downstream agents reuse source-bound structured state.",
+            "interfaces": [
+                "sisyphus_news_card.json",
+                "sisyphus_records.jsonl",
+                "sisyphus_agent_packet.json",
+                "sisyphus_graph_packet.json",
+                "sisyphus_reviewer_packet.json",
+                "sisyphus_revision_packet.json",
+                "sisyphus_revision_comparison.json",
+                "sisyphus_surface_model.json",
+                "MCP tools/resources",
+                "stable IDs and schema references",
+            ],
+            "consumes": ["canonical news_card", "claim graph", "evidence patch", "packet builders"],
+            "emits": ["JSON/JSONL files", "MCP tool responses", "agent-readable packets"],
+        },
+        "boundary_rules": [
+            "Human UI is a rendering layer, not the source of truth.",
+            "Agent packets and JSON exports are the reusable machine surface.",
+            "Both surfaces share the same canonical card and stable IDs.",
+            "Optional Google AI discovery candidates are review inputs, not canonical evidence or card mutations.",
+            "Evidence patches produce non-mutating review proposals until accepted.",
+        ],
+        "optional_capabilities": {
+            "discovery_mode": (discovery_packet or {}).get("mode"),
+            "discovery_candidate_count": len(discovery_candidates),
+            "adk_agents": adk_agents,
+            "mcp_tools": mcp_tools,
+            "mcp_resources": mcp_resources,
+        },
+    }
+
+
+def render_surface_model_html(surface_model: dict[str, Any]) -> str:
+    """Render the two-surface architecture as a notebook-safe panel."""
+    core_state = surface_model.get("core_state", {}) if isinstance(surface_model, dict) else {}
+    human = surface_model.get("human_review_workflow", {}) if isinstance(surface_model, dict) else {}
+    agent = surface_model.get("agent_contact_surface", {}) if isinstance(surface_model, dict) else {}
+    optional = surface_model.get("optional_capabilities", {}) if isinstance(surface_model, dict) else {}
+    boundary_rules = [str(item) for item in _as_list(surface_model.get("boundary_rules"))]
+
+    core_rows = _render_key_value_rows(
+        [
+            ("Canonical card", core_state.get("canonical_card_id", "unknown"), bool(core_state.get("canonical_card_id"))),
+            ("Scenario", core_state.get("scenario_id", "unknown"), bool(core_state.get("scenario_id"))),
+            ("Sources", core_state.get("source_count", 0), True),
+            ("Claims", core_state.get("claim_count", 0), True),
+            ("Timeline events", core_state.get("timeline_event_count", 0), True),
+            ("Claim drift entries", core_state.get("claim_drift_count", 0), True),
+            (
+                "Claim graph",
+                f"{core_state.get('graph_node_count', 0)} nodes / {core_state.get('graph_edge_count', 0)} edges",
+                True,
+            ),
+            ("Evidence patch", "available" if core_state.get("evidence_patch_available") else "not loaded", None),
+        ]
+    )
+
+    def compact_list(values: Any, limit: int = 6) -> str:
+        items = [str(item) for item in _as_list(values) if str(item).strip()]
+        visible = items[:limit]
+        visible_html = "".join(f"<li>{escape(item)}</li>" for item in visible)
+        if len(items) <= limit:
+            return f"<ul class=\"compact-list\">{visible_html}</ul>"
+        hidden_html = "".join(f"<li>{escape(item)}</li>" for item in items[limit:])
+        return (
+            f"<ul class=\"compact-list\">{visible_html}</ul>"
+            f"<details class=\"id-details\"><summary>{len(items) - limit} more</summary><ul>{hidden_html}</ul></details>"
+        )
+
+    human_details = (
+        "<p><strong>Consumes:</strong></p>"
+        + compact_list(human.get("consumes"))
+        + "<p><strong>Emits:</strong></p>"
+        + compact_list(human.get("emits"))
+        + "<p><strong>Sections:</strong></p>"
+        + compact_list(human.get("sections"), limit=8)
+    )
+    agent_details = (
+        "<p><strong>Consumes:</strong></p>"
+        + compact_list(agent.get("consumes"))
+        + "<p><strong>Emits:</strong></p>"
+        + compact_list(agent.get("emits"))
+        + "<p><strong>Interfaces:</strong></p>"
+        + compact_list(agent.get("interfaces"), limit=8)
+    )
+    boundary_html = "".join(
+        _render_feature_row(f"Boundary {index}", rule, badge="PASS")
+        for index, rule in enumerate(boundary_rules, start=1)
+    )
+    discovery_mode = optional.get("discovery_mode") or "deterministic_fixture_discovery"
+    return _wrap_html(
+        "surface-model",
+        f"""
+        <h3>Two-Surface Architecture</h3>
+        <p class="section-purpose">Human workflow and agent contact surface are separate views over the same canonical state.</p>
+        {_render_badges([
+            ("shared core state", "accent"),
+            ("human UI explains", "accent"),
+            ("agent surface contracts", "accent"),
+            ("discovery review-only", "warn"),
+        ])}
+        <section>
+          <h4>Shared Core State</h4>
+          <p class="callout">Both surfaces read the same canonical card, source references, evidence patch, claim graph, generated packets, and export artifacts.</p>
+          {core_rows}
+        </section>
+        <div class="report-columns">
+          <section class="report-panel">
+            <span class="eyebrow">Human Review Workflow</span>
+            <h4>Explains public claim change</h4>
+            <p>{escape(str(human.get("purpose", "")))}</p>
+            <details class="id-details">
+              <summary>Workflow sections and outputs</summary>
+              {human_details}
+            </details>
+          </section>
+          <section class="report-panel accent-panel">
+            <span class="eyebrow">Agent Contact Surface</span>
+            <h4>Contracts for structured reuse</h4>
+            <p>{escape(str(agent.get("purpose", "")))}</p>
+            <details class="id-details">
+              <summary>Interfaces and packet outputs</summary>
+              {agent_details}
+            </details>
+          </section>
+        </div>
+        <section>
+          <h4>Run Boundary</h4>
+          {_render_key_value_rows([
+              ("Discovery mode", discovery_mode, True),
+              ("Discovery candidates", optional.get("discovery_candidate_count", 0), True),
+              ("ADK agents listed", len(_as_list(optional.get("adk_agents"))), True),
+              ("MCP tools listed", len(_as_list(optional.get("mcp_tools"))), True),
+          ])}
+        </section>
+        <section>
+          <h4>Boundary Rules</h4>
+          <div class="feature-list compact">{boundary_html}</div>
+        </section>
+        """,
+    )
+
+
+def render_agent_contact_surface_html(
+    surface_model: dict[str, Any],
+    news_card: dict[str, Any],
+    evidence_patch: dict[str, Any] | None = None,
+) -> str:
+    """Render the downstream-agent contract near notebook exports."""
+    agent = surface_model.get("agent_contact_surface", {}) if isinstance(surface_model, dict) else {}
+    optional = surface_model.get("optional_capabilities", {}) if isinstance(surface_model, dict) else {}
+    graph = get_claim_graph(news_card)
+    claims = [item for item in _as_list(news_card.get("actor_claims")) if isinstance(item, dict)]
+    facts = [item for item in _as_list(news_card.get("facts")) if isinstance(item, dict)]
+    actions = [item for item in _as_list(news_card.get("actions")) if isinstance(item, dict)]
+    first_claim_id = claims[0].get("claim_id") if claims else "claim_id"
+    first_fact_id = facts[0].get("fact_id") if facts else "fact_id"
+    first_action_id = actions[0].get("action_id") if actions else "action_id"
+    patch_id = evidence_patch.get("patch_id") if isinstance(evidence_patch, dict) else "no evidence patch loaded"
+    mcp_tools = [str(item) for item in _as_list(optional.get("mcp_tools"))]
+    mcp_resources = [str(item) for item in _as_list(optional.get("mcp_resources"))]
+
+    file_purposes = [
+        ("sisyphus_news_card.json", "Canonical selected card. Use as the source of truth for the run."),
+        ("sisyphus_records.jsonl", "Line-delimited selected card and agent packet for ingestion pipelines."),
+        ("sisyphus_agent_packet.json", "Main source-bound context packet with stable fact, claim, and action IDs."),
+        ("sisyphus_graph_packet.json", "Claim graph packet with paths, node counts, and optional selected subgraph."),
+        ("sisyphus_reviewer_packet.json", "Preset review question packet for deterministic handoff."),
+        ("sisyphus_revision_packet.json", "Non-mutating evidence patch proposal when a patch is available."),
+        ("sisyphus_revision_comparison.json", "Current-vs-proposed comparison for patch review."),
+        ("sisyphus_surface_model.json", "Two-surface map that identifies shared core state and interface boundaries."),
+    ]
+    file_rows = "".join(
+        f"""
+        <div class="file-row">
+          <code>{escape(filename)}</code>
+          <p>{escape(purpose)}</p>
+          {_status_badge("PASS" if filename in _as_list(agent.get("interfaces")) else "VISIBLE", True)}
+        </div>
+        """
+        for filename, purpose in file_purposes
+    )
+    id_rows = _render_key_value_rows(
+        [
+            ("canonical_card_id", news_card.get("card_id", "unknown"), True),
+            ("scenario_id", news_card.get("scenario_id", "unknown"), True),
+            ("claim_id", first_claim_id, bool(claims)),
+            ("fact_id", first_fact_id, bool(facts)),
+            ("action_id", first_action_id, bool(actions)),
+            ("graph_id", graph.get("graph_id", "unknown"), True),
+            ("patch_id", patch_id, evidence_patch is not None),
+        ]
+    )
+    mcp_details = (
+        "<p><strong>Tools:</strong></p><ul>"
+        + "".join(f"<li><code>{escape(tool)}</code></li>" for tool in mcp_tools)
+        + "</ul><p><strong>Resources:</strong></p><ul>"
+        + "".join(f"<li><code>{escape(resource)}</code></li>" for resource in mcp_resources)
+        + "</ul>"
+        if mcp_tools or mcp_resources
+        else "<p class=\"muted\">MCP tools/resources are optional and surfaced when the fallback manifest or FastMCP server is available.</p>"
+    )
+    consume_rows = "".join(
+        [
+            _render_feature_row(
+                "Consume JSON/JSONL or MCP",
+                "Use exported packets, schema-backed IDs, and MCP tool/resource responses as the agent contract.",
+                badge="PASS",
+            ),
+            _render_feature_row(
+                "Preserve source-bound layers",
+                "Keep findings, actor claims, actions, interpretations, claim drift, and graph references separate.",
+                badge="PASS",
+            ),
+            _render_feature_row(
+                "Treat rendered HTML as human-only",
+                "Do not use notebook HTML as the downstream-agent contract.",
+                badge="PASS",
+            ),
+            _render_feature_row(
+                "Respect review boundaries",
+                "Do not treat synthetic fixtures as real evidence or mutate the canonical card from review-only discovery candidates.",
+                badge="PASS",
+            ),
+        ]
+    )
+    return _wrap_html(
+        "agent-contact-surface",
+        f"""
+        <h3>Agent Contact Surface</h3>
+        <p class="section-purpose">The reusable interface is JSON, JSONL, stable IDs, schema references, and optional MCP tools/resources.</p>
+        {_render_badges([
+            ("JSON/JSONL contract", "accent"),
+            ("MCP optional", "accent"),
+            ("stable IDs", "accent"),
+            ("HTML is not the contract", "warn"),
+        ])}
+        <section>
+          <h4>Downstream Interfaces</h4>
+          <div class="file-list">{file_rows}</div>
+        </section>
+        <section>
+          <h4>Stable ID Examples</h4>
+          {id_rows}
+        </section>
+        <div class="report-columns">
+          <section class="report-panel">
+            <h4>MCP Tool and Resource Names</h4>
+            {mcp_details}
+          </section>
+          <section class="report-panel accent-panel">
+            <h4>What Agents Should Consume</h4>
+            <div class="feature-list compact">{consume_rows}</div>
+          </section>
+        </div>
+        <section>
+          <h4>Do Not Consume</h4>
+          <ul>
+            <li>Do not use rendered HTML as the agent contract.</li>
+            <li>Do not treat synthetic fixtures as real evidence.</li>
+            <li>Do not mutate the canonical card from review-only discovery candidates.</li>
+          </ul>
+        </section>
+        """,
+    )
+
+
 def render_course_concepts_html(
     adk_manifest: dict[str, Any],
     adk_demo_trace: dict[str, Any],
@@ -5766,6 +6100,7 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     evidence_patch = get_evidence_patch_for_scenario(load_evidence_patches(), str(news_card.get("scenario_id", "")))
     revision_packet = export_revision_packet(news_card, evidence_patch) if evidence_patch else None
     revision_comparison = export_revision_comparison(news_card, evidence_patch) if evidence_patch else None
+    surface_model = build_surface_model(news_card, evidence_patch=evidence_patch)
     workflow_export = export_agent_workflow_trace(news_card, evidence_patch)
     paths = {
         "news_card": output_path / "sisyphus_news_card.json",
@@ -5777,6 +6112,7 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
         "scenario_authoring_packet": output_path / "sisyphus_scenario_authoring_packet.json",
         "revision_packet": output_path / "sisyphus_revision_packet.json",
         "revision_comparison": output_path / "sisyphus_revision_comparison.json",
+        "surface_model": output_path / "sisyphus_surface_model.json",
         "agent_workflow_trace": output_path / "sisyphus_agent_workflow_trace.json",
         "run_summary": output_path / "sisyphus_run_summary.json",
     }
@@ -5796,6 +6132,10 @@ def write_export_artifacts(news_card: dict[str, Any], output_dir: str | Path) ->
     )
     paths["revision_comparison"].write_text(
         json.dumps(revision_comparison or {}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    paths["surface_model"].write_text(
+        json.dumps(surface_model, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
     paths["agent_workflow_trace"].write_text(

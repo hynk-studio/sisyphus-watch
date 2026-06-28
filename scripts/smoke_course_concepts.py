@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -21,6 +22,7 @@ from sisyphus_watch_adk_demo import (  # noqa: E402
 from sisyphus_watch_demo import (  # noqa: E402
     build_deterministic_discovery_packet,
     build_guided_flow_summary,
+    build_surface_model,
     build_user_problem_packet,
     filter_sources_for_card,
     get_evidence_patch_for_scenario,
@@ -28,6 +30,7 @@ from sisyphus_watch_demo import (  # noqa: E402
     load_evidence_patches,
     load_precomputed_records,
     render_agent_capability_strip_html,
+    render_agent_contact_surface_html,
     render_discovery_packet_html,
     render_course_concepts_html,
     render_export_artifacts_overview_html,
@@ -36,9 +39,11 @@ from sisyphus_watch_demo import (  # noqa: E402
     render_plain_summary_vs_sisyphus_html,
     render_run_status_html,
     render_submission_readiness_html,
+    render_surface_model_html,
     render_user_problem_card_html,
     run_quality_checks,
     select_news_card,
+    write_export_artifacts,
 )
 from sisyphus_watch_mcp_server import (  # noqa: E402
     build_mcp_capability_manifest,
@@ -110,6 +115,18 @@ def main() -> int:
         discovery_packet=discovery_packet,
         evidence_patch=evidence_patch,
     )
+    surface_model = build_surface_model(
+        selected_card,
+        evidence_patch=evidence_patch,
+        discovery_packet=discovery_packet,
+        adk_manifest=adk_manifest,
+        mcp_manifest=mcp_manifest,
+    )
+    assert surface_model["model_type"] == "sisyphus_surface_model"
+    assert "core_state" in surface_model
+    assert "human_review_workflow" in surface_model
+    assert "agent_contact_surface" in surface_model
+    assert "boundary_rules" in surface_model
     checks = run_quality_checks(selected_card)
     run_status = {
         "run_google_discovery": False,
@@ -134,11 +151,13 @@ def main() -> int:
         ),
         render_agent_capability_strip_html(),
         render_run_status_html(run_status),
+        render_surface_model_html(surface_model),
         render_user_problem_card_html(problem_packet),
         render_discovery_packet_html(discovery_packet),
         render_guided_flow_html(local_guided_flow),
         render_plain_summary_vs_sisyphus_html(selected_card, discovery_packet),
         render_course_concepts_html(adk_manifest, adk_trace, mcp_manifest),
+        render_agent_contact_surface_html(surface_model, selected_card, evidence_patch),
         render_export_artifacts_overview_html(selected_card, evidence_patch),
         render_submission_readiness_html(
             selected_card,
@@ -152,6 +171,8 @@ def main() -> int:
     assert all(isinstance(output, str) and output.strip() for output in html_outputs)
     assert all("sisyphus-block" in output for output in html_outputs)
     combined_html = "\n".join(html_outputs)
+    assert "Human Review Workflow" in combined_html
+    assert "Agent Contact Surface" in combined_html
     assert "overflow-wrap" in combined_html
     assert "sisyphus-table-wrap" in combined_html
     fragile_layout_markers = [
@@ -163,6 +184,14 @@ def main() -> int:
     for marker in fragile_layout_markers:
         assert marker not in combined_html
     assert "summary-grid" not in combined_html or "display: flex" in combined_html
+    assert "sisyphus_surface_model.json" in combined_html
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        export_paths = write_export_artifacts(selected_card, tmp_dir)
+        surface_model_path = export_paths["surface_model"]
+        exported_surface_model = json.loads(surface_model_path.read_text(encoding="utf-8"))
+        assert exported_surface_model["model_type"] == "sisyphus_surface_model"
+        assert surface_model_path.name == "sisyphus_surface_model.json"
 
     print("course-concepts-smoke-ok")
     return 0
