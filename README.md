@@ -260,7 +260,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The notebook opens with a **Product Brief**, **Review Map**, compact **Run Status**, and compact **Two-Surface Architecture** readout. It then follows the human review workflow: User Problem, Discovery, Epistemic Separation, Human Card, Version Timeline, Claim Drift, Claim Graph, Evidence Patch, and Revision Comparison. Near exports, the **Agent Contact Surface** explains JSON/JSONL/MCP reuse before files are written to `/kaggle/working`. In the default Kaggle path, the canonical Sisyphus card still comes from deterministic records selected by `SCENARIO_ID`; optional Google AI discovery candidates do not become canonical evidence or mutate the card unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled.
+The notebook opens directly with the Sisyphus Watch product brief, review map, compact run status, and compact two-surface architecture readout. Version sync is checked in the setup cell before named helper imports. It then follows the human review workflow: User Problem, Discovery, Epistemic Separation, Human Card, Version Timeline, Claim Drift, Claim Graph, Evidence Patch, and Revision Comparison. Near exports, the **Agent Contact Surface** explains JSON/JSONL/MCP reuse before files are written to `/kaggle/working`. In the default Kaggle path, the canonical Sisyphus card still comes from deterministic records selected by `SCENARIO_ID`; optional Google AI discovery candidates do not become canonical evidence or mutate the card unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled.
 
 To switch scenarios in the notebook, change:
 
@@ -285,7 +285,7 @@ SCENARIO_ID = "school_air_quality_alert_communication"
 The notebook is organized as a polished, notebook-safe feature showcase UI for Kaggle review. It is designed as a clean analytical briefing, not a fragile dashboard: raw JSON is collapsed in details blocks, candidate sources and long IDs are clipped or wrapped for readability, and the default reviewer path remains deterministic, no-key, and no-network.
 
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
-2. Read **Product Brief**.
+2. Read the opening Sisyphus Watch **Product Brief**.
 3. Read **Review Map** and compact **Run Status**.
 4. Follow the **Human Review Workflow** demo: problem, discovery, separation, human card, timeline, drift, graph, evidence patch, and revision comparison.
 5. Inspect **Course Concepts Demonstrated** for the ADK-style agent system, MCP server, security, and deployability mapping.
@@ -295,6 +295,8 @@ The notebook is organized as a polished, notebook-safe feature showcase UI for K
 The human workflow is for understanding. The agent contact surface is for reuse. Core state is shared across both surfaces.
 
 Default Kaggle evaluation remains deterministic and does not require an API key or network access. It uses deterministic fixture discovery plus deterministic Sisyphus card processing.
+
+If the setup cell fails, re-upload the matching Kaggle dataset version and restart the kernel before running the notebook again.
 
 ## Kaggle Dataset Version Sync
 
