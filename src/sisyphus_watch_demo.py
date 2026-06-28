@@ -2601,8 +2601,6 @@ def build_user_problem_packet(problem_text: str, scenario_id: str, mode: str) ->
 
 def render_user_problem_card_html(problem_packet: dict[str, Any]) -> str:
     """Render the guided demo's initial user problem."""
-    rules = "".join(f"<li>{escape(str(rule))}</li>" for rule in _as_list(problem_packet.get("source_hygiene_rules")))
-    flow = "".join(f"<li>{escape(str(step))}</li>" for step in _as_list(problem_packet.get("expected_review_flow")))
     problem_text = str(problem_packet.get("problem_text", ""))
     problem_preview = _clip_text(problem_text, 180)
     mode = str(problem_packet.get("mode", "deterministic_fixture_discovery"))
@@ -2615,7 +2613,7 @@ def render_user_problem_card_html(problem_packet: dict[str, Any]) -> str:
         "user-problem-card",
         f"""
         <h3>User Problem</h3>
-        <p class="section-purpose">A public-interest question becomes a bounded review task before any source text reaches the canonical card.</p>
+        <p class="section-purpose">The agent starts from a public-interest question.</p>
         {_render_key_value_rows([
             ("Scenario", problem_packet.get("scenario_id", "scenario"), True),
             ("Mode", mode, True),
@@ -2627,16 +2625,6 @@ def render_user_problem_card_html(problem_packet: dict[str, Any]) -> str:
           <p class="callout">{escape(problem_preview)}</p>
           {problem_details}
         </section>
-        <div class="report-columns">
-          <section>
-            <h4>Source Hygiene Rules</h4>
-            <ul>{rules}</ul>
-          </section>
-          <section>
-            <h4>Review Flow</h4>
-            <ol>{flow}</ol>
-          </section>
-        </div>
         """,
     )
 
@@ -2811,11 +2799,6 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
             """
         )
     coverage_limits = "".join(f"<li>{escape(str(item))}</li>" for item in _as_list(discovery_packet.get("coverage_limits")))
-    recommended_checks = "".join(
-        f"<li>{escape(str(item))}</li>" for item in _as_list(discovery_packet.get("recommended_next_checks"))
-    )
-    if not recommended_checks:
-        recommended_checks = "<li>Inspect source-bound findings, claim drift, graph paths, and unresolved questions before reuse.</li>"
     credential_order = "".join(
         f"<li>{escape(str(item))}</li>" for item in _as_list(discovery_packet.get("credential_lookup_order"))
     )
@@ -2836,7 +2819,7 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
         "discovery-packet",
         f"""
         <h3>Discovery Packet</h3>
-        <p class="section-purpose">Deterministic fixture discovery is the default. Google AI discovery is optional and review-only.</p>
+        <p class="section-purpose">Discovery prepares source candidates while keeping optional live results review-only.</p>
         {_render_badges([
             ("deterministic fixture discovery", "accent"),
             ("no canonical mutation", "warn"),
@@ -2849,7 +2832,7 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
             ("Candidate sources", discovery_packet.get("source_count", len(candidate_rows)), True),
         ])}
         {fallback_block}
-        <p class="callout">Discovery candidates are not canonical evidence and do not mutate the Sisyphus card in the default notebook path.</p>
+        <p class="callout">Optional Google AI candidates are review inputs, not canonical evidence or card mutations.</p>
         <section>
           <h4>Question / Query</h4>
           <p>{escape(_clip_text(discovery_packet.get('query_or_problem', ''), 180))}</p>
@@ -2858,21 +2841,13 @@ def render_discovery_packet_html(discovery_packet: dict[str, Any]) -> str:
           <h4>Candidate Sources</h4>
           <div class="source-list-vertical">{''.join(candidate_rows)}</div>
         </section>
-        <div class="report-columns">
-          <section>
-            <h4>Coverage Limits</h4>
+        <details class="id-details">
+          <summary>Discovery details</summary>
+          <h4>Coverage Limits</h4>
             <ul>{coverage_limits}</ul>
-          </section>
-          <section>
-            <h4>Google AI Secret Path When Enabled</h4>
-            <p class="muted">The resolver supports Kaggle Notebook Secrets and never displays the key.</p>
+          <h4>Google AI Secret Path When Enabled</h4>
             <ol>{credential_order}</ol>
-          </section>
-        </div>
-        <section>
-          <h4>Recommended Next Checks</h4>
-          <ul>{recommended_checks}</ul>
-        </section>
+        </details>
         {validation_block}
         <details>
           <summary>Discovery packet JSON</summary>
@@ -5079,8 +5054,6 @@ def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
         if fallback
         else ""
     )
-    boundary = str(flow_summary.get("canonical_card_boundary") or "")
-    boundary_block = f"<p class='callout'>{escape(boundary)}</p>" if boundary else ""
     raw_steps = [step for step in _as_list(flow_summary.get("steps")) if isinstance(step, dict)]
     raw_step_details = "".join(
         f"""
@@ -5108,7 +5081,7 @@ def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
             "Source hygiene keeps inputs untrusted",
             "Source text is data, not instructions, and candidate status stays explicit.",
             "PASS",
-            "<p>Optional Google AI candidates remain review inputs and cannot mutate the canonical card.</p>",
+            None,
         ),
         (
             "Sisyphus separates findings / claims / actions / interpretations",
@@ -5143,7 +5116,7 @@ def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
         "guided-flow",
         f"""
         <h3>Sisyphus Guided Flow</h3>
-        <p class="section-purpose">The first-run reviewer story: ask, discover, separate, track, graph, review, and export.</p>
+        <p class="section-purpose">A compact path from question to structured claim-version-control outputs.</p>
         {_render_key_value_rows([
             ("Discovery mode", flow_summary.get("discovery_mode", "deterministic_fixture_discovery"), True),
             ("Network used", str(bool(flow_summary.get("network_used"))).lower(), not bool(flow_summary.get("network_used"))),
@@ -5151,7 +5124,6 @@ def render_guided_flow_html(flow_summary: dict[str, Any]) -> str:
             ("Normalized sources", flow_summary.get("normalized_source_count", 0), True),
         ])}
         {fallback_block}
-        {boundary_block}
         <section>
           <h4>Guided Story</h4>
           <div class="feature-list">{step_rows}</div>
@@ -5208,7 +5180,7 @@ def render_plain_summary_vs_sisyphus_html(
         "plain-vs-sisyphus",
         f"""
         <h3>Plain Summary vs Sisyphus Watch</h3>
-        <p class="section-purpose">The same source set can be compressed into a summary, or preserved as version-controlled claim analysis.</p>
+        <p class="section-purpose">A plain summary compresses the case; Sisyphus Watch preserves versioned structure.</p>
         <div class="report-columns">
           <section class="report-panel">
             <span class="eyebrow">Plain summary</span>
@@ -5219,7 +5191,7 @@ def render_plain_summary_vs_sisyphus_html(
           <section class="report-panel accent-panel">
             <span class="eyebrow">Sisyphus Watch</span>
             <h4>Version-controlled claim analysis</h4>
-            <p>Discovery mode: <code>{escape(discovery_mode)}</code>. The notebook keeps source hygiene, epistemic layers, version changes, graph relations, and agent handoff artifacts visible. Optional Google AI discovery candidates remain review inputs unless a reviewed live regeneration path is enabled.</p>
+            <p>Discovery mode: <code>{escape(discovery_mode)}</code>. The notebook keeps source hygiene, epistemic layers, version changes, graph relations, and agent handoff artifacts visible.</p>
             <ul>{sisyphus_list}</ul>
           </section>
         </div>
@@ -5256,6 +5228,152 @@ def render_agent_capability_strip_html() -> str:
         <h3>Agent Capability Strip</h3>
         <p class="section-purpose">Ask -> Discover -> Separate -> Track Drift -> Build Graph -> Review Patch -> Export Packets.</p>
         <div class="capability-strip">{rows}</div>
+        """,
+    )
+
+
+def render_product_brief_html(news_card: dict[str, Any] | None = None) -> str:
+    """Render the compact product explanation for the notebook opening."""
+    scenario_label = ""
+    if isinstance(news_card, dict) and news_card.get("scenario_name"):
+        scenario_label = f"<p class=\"muted\">Demo scenario: {escape(str(news_card.get('scenario_name')))}</p>"
+    helps = [
+        "official statements that evolve",
+        "public-interest incidents with late-arriving evidence",
+        "competing interpretations",
+        "safety or access claims that become narrowed, weakened, or complicated",
+        "downstream agents that need structured state instead of prose summaries",
+    ]
+    produces = [
+        "source-bound findings",
+        "actor claims",
+        "actions",
+        "interpretations",
+        "version timeline",
+        "claim drift",
+        "claim graph",
+        "evidence patch / revision preview",
+        "reviewer and agent packets",
+    ]
+    help_rows = "".join(
+        _render_feature_row(title, "Useful when public information shifts and the reasoning trail matters.")
+        for title in helps
+    )
+    produces_badges = _render_badges([(item, "accent") for item in produces])
+    return _wrap_html(
+        "product-brief",
+        f"""
+        <section class="intro-panel">
+          <div class="intro-copy">
+            <span class="eyebrow">Product Brief</span>
+            <h1>Sisyphus Watch</h1>
+            <p class="lede">A claim-version-control agent for public information that changes over time.</p>
+            <p>Sisyphus Watch prevents public claims, later evidence, interpretations, and current judgment from collapsing into one misleading summary.</p>
+            {scenario_label}
+          </div>
+        </section>
+        <section>
+          <h4>Where It Helps</h4>
+          <div class="feature-list compact">{help_rows}</div>
+        </section>
+        <section>
+          <h4>What It Produces</h4>
+          {produces_badges}
+        </section>
+        """,
+    )
+
+
+def render_review_map_html(
+    surface_model: dict[str, Any],
+    run_status: dict[str, Any] | None = None,
+    adk_manifest: dict[str, Any] | None = None,
+    mcp_manifest: dict[str, Any] | None = None,
+) -> str:
+    """Render the compact notebook review map and boundary overview."""
+    run_status = run_status or {}
+    core_state = surface_model.get("core_state", {}) if isinstance(surface_model, dict) else {}
+    review_order = [
+        "Problem",
+        "Discovery",
+        "Separation",
+        "Human Card",
+        "Timeline",
+        "Drift",
+        "Graph",
+        "Evidence Patch",
+        "Revision",
+        "Exports",
+    ]
+    interfaces = [
+        "agent packet",
+        "graph packet",
+        "reviewer packet",
+        "revision packet",
+        "surface model",
+        "MCP tools/resources",
+    ]
+    human_steps = "".join(f"<li>{escape(step)}</li>" for step in review_order)
+    agent_interfaces = "".join(f"<li>{escape(interface)}</li>" for interface in interfaces)
+    concept_badges = _render_badges(
+        [
+            ("Agent / ADK-style", "accent" if adk_manifest else ""),
+            ("MCP Server", "accent" if mcp_manifest else ""),
+            ("Security", "accent"),
+            ("Deployability", "accent"),
+        ]
+    )
+    default_badges = _render_badges(
+        [
+            ("deterministic", "accent"),
+            ("no API key", "accent"),
+            ("no network", "accent"),
+            ("stable snapshot", "accent"),
+        ]
+    )
+    optional_google = (
+        "Candidate-source discovery only; review-only; not canonical evidence; no card mutation."
+    )
+    return _wrap_html(
+        "review-map",
+        f"""
+        <h3>Review Map</h3>
+        <p class="section-purpose">Here is how to read the notebook. After this map, the demo flow shows the product.</p>
+        <div class="report-columns">
+          <section class="report-panel">
+            <span class="eyebrow">Human Review Workflow</span>
+            <h4>Read the case as a layered public-claim record.</h4>
+            <ol>{human_steps}</ol>
+          </section>
+          <section class="report-panel accent-panel">
+            <span class="eyebrow">Agent Contact Surface</span>
+            <h4>Use JSON/JSONL/MCP outputs as reusable structured state.</h4>
+            <ul>{agent_interfaces}</ul>
+          </section>
+        </div>
+        <section>
+          <h4>Default Kaggle Path</h4>
+          {default_badges}
+          {_render_key_value_rows([
+              ("RUN_GOOGLE_DISCOVERY", run_status.get("run_google_discovery", False), not bool(run_status.get("run_google_discovery"))),
+              ("RUN_LIVE_MODE", run_status.get("run_live_mode", False), not bool(run_status.get("run_live_mode"))),
+              ("Selected card", core_state.get("canonical_card_id", run_status.get("selected_card_id", "unknown")), True),
+              ("Scenario", core_state.get("scenario_id", run_status.get("selected_scenario_id", "unknown")), True),
+          ])}
+        </section>
+        <section>
+          <h4>Optional Google AI</h4>
+          <p class="callout">{escape(optional_google)}</p>
+        </section>
+        <section>
+          <h4>Course Concepts</h4>
+          {concept_badges}
+        </section>
+        <details class="id-details">
+          <summary>Two-Surface Architecture</summary>
+          <p><strong>Core State is shared.</strong> Human Review Workflow explains. Agent Contact Surface contracts.</p>
+          <p>Core state includes the canonical card, selected source records, evidence patch, claim graph, generated packets, and export artifacts.</p>
+        </details>
         """,
     )
 
@@ -5313,7 +5431,7 @@ def render_judge_quickstart_html(
             ("deterministic", "accent"),
             ("no API key", "accent"),
             ("no network", "accent"),
-            ("review-only Google AI candidates", "warn"),
+            ("stable snapshot", "accent"),
         ]
     )
     review_steps = [
@@ -5359,16 +5477,10 @@ def render_judge_quickstart_html(
           <h4>Course Concepts Covered</h4>
           <div class="feature-list compact">{concept_html}</div>
         </section>
-        <div class="report-columns">
-          <section>
-            <h4>Recommended Review Order</h4>
-            <ol>{review_order}</ol>
-          </section>
-          <section>
-            <h4>Review Boundary</h4>
-            <p class="callout">Google AI discovery candidates are review inputs, not canonical evidence or card mutations.</p>
-          </section>
-        </div>
+        <section>
+          <h4>Recommended Review Order</h4>
+          <ol>{review_order}</ol>
+        </section>
         """,
     )
 
@@ -5499,7 +5611,6 @@ def render_surface_model_html(surface_model: dict[str, Any]) -> str:
     core_state = surface_model.get("core_state", {}) if isinstance(surface_model, dict) else {}
     human = surface_model.get("human_review_workflow", {}) if isinstance(surface_model, dict) else {}
     agent = surface_model.get("agent_contact_surface", {}) if isinstance(surface_model, dict) else {}
-    optional = surface_model.get("optional_capabilities", {}) if isinstance(surface_model, dict) else {}
     boundary_rules = [str(item) for item in _as_list(surface_model.get("boundary_rules"))]
 
     core_rows = _render_key_value_rows(
@@ -5519,17 +5630,9 @@ def render_surface_model_html(surface_model: dict[str, Any]) -> str:
         ]
     )
 
-    def compact_list(values: Any, limit: int = 6) -> str:
+    def compact_list(values: Any) -> str:
         items = [str(item) for item in _as_list(values) if str(item).strip()]
-        visible = items[:limit]
-        visible_html = "".join(f"<li>{escape(item)}</li>" for item in visible)
-        if len(items) <= limit:
-            return f"<ul class=\"compact-list\">{visible_html}</ul>"
-        hidden_html = "".join(f"<li>{escape(item)}</li>" for item in items[limit:])
-        return (
-            f"<ul class=\"compact-list\">{visible_html}</ul>"
-            f"<details class=\"id-details\"><summary>{len(items) - limit} more</summary><ul>{hidden_html}</ul></details>"
-        )
+        return "<ul class=\"compact-list\">" + "".join(f"<li>{escape(item)}</li>" for item in items) + "</ul>"
 
     human_details = (
         "<p><strong>Consumes:</strong></p>"
@@ -5537,7 +5640,7 @@ def render_surface_model_html(surface_model: dict[str, Any]) -> str:
         + "<p><strong>Emits:</strong></p>"
         + compact_list(human.get("emits"))
         + "<p><strong>Sections:</strong></p>"
-        + compact_list(human.get("sections"), limit=8)
+        + compact_list(human.get("sections"))
     )
     agent_details = (
         "<p><strong>Consumes:</strong></p>"
@@ -5545,27 +5648,21 @@ def render_surface_model_html(surface_model: dict[str, Any]) -> str:
         + "<p><strong>Emits:</strong></p>"
         + compact_list(agent.get("emits"))
         + "<p><strong>Interfaces:</strong></p>"
-        + compact_list(agent.get("interfaces"), limit=8)
+        + compact_list(agent.get("interfaces"))
     )
-    boundary_html = "".join(
-        _render_feature_row(f"Boundary {index}", rule, badge="PASS")
-        for index, rule in enumerate(boundary_rules, start=1)
-    )
-    discovery_mode = optional.get("discovery_mode") or "deterministic_fixture_discovery"
+    boundary_html = "".join(f"<li>{escape(rule)}</li>" for rule in boundary_rules)
     return _wrap_html(
         "surface-model",
         f"""
         <h3>Two-Surface Architecture</h3>
-        <p class="section-purpose">Human workflow and agent contact surface are separate views over the same canonical state.</p>
+        <p class="section-purpose">Core State is shared. Human Review Workflow explains. Agent Contact Surface contracts.</p>
         {_render_badges([
             ("shared core state", "accent"),
             ("human UI explains", "accent"),
             ("agent surface contracts", "accent"),
-            ("discovery review-only", "warn"),
         ])}
         <section>
           <h4>Shared Core State</h4>
-          <p class="callout">Both surfaces read the same canonical card, source references, evidence patch, claim graph, generated packets, and export artifacts.</p>
           {core_rows}
         </section>
         <div class="report-columns">
@@ -5588,19 +5685,10 @@ def render_surface_model_html(surface_model: dict[str, Any]) -> str:
             </details>
           </section>
         </div>
-        <section>
-          <h4>Run Boundary</h4>
-          {_render_key_value_rows([
-              ("Discovery mode", discovery_mode, True),
-              ("Discovery candidates", optional.get("discovery_candidate_count", 0), True),
-              ("ADK agents listed", len(_as_list(optional.get("adk_agents"))), True),
-              ("MCP tools listed", len(_as_list(optional.get("mcp_tools"))), True),
-          ])}
-        </section>
-        <section>
-          <h4>Boundary Rules</h4>
-          <div class="feature-list compact">{boundary_html}</div>
-        </section>
+        <details class="id-details">
+          <summary>Boundary rules</summary>
+          <ul>{boundary_html}</ul>
+        </details>
         """,
     )
 
@@ -5821,7 +5909,7 @@ def render_course_concepts_html(
         "course-concepts",
         f"""
         <h3>Course Concepts Demonstrated</h3>
-        <p class="section-purpose">The deterministic notebook path demonstrates the rubric concepts without requiring optional ADK, FastMCP, Google AI, or live extraction packages.</p>
+        <p class="section-purpose">Four compact rubric signals remain visible; detailed manifests stay collapsed.</p>
         {_render_badges([
             ("Agent fallback available", "accent"),
             ("ADK optional", "accent"),
@@ -5829,8 +5917,8 @@ def render_course_concepts_html(
             ("FastMCP optional", "accent"),
             ("No default API key", "accent"),
         ])}
-        <div class="feature-list">{concept_rows}</div>
-        <details>
+        <div class="feature-list compact">{concept_rows}</div>
+        <details class="metadata-details">
           <summary>Capability manifest JSON</summary>
           <pre>{escape(json.dumps(manifest_summary, indent=2, ensure_ascii=False))}</pre>
         </details>
@@ -6593,8 +6681,7 @@ def render_epistemic_layers_html(news_card: dict[str, Any]) -> str:
         "epistemic-layers",
         f"""
         <h3>Epistemic Layer Separation</h3>
-        <p class="section-purpose">What to look for: Check that findings, claims, interpretations, and judgment stay separate.</p>
-        <p class="muted">This is not a truth oracle; later evidence changes claim and interpretation status rather than becoming final truth.</p>
+        <p class="section-purpose">Findings, actor claims, actions, interpretations, and judgment stay separate.</p>
         <div class="epistemic-grid">
           <section class="epistemic-lane findings">
             <h4>Findings</h4>
@@ -6899,7 +6986,7 @@ def render_card_html(news_card: dict[str, Any]) -> str:
             <span class="badge">{escape(news_card['image_prompt']['label'])}</span>
           </div>
         </section>
-        <p class="section-purpose">What to look for: Read the canonical card as a layered public-claim record.</p>
+        <p class="section-purpose">The canonical card turns messy public information into a readable layered record.</p>
         <section class="summary">
           <h3>3-line Summary</h3>
           <ol>{summary}</ol>
@@ -6977,7 +7064,7 @@ def render_version_timeline_html(news_card: dict[str, Any]) -> str:
         "version-timeline",
         f"""
         <h3>Version Timeline</h3>
-        <p class="section-purpose">What to look for: Watch how the public claim changes across versions.</p>
+        <p class="section-purpose">The timeline tracks how the public claim changes across versions.</p>
         <div class="timeline-list">{''.join(rendered_events)}</div>
         """,
     )
@@ -7022,7 +7109,7 @@ def render_claim_drift_html(news_card: dict[str, Any]) -> str:
         "claim-drift",
         f"""
         <h3>Claim Drift</h3>
-        <p class="section-purpose">What to look for: Inspect which claims strengthened, weakened, narrowed, or remain unresolved.</p>
+        <p class="section-purpose">Drift marks whether claims strengthened, weakened, narrowed, complicated, or remain unresolved.</p>
         <div class="drift-list">{''.join(rendered_drifts)}</div>
         """,
     )
@@ -7065,7 +7152,7 @@ def render_claim_graph_html(news_card: dict[str, Any]) -> str:
         "claim-graph",
         f"""
         <h3>Claim Graph</h3>
-        <p class="section-purpose">What to look for: Follow reusable evidence and claim relationships for downstream agents.</p>
+        <p class="section-purpose">The graph exposes reusable evidence and claim relationships.</p>
         <p>{escape(str(graph.get('graph_summary', '')))}</p>
         <div class="graph-metrics">
           <div class="summary-card ok"><span>Nodes</span><strong>{len(nodes)}</strong></div>
@@ -7341,8 +7428,7 @@ def render_revision_proposal_html(news_card: dict[str, Any], patch: dict[str, An
         "revision-proposal",
         f"""
         <h3>Evidence Update Simulation</h3>
-        <p class="section-purpose">What to look for: Review new evidence without mutating the canonical card.</p>
-        <p class="callout">The patch is reviewable evidence context. It does not mutate the canonical card, source IDs, timeline, drift entries, graph, or verdict.</p>
+        <p class="section-purpose">New evidence is reviewed as a non-mutating patch.</p>
         <div class="summary-grid">
           <div class="summary-card ok"><span>Patch</span><strong>{escape(str(patch.get('patch_type', 'patch')))}</strong></div>
           <div class="summary-card ok"><span>Source</span><strong>{escape(str(source.get('source_type', 'source')))}</strong></div>
@@ -7473,11 +7559,7 @@ def render_revision_comparison_html(news_card: dict[str, Any], patch: dict[str, 
         "revision-comparison",
         f"""
         <h3>Revision Comparison View</h3>
-        <p class="section-purpose">What to look for: Compare what would change, what remains stable, and what stays uncertain.</p>
-        <details class="id-details">
-          <summary>Non-mutation boundary</summary>
-          <p>{escape(str(comparison.get('non_mutation_notice', 'This comparison does not mutate the canonical card.')))}</p>
-        </details>
+        <p class="section-purpose">The revision preview shows what would change and what remains uncertain.</p>
         <div class="summary-grid">
           <div class="summary-card ok"><span>Comparison</span><strong>{escape(str(comparison.get('comparison_version', '1.0')))}</strong></div>
           <div class="summary-card ok"><span>Claims</span><strong>{len(_as_list(comparison.get('affected_claim_comparisons')))}</strong></div>
