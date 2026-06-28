@@ -25,6 +25,7 @@ from sisyphus_watch_demo import (  # noqa: E402
     build_guided_flow_summary,
     build_surface_model,
     build_user_problem_packet,
+    compare_canonical_state,
     filter_sources_for_card,
     get_evidence_patch_for_scenario,
     load_demo_sources,
@@ -39,6 +40,8 @@ from sisyphus_watch_demo import (  # noqa: E402
     render_course_concepts_html,
     render_evaluation_summary_html,
     render_export_artifacts_overview_html,
+    render_google_ai_exploration_html,
+    render_google_ai_live_check_html,
     render_guided_flow_html,
     render_judge_quickstart_html,
     render_plain_summary_vs_sisyphus_html,
@@ -52,6 +55,7 @@ from sisyphus_watch_demo import (  # noqa: E402
     render_what_changed_html,
     run_quality_checks,
     select_news_card,
+    snapshot_canonical_state,
     write_export_artifacts,
 )
 from sisyphus_watch_mcp_server import (  # noqa: E402
@@ -226,8 +230,105 @@ def main() -> int:
     checks = run_quality_checks(selected_card)
     assert checks
     assert all(row.get("status") == "PASS" for row in checks)
+    canonical_state = snapshot_canonical_state(selected_card)
+    canonical_comparison = compare_canonical_state(canonical_state, snapshot_canonical_state(selected_card))
+    assert canonical_comparison["status"] == "PASS"
+    assert canonical_comparison["canonical_mutation"] is False
+    fake_api_key = "fake-google-api-key-that-must-not-render"
+    fake_discovery_packet = {
+        "mode": "google_ai_discovery",
+        "query_or_problem": "What public claim changed over time?",
+        "scenario_id": SCENARIO_ID,
+        "network_used": True,
+        "api_used": True,
+        "api_key_lookup_performed": True,
+        "source_count": 1,
+        "candidate_sources": [
+            {
+                "source_id": "src_google_ai_candidate_review_only_001",
+                "title": "Review-only candidate source",
+                "url": "https://example.com/review-only-candidate",
+                "source_type": "discovery_candidate",
+                "published_at": "2024-01-01T00:00:00Z",
+                "snippet": "Candidate summary for reviewer inspection only.",
+                "why_selected": "Useful candidate for Sisyphus intake preview.",
+                "trust_or_limit_note": "Must be reviewed before use as evidence.",
+            }
+        ],
+        "coverage_limits": [
+            "Review-only candidates do not mutate canonical cards.",
+        ],
+    }
+    skipped_exploration_html = render_google_ai_exploration_html(
+        None,
+        enabled=False,
+        api_key_available=False,
+    )
+    no_key_exploration_html = render_google_ai_exploration_html(
+        None,
+        enabled=True,
+        api_key_available=False,
+        reason="GOOGLE_API_KEY was not available; no Google AI call was made.",
+    )
+    fake_exploration_html = render_google_ai_exploration_html(
+        fake_discovery_packet,
+        enabled=True,
+        api_key_available=True,
+    )
+    live_pass_html = render_google_ai_live_check_html(
+        {
+            "enabled": True,
+            "status": "PASS",
+            "reason": "API Boundary Check passed; canonical demo cards are not mutated.",
+            "api_used": True,
+            "candidate_count": 1,
+            "canonical_comparison": canonical_comparison,
+            "canonical_mutation": False,
+            "quality_checks_pass": True,
+            "secret_leak_check_pass": True,
+            "checks": [
+                {
+                    "label": "Candidates are review-only / non-canonical",
+                    "status": "PASS",
+                    "summary": "review-only candidates do not overlap canonical source_ids.",
+                }
+            ],
+        }
+    )
+    mutated_state = dict(canonical_state)
+    mutated_state["claim_drift_count"] = canonical_state["claim_drift_count"] + 1
+    live_fail_html = render_google_ai_live_check_html(
+        {
+            "enabled": True,
+            "status": "FAIL",
+            "reason": "API Boundary Check found an invariant failure.",
+            "api_used": True,
+            "candidate_count": 1,
+            "canonical_comparison": compare_canonical_state(canonical_state, mutated_state),
+            "canonical_mutation": True,
+            "quality_checks_pass": True,
+            "secret_leak_check_pass": True,
+            "checks": [],
+        }
+    )
+    google_ai_html_outputs = [
+        skipped_exploration_html,
+        no_key_exploration_html,
+        fake_exploration_html,
+        live_pass_html,
+        live_fail_html,
+    ]
+    assert all(isinstance(output, str) and output.strip() for output in google_ai_html_outputs)
+    google_ai_html = "\n".join(google_ai_html_outputs)
+    assert "canonical demo cards are not mutated" in google_ai_html
+    assert "review-only" in google_ai_html
+    assert "GOOGLE_API_KEY was not available" in no_key_exploration_html
+    assert "FAIL" in live_fail_html
+    assert fake_api_key not in google_ai_html
     run_status = {
         "run_google_discovery": False,
+        "run_google_ai_exploration": False,
+        "run_google_ai_live_check": False,
         "run_live_mode": False,
         "discovery_mode": discovery_packet.get("mode"),
         "record_mode": records.get("mode", "demo"),
@@ -243,6 +344,8 @@ def main() -> int:
         render_case_hook_html(selected_card, discovery_packet, surface_model),
         render_case_source_links_html(selected_sources),
         render_what_changed_html(selected_card),
+        fake_exploration_html,
+        live_pass_html,
         render_product_brief_html(selected_card),
         render_review_map_html(
             surface_model,

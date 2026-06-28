@@ -66,7 +66,7 @@ Boundary:
 
 - Human UI is for explanation.
 - JSON/JSONL/MCP are for agent reuse.
-- Optional Google AI discovery candidates are review inputs, not canonical evidence.
+- API candidates are review-only until accepted.
 - Evidence patches remain non-mutating until reviewed.
 
 ## Course Concepts Demonstrated
@@ -75,14 +75,14 @@ Sisyphus Watch explicitly demonstrates these Kaggle Agents capstone concepts:
 
 - **Agent / Multi-agent system / ADK - Code:** `src/sisyphus_watch_adk_demo.py` models the workflow as DiscoveryAgent, EpistemicSeparationAgent, RevisionHandoffAgent, and SisyphusOrchestratorAgent. It detects Google ADK when available and otherwise runs the same deterministic fallback sequence.
 - **MCP Server - Code:** `src/sisyphus_watch_mcp_server.py` exposes deterministic Sisyphus cards, agent packets, claim graphs, guided flows, and security notes as MCP-style tools/resources, with a fallback manifest when `mcp` is not installed.
-- **Security features - Code / Notebook:** API-key resolution is explicit and optional, source text is treated as untrusted input, generated image prompts are not evidence, live paths validate/fallback, and optional Google AI discovery candidates cannot mutate the canonical card in the default path.
+- **Security features - Code / Notebook:** API-key resolution is explicit and optional, source text is treated as untrusted input, generated image prompts are not evidence, live paths validate/fallback, and API candidates cannot mutate canonical demo cards in the default path.
 - **Deployability - README / Notebook / Video:** The notebook runs deterministically in Kaggle with attached `data/`, `src/`, `schemas/`, and `examples/` folders, exports artifacts to `/kaggle/working`, and can be shown from the public GitHub repo if no live endpoint is deployed.
 
 ## Agent / ADK-Style Architecture
 
 `src/sisyphus_watch_adk_demo.py` demonstrates a small orchestrated agent system:
 
-- **DiscoveryAgent:** loads deterministic source discovery, or can represent an optional Google AI discovery packet when that path is enabled elsewhere.
+- **DiscoveryAgent:** loads deterministic source discovery, or can represent a Google AI discovery packet when Real API Operation is enabled.
 - **EpistemicSeparationAgent:** summarizes source-bound findings, actor claims, actions, interpretations, counter-branches, and current source-bound judgment.
 - **RevisionHandoffAgent:** packages claim graph context, evidence patch context, and reviewer/agent handoff artifacts.
 - **SisyphusOrchestratorAgent:** runs the sequence and returns a structured trace with steps, output counts, security notes, deployability notes, and reusable artifacts.
@@ -138,7 +138,7 @@ Default Kaggle execution remains deterministic, no-key, and no-network. Attach t
 - `schemas/`
 - `examples/`
 
-Optional Google AI discovery can use `GOOGLE_API_KEY` from Kaggle Notebook Secrets, but `RUN_GOOGLE_DISCOVERY = False` and `RUN_LIVE_MODE = False` remain the default reviewer path.
+Real API Operation with Google AI and API Boundary Check can use `GOOGLE_API_KEY` from Kaggle Notebook Secrets, but `RUN_GOOGLE_AI_EXPLORATION = False`, `RUN_GOOGLE_AI_LIVE_CHECK = False`, and `RUN_LIVE_MODE = False` remain the default run.
 
 ## Real-Case Selector
 
@@ -148,7 +148,7 @@ The notebook includes three deterministic public-source snapshots:
 - CrowdStrike Windows outage / Falcon content update
 - Voyager 1 data recovery
 
-Starliner is the default. Change `SCENARIO_ID` to choose another case. These are frozen public-source snapshots for reproducible Kaggle judging, not live verification. Source links are shown in the notebook, while canonical cards use deterministic source-bound snapshot text. Optional Google AI discovery can refresh candidate sources, but it remains review-only and does not mutate canonical cards.
+Starliner is the default. Change `SCENARIO_ID` to choose another case. These are prepared public-source snapshots, not live verification. Source links are shown in the notebook, while canonical cards use deterministic source-bound snapshot text. Real API Operation with Google AI can return candidate sources for Sisyphus intake. Candidate sources are review-only until accepted.
 
 ## Kaggle Notebook Story Demo
 
@@ -166,7 +166,7 @@ Review path:
 8. Confirm Submission Readiness.
 9. Inspect Course Concepts / Technical Appendix.
 
-The default path is deterministic, no-key, and no-network. Synthetic scenarios remain available. Optional Google AI discovery remains review-only, and JSON/JSONL/MCP are the agent contact surface.
+The default path is deterministic, no-key, and no-network. Synthetic scenarios remain available. API candidates are review-only until accepted, and JSON/JSONL/MCP are the agent contact surface.
 
 Local smoke commands:
 
@@ -302,7 +302,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The notebook opens with a compact case selector and Starliner selected by default, then follows the story path: Case Hook, Plain Summary vs Claim-Version Control, What Changed, Source Links, Sisyphus Separation, Timeline, Drift, Graph, Evidence Patch / Revision Preview, Agent Contact Surface, and Submission Readiness. Course concepts, discovery details, two-surface architecture, run status, and dataset version sync appear later. In the default Kaggle path, the canonical Sisyphus card comes from deterministic records selected by `SCENARIO_ID`; optional Google AI discovery candidates do not become canonical evidence or mutate the card unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled.
+The notebook opens with a compact case selector and Starliner selected by default, then follows the story path: Case Hook, Plain Summary vs Claim-Version Control, What Changed, Source Links, Sisyphus Separation, Timeline, Drift, Graph, Evidence Patch / Revision Preview, Agent Contact Surface, and Submission Readiness. Course concepts, discovery details, two-surface architecture, run status, and dataset version sync appear later. In the default Kaggle path, the canonical Sisyphus card comes from deterministic records selected by `SCENARIO_ID`; API candidates are review-only until accepted.
 
 To switch scenarios in the notebook, change:
 
@@ -330,9 +330,9 @@ SCENARIO_ID = "public_transit_delay_communication"
 SCENARIO_ID = "school_air_quality_alert_communication"
 ```
 
-## Kaggle Review Path
+## Notebook Review Path
 
-The notebook is organized as a selected-case story demo for Kaggle review. It is designed as a clean analytical briefing, not a fragile dashboard: raw JSON is collapsed in details blocks, candidate sources and long IDs are clipped or wrapped for readability, and the default reviewer path remains deterministic, no-key, and no-network.
+The notebook is organized as a selected-case Demo Showcase. It is designed as a clean analytical briefing: raw JSON is collapsed in details blocks, candidate sources and long IDs are clipped or wrapped for readability, and the default run remains deterministic, no-key, and no-network.
 
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
 2. Choose or keep the selected case.
@@ -347,7 +347,7 @@ The notebook is organized as a selected-case story demo for Kaggle review. It is
 
 The human workflow is for understanding. The agent contact surface is for reuse. Core state is shared across both surfaces.
 
-Default Kaggle evaluation remains deterministic and does not require an API key or network access. It uses deterministic source discovery plus deterministic Sisyphus card processing.
+Default notebook execution remains deterministic and does not require an API key or network access. It uses deterministic source discovery plus deterministic Sisyphus card processing.
 
 If the setup cell fails, re-upload the matching Kaggle dataset version and restart the kernel before running the notebook again.
 
@@ -367,13 +367,29 @@ Checklist:
 6. Run the version/symbol guard cell.
 7. Run all.
 
-Optional Google AI discovery can be enabled in the notebook with:
+## Real API Operation with Google AI
+
+Real API Operation lets you inspect news or public issues you care about with Google AI discovery.
+
+API results become candidate sources for Sisyphus intake. Candidate sources are review-only until accepted.
+
+To explore candidate sources:
 
 ```python
-RUN_GOOGLE_DISCOVERY = True
+RUN_GOOGLE_AI_EXPLORATION = True
 ```
 
-This optional path is a candidate-source discovery panel for reviewer inspection. Unless `RUN_LIVE_MODE` or a future reviewed source-to-card regeneration path is enabled, Google AI discovery candidates are not canonical evidence and do not mutate the canonical Sisyphus card.
+## API Boundary Check
+
+API Boundary Check verifies API candidates are review-only and canonical demo cards are not mutated.
+
+To run the invariant check:
+
+```python
+RUN_GOOGLE_AI_LIVE_CHECK = True
+```
+
+Both paths are opt-in. If no key is available, the notebook renders a clear SKIP panel and continues. API key is never printed, logged, stored, or exported. Default run still works without an API key.
 
 When enabled, `resolve_google_api_key()` supports the Kaggle Notebook Secrets pattern:
 
@@ -383,7 +399,7 @@ user_secrets = UserSecretsClient()
 secret_value_0 = user_secrets.get_secret("GOOGLE_API_KEY")
 ```
 
-If the secret is absent, the optional SDK is unavailable, the API call fails, parsing fails, or validation fails, the notebook safely falls back to deterministic source discovery. The API key is never printed, logged, exported, or stored.
+If the secret is absent, the optional SDK is unavailable, the API call fails, parsing fails, or validation fails, the notebook safely renders SKIP/fallback status and keeps the deterministic canonical card unchanged.
 
 For a cleaner Kaggle dataset package, exclude `.git`, `__pycache__`, and notebook checkpoint folders.
 
@@ -395,7 +411,7 @@ Demo mode loads:
 - `data/precomputed_records.json`
 - `data/evidence_patches.json` for the optional evidence update simulation
 
-It always works without secrets, network access, or optional model packages. This is the intended Kaggle evaluation path. The deterministic record set includes three public-source snapshots plus three synthetic secondary cards:
+It always works without secrets, network access, or optional model packages. This is the default Kaggle run. The deterministic record set includes three public-source snapshots plus three synthetic secondary cards:
 
 - `starliner_crew_return_decision`
 - `crowdstrike_windows_outage_2024`
@@ -443,7 +459,7 @@ To try it:
 
 Live mode treats source text as untrusted data, asks for JSON only, and normalizes the response into the same schema. If the key is missing, the package is unavailable, parsing fails, validation fails, or the API call fails, the notebook falls back to deterministic demo records. It never prints or stores the API key.
 
-The same resolver is used by optional Google AI discovery and optional Gemini live extraction. It checks an explicit argument first, then Kaggle Notebook Secrets with `UserSecretsClient().get_secret("GOOGLE_API_KEY")`, then `os.environ.get("GOOGLE_API_KEY")`.
+The same resolver is used by Real API Operation with Google AI and optional Gemini live extraction. It checks an explicit argument first, then Kaggle Notebook Secrets with `UserSecretsClient().get_secret("GOOGLE_API_KEY")`, then `os.environ.get("GOOGLE_API_KEY")`.
 
 ## Claim Graph v0.4
 
@@ -565,7 +581,7 @@ The notebook uses dependency-free Python validation from `src/sisyphus_watch_dem
 - Strategic intent remains uncertain unless directly evidenced.
 - Bias is labeled for review, not magically removed.
 - Generated image prompts are visual summaries, not evidence.
-- Frozen public-source snapshots and synthetic demo fixtures are used for safe, reproducible Kaggle evaluation.
+- Prepared public-source snapshots and synthetic demo fixtures keep the default demo deterministic.
 - No live web ingestion, crawler, database, login, recommender, MCP server, or production news platform is implemented.
 
 ## Next Steps
