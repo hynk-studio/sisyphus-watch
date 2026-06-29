@@ -43,12 +43,15 @@ news_card / source_records / evidence_patch / claim_graph / packets
 
 **Human Review Workflow**
 
-- Judge Quickstart
-- Guided Flow
-- Human Card
+- Demo Showcase
+- Plain Summary vs Sisyphus
+- What Changed
 - Timeline / Drift / Graph
-- Revision Comparison
+- Revision Preview
+- Agent Contact Surface
 - Submission Readiness
+- Real API Operation with Google AI
+- Technical Appendix
 
 **Agent Contact Surface**
 
@@ -138,7 +141,7 @@ Default Kaggle execution remains deterministic, no-key, and no-network. Attach t
 - `schemas/`
 - `examples/`
 
-Real API Operation with Google AI and API Boundary Check can use `GOOGLE_API_KEY` from Kaggle Notebook Secrets, but `RUN_GOOGLE_AI_EXPLORATION = False`, `RUN_GOOGLE_AI_LIVE_CHECK = False`, and `RUN_LIVE_MODE = False` remain the default run.
+Real API Operation with Google AI can use `GOOGLE_API_KEY` from Kaggle Notebook Secrets, but `RUN_GOOGLE_AI_EXPLORATION = False`, `RUN_GOOGLE_AI_LIVE_CHECK = False`, and `RUN_LIVE_MODE = False` remain the default run.
 
 ## Real-Case Selector
 
@@ -148,7 +151,7 @@ The notebook includes three deterministic public-source snapshots:
 - CrowdStrike Windows outage / Falcon content update
 - Voyager 1 data recovery
 
-Starliner is the default. Change `SCENARIO_ID` to choose another case. These are prepared public-source snapshots, not live verification. Source links are shown in the notebook, while canonical cards use deterministic source-bound snapshot text. Real API Operation with Google AI can return candidate sources for Sisyphus intake. Candidate sources are review-only until accepted.
+Starliner is the default. Change `SCENARIO_ID` to choose another case. These are prepared public-source snapshots, not live verification. Source links are collapsed inside Demo Showcase, while canonical cards use deterministic source-bound snapshot text. Real API Operation with Google AI can return candidate sources for Sisyphus intake. Candidate sources are review-only until accepted.
 
 ## Kaggle Notebook Story Demo
 
@@ -157,14 +160,15 @@ The notebook is organized around a selected real-case story. It shows how a publ
 Review path:
 
 1. Choose or keep the selected case.
-2. Read the case hook.
-3. Compare plain summary vs Sisyphus.
-4. Inspect What Changed and Source Links.
-5. Follow Separation, Timeline, Drift, and Graph.
+2. Read Demo Showcase.
+3. Compare Plain Summary vs Sisyphus.
+4. Inspect What Changed.
+5. Follow Timeline / Drift / Graph.
 6. Inspect Revision Preview.
 7. Inspect Agent Contact Surface.
 8. Confirm Submission Readiness.
-9. Inspect Course Concepts / Technical Appendix.
+9. Inspect Real API Operation with Google AI.
+10. Open Technical Appendix only when needed.
 
 The default path is deterministic, no-key, and no-network. Synthetic scenarios remain available. API candidates are review-only until accepted, and JSON/JSONL/MCP are the agent contact surface.
 
@@ -302,7 +306,7 @@ The notebook defaults to demo mode and requires no API key.
 
 The notebook searches for the project root in the current working directory, parent folders, `/kaggle/working`, and `/kaggle/input/**/src/sisyphus_watch_demo.py`.
 
-The notebook opens with a compact case selector and Starliner selected by default, then follows the story path: Case Hook, Plain Summary vs Claim-Version Control, What Changed, Source Links, Sisyphus Separation, Timeline, Drift, Graph, Evidence Patch / Revision Preview, Agent Contact Surface, and Submission Readiness. Course concepts, discovery details, two-surface architecture, run status, and dataset version sync appear later. In the default Kaggle path, the canonical Sisyphus card comes from deterministic records selected by `SCENARIO_ID`; API candidates are review-only until accepted.
+The notebook opens with Demo Showcase and Starliner selected by default, then follows the story path: Plain Summary vs Sisyphus, What Changed, Timeline / Drift / Graph, Revision Preview, Agent Contact Surface, Submission Readiness, Real API Operation with Google AI, and Technical Appendix. Source links stay inside Demo Showcase. Course concepts, discovery details, two-surface architecture, run status, and dataset version sync stay collapsed in Technical Appendix. In the default Kaggle path, the canonical Sisyphus card comes from deterministic records selected by `SCENARIO_ID`; API candidates are review-only until accepted.
 
 To switch scenarios in the notebook, change:
 
@@ -336,14 +340,14 @@ The notebook is organized as a selected-case Demo Showcase. It is designed as a 
 
 1. Attach the full repository folder as a Kaggle dataset/input, or use the notebook created from that dataset input.
 2. Choose or keep the selected case.
-3. Read **Case Hook**.
-4. Compare **Plain Summary vs Claim-Version Control**.
-5. Inspect **What Changed** and **Source Links**.
-6. Follow **Sisyphus Separation**, **Claim Timeline**, **Claim Drift**, and **Claim Graph**.
-7. Inspect **Evidence Patch / Revision Preview**.
+3. Read **Demo Showcase**.
+4. Compare **Plain Summary vs Sisyphus**.
+5. Inspect **What Changed**.
+6. Follow **Timeline / Drift / Graph**.
+7. Inspect **Revision Preview**.
 8. Inspect **Agent Contact Surface** and reuse JSON/JSONL/MCP artifacts.
 9. Confirm **Submission Readiness**.
-10. Inspect **Course Concepts / Technical Appendix**.
+10. Inspect **Real API Operation with Google AI** and **Technical Appendix** as needed.
 
 The human workflow is for understanding. The agent contact surface is for reuse. Core state is shared across both surfaces.
 
@@ -379,9 +383,7 @@ To explore candidate sources:
 RUN_GOOGLE_AI_EXPLORATION = True
 ```
 
-## API Boundary Check
-
-API Boundary Check verifies API candidates are review-only and canonical demo cards are not mutated.
+The API Boundary Check is rendered inside Real API Operation with Google AI. It verifies API candidates are review-only and canonical demo cards are not mutated.
 
 To run the invariant check:
 
