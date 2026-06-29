@@ -2742,43 +2742,37 @@ def render_case_source_links_html(selected_source_records: list[dict[str, Any]])
             continue
         url = str(source.get("url") or "")
         link = (
-            f'<a href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">open source</a>'
+            f'<a href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">{escape(url)}</a>'
             if url.startswith("https://")
             else "<span class=\"muted\">deterministic fixture</span>"
         )
         rows.append(
             f"""
-            <article class="source-row">
+            <li class="source-row">
               <div class="timeline-topline">
                 {_render_badges([(_snapshot_label(source), "accent")])}
-                <code>{escape(str(source.get("source_id", "source")))}</code>
               </div>
               <h4>{escape(str(source.get("title", "Untitled source")))}</h4>
-              {_render_key_value_rows([
-                  ("Actor/source", f"{source.get('actor', 'unknown')} · {source.get('source_type', 'source')}", True),
-                  ("URL", "https source" if url.startswith("https://") else "fixture source", url.startswith("https://") or source.get("is_synthetic_demo_fixture") is True),
-              ])}
               <p>{link}</p>
-              <p class="muted"><strong>Reliability:</strong> {escape(_clip_text(source.get("reliability_note", ""), 160))}</p>
-              <p class="muted"><strong>Limitations:</strong> {escape(_clip_text(source.get("limitations", ""), 160))}</p>
-            </article>
+            </li>
             """
         )
     if not rows:
         rows.append(
             """
-            <article class="source-row">
+            <li class="source-row">
               <h4>No selected source records</h4>
               <p class="muted">The selected scenario did not match loaded source records.</p>
-            </article>
+            </li>
             """
         )
     return _wrap_html(
         "case-source-links",
         f"""
-        <h3>Source Links</h3>
-        <p class="section-purpose">Public links are shown for human review; the canonical card uses deterministic source-bound snapshot text.</p>
-        <div class="source-list-vertical">{''.join(rows)}</div>
+        <details class="id-details">
+          <summary>Source links</summary>
+          <ul class="source-list-vertical">{''.join(rows)}</ul>
+        </details>
         """,
     )
 
@@ -3267,8 +3261,8 @@ def render_google_ai_live_check_html(result: dict[str, Any]) -> str:
     return _wrap_html(
         "google-ai-live-check",
         f"""
-        <h3>API Boundary Check</h3>
-        <p class="section-purpose">API Boundary Check confirms candidate sources are review-only until accepted.</p>
+        <h4>API Boundary Check</h4>
+        <p class="section-purpose">Candidate sources are review-only until accepted.</p>
         {_render_badges([
             (status, "accent" if status == "PASS" else "warn"),
             ("review-only", "warn"),
@@ -5774,7 +5768,7 @@ def render_plain_summary_vs_sisyphus_html(
     return _wrap_html(
         "plain-vs-sisyphus",
         f"""
-        <h3>Plain Summary vs Claim-Version Control</h3>
+        <h3>Plain Summary vs Sisyphus</h3>
         <p class="section-purpose">A plain summary compresses the case; Sisyphus preserves the changing claim structure.</p>
         <div class="report-columns">
           <section class="report-panel">
