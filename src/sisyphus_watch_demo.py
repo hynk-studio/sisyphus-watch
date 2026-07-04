@@ -2675,7 +2675,7 @@ def render_case_selector_html(options: list[dict[str, Any]], selected_scenario_i
         scenario_id = str(option.get("scenario_id", "unknown_scenario"))
         selected = scenario_id == selected_scenario_id
         panel_class = "source-row accent-panel" if selected else "source-row"
-        status = ("selected", "accent") if selected else ("available", "warn")
+        status = ("selected case", "accent") if selected else ("available case", "")
         return f"""
         <article class="{panel_class}">
           <div class="timeline-topline">
@@ -2684,7 +2684,6 @@ def render_case_selector_html(options: list[dict[str, Any]], selected_scenario_i
           </div>
           <h4>{escape(str(option.get("title", scenario_id)))}</h4>
           <p>{escape(_clip_text(option.get("one_line_hook", ""), 180))}</p>
-          <p class="muted"><strong>Why this case matters:</strong> {escape(_clip_text(option.get("why_it_matters", ""), 180))}</p>
           {_render_key_value_rows([
               ("SCENARIO_ID", scenario_id, selected),
               ("Sources", option.get("source_count", 0), bool(option.get("source_count"))),
@@ -2719,12 +2718,25 @@ def render_case_selector_html(options: list[dict[str, Any]], selected_scenario_i
     return _wrap_html(
         "case-selector",
         f"""
-        <h3>Choose a Case to Unfold</h3>
-        <p class="section-purpose">Change <code>SCENARIO_ID</code> in the config cell to select one deterministic public-story snapshot.</p>
+        <section class="intro-panel">
+          <div class="intro-copy">
+            <div class="eyebrow">Kaggle Notebook Demo</div>
+            <h1>Sisyphus Watch</h1>
+            <p class="lede">Public stories change; summaries forget; Sisyphus tracks claim versions.</p>
+            {_render_badges([
+                ("Default case: Starliner", "accent"),
+                "Other prepared cases: CrowdStrike, Voyager 1",
+                ("Default run: deterministic / no key / no network", "accent"),
+                "Real API path: Google AI candidate-source intake",
+            ])}
+          </div>
+        </section>
+        <h3>Prepared Cases</h3>
+        <p class="section-purpose">Run all uses <code>SCENARIO_ID</code>. To inspect another case, change <code>SCENARIO_ID</code> in the config cell and rerun.</p>
         {_render_badges([
-            ("3 real-case snapshots", "accent"),
-            ("no network required", "accent"),
-            ("canonical cards are frozen", "warn"),
+            ("selected case highlighted", "accent"),
+            ("source counts included", "accent"),
+            "display-only selector",
         ])}
         <section>
           <div class="source-list-vertical">{real_rows}</div>
@@ -8414,12 +8426,13 @@ def _wrap_html(class_name: str, body: str) -> str:
         border: 1px solid #d7e1dc;
         border-radius: 8px;
         background: #fbfcfa;
-        padding: 18px;
+        width: min(100%, 1120px);
+        padding: 16px;
         margin: 16px 0;
         box-shadow: 0 1px 5px rgba(23, 33, 31, 0.06);
       }}
       .sisyphus-block section {{
-        margin-top: 18px;
+        margin-top: 16px;
       }}
       .sisyphus-block h1, .sisyphus-block h2, .sisyphus-block h3, .sisyphus-block h4, .sisyphus-block h5 {{
         color: #10231f;
@@ -8446,6 +8459,11 @@ def _wrap_html(class_name: str, body: str) -> str:
       .sisyphus-block p {{
         margin: 7px 0;
       }}
+      .sisyphus-block a {{
+        color: #155f50;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }}
       .sisyphus-block ul, .sisyphus-block ol {{
         margin: 7px 0 0;
         padding-left: 22px;
@@ -8454,10 +8472,12 @@ def _wrap_html(class_name: str, body: str) -> str:
         margin-top: 4px;
       }}
       .sisyphus-block .section-purpose {{
-        margin: -2px 0 14px;
+        margin: 0 0 12px;
+        padding-left: 10px;
+        border-left: 3px solid #d7e1dc;
         color: #384b46;
-        font-size: 14px;
-        line-height: 1.55;
+        font-size: 13px;
+        line-height: 1.5;
       }}
       .sisyphus-block .lede-small {{
         color: #243b35;
@@ -8480,14 +8500,14 @@ def _wrap_html(class_name: str, body: str) -> str:
       .sisyphus-block .intro-panel, .sisyphus-block .card-header {{
         display: flex;
         flex-wrap: wrap;
-        gap: 16px;
+        gap: 14px;
         align-items: stretch;
         background: #ffffff;
         color: #17211f;
         border: 1px solid #d7e1dc;
         border-top: 4px solid #1d6b5a;
         border-radius: 8px;
-        padding: 18px;
+        padding: 16px;
         box-shadow: 0 1px 5px rgba(23, 33, 31, 0.05);
       }}
       .sisyphus-block .intro-copy, .sisyphus-block .comparison-card {{
@@ -8495,14 +8515,14 @@ def _wrap_html(class_name: str, body: str) -> str:
         min-width: 0;
       }}
       .sisyphus-block .intro-panel h1, .sisyphus-block .card-header h2 {{
-        margin: 8px 0 10px;
-        font-size: 30px;
-        line-height: 1.12;
+        margin: 7px 0 9px;
+        font-size: 25px;
+        line-height: 1.15;
         font-weight: 900;
       }}
       .sisyphus-block .lede {{
         color: #253b36;
-        font-size: 17px;
+        font-size: 16px;
         font-weight: 650;
         line-height: 1.45;
         margin: 0 0 14px;
@@ -8515,7 +8535,7 @@ def _wrap_html(class_name: str, body: str) -> str:
         border: 1px solid #d7e1dc;
         border-radius: 8px;
         background: #ffffff;
-        padding: 12px;
+        padding: 13px;
         box-shadow: 0 1px 3px rgba(23, 33, 31, 0.04);
       }}
       .sisyphus-block .accent-panel {{
@@ -8550,12 +8570,14 @@ def _wrap_html(class_name: str, body: str) -> str:
       .sisyphus-block .version-pill, .sisyphus-block .direction-badge, .sisyphus-block .verdict-badge {{
         display: inline-flex;
         align-items: center;
+        min-height: 24px;
         border: 1px solid transparent;
         border-radius: 999px;
-        padding: 4px 9px;
+        padding: 4px 8px;
         font-size: 12px;
         font-weight: 800;
         line-height: 1.25;
+        max-width: 100%;
       }}
       .sisyphus-block .badge, .sisyphus-block .mini {{
         border-color: #c9d9d2;
@@ -8626,6 +8648,8 @@ def _wrap_html(class_name: str, body: str) -> str:
         flex: 1 1 14rem;
         color: #10231f;
         font-size: 14px;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }}
       .sisyphus-block .file-row p, .sisyphus-block .check-row p {{
         flex: 1 1 18rem;
@@ -8713,6 +8737,8 @@ def _wrap_html(class_name: str, body: str) -> str:
         padding: 2px 5px;
         font-size: 12px;
         white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }}
       .sisyphus-block pre {{
         white-space: pre-wrap;
