@@ -1,5 +1,10 @@
 "use client";
 
+import { useState, type FormEvent } from "react";
+import type {
+  AnalysisRoutePayload,
+  AnalysisRunPacket,
+} from "../lib/analysis/contracts";
 import type { PreparedCaseReadModel } from "../lib/contracts";
 
 export function CaseExplorer({
@@ -7,6 +12,43 @@ export function CaseExplorer({
 }: {
   preparedCase: PreparedCaseReadModel;
 }) {
+  const [question, setQuestion] = useState("");
+  const [sourceLimit, setSourceLimit] = useState(5);
+  const [run, setRun] = useState<AnalysisRunPacket | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  async function submitAnalysis(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/analysis", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question, sourceLimit }),
+      });
+      const payload = (await response.json()) as AnalysisRoutePayload;
+      if (payload.status === "error") {
+        setRun(null);
+        setError(payload.error.message);
+        return;
+      }
+      if (!response.ok) {
+        setRun(null);
+        setError("The bounded analysis request did not complete.");
+        return;
+      }
+      setRun(payload);
+    } catch {
+      setRun(null);
+      setError("The same-Site analysis route is unavailable.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <main className="site-shell">
       <p className="eyebrow">Source-bound public reasoning</p>
@@ -14,10 +56,61 @@ export function CaseExplorer({
       <p className="lede">{preparedCase.problem_statement}</p>
 
       <div className="status-row" aria-label="Prepared case runtime status">
-        <span className="status-pill">Deterministic fixture</span>
-        <span className="status-pill">No API key</span>
-        <span className="status-pill">No network</span>
+        <span className="status-pill">
+          {run?.status === "live" ? "Live candidates" : "Deterministic fixture"}
+        </span>
+        <span className="status-pill">
+          {run?.status === "live" ? "Server-only OpenAI" : "No API key required"}
+        </span>
+        <span className="status-pill">
+          {run?.status === "live" ? "Bounded web search" : "No network required"}
+        </span>
+        <span className="status-pill">Canonical mutation: none</span>
       </div>
+
+      <section className="analysis-panel" aria-labelledby="analysis-title">
+        <div>
+          <p className="eyebrow">Optional bounded analysis</p>
+          <h2 id="analysis-title">Ask a public-interest question</h2>
+          <p className="item-copy">
+            The browser sends only this question and source limit to a same-Site
+            route. Live results remain review-only candidates; failures return the
+            prepared deterministic case.
+          </p>
+        </div>
+        <form className="analysis-form" onSubmit={submitAnalysis}>
+          <label>
+            Question
+            <textarea
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              minLength={12}
+              maxLength={500}
+              placeholder="How has access to cooling centers changed during the current heatwave?"
+              required
+            />
+          </label>
+          <div className="analysis-controls">
+            <label>
+              Source limit
+              <select
+                value={sourceLimit}
+                onChange={(event) => setSourceLimit(Number(event.target.value))}
+              >
+                <option value={3}>3</option>
+                <option value={5}>5</option>
+                <option value={8}>8</option>
+              </select>
+            </label>
+            <button type="submit" disabled={isLoading}>
+              {isLoading ? "Analyzing…" : "Run bounded analysis"}
+            </button>
+          </div>
+        </form>
+        {error ? <p className="analysis-error" role="alert">{error}</p> : null}
+      </section>
+
+      {run ? <AnalysisResult run={run} /> : null}
 
       <label className="case-picker">
         Prepared case
@@ -44,7 +137,7 @@ export function CaseExplorer({
               <li className="source-item" key={source.source_id}>
                 <p className="item-title">{source.title}</p>
                 <p className="item-meta">
-                  {source.publisher} · published {formatDate(source.published_at)}
+                  {source.publisher} · published {formatOptionalDate(source.published_at)}
                 </p>
                 <p className="item-copy">{source.evidence_excerpt}</p>
               </li>
@@ -89,6 +182,95 @@ export function CaseExplorer({
   );
 }
 
+export function AnalysisResult({ run }: { run: AnalysisRunPacket }) {
+  return (
+    <section className="run-panel" aria-labelledby="run-title">
+      <div className="run-header">
+        <div>
+          <p className="eyebrow">{run.status} run packet</p>
+          <h2 id="run-title">{run.normalized_question}</h2>
+        </div>
+        <p className="run-count">
+          {run.actual_source_count} sources · {run.candidate_ids.length} candidates
+        </p>
+      </div>
+
+      {run.warnings.length > 0 ? (
+        <ul className="warning-list">
+          {run.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+        </ul>
+      ) : null}
+
+      <div className="run-grid">
+        <div>
+          <h3>Source snapshot refs</h3>
+          <ul className="item-list">
+            {run.source_snapshot_summaries.map((source) => (
+              <li className="source-item" key={source.source_id}>
+                <p className="item-title">
+                  {source.url ? (
+                    <a href={source.url} target="_blank" rel="noreferrer">
+                      {source.title}
+                    </a>
+                  ) : source.title}
+                </p>
+                <p className="item-meta">
+                  {source.domain} · {source.snapshot_status} · {source.record_status}
+                </p>
+                <p className="item-meta">
+                  {source.content_kind === "model_generated_web_search_summary"
+                    ? "Model-generated web-search candidate summary — not page text"
+                    : "Deterministic fixture evidence excerpt"}
+                </p>
+                <p className="item-copy">
+                  {source.web_search_grounded_candidate_summary ??
+                    source.evidence_excerpt}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h3>Validated candidate records</h3>
+          {run.candidates.length > 0 ? (
+            <ul className="item-list">
+              {run.candidates.map((candidate) => (
+                <li className="source-item" key={candidate.candidate_id}>
+                  <p className="item-meta">{candidate.candidate_type} · candidate</p>
+                  <p className="item-title">{candidate.text}</p>
+                  <p className="item-meta">Model-generated supporting summary span</p>
+                  <p className="item-copy">{candidate.supporting_summary_span}</p>
+                  <p className="candidate-citation">
+                    <a
+                      href={candidate.source_reference.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {candidate.source_reference.kind === "url_citation"
+                        ? "Cited source"
+                        : "Web-search source"}
+                      : {candidate.source_reference.title}
+                    </a>
+                  </p>
+                  <p className="item-meta">
+                    Source ref: {candidate.source_reference.source_id}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="item-copy">
+              No live candidates were accepted. The deterministic prepared case is
+              shown instead.
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("en", {
     year: "numeric",
@@ -96,4 +278,8 @@ function formatDate(value: string): string {
     day: "numeric",
     timeZone: "UTC",
   }).format(new Date(value));
+}
+
+function formatOptionalDate(value: string | null): string {
+  return value ? formatDate(value) : "date unavailable";
 }

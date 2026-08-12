@@ -10,6 +10,10 @@ or an unsupported Python backend.
 Reviewed on 2026-08-12:
 
 - [ChatGPT Sites developer guide](https://learn.chatgpt.com/docs/sites)
+- [Responses API migration guide](https://developers.openai.com/api/docs/guides/migrate-to-responses)
+- [Web search tool guide](https://developers.openai.com/api/docs/guides/tools-web-search)
+- [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs)
+- [Production best practices](https://developers.openai.com/api/docs/guides/production-best-practices)
 - the current bundled Sites `vinext-starter`, initialized by the OpenAI Sites
   workflow
 
@@ -33,8 +37,11 @@ npm run build
 npm run typecheck
 npm run lint
 npm test
+npm run test:adapter
 npm run smoke:deterministic
 npm run check:secrets
+npm run check:client-secrets
+npm run smoke:openai:live
 ```
 
 The default development URL is printed by vinext (normally
@@ -58,10 +65,56 @@ Only a single bounded fixture record is returned through that detail path.
 Source text is rendered through React or serialized as JSON; it is never
 executed as HTML or instructions.
 
+## Optional server-side OpenAI analysis
+
+`POST /api/analysis` is the only browser-to-analysis boundary. The route
+accepts a normalized public-interest question and a source limit (default 5,
+hard maximum 8), then reads `OPENAI_API_KEY` only from the server process. The
+client never imports the OpenAI adapter and receives no raw provider response
+or unbounded source text.
+
+The adapter uses the current OpenAI JavaScript SDK with:
+
+- `responses.parse(...)` and `zodTextFormat(...)` for runtime-validated
+  Structured Outputs;
+- the built-in `{ type: "web_search" }` tool for bounded source discovery;
+- `include: ["web_search_call.action.sources"]` plus URL-citation annotations
+  for available search provenance;
+- `store: false`, a 20-second request timeout, and zero automatic retries.
+
+Discovered items are not canonical evidence. Each accepted HTTPS source is
+passed through the source snapshot/provenance contract as a `partial` candidate
+snapshot. Its `source_text` and `evidence_excerpt` are explicitly `null`; the
+separate `web_search_grounded_candidate_summary` field contains a bounded,
+model-generated search-grounded summary. The API source list and URL-citation
+annotations establish URL/citation provenance, not a verbatim excerpt from the
+page. `content_sha256` therefore remains `null`, while a separate candidate-
+summary hash records only that weaker model-generated artifact.
+
+This implementation does not fetch pages, follow redirects, crawl links, or
+accept user-supplied fetch URLs. Each partial record is extracted independently
+with no tools before any candidate is serialized. Candidate support spans are
+validated only for containment inside that model-generated summary; they are
+not represented as source-page quotations or independently verified evidence.
+Every displayed live candidate includes a direct clickable URL citation or web-
+search source reference mapped to its source and snapshot IDs. Cross-source
+temporal reasoning remains out of scope.
+
+If the key is missing or a known live-provider failure occurs, the route returns
+the deterministic prepared case with explicit `fallback` status and no
+canonical mutation. Set `RUN_OPENAI_LIVE_SMOKE=1` only when intentionally
+authorizing the opt-in, potentially billable smoke; the default command prints
+a skip result and makes no OpenAI request.
+
+For local development, provide `OPENAI_API_KEY` through the server process
+environment. Do not create or commit `.env` files. For a future hosted Site,
+configure the secret in the ChatGPT Sites environment settings rather than in
+browser-public variables or `.openai/hosting.json`.
+
 ## Sites management boundary
 
 Codex CLI and the IDE can edit and test this local project, but the official
 guide states they do not provide a standalone Sites management view. The Sites
 project, hosted versions, audience access, analytics, and production address
 are managed from ChatGPT web or the desktop app. None of those hosted operations
-is performed or represented in this foundation.
+is performed or represented in this implementation.

@@ -1,8 +1,23 @@
 export type RecordStatus = "candidate" | "canonical";
 
-export type RetrievalMode = "deterministic_fixture";
+export type RetrievalMode = "deterministic_fixture" | "openai_web_search";
 
-export interface SourceSnapshot {
+export type SnapshotStatus = "full" | "partial" | "failed";
+
+export type SnapshotContentKind =
+  | "captured_fixture_source_text"
+  | "model_generated_web_search_summary";
+
+export interface SearchProvenance {
+  provider: "openai";
+  search_call_id: string;
+  provider_source_included: boolean;
+  citation_title: string | null;
+  citation_start: number | null;
+  citation_end: number | null;
+}
+
+interface SourceSnapshotBase {
   snapshot_id: string;
   source_id: string;
   original_url: string | null;
@@ -10,21 +25,52 @@ export interface SourceSnapshot {
   publisher: string;
   actor: string;
   title: string;
-  published_at: string;
+  published_at: string | null;
   event_time: string | null;
   event_time_candidates: string[];
   asserted_at: string | null;
   retrieved_at: string;
-  content_sha256: string;
-  retrieval_mode: RetrievalMode;
-  source_text: string;
-  evidence_excerpt: string;
   limitations: string[];
   source_hygiene_notes: string[];
   status: RecordStatus;
 }
 
-export type SourceSnapshotSummary = Omit<SourceSnapshot, "source_text">;
+export interface CapturedFixtureSourceSnapshot extends SourceSnapshotBase {
+  original_url: null;
+  canonical_url: null;
+  retrieval_mode: "deterministic_fixture";
+  snapshot_status: "full";
+  content_kind: "captured_fixture_source_text";
+  content_sha256: string;
+  candidate_summary_sha256: null;
+  source_text: string;
+  evidence_excerpt: string;
+  web_search_grounded_candidate_summary: null;
+  api_provenance: null;
+}
+
+export interface WebSearchPartialSourceSnapshot extends SourceSnapshotBase {
+  original_url: string;
+  canonical_url: string;
+  retrieval_mode: "openai_web_search";
+  snapshot_status: "partial";
+  content_kind: "model_generated_web_search_summary";
+  content_sha256: null;
+  candidate_summary_sha256: string;
+  source_text: null;
+  evidence_excerpt: null;
+  web_search_grounded_candidate_summary: string;
+  api_provenance: SearchProvenance;
+  status: "candidate";
+}
+
+export type SourceSnapshot =
+  | CapturedFixtureSourceSnapshot
+  | WebSearchPartialSourceSnapshot;
+
+type WithoutSourceText<T> = T extends unknown ? Omit<T, "source_text"> : never;
+
+export type SourceSnapshotSummary = WithoutSourceText<SourceSnapshot>;
 
 export interface SourceBoundFinding {
   finding_id: string;

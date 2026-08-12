@@ -5,7 +5,7 @@ import { getPreparedCase } from "./lib/read-model";
 export const metadata: Metadata = {
   title: "Sisyphus Watch | Prepared case",
   description:
-    "Inspect a deterministic public-communication case without a key or network.",
+    "Inspect a deterministic public-communication case with optional server-side OpenAI analysis.",
 };
 
 export default function Home() {
