@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs && node --import tsx --test tests/*.test.ts",
     "test:adapter": "node --import tsx --test tests/openai-analysis.test.ts",
+    "test:lineage": "node --import tsx --test tests/claim-lineage.test.ts",
     "smoke:deterministic": "npm run build && env -u OPENAI_API_KEY node scripts/deterministic-smoke.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:client-secrets": "npm run build && node scripts/check-client-bundle.mjs",

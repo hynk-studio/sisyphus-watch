@@ -94,3 +94,32 @@ test("rejects malformed or unknown focused-detail requests", async () => {
   );
   assert.equal(unknown.status, 404);
 });
+
+test("serves the validated Site-ready lineage packet and focused details", async () => {
+  const response = await request("/api/lineage/city_heatwave_cooling_centers");
+  assert.equal(response.status, 200);
+  const packet = await response.json();
+  assert.equal(packet.contract_version, "site_ready_case_packet.v1");
+  assert.equal(packet.mode, "deterministic");
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
+  assert.equal(packet.bounded_work_summary.theoretical_pair_count, 3);
+  assert.ok(packet.relation_candidates.length >= 3);
+  assert.equal(JSON.stringify(packet).includes('"source_text":'), false);
+
+  const relationId = packet.relation_candidates[0].relation_id;
+  const detail = await request(
+    `/api/lineage/city_heatwave_cooling_centers?focus=relation&id=${relationId}`,
+  );
+  assert.equal(detail.status, 200);
+  const detailBody = await detail.json();
+  assert.equal(detailBody.focus_kind, "relation");
+  assert.equal(detailBody.focus_id, relationId);
+
+  const sourceId = packet.source_snapshot_summaries[0].source_id;
+  const sourceDetail = await request(
+    `/api/lineage/city_heatwave_cooling_centers?focus=source&id=${sourceId}`,
+  );
+  assert.equal(sourceDetail.status, 200);
+  const sourceDetailBody = await sourceDetail.json();
+  assert.match(sourceDetailBody.detail.source_text, /^DEMO FIXTURE ONLY:/);
+});

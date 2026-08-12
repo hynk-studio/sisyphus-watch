@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CaseExplorer } from "./components/CaseExplorer";
-import { getPreparedCase } from "./lib/read-model";
+import { buildPreparedSiteReadyCasePacket } from "./lib/lineage/builder";
 
 export const metadata: Metadata = {
   title: "Sisyphus Watch | Prepared case",
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  const preparedCase = getPreparedCase("city_heatwave_cooling_centers");
+  const preparedCase = buildPreparedSiteReadyCasePacket();
 
   return <CaseExplorer preparedCase={preparedCase} />;
 }
