@@ -4,6 +4,10 @@
 
 Sisyphus Watch is an AI-agent demo that turns public news-like sources into versioned claim cards. It separates source-bound findings, actor claims, interpretation branches, current source-bound judgment, actions, bias notes, version timelines, claim drift, claim graphs, and version diffs so people and AI agents can reason beyond the news cycle.
 
+The local ChatGPT Sites foundation lives in [`site/`](site/README.md). It adapts
+one existing deterministic community-impact fixture into a Sites-compatible
+TypeScript project without depending on the Python notebook as a hosted backend.
+
 This first build is a Kaggle Code-native vertical slice for the Kaggle 5-Day AI Agents Intensive Vibe Coding Course with Google. It is not a production news platform.
 
 ## What It Is
