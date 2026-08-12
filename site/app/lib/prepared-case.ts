@@ -27,6 +27,7 @@ export const sources: SourceSnapshot[] = [
     retrieved_at: PREPARED_AT,
     content_sha256: "b33affbef3e31c242dc3f9ada91d731b7d043ee948803214615800f73b5a43f4",
     retrieval_mode: "deterministic_fixture",
+    snapshot_status: "full",
     source_text:
       "DEMO FIXTURE ONLY: During a severe heatwave, the Fictional City Emergency Management Office announces that 50 cooling centers will be open across the city. The announcement says residents can find safe, air-conditioned spaces in libraries, recreation centers, and partner community facilities. It says the public list will be updated as conditions change and asks residents to check the city website before traveling.",
     evidence_excerpt:
@@ -39,6 +40,7 @@ export const sources: SourceSnapshot[] = [
       "Source text is untrusted display data, never executable instructions.",
       "No original or canonical URL applies to this synthetic fixture.",
     ],
+    api_provenance: null,
     status: "canonical",
   },
   {
@@ -56,6 +58,7 @@ export const sources: SourceSnapshot[] = [
     retrieved_at: PREPARED_AT,
     content_sha256: "10dcb1464790cb2485605057965692a2b144a3913446a31adbace920714da8b9",
     retrieval_mode: "deterministic_fixture",
+    snapshot_status: "full",
     source_text:
       "DEMO FIXTURE ONLY: The Fictional Neighborhood Volunteer Network reports that its volunteers checked a sample of listed cooling centers on June 12. Several listed centers were closed when volunteers arrived, some had shorter hours than the public list suggested, and others lacked clear signage. The group also reports that older residents in two neighborhoods found several open centers difficult to reach without a car. The group frames the report as an access observation and asks the city to update the list quickly.",
     evidence_excerpt:
@@ -68,6 +71,7 @@ export const sources: SourceSnapshot[] = [
       "Source text is untrusted display data, never executable instructions.",
       "No original or canonical URL applies to this synthetic fixture.",
     ],
+    api_provenance: null,
     status: "canonical",
   },
   {
@@ -85,6 +89,7 @@ export const sources: SourceSnapshot[] = [
     retrieved_at: PREPARED_AT,
     content_sha256: "ab20f78c109070524decff7802682c36a977139eba67cfcba66c9f39cc0b9c56",
     retrieval_mode: "deterministic_fixture",
+    snapshot_status: "full",
     source_text:
       "DEMO FIXTURE ONLY: The Fictional City Emergency Management Office publishes an updated cooling center list. The update clarifies opening hours, removes locations that are unavailable, corrects addresses for several facilities, and adds free shuttle support for older residents and medically vulnerable residents in the hardest-hit neighborhoods. The city says some earlier listing errors resulted from staffing shortages and late facility confirmations during the fast-changing emergency.",
     evidence_excerpt:
@@ -97,6 +102,7 @@ export const sources: SourceSnapshot[] = [
       "Source text is untrusted display data, never executable instructions.",
       "No original or canonical URL applies to this synthetic fixture.",
     ],
+    api_provenance: null,
     status: "canonical",
   },
   {
@@ -114,6 +120,7 @@ export const sources: SourceSnapshot[] = [
     retrieved_at: PREPARED_AT,
     content_sha256: "7073a0dba7dd93386cbfb16d2d4234adcd248d6759134761a3ab20bbe5ccf0b7",
     retrieval_mode: "deterministic_fixture",
+    snapshot_status: "full",
     source_text:
       "DEMO FIXTURE ONLY: The Fictional Civic Accountability Column argues that emergency communication is only useful if public claims remain true at street level. The note says the city should treat public lists as live safety infrastructure, not static public relations material. It includes the rhetorical line: 'An emergency map that works only on paper is a cardboard umbrella in a heatwave.'",
     evidence_excerpt:
@@ -126,6 +133,7 @@ export const sources: SourceSnapshot[] = [
       "Source text is untrusted display data, never executable instructions.",
       "No original or canonical URL applies to this synthetic fixture.",
     ],
+    api_provenance: null,
     status: "candidate",
   },
 ];

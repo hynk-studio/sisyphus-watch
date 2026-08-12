@@ -10,14 +10,22 @@
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test tests/*.test.mjs",
-    "smoke:deterministic": "npm run build && node scripts/deterministic-smoke.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs && node --import tsx --test tests/*.test.ts",
+    "test:adapter": "node --import tsx --test tests/openai-analysis.test.ts",
+    "smoke:deterministic": "npm run build && env -u OPENAI_API_KEY node scripts/deterministic-smoke.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
+    "check:client-secrets": "npm run build && node scripts/check-client-bundle.mjs",
+    "smoke:openai:live": "tsx scripts/live-openai-smoke.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {
+    "openai": "7.4.0",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "zod": "4.4.3"
+  },
+  "overrides": {
+    "ws": "8.21.3"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
@@ -37,6 +45,7 @@
     "globals": "16.4.0",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
+    "tsx": "4.20.6",
     "typescript": "5.9.3",
     "typescript-eslint": "8.59.3",
     "vinext": "1.0.0-beta.2",

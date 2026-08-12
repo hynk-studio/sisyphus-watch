@@ -1,6 +1,17 @@
 export type RecordStatus = "candidate" | "canonical";
 
-export type RetrievalMode = "deterministic_fixture";
+export type RetrievalMode = "deterministic_fixture" | "openai_web_search";
+
+export type SnapshotStatus = "full" | "partial" | "failed";
+
+export interface SearchProvenance {
+  provider: "openai";
+  search_call_id: string;
+  provider_source_included: boolean;
+  citation_title: string | null;
+  citation_start: number | null;
+  citation_end: number | null;
+}
 
 export interface SourceSnapshot {
   snapshot_id: string;
@@ -10,17 +21,19 @@ export interface SourceSnapshot {
   publisher: string;
   actor: string;
   title: string;
-  published_at: string;
+  published_at: string | null;
   event_time: string | null;
   event_time_candidates: string[];
   asserted_at: string | null;
   retrieved_at: string;
   content_sha256: string;
   retrieval_mode: RetrievalMode;
+  snapshot_status: SnapshotStatus;
   source_text: string;
   evidence_excerpt: string;
   limitations: string[];
   source_hygiene_notes: string[];
+  api_provenance: SearchProvenance | null;
   status: RecordStatus;
 }
 
