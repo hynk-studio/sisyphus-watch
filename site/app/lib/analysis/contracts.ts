@@ -29,6 +29,7 @@ export interface AnalysisCandidate {
   source_id: string;
   snapshot_id: string;
   candidate_type: CandidateType;
+  actor: string | null;
   text: string;
   evidence_reference: string;
   support_kind: "model_generated_web_search_summary_span";

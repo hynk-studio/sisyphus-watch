@@ -38,6 +38,7 @@ npm run typecheck
 npm run lint
 npm test
 npm run test:adapter
+npm run test:lineage
 npm run smoke:deterministic
 npm run check:secrets
 npm run check:client-secrets
@@ -67,7 +68,7 @@ executed as HTML or instructions.
 
 ## Optional server-side OpenAI analysis
 
-`POST /api/analysis` is the only browser-to-analysis boundary. The route
+`POST /api/analysis` is the source-local browser-to-analysis boundary. The route
 accepts a normalized public-interest question and a source limit (default 5,
 hard maximum 8), then reads `OPENAI_API_KEY` only from the server process. The
 client never imports the OpenAI adapter and receives no raw provider response
@@ -96,9 +97,12 @@ accept user-supplied fetch URLs. Each partial record is extracted independently
 with no tools before any candidate is serialized. Candidate support spans are
 validated only for containment inside that model-generated summary; they are
 not represented as source-page quotations or independently verified evidence.
+Actor-claim and action candidates carry the actor identified by the bounded
+record, or explicit `null` when the actor is unavailable or ambiguous. The
+source publisher is never substituted as claimant or action actor.
 Every displayed live candidate includes a direct clickable URL citation or web-
 search source reference mapped to its source and snapshot IDs. Cross-source
-temporal reasoning remains out of scope.
+temporal reasoning is not performed by the analysis adapter itself.
 
 If the key is missing or a known live-provider failure occurs, the route returns
 the deterministic prepared case with explicit `fallback` status and no
@@ -110,6 +114,45 @@ For local development, provide `OPENAI_API_KEY` through the server process
 environment. Do not create or commit `.env` files. For a future hosted Site,
 configure the secret in the ChatGPT Sites environment settings rather than in
 browser-public variables or `.openai/hosting.json`.
+
+## Site-ready temporal claim lineage
+
+`POST /api/lineage` reuses the existing server-only analysis boundary and
+adapts deterministic fallback and live candidate runs into the same validated
+`site_ready_case_packet.v1` contract. `GET /api/lineage/:caseId` serves the
+deterministic prepared packet. Focused prepared-case detail is available at:
+
+```text
+GET /api/lineage/:caseId?focus=source|claim_occurrence|claim_family|relation|timeline_row|lineage_row|unresolved_question&id=:stableId
+```
+
+The lineage engine creates one occurrence per source-bound claim, evaluates
+logical occurrence pairs with deterministic actor, topic-token, claim-type,
+and date signals, and stops plausible-pair work at a hard maximum of 64. The
+packet records theoretical, filtered, deferred, unrelated, unresolved, and
+model-classified counts. If the cap is reached, it reports the exact deferral
+and does not claim completeness.
+
+All new claim families, relations, and lineage rows use non-canonical candidate
+IDs and remain review-only. Confidence cannot promote them. Correction and
+supersession require inspectable actor linkage, temporal ordering, and explicit
+fixture replacement/correction support; otherwise the engine emits a weaker
+or unresolved result. Event time, actor assertion time, publication time, and
+Sisyphus retrieval time remain separate fields, and any selected display axis
+is named explicitly.
+
+Only `actor_claim` records become live `ClaimOccurrence` records. Findings and
+actions remain in their dedicated packet lanes, while standalone event/assertion
+time candidates remain in `time_candidates`. A valid live run with no actual
+claim record therefore has zero claim occurrences, families, relations,
+timeline rows, and lineage rows rather than fabricated claim state.
+
+Live partial records retain the weaker #32 provenance model: relation support
+can point only to a bounded model-generated web-search summary span and its URL
+or citation metadata. It is never relabeled captured page evidence. The #33
+stage does not add another OpenAI client or make a relation-classification API
+call; `model_classified_count` is deterministically zero. The initial packet
+contains no full fixture source text or raw provider response.
 
 ## Sites management boundary
 

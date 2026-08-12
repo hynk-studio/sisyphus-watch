@@ -40,6 +40,22 @@ async function requestNoKeyAnalysis() {
   return response.json();
 }
 
+async function requestNoKeyLineage() {
+  const response = await worker.fetch(
+    new Request("http://localhost/api/lineage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        question: "How is heatwave cooling-center access being communicated?",
+      }),
+    }),
+    env,
+    context,
+  );
+  assert.equal(response.status, 200);
+  return response.json();
+}
+
 const originalFetch = globalThis.fetch;
 let outboundRequests = 0;
 globalThis.fetch = async () => {
@@ -65,8 +81,19 @@ try {
   assert.match(fallback.warnings[0], /^missing_api_key:/);
   assert.equal(JSON.stringify(fallback).includes('"source_text":'), false);
   assert.equal(outboundRequests, 0);
+
+  const lineage = await requestNoKeyLineage();
+  assert.equal(lineage.contract_version, "site_ready_case_packet.v1");
+  assert.equal(lineage.mode, "fallback");
+  assert.equal(lineage.status, "fallback");
+  assert.ok(lineage.claim_occurrences.length >= 3);
+  assert.ok(lineage.relation_candidates.length >= 3);
+  assert.equal(lineage.bounded_work_summary.model_classified_count, 0);
+  assert.equal(lineage.candidate_canonical_boundary.canonical_mutation, "none");
+  assert.equal(JSON.stringify(lineage).includes('"source_text":'), false);
+  assert.equal(outboundRequests, 0);
   console.log(
-    `PASS deterministic case=${first.cases[0].case_id} analysis_status=${fallback.status} sources=${first.cases[0].sources.length} outbound_requests=${outboundRequests}`,
+    `PASS deterministic case=${first.cases[0].case_id} analysis_status=${fallback.status} lineage_status=${lineage.status} relations=${lineage.relation_candidates.length} sources=${first.cases[0].sources.length} outbound_requests=${outboundRequests}`,
   );
 } finally {
   globalThis.fetch = originalFetch;

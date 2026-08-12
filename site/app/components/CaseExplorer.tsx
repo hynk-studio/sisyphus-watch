@@ -5,16 +5,16 @@ import type {
   AnalysisRoutePayload,
   AnalysisRunPacket,
 } from "../lib/analysis/contracts";
-import type { PreparedCaseReadModel } from "../lib/contracts";
+import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
 
 export function CaseExplorer({
   preparedCase,
 }: {
-  preparedCase: PreparedCaseReadModel;
+  preparedCase: SiteReadyCasePacket;
 }) {
   const [question, setQuestion] = useState("");
   const [sourceLimit, setSourceLimit] = useState(5);
-  const [run, setRun] = useState<AnalysisRunPacket | null>(null);
+  const [run, setRun] = useState<SiteReadyCasePacket | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -24,12 +24,14 @@ export function CaseExplorer({
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/analysis", {
+      const response = await fetch("/api/lineage", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question, sourceLimit }),
       });
-      const payload = (await response.json()) as AnalysisRoutePayload;
+      const payload = (await response.json()) as
+        | SiteReadyCasePacket
+        | Extract<AnalysisRoutePayload, { status: "error" }>;
       if (payload.status === "error") {
         setRun(null);
         setError(payload.error.message);
@@ -40,7 +42,7 @@ export function CaseExplorer({
         setError("The bounded analysis request did not complete.");
         return;
       }
-      setRun(payload);
+      setRun(payload as SiteReadyCasePacket);
     } catch {
       setRun(null);
       setError("The same-Site analysis route is unavailable.");
@@ -53,7 +55,7 @@ export function CaseExplorer({
     <main className="site-shell">
       <p className="eyebrow">Source-bound public reasoning</p>
       <h1>Sisyphus Watch</h1>
-      <p className="lede">{preparedCase.problem_statement}</p>
+      <p className="lede">{preparedCase.normalized_public_interest_question}</p>
 
       <div className="status-row" aria-label="Prepared case runtime status">
         <span className="status-pill">
@@ -110,7 +112,7 @@ export function CaseExplorer({
         {error ? <p className="analysis-error" role="alert">{error}</p> : null}
       </section>
 
-      {run ? <AnalysisResult run={run} /> : null}
+      {run ? <LineageResult run={run} /> : null}
 
       <label className="case-picker">
         Prepared case
@@ -123,7 +125,7 @@ export function CaseExplorer({
         <p className="eyebrow">Current source-bound summary</p>
         <h2 id="case-summary-title">{preparedCase.title}</h2>
         <ol className="summary-list">
-          {preparedCase.source_bound_summary.map((item) => (
+          {preparedCase.current_source_bound_candidate_synthesis.map((item) => (
             <li key={item}>{item}</li>
           ))}
         </ol>
@@ -133,7 +135,7 @@ export function CaseExplorer({
         <section className="panel" aria-labelledby="sources-title">
           <h2 id="sources-title">Source snapshots</h2>
           <ul className="item-list">
-            {preparedCase.sources.map((source) => (
+            {preparedCase.source_snapshot_summaries.map((source) => (
               <li className="source-item" key={source.source_id}>
                 <p className="item-title">{source.title}</p>
                 <p className="item-meta">
@@ -159,14 +161,14 @@ export function CaseExplorer({
         <section className="panel panel-wide" aria-labelledby="timeline-title">
           <h2 id="timeline-title">Timeline preview</h2>
           <ol className="timeline">
-            {preparedCase.timeline.map((event) => (
-              <li className="timeline-item" key={event.timeline_id}>
-                <time className="timeline-date" dateTime={event.occurred_at}>
-                  {formatDate(event.occurred_at)}
+            {preparedCase.event_timeline_rows.map((event) => (
+              <li className="timeline-item" key={event.timeline_row_id}>
+                <time className="timeline-date" dateTime={event.display_time}>
+                  {formatDate(event.display_time)}
                 </time>
                 <div>
                   <p className="item-title">{event.summary}</p>
-                  <p className="item-copy">{event.judgment_at_time}</p>
+                  <p className="item-copy">Axis: {event.display_time_axis.replaceAll("_", " ")}</p>
                 </div>
               </li>
             ))}
@@ -179,6 +181,51 @@ export function CaseExplorer({
         through the focused server detail boundary.
       </p>
     </main>
+  );
+}
+
+export function LineageResult({ run }: { run: SiteReadyCasePacket }) {
+  const work = run.bounded_work_summary;
+  return (
+    <section className="run-panel" aria-labelledby="lineage-run-title">
+      <div className="run-header">
+        <div>
+          <p className="eyebrow">{run.status} Site-ready case packet</p>
+          <h2 id="lineage-run-title">{run.normalized_public_interest_question}</h2>
+        </div>
+        <p className="run-count">
+          {run.actual_source_count} sources · {run.claim_occurrences.length} occurrences
+        </p>
+      </div>
+
+      {run.warnings.length > 0 ? (
+        <ul className="warning-list">
+          {run.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+        </ul>
+      ) : null}
+
+      <div className="run-grid">
+        <div>
+          <h3>Bounded relation work</h3>
+          <p className="item-copy">
+            {work.theoretical_pair_count} theoretical pairs · {work.prefilter_candidate_count}
+            {" "}prefilter candidates · {run.relation_candidates.length} relation candidates
+          </p>
+          <p className="item-meta">
+            Hard bound {work.configured_maximum_pair_count} · deferred {work.deferred_pair_count}
+            {" "}· model-classified {work.model_classified_count}
+          </p>
+        </div>
+        <div>
+          <h3>Lineage preview</h3>
+          <p className="item-copy">
+            {run.candidate_claim_families.length} claim families · {run.event_timeline_rows.length}
+            {" "}timeline rows · {run.claim_lineage_rows.length} lineage rows
+          </p>
+          <p className="item-meta">All inferred records remain candidate/review-only.</p>
+        </div>
+      </div>
+    </section>
   );
 }
 
