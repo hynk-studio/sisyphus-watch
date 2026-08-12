@@ -29,8 +29,15 @@ export async function buildFallbackPacket(input: {
     retrieved_at: source.retrieved_at,
     snapshot_status: source.snapshot_status,
     retrieval_mode: source.retrieval_mode,
+    content_kind: source.content_kind,
+    source_text_captured:
+      source.content_kind === "captured_fixture_source_text",
+    content_sha256: source.content_sha256,
+    candidate_summary_sha256: source.candidate_summary_sha256,
     record_status: source.status,
     evidence_excerpt: source.evidence_excerpt,
+    web_search_grounded_candidate_summary:
+      source.web_search_grounded_candidate_summary,
     limitations: source.limitations,
     api_provenance: source.api_provenance,
   }));

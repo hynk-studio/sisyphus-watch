@@ -25,7 +25,7 @@ export const DiscoverySourceSchema = z
     url: z.string().min(1).max(2048),
     publisher: z.string().max(160).nullable(),
     published_at: z.string().max(64).nullable(),
-    evidence_excerpt: z.string().min(1).max(500),
+    web_search_grounded_candidate_summary: z.string().min(1).max(500),
     limitations: z.array(z.string().min(1).max(240)).max(4),
   })
   .strict();
@@ -48,8 +48,7 @@ export const CandidateProposalSchema = z
       "source_hygiene",
     ]),
     text: z.string().min(1).max(320),
-    evidence_reference: z.string().min(1).max(2048),
-    evidence_excerpt: z.string().min(1).max(360),
+    supporting_summary_span: z.string().min(1).max(360),
     time_candidate: z.string().max(64).nullable(),
     confidence: z.enum(["high", "medium", "low", "unknown"]),
     uncertainty: z.string().max(240),

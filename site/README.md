@@ -84,11 +84,21 @@ The adapter uses the current OpenAI JavaScript SDK with:
 
 Discovered items are not canonical evidence. Each accepted HTTPS source is
 passed through the source snapshot/provenance contract as a `partial` candidate
-snapshot containing only a bounded search-provided excerpt. This implementation
-does not fetch pages, follow redirects, crawl links, or accept user-supplied
-fetch URLs. Each partial snapshot is extracted independently with no tools
-before any candidate is serialized. Cross-source temporal reasoning remains out
-of scope.
+snapshot. Its `source_text` and `evidence_excerpt` are explicitly `null`; the
+separate `web_search_grounded_candidate_summary` field contains a bounded,
+model-generated search-grounded summary. The API source list and URL-citation
+annotations establish URL/citation provenance, not a verbatim excerpt from the
+page. `content_sha256` therefore remains `null`, while a separate candidate-
+summary hash records only that weaker model-generated artifact.
+
+This implementation does not fetch pages, follow redirects, crawl links, or
+accept user-supplied fetch URLs. Each partial record is extracted independently
+with no tools before any candidate is serialized. Candidate support spans are
+validated only for containment inside that model-generated summary; they are
+not represented as source-page quotations or independently verified evidence.
+Every displayed live candidate includes a direct clickable URL citation or web-
+search source reference mapped to its source and snapshot IDs. Cross-source
+temporal reasoning remains out of scope.
 
 If the key is missing or a known live-provider failure occurs, the route returns
 the deterministic prepared case with explicit `fallback` status and no

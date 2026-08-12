@@ -54,7 +54,7 @@ try {
   assert.equal(outboundRequests, 0);
   assert.equal(first.cases[0].requires_api_key, false);
   assert.equal(first.cases[0].network_used, false);
-  assert.equal(JSON.stringify(first).includes("source_text"), false);
+  assert.equal(JSON.stringify(first).includes('"source_text":'), false);
 
   const fallback = await requestNoKeyAnalysis();
   assert.equal(fallback.mode, "fallback");
@@ -63,7 +63,7 @@ try {
   assert.equal(fallback.canonical_mutation, "none");
   assert.deepEqual(fallback.candidate_ids, []);
   assert.match(fallback.warnings[0], /^missing_api_key:/);
-  assert.equal(JSON.stringify(fallback).includes("source_text"), false);
+  assert.equal(JSON.stringify(fallback).includes('"source_text":'), false);
   assert.equal(outboundRequests, 0);
   console.log(
     `PASS deterministic case=${first.cases[0].case_id} analysis_status=${fallback.status} sources=${first.cases[0].sources.length} outbound_requests=${outboundRequests}`,

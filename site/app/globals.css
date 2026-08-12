@@ -239,6 +239,12 @@ h2 {
   color: var(--accent);
 }
 
+.candidate-citation {
+  margin: 9px 0 5px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .summary-card {
   padding: clamp(22px, 5vw, 38px);
 }

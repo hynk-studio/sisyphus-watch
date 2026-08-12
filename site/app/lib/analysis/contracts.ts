@@ -1,4 +1,8 @@
-import type { SearchProvenance, SnapshotStatus } from "../contracts";
+import type {
+  SearchProvenance,
+  SnapshotContentKind,
+  SnapshotStatus,
+} from "../contracts";
 
 export const DEFAULT_SOURCE_LIMIT = 5;
 export const MAX_SOURCE_LIMIT = 8;
@@ -27,7 +31,15 @@ export interface AnalysisCandidate {
   candidate_type: CandidateType;
   text: string;
   evidence_reference: string;
-  evidence_excerpt: string;
+  support_kind: "model_generated_web_search_summary_span";
+  supporting_summary_span: string;
+  source_reference: {
+    source_id: string;
+    snapshot_id: string;
+    url: string;
+    title: string;
+    kind: "url_citation" | "web_search_source";
+  };
   time_candidate: string | null;
   confidence: CandidateConfidence;
   uncertainty: string;
@@ -50,8 +62,13 @@ export interface AnalysisSourceSummary {
   retrieved_at: string;
   snapshot_status: SnapshotStatus;
   retrieval_mode: "deterministic_fixture" | "openai_web_search";
+  content_kind: SnapshotContentKind;
+  source_text_captured: boolean;
+  content_sha256: string | null;
+  candidate_summary_sha256: string | null;
   record_status: "candidate" | "canonical";
-  evidence_excerpt: string;
+  evidence_excerpt: string | null;
+  web_search_grounded_candidate_summary: string | null;
   limitations: string[];
   api_provenance: SearchProvenance | null;
 }

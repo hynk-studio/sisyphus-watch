@@ -182,7 +182,7 @@ export function CaseExplorer({
   );
 }
 
-function AnalysisResult({ run }: { run: AnalysisRunPacket }) {
+export function AnalysisResult({ run }: { run: AnalysisRunPacket }) {
   return (
     <section className="run-panel" aria-labelledby="run-title">
       <div className="run-header">
@@ -217,7 +217,15 @@ function AnalysisResult({ run }: { run: AnalysisRunPacket }) {
                 <p className="item-meta">
                   {source.domain} · {source.snapshot_status} · {source.record_status}
                 </p>
-                <p className="item-copy">{source.evidence_excerpt}</p>
+                <p className="item-meta">
+                  {source.content_kind === "model_generated_web_search_summary"
+                    ? "Model-generated web-search candidate summary — not page text"
+                    : "Deterministic fixture evidence excerpt"}
+                </p>
+                <p className="item-copy">
+                  {source.web_search_grounded_candidate_summary ??
+                    source.evidence_excerpt}
+                </p>
               </li>
             ))}
           </ul>
@@ -231,7 +239,23 @@ function AnalysisResult({ run }: { run: AnalysisRunPacket }) {
                 <li className="source-item" key={candidate.candidate_id}>
                   <p className="item-meta">{candidate.candidate_type} · candidate</p>
                   <p className="item-title">{candidate.text}</p>
-                  <p className="item-copy">{candidate.evidence_excerpt}</p>
+                  <p className="item-meta">Model-generated supporting summary span</p>
+                  <p className="item-copy">{candidate.supporting_summary_span}</p>
+                  <p className="candidate-citation">
+                    <a
+                      href={candidate.source_reference.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {candidate.source_reference.kind === "url_citation"
+                        ? "Cited source"
+                        : "Web-search source"}
+                      : {candidate.source_reference.title}
+                    </a>
+                  </p>
+                  <p className="item-meta">
+                    Source ref: {candidate.source_reference.source_id}
+                  </p>
                 </li>
               ))}
             </ul>
