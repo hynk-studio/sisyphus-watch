@@ -30,12 +30,12 @@ test("renders the deterministic prepared-case shell", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Sisyphus Watch \| Prepared case<\/title>/i);
+  assert.match(html, /<title>Sisyphus Watch \| Follow changing public information<\/title>/i);
   assert.match(html, /City Heatwave Cooling Centers/);
   assert.match(html, /Deterministic fixture/);
-  assert.match(html, /No API key/);
-  assert.match(html, /No network/);
-  assert.match(html, /Unresolved items/);
+  assert.match(html, /without an API key or network/i);
+  assert.match(html, /Claim lineage/);
+  assert.match(html, /Unresolved/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
   assert.doesNotMatch(html, /DEMO FIXTURE ONLY/);
 });

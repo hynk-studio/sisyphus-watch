@@ -1,15 +1,21 @@
 import type { Metadata } from "next";
 import { CaseExplorer } from "./components/CaseExplorer";
+import { isLiveAnalysisEnabledOnServer } from "./lib/live-mode";
 import { buildPreparedSiteReadyCasePacket } from "./lib/lineage/builder";
 
 export const metadata: Metadata = {
-  title: "Sisyphus Watch | Prepared case",
+  title: "Sisyphus Watch | Follow changing public information",
   description:
-    "Inspect a deterministic public-communication case with optional server-side OpenAI analysis.",
+    "See what changed, which source changed it, and what remains unresolved.",
 };
 
-export default function Home() {
+export default async function Home() {
   const preparedCase = buildPreparedSiteReadyCasePacket();
 
-  return <CaseExplorer preparedCase={preparedCase} />;
+  return (
+    <CaseExplorer
+      preparedCase={preparedCase}
+      liveEnabled={await isLiveAnalysisEnabledOnServer()}
+    />
+  );
 }

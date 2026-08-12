@@ -24,7 +24,7 @@ async function readCases() {
   return response.json();
 }
 
-async function requestNoKeyAnalysis() {
+async function requestNoKeyAnalysis(runtimeEnv, expectedStatus) {
   const response = await worker.fetch(
     new Request("http://localhost/api/analysis", {
       method: "POST",
@@ -33,14 +33,14 @@ async function requestNoKeyAnalysis() {
         question: "How is heatwave cooling-center access being communicated?",
       }),
     }),
-    env,
+    runtimeEnv,
     context,
   );
-  assert.equal(response.status, 200);
+  assert.equal(response.status, expectedStatus);
   return response.json();
 }
 
-async function requestNoKeyLineage() {
+async function requestNoKeyLineage(runtimeEnv, expectedStatus) {
   const response = await worker.fetch(
     new Request("http://localhost/api/lineage", {
       method: "POST",
@@ -49,14 +49,15 @@ async function requestNoKeyLineage() {
         question: "How is heatwave cooling-center access being communicated?",
       }),
     }),
-    env,
+    runtimeEnv,
     context,
   );
-  assert.equal(response.status, 200);
+  assert.equal(response.status, expectedStatus);
   return response.json();
 }
 
 const originalFetch = globalThis.fetch;
+const originalLiveFlag = process.env.SISYPHUS_LIVE_ENABLED;
 let outboundRequests = 0;
 globalThis.fetch = async () => {
   outboundRequests += 1;
@@ -64,6 +65,7 @@ globalThis.fetch = async () => {
 };
 
 try {
+  process.env.SISYPHUS_LIVE_ENABLED = "false";
   const first = await readCases();
   const second = await readCases();
   assert.deepEqual(second, first);
@@ -72,7 +74,16 @@ try {
   assert.equal(first.cases[0].network_used, false);
   assert.equal(JSON.stringify(first).includes('"source_text":'), false);
 
-  const fallback = await requestNoKeyAnalysis();
+  const disabledAnalysis = await requestNoKeyAnalysis(env, 503);
+  const disabledLineage = await requestNoKeyLineage(env, 503);
+  assert.equal(disabledAnalysis.error.code, "live_analysis_disabled");
+  assert.equal(disabledLineage.error.code, "live_analysis_disabled");
+  assert.equal(disabledAnalysis.canonical_mutation, "none");
+  assert.equal(disabledLineage.canonical_mutation, "none");
+  assert.equal(outboundRequests, 0);
+
+  process.env.SISYPHUS_LIVE_ENABLED = "true";
+  const fallback = await requestNoKeyAnalysis(env, 200);
   assert.equal(fallback.mode, "fallback");
   assert.equal(fallback.status, "fallback");
   assert.equal(fallback.requested_source_limit, 5);
@@ -82,7 +93,7 @@ try {
   assert.equal(JSON.stringify(fallback).includes('"source_text":'), false);
   assert.equal(outboundRequests, 0);
 
-  const lineage = await requestNoKeyLineage();
+  const lineage = await requestNoKeyLineage(env, 200);
   assert.equal(lineage.contract_version, "site_ready_case_packet.v1");
   assert.equal(lineage.mode, "fallback");
   assert.equal(lineage.status, "fallback");
@@ -93,8 +104,10 @@ try {
   assert.equal(JSON.stringify(lineage).includes('"source_text":'), false);
   assert.equal(outboundRequests, 0);
   console.log(
-    `PASS deterministic case=${first.cases[0].case_id} analysis_status=${fallback.status} lineage_status=${lineage.status} relations=${lineage.relation_candidates.length} sources=${first.cases[0].sources.length} outbound_requests=${outboundRequests}`,
+    `PASS deterministic case=${first.cases[0].case_id} disabled_status=${disabledAnalysis.status} analysis_status=${fallback.status} lineage_status=${lineage.status} relations=${lineage.relation_candidates.length} sources=${first.cases[0].sources.length} outbound_requests=${outboundRequests}`,
   );
 } finally {
+  if (originalLiveFlag === undefined) delete process.env.SISYPHUS_LIVE_ENABLED;
+  else process.env.SISYPHUS_LIVE_ENABLED = originalLiveFlag;
   globalThis.fetch = originalFetch;
 }

@@ -7,7 +7,7 @@ or an unsupported Python backend.
 
 ## Official basis and selected shape
 
-Reviewed on 2026-08-12:
+Reviewed on 2026-08-13:
 
 - [ChatGPT Sites developer guide](https://learn.chatgpt.com/docs/sites)
 - [Responses API migration guide](https://developers.openai.com/api/docs/guides/migrate-to-responses)
@@ -39,6 +39,7 @@ npm run lint
 npm test
 npm run test:adapter
 npm run test:lineage
+npm run test:experience
 npm run smoke:deterministic
 npm run check:secrets
 npm run check:client-secrets
@@ -161,3 +162,29 @@ guide states they do not provide a standalone Sites management view. The Sites
 project, hosted versions, audience access, analytics, and production address
 are managed from ChatGPT web or the desktop app. None of those hosted operations
 is performed or represented in this implementation.
+
+## Public experience and live-mode flag
+
+The first-load experience uses the deterministic cooling-center case and the
+validated `site_ready_case_packet.v1` contract. Overview, Timeline, Claim
+lineage, Sources, and Unresolved views consume that contract without rebuilding
+relation, family, provenance, or canonical-state rules in React. Focused
+prepared-case details use the stable `/api/lineage/:caseId` detail route.
+
+Live analysis is closed by default. Set the non-secret server flag below only
+when a reviewed environment should expose the existing bounded live route:
+
+```text
+SISYPHUS_LIVE_ENABLED=true
+```
+
+The flag is evaluated server-side and only the boolean enabled state reaches
+the rendered interface. `OPENAI_API_KEY` remains a server-only secret and must
+be configured separately in the server or future ChatGPT Sites environment
+settings. A missing key or known provider failure returns an explicitly labeled
+prepared fallback; it is never represented as a successful live run.
+
+The public route retains the 500-character question maximum, eight-source hard
+maximum, 64-pair relation-work maximum, bounded request/response sizes, provider
+timeout, no arbitrary URL input, no recursive crawling, and no visitor/result
+persistence. Disabling live mode does not affect the prepared case.
