@@ -47,6 +47,7 @@ export const CandidateProposalSchema = z
       "unresolved_question",
       "source_hygiene",
     ]),
+    actor: z.string().min(1).max(200).nullable(),
     text: z.string().min(1).max(320),
     supporting_summary_span: z.string().min(1).max(360),
     time_candidate: z.string().max(64).nullable(),

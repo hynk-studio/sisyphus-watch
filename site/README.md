@@ -97,6 +97,9 @@ accept user-supplied fetch URLs. Each partial record is extracted independently
 with no tools before any candidate is serialized. Candidate support spans are
 validated only for containment inside that model-generated summary; they are
 not represented as source-page quotations or independently verified evidence.
+Actor-claim and action candidates carry the actor identified by the bounded
+record, or explicit `null` when the actor is unavailable or ambiguous. The
+source publisher is never substituted as claimant or action actor.
 Every displayed live candidate includes a direct clickable URL citation or web-
 search source reference mapped to its source and snapshot IDs. Cross-source
 temporal reasoning is not performed by the analysis adapter itself.
@@ -137,6 +140,12 @@ fixture replacement/correction support; otherwise the engine emits a weaker
 or unresolved result. Event time, actor assertion time, publication time, and
 Sisyphus retrieval time remain separate fields, and any selected display axis
 is named explicitly.
+
+Only `actor_claim` records become live `ClaimOccurrence` records. Findings and
+actions remain in their dedicated packet lanes, while standalone event/assertion
+time candidates remain in `time_candidates`. A valid live run with no actual
+claim record therefore has zero claim occurrences, families, relations,
+timeline rows, and lineage rows rather than fabricated claim state.
 
 Live partial records retain the weaker #32 provenance model: relation support
 can point only to a bounded model-generated web-search summary span and its URL

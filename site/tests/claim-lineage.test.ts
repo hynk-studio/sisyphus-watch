@@ -5,6 +5,7 @@ import type {
   AnalysisRunPacket,
   AnalysisSourceSummary,
 } from "../app/lib/analysis/contracts";
+import { emptyCandidateCounts } from "../app/lib/analysis/contracts";
 import { getPreparedCase } from "../app/lib/read-model";
 import {
   buildPreparedSiteReadyCasePacket,
@@ -113,12 +114,18 @@ function liveSource(index: number): AnalysisSourceSummary {
   };
 }
 
-function liveCandidate(index: number, source: AnalysisSourceSummary): AnalysisCandidate {
+function liveCandidate(
+  index: number,
+  source: AnalysisSourceSummary,
+  overrides: Partial<AnalysisCandidate> = {},
+): AnalysisCandidate {
+  const candidateType = overrides.candidate_type ?? "finding";
   return {
-    candidate_id: `candidate_live_finding_${index}`,
+    candidate_id: `candidate_live_${candidateType}_${index}`,
     source_id: source.source_id,
     snapshot_id: source.snapshot_id,
-    candidate_type: "finding",
+    candidate_type: candidateType,
+    actor: null,
     text: `Cooling-center hours and access changed in district ${index}.`,
     evidence_reference: source.url ?? "",
     support_kind: "model_generated_web_search_summary_span",
@@ -139,30 +146,79 @@ function liveCandidate(index: number, source: AnalysisSourceSummary): AnalysisCa
     validation_status: "validated",
     mode: "live_api",
     status: "candidate",
+    ...overrides,
   };
 }
 
 function liveRun(): AnalysisRunPacket {
-  const sources = [liveSource(1), liveSource(2)];
-  const candidates = sources.map((source, index) => liveCandidate(index + 1, source));
+  const sources = [liveSource(1)];
+  const candidates = [
+    liveCandidate(1, sources[0], {
+      candidate_type: "actor_claim",
+      actor: "Agency Alpha",
+      text: "Cooling-center hours and access expanded across the city.",
+    }),
+    liveCandidate(2, sources[0], {
+      candidate_type: "actor_claim",
+      actor: "Resident Beta",
+      text: "Cooling-center hours and access remained limited in one neighborhood.",
+    }),
+    liveCandidate(3, sources[0], {
+      candidate_type: "actor_claim",
+      actor: null,
+      text: "Cooling-center access may change again.",
+      uncertainty: "The claimant is unknown.",
+    }),
+  ];
+  return analysisRun(sources, candidates);
+}
+
+function findingsActionsOnlyRun(): AnalysisRunPacket {
+  const sources = [liveSource(1)];
+  const candidates = [
+    liveCandidate(1, sources[0], {
+      candidate_type: "finding",
+      actor: null,
+      text: "The report describes changed cooling-center hours.",
+    }),
+    liveCandidate(2, sources[0], {
+      candidate_type: "action",
+      actor: "City Transit",
+      text: "City Transit added shuttle service.",
+      time_candidate: "2026-08-01T09:00:00Z",
+    }),
+    liveCandidate(3, sources[0], {
+      candidate_type: "event_time_candidate",
+      actor: null,
+      text: "The service change may have occurred on August 1.",
+      time_candidate: "2026-08-01T09:00:00Z",
+    }),
+    liveCandidate(4, sources[0], {
+      candidate_type: "assertion_time_candidate",
+      actor: null,
+      text: "The statement may have been made on August 2.",
+      time_candidate: "2026-08-02T09:00:00Z",
+    }),
+  ];
+  return analysisRun(sources, candidates);
+}
+
+function analysisRun(
+  sources: AnalysisSourceSummary[],
+  candidates: AnalysisCandidate[],
+): AnalysisRunPacket {
+  const candidateCounts = emptyCandidateCounts();
+  for (const candidate of candidates) candidateCounts[candidate.candidate_type] += 1;
   return {
     run_id: "run_live_fixture",
     case_id: "case_candidate_live_fixture",
     mode: "live",
     status: "live",
     normalized_question: "How did public cooling-center access change?",
-    requested_source_limit: 2,
-    actual_source_count: 2,
+    requested_source_limit: sources.length,
+    actual_source_count: sources.length,
     source_snapshot_summaries: sources,
-    candidate_counts: {
-      finding: 2,
-      actor_claim: 0,
-      action: 0,
-      event_time_candidate: 0,
-      assertion_time_candidate: 0,
-      unresolved_question: 0,
-      source_hygiene: 0,
-    },
+    candidate_counts: candidateCounts,
     candidate_ids: candidates.map((item) => item.candidate_id),
     candidates,
     warnings: [],
@@ -329,6 +385,11 @@ test("prepared and live records use the same contract without upgrading live pro
   assert.ok(live.claim_occurrences.length > 0);
   assert.ok(live.claim_occurrences.every((item) => item.status === "candidate"));
   assert.ok(live.claim_occurrences.every((item) => item.origin === "live_api"));
+  assert.deepEqual(
+    live.claim_occurrences.map((item) => item.actor),
+    ["Agency Alpha", "Resident Beta", null],
+  );
+  assert.ok(live.claim_occurrences.every((item) => item.actor !== "Public publisher"));
   assert.ok(live.claim_occurrences.every(
     (item) => item.support_kind === "model_generated_web_search_summary_span",
   ));
@@ -339,6 +400,55 @@ test("prepared and live records use the same contract without upgrading live pro
   assert.ok(live.source_snapshot_summaries.every((item) => item.evidence_excerpt === null));
   assert.ok(live.relation_candidates.every((item) => item.status === "candidate"));
   assert.match(live.limitations.join(" "), /source text was not captured/i);
+});
+
+test("same publisher with different or unknown claim actors does not create a shared-actor family", () => {
+  const packet = buildSiteReadyCasePacketFromAnalysis(liveRun());
+  assert.equal(packet.source_snapshot_summaries.length, 1);
+  assert.equal(packet.source_snapshot_summaries[0].publisher, "Public publisher");
+  assert.deepEqual(
+    packet.actor_claims.map((claim) => claim.actor),
+    ["Agency Alpha", "Resident Beta", null],
+  );
+  assert.equal(packet.claim_occurrences.length, 3);
+  assert.equal(packet.candidate_claim_families.length, 3);
+  assert.ok(packet.candidate_claim_families.every(
+    (family) => family.occurrence_ids.length === 1 && family.unresolved,
+  ));
+  assert.ok(packet.candidate_claim_families.every(
+    (family) => !family.grouping_signals.includes("shared_actor"),
+  ));
+});
+
+test("findings, actions, and standalone time candidates do not become claim occurrences", () => {
+  const packet = buildSiteReadyCasePacketFromAnalysis(findingsActionsOnlyRun());
+  assert.equal(siteReadyCasePacketSchema.safeParse(packet).success, true);
+  assert.equal(packet.source_bound_findings.length, 1);
+  assert.equal(packet.actions.length, 1);
+  assert.equal(packet.actions[0].actor, "City Transit");
+  assert.equal(packet.time_candidates.length, 2);
+  assert.deepEqual(
+    packet.time_candidates.map((candidate) => candidate.candidate_type),
+    ["event_time_candidate", "assertion_time_candidate"],
+  );
+  assert.equal(packet.actor_claims.length, 0);
+  assert.equal(packet.claim_occurrences.length, 0);
+  assert.equal(packet.candidate_claim_families.length, 0);
+  assert.equal(packet.relation_candidates.length, 0);
+  assert.equal(packet.event_timeline_rows.length, 0);
+  assert.equal(packet.claim_lineage_rows.length, 0);
+  assert.deepEqual(packet.bounded_work_summary, {
+    occurrence_count: 0,
+    theoretical_pair_count: 0,
+    configured_maximum_pair_count: MAX_RELATION_PAIR_WORKLOAD,
+    prefilter_candidate_count: 0,
+    filtered_out_count: 0,
+    deferred_pair_count: 0,
+    model_classified_count: 0,
+    unrelated_count: 0,
+    unresolved_or_insufficient_evidence_count: 0,
+    configured_bound_reached: false,
+  });
 });
 
 test("treats adversarial live text as bounded untrusted data without tool or canonical authority", () => {
@@ -382,12 +492,20 @@ test("provides stable focused detail keys for every required record kind", () =>
 test("candidate relation generation leaves canonical prepared state byte-equivalent", () => {
   const before = JSON.stringify(getPreparedCase("city_heatwave_cooling_centers"));
   const first = buildPreparedSiteReadyCasePacket();
+  buildSiteReadyCasePacketFromAnalysis(liveRun());
+  buildSiteReadyCasePacketFromAnalysis(findingsActionsOnlyRun());
   const second = buildPreparedSiteReadyCasePacket();
   const after = JSON.stringify(getPreparedCase("city_heatwave_cooling_centers"));
   assert.equal(after, before);
   assert.deepEqual(second, first);
   assert.ok(first.relation_candidates.every((item) => item.status === "candidate"));
   assert.ok(first.candidate_claim_families.every((item) => item.status === "candidate"));
+  assert.equal(first.claim_occurrences.length, 3);
+  assert.equal(first.candidate_claim_families.length, 2);
+  assert.deepEqual(
+    first.relation_candidates.map((item) => item.relation_type).sort(),
+    ["contradicts", "follow_up", "supersedes"],
+  );
 });
 
 test("no-key lineage route returns the prepared fallback contract without network work", async () => {

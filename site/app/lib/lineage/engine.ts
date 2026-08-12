@@ -107,7 +107,7 @@ export function buildClaimFamilies(
   for (const occurrence of remaining) {
     const group = groups.find((candidateGroup) => {
       const first = candidateGroup[0];
-      if (first.actor !== occurrence.actor || first.claim_kind !== occurrence.claim_kind) {
+      if (!sameKnownActor(first.actor, occurrence.actor) || first.claim_kind !== occurrence.claim_kind) {
         return false;
       }
       const overlap = tokenOverlap(
@@ -248,7 +248,7 @@ function inspectPair(
       (rule.left_claim_id === left.claim_id && rule.right_claim_id === right.claim_id) ||
       (rule.left_claim_id === right.claim_id && rule.right_claim_id === left.claim_id),
   ) ?? null;
-  const sharedActor = normalizeClaimText(left.actor) === normalizeClaimText(right.actor);
+  const sharedActor = sameKnownActor(left.actor, right.actor);
   const nearbyDates = datesWithinDays(pairTime(left), pairTime(right), 45);
   const compatibleClaimTypes = left.claim_kind === right.claim_kind ||
     left.claim_kind === "prepared_actor_claim" ||
@@ -333,7 +333,7 @@ function enforceConservativeReplacementRule(
   if (rule.relation_type !== "correction" && rule.relation_type !== "supersedes") {
     return rule.relation_type;
   }
-  const linkedActor = normalizeClaimText(left.actor) === normalizeClaimText(right.actor);
+  const linkedActor = sameKnownActor(left.actor, right.actor);
   const ordered = Boolean(pairTime(left) && pairTime(right) && pairTime(left) !== pairTime(right));
   const inspectableBasis =
     rule.evidence_basis === "explicit_replacement_language" ||
@@ -347,6 +347,11 @@ function tokenOverlap(left: string, right: string): { score: number; shared: str
   const shared = [...leftTokens].filter((token) => rightTokens.has(token)).sort();
   const union = new Set([...leftTokens, ...rightTokens]);
   return { score: union.size === 0 ? 0 : shared.length / union.size, shared };
+}
+
+function sameKnownActor(left: string | null, right: string | null): boolean {
+  if (!left || !right) return false;
+  return normalizeClaimText(left) === normalizeClaimText(right);
 }
 
 function tokenSet(value: string): Set<string> {

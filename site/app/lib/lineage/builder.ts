@@ -132,6 +132,7 @@ export function buildPreparedSiteReadyCasePacket(
       status: "canonical" as const,
       origin: "deterministic_fixture" as const,
     })),
+    time_candidates: [],
     claim_occurrences: occurrencesWithFamilies,
     candidate_claim_families: families,
     relation_candidates: relationResult.relations,
@@ -188,6 +189,11 @@ export function buildSiteReadyCasePacketFromAnalysis(
   const findings = run.candidates.filter((item) => item.candidate_type === "finding");
   const claims = run.candidates.filter((item) => item.candidate_type === "actor_claim");
   const actions = run.candidates.filter((item) => item.candidate_type === "action");
+  const timeCandidates = run.candidates.filter(
+    (item) =>
+      item.candidate_type === "event_time_candidate" ||
+      item.candidate_type === "assertion_time_candidate",
+  );
   const questions = run.candidates.filter(
     (item) => item.candidate_type === "unresolved_question",
   );
@@ -204,8 +210,21 @@ export function buildSiteReadyCasePacketFromAnalysis(
     actual_source_count: run.actual_source_count,
     source_snapshot_summaries: run.source_snapshot_summaries,
     source_bound_findings: findings.map((candidate) => candidateToFinding(candidate)),
-    actor_claims: claims.map((candidate) => candidateToClaim(candidate, sourceById)),
-    actions: actions.map((candidate) => candidateToAction(candidate, sourceById)),
+    actor_claims: claims.map(candidateToClaim),
+    actions: actions.map(candidateToAction),
+    time_candidates: timeCandidates.map((candidate) => ({
+      candidate_id: candidate.candidate_id,
+      candidate_type: candidate.candidate_type as
+        | "event_time_candidate"
+        | "assertion_time_candidate",
+      text: candidate.text,
+      source_ids: [candidate.source_id],
+      time_candidate: candidate.time_candidate,
+      confidence: candidate.confidence,
+      uncertainty: candidate.uncertainty,
+      status: "candidate" as const,
+      origin: "live_api" as const,
+    })),
     claim_occurrences: occurrencesWithFamilies,
     candidate_claim_families: families,
     relation_candidates: relationResult.relations,
@@ -276,14 +295,10 @@ function preparedOccurrences(
 }
 
 function liveOccurrence(
-  candidate: AnalysisCandidate,
+  candidate: AnalysisCandidate & { candidate_type: "actor_claim" },
   sourceById: Map<string, AnalysisSourceSummary>,
 ): ClaimOccurrence {
   const source = requiredSource(sourceById, candidate.source_id);
-  const eventTime = candidate.candidate_type === "event_time_candidate" ||
-    candidate.candidate_type === "action" ? candidate.time_candidate : null;
-  const assertionTime = candidate.candidate_type === "assertion_time_candidate" ||
-    candidate.candidate_type === "actor_claim" ? candidate.time_candidate : null;
   return {
     occurrence_id: stableLineageId(
       "occurrence_live_",
@@ -297,7 +312,7 @@ function liveOccurrence(
     claim_id: candidate.candidate_id,
     claim_kind: candidate.candidate_type,
     candidate_claim_family_id: null,
-    actor: source.publisher,
+    actor: candidate.actor,
     original_claim_text: candidate.text,
     normalized_claim_representation: normalizeClaimText(candidate.text),
     support_kind: "model_generated_web_search_summary_span",
@@ -310,8 +325,8 @@ function liveOccurrence(
       citation_url: candidate.source_reference.url,
       proves: "model_summary_containment_only",
     },
-    assertion_time_candidate: assertionTime,
-    event_time_candidate: eventTime,
+    assertion_time_candidate: candidate.time_candidate,
+    event_time_candidate: null,
     source_publication_time: source.published_at,
     source_retrieval_time: source.retrieved_at,
     confidence: candidate.confidence,
@@ -322,9 +337,10 @@ function liveOccurrence(
   };
 }
 
-function isOccurrenceCandidate(candidate: AnalysisCandidate): boolean {
-  return candidate.candidate_type !== "unresolved_question" &&
-    candidate.candidate_type !== "source_hygiene";
+function isOccurrenceCandidate(
+  candidate: AnalysisCandidate,
+): candidate is AnalysisCandidate & { candidate_type: "actor_claim" } {
+  return candidate.candidate_type === "actor_claim";
 }
 
 function preparedSourceToAnalysisSummary(source: SourceSnapshotSummary): AnalysisSourceSummary {
@@ -367,11 +383,10 @@ function candidateToFinding(candidate: AnalysisCandidate): PacketFinding {
 
 function candidateToClaim(
   candidate: AnalysisCandidate,
-  sourceById: Map<string, AnalysisSourceSummary>,
 ): PacketActorClaim {
   return {
     claim_id: candidate.candidate_id,
-    actor: requiredSource(sourceById, candidate.source_id).publisher,
+    actor: candidate.actor,
     claim_text: candidate.text,
     source_ids: [candidate.source_id],
     assertion_time_candidate: candidate.time_candidate,
@@ -384,11 +399,10 @@ function candidateToClaim(
 
 function candidateToAction(
   candidate: AnalysisCandidate,
-  sourceById: Map<string, AnalysisSourceSummary>,
 ): PacketAction {
   return {
     action_id: candidate.candidate_id,
-    actor: requiredSource(sourceById, candidate.source_id).publisher,
+    actor: candidate.actor,
     action_text: candidate.text,
     source_ids: [candidate.source_id],
     event_time_candidate: candidate.time_candidate,

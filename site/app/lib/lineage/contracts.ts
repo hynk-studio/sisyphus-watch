@@ -3,7 +3,6 @@ import type {
   AnalysisMode,
   AnalysisSourceSummary,
   CandidateConfidence,
-  CandidateType,
 } from "../analysis/contracts";
 import type { RecordStatus } from "../contracts";
 
@@ -41,9 +40,9 @@ export interface ClaimOccurrence {
   snapshot_id: string;
   source_record_status: RecordStatus;
   claim_id: string;
-  claim_kind: CandidateType | "prepared_actor_claim";
+  claim_kind: "actor_claim" | "prepared_actor_claim";
   candidate_claim_family_id: string | null;
-  actor: string;
+  actor: string | null;
   original_claim_text: string;
   normalized_claim_representation: string;
   support_kind: SupportKind;
@@ -135,7 +134,7 @@ export interface PacketFinding {
 
 export interface PacketActorClaim {
   claim_id: string;
-  actor: string;
+  actor: string | null;
   claim_text: string;
   source_ids: string[];
   assertion_time_candidate: string | null;
@@ -147,7 +146,7 @@ export interface PacketActorClaim {
 
 export interface PacketAction {
   action_id: string;
-  actor: string;
+  actor: string | null;
   action_text: string;
   source_ids: string[];
   event_time_candidate: string | null;
@@ -155,6 +154,18 @@ export interface PacketAction {
   uncertainty: string;
   status: RecordStatus;
   origin: LineageOrigin;
+}
+
+export interface PacketTimeCandidate {
+  candidate_id: string;
+  candidate_type: "event_time_candidate" | "assertion_time_candidate";
+  text: string;
+  source_ids: string[];
+  time_candidate: string | null;
+  confidence: string;
+  uncertainty: string;
+  status: "candidate";
+  origin: "live_api";
 }
 
 export interface PacketUnresolvedQuestion {
@@ -211,6 +222,7 @@ export interface SiteReadyCasePacket {
   source_bound_findings: PacketFinding[];
   actor_claims: PacketActorClaim[];
   actions: PacketAction[];
+  time_candidates: PacketTimeCandidate[];
   claim_occurrences: ClaimOccurrence[];
   candidate_claim_families: ClaimFamilyCandidate[];
   relation_candidates: RelationCandidate[];
@@ -242,13 +254,7 @@ export interface SiteReadyCaseDetail<T = unknown> {
 const recordStatusSchema = z.enum(["candidate", "canonical"]);
 const candidateConfidenceSchema = z.enum(["high", "medium", "low", "unknown"]);
 const claimKindSchema = z.enum([
-  "finding",
   "actor_claim",
-  "action",
-  "event_time_candidate",
-  "assertion_time_candidate",
-  "unresolved_question",
-  "source_hygiene",
   "prepared_actor_claim",
 ]);
 const originSchema = z.enum(["deterministic_fixture", "live_api"]);
@@ -284,7 +290,7 @@ const occurrenceSchema = z.object({
   claim_id: z.string().min(1),
   claim_kind: claimKindSchema,
   candidate_claim_family_id: z.string().nullable(),
-  actor: z.string().min(1),
+  actor: z.string().min(1).max(200).nullable(),
   original_claim_text: z.string().min(1).max(1200),
   normalized_claim_representation: z.string().min(1).max(1200),
   support_kind: supportKindSchema,
@@ -377,14 +383,25 @@ export const siteReadyCasePacketSchema = z.object({
     confidence: z.string(), status: recordStatusSchema, origin: originSchema,
   })),
   actor_claims: z.array(z.object({
-    claim_id: z.string().min(1), actor: z.string().min(1), claim_text: z.string().min(1),
+    claim_id: z.string().min(1), actor: z.string().min(1).max(200).nullable(), claim_text: z.string().min(1),
     source_ids: z.array(z.string()), assertion_time_candidate: nullableTimeSchema,
     confidence: z.string(), uncertainty: z.string(), status: recordStatusSchema, origin: originSchema,
   })),
   actions: z.array(z.object({
-    action_id: z.string().min(1), actor: z.string().min(1), action_text: z.string().min(1),
+    action_id: z.string().min(1), actor: z.string().min(1).max(200).nullable(), action_text: z.string().min(1),
     source_ids: z.array(z.string()), event_time_candidate: nullableTimeSchema,
     confidence: z.string(), uncertainty: z.string(), status: recordStatusSchema, origin: originSchema,
+  })),
+  time_candidates: z.array(z.object({
+    candidate_id: z.string().min(1),
+    candidate_type: z.enum(["event_time_candidate", "assertion_time_candidate"]),
+    text: z.string().min(1),
+    source_ids: z.array(z.string()),
+    time_candidate: nullableTimeSchema,
+    confidence: z.string(),
+    uncertainty: z.string(),
+    status: z.literal("candidate"),
+    origin: z.literal("live_api"),
   })),
   claim_occurrences: z.array(occurrenceSchema),
   candidate_claim_families: z.array(familySchema),

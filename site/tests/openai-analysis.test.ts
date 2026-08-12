@@ -91,6 +91,7 @@ function extractionResponse(index: number, supportingSpan?: string): ProviderRes
       candidates: [
         {
           candidate_type: "finding",
+          actor: null,
           text: `Source ${index} reports a bounded observation.`,
           supporting_summary_span: boundedSupport,
           time_candidate: null,
@@ -99,6 +100,7 @@ function extractionResponse(index: number, supportingSpan?: string): ProviderRes
         },
         {
           candidate_type: "unresolved_question",
+          actor: null,
           text: `What remains unresolved for source ${index}?`,
           supporting_summary_span: boundedSupport,
           time_candidate: null,
@@ -215,6 +217,78 @@ test("maps every candidate to a direct clickable source reference", async () => 
   }
 
   assert.match(html, /Cited source:/);
+});
+
+test("preserves source-local claim and action actors without defaulting to publisher", async () => {
+  const summary = [
+    "Agency Alpha said cooling-center hours expanded.",
+    "Resident Beta said neighborhood access remained limited.",
+    "City Transit added shuttle service.",
+    "An unidentified official said another update was pending.",
+  ].join(" ");
+  const discovered = source(1, summary);
+  const port = new FakeResponsesPort([
+    discoveryResponse([discovered]),
+    {
+      output_parsed: {
+        candidates: [
+          {
+            candidate_type: "actor_claim",
+            actor: "Agency Alpha",
+            text: "Cooling-center hours expanded.",
+            supporting_summary_span: "Agency Alpha said cooling-center hours expanded.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Model-generated summary support only.",
+          },
+          {
+            candidate_type: "actor_claim",
+            actor: "Resident Beta",
+            text: "Neighborhood access remained limited.",
+            supporting_summary_span: "Resident Beta said neighborhood access remained limited.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Model-generated summary support only.",
+          },
+          {
+            candidate_type: "action",
+            actor: "City Transit",
+            text: "Added shuttle service.",
+            supporting_summary_span: "City Transit added shuttle service.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Model-generated summary support only.",
+          },
+          {
+            candidate_type: "actor_claim",
+            actor: null,
+            text: "Another update was pending.",
+            supporting_summary_span: "An unidentified official said another update was pending.",
+            time_candidate: null,
+            confidence: "low",
+            uncertainty: "The claimant is unknown.",
+          },
+        ],
+        limitations: ["One-source extraction only."],
+      },
+      output: [],
+    },
+  ]);
+
+  const packet = await runOpenAIAnalysis({
+    question: "How are cooling-center access claims changing?",
+    sourceLimit: 1,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(packet.source_snapshot_summaries[0].publisher, "Publisher 1");
+  assert.deepEqual(
+    packet.candidates.map((candidate) => candidate.actor),
+    ["Agency Alpha", "Resident Beta", "City Transit", null],
+  );
+  assert.ok(packet.candidates.every((candidate) => candidate.actor !== "Publisher 1"));
+  assert.match(String(port.calls[1].instructions), /never substitute the source publisher/);
 });
 
 test("candidate IDs stay in a non-canonical namespace", async () => {
@@ -393,6 +467,7 @@ test("reports web-search and structured-output failures explicitly", async () =>
         candidates: [
           {
             candidate_type: "finding",
+            actor: null,
             text: "This candidate is not supported by the bounded source record.",
             supporting_summary_span:
               "Invented text absent from the model-generated candidate summary.",
