@@ -7,6 +7,11 @@ const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
 
 const { d1, r2 } = hostingConfig;
+const liveModeValue = process.env.SISYPHUS_LIVE_ENABLED;
+const localRuntimeVariables: Record<string, string> = {};
+if (liveModeValue) {
+  localRuntimeVariables.SISYPHUS_LIVE_ENABLED = liveModeValue;
+}
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
@@ -31,6 +36,7 @@ const localBindingConfig = {
         },
       ]
     : [],
+  vars: localRuntimeVariables,
 };
 
 export default defineConfig(async () => {

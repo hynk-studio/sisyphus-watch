@@ -1,28 +1,67 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import type { AnalysisRoutePayload, AnalysisRunPacket } from "../lib/analysis/contracts";
+import {
+  EXPERIENCE_VIEWS,
+  TIME_AXES,
+  TIME_AXIS_LABELS,
+  VIEW_LABELS,
+  actorLabel,
+  hasFocusedDetailKey,
+  modeLabel,
+  orderTimelineRows,
+  recordBoundaryLabel,
+  relatedRecordLabel,
+  sourceContentLabel,
+  sourceSnapshotLabel,
+  timeValue,
+  type ExperienceView,
+  type TimeAxis,
+} from "../lib/experience";
 import type {
-  AnalysisRoutePayload,
-  AnalysisRunPacket,
-} from "../lib/analysis/contracts";
-import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
+  SiteDetailKind,
+  SiteReadyCaseDetail,
+  SiteReadyCasePacket,
+} from "../lib/lineage/contracts";
+import { getSiteReadyCaseDetail } from "../lib/lineage/details";
+
+export interface FocusSelection {
+  kind: SiteDetailKind;
+  id: string;
+  label: string;
+}
 
 export function CaseExplorer({
   preparedCase,
+  liveEnabled = false,
 }: {
   preparedCase: SiteReadyCasePacket;
+  liveEnabled?: boolean;
 }) {
+  const [packet, setPacket] = useState(preparedCase);
+  const [activeView, setActiveView] = useState<ExperienceView>("overview");
+  const [timeAxis, setTimeAxis] = useState<TimeAxis>("event_time");
   const [question, setQuestion] = useState("");
   const [sourceLimit, setSourceLimit] = useState(5);
-  const [run, setRun] = useState<SiteReadyCasePacket | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [focus, setFocus] = useState<FocusSelection | null>(null);
+  const [focusedDetail, setFocusedDetail] = useState<SiteReadyCaseDetail | null>(null);
+  const [detailState, setDetailState] = useState<"idle" | "loading" | "error">("idle");
+
+  function closeDetail() {
+    setFocus(null);
+    setFocusedDetail(null);
+    setDetailState("idle");
+  }
 
   async function submitAnalysis(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    if (!liveEnabled) return;
+    setRouteError(null);
     setIsLoading(true);
-
+    closeDetail();
     try {
       const response = await fetch("/api/lineage", {
         method: "POST",
@@ -33,198 +72,721 @@ export function CaseExplorer({
         | SiteReadyCasePacket
         | Extract<AnalysisRoutePayload, { status: "error" }>;
       if (payload.status === "error") {
-        setRun(null);
-        setError(payload.error.message);
+        setRouteError(payload.error.message);
         return;
       }
       if (!response.ok) {
-        setRun(null);
-        setError("The bounded analysis request did not complete.");
+        setRouteError("The bounded analysis request did not complete.");
         return;
       }
-      setRun(payload as SiteReadyCasePacket);
+      setPacket(payload as SiteReadyCasePacket);
+      setActiveView("overview");
     } catch {
-      setRun(null);
-      setError("The same-Site analysis route is unavailable.");
+      setRouteError("The same-Site analysis route is unavailable.");
     } finally {
       setIsLoading(false);
     }
   }
 
+  function restorePreparedCase() {
+    setPacket(preparedCase);
+    setRouteError(null);
+    setActiveView("overview");
+    closeDetail();
+  }
+
+  async function openDetail(selection: FocusSelection) {
+    if (focus?.kind === selection.kind && focus.id === selection.id) {
+      closeDetail();
+      return;
+    }
+    if (!hasFocusedDetailKey(packet, selection.kind, selection.id)) return;
+    setFocus(selection);
+    setFocusedDetail(null);
+    const local = getSiteReadyCaseDetail(packet, selection.kind, selection.id);
+    if (packet.mode === "live") {
+      setFocusedDetail(local);
+      setDetailState(local ? "idle" : "error");
+      return;
+    }
+    setDetailState("loading");
+    try {
+      const params = new URLSearchParams({ focus: selection.kind, id: selection.id });
+      const response = await fetch(
+        `/api/lineage/${encodeURIComponent(packet.case_id)}?${params.toString()}`,
+      );
+      if (!response.ok) throw new Error("focused detail unavailable");
+      setFocusedDetail((await response.json()) as SiteReadyCaseDetail);
+      setDetailState("idle");
+    } catch {
+      setFocusedDetail(local);
+      setDetailState(local ? "idle" : "error");
+    }
+  }
+
+  function selectView(view: ExperienceView) {
+    setActiveView(view);
+    closeDetail();
+  }
+
+  function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (index + 1) % EXPERIENCE_VIEWS.length;
+    if (event.key === "ArrowLeft") nextIndex = (index - 1 + EXPERIENCE_VIEWS.length) % EXPERIENCE_VIEWS.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = EXPERIENCE_VIEWS.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextView = EXPERIENCE_VIEWS[nextIndex];
+    selectView(nextView);
+    requestAnimationFrame(() => document.getElementById(`view-tab-${nextView}`)?.focus());
+  }
+
+  const runNotice = getRunNotice(packet, isLoading, routeError);
+
   return (
     <main className="site-shell">
-      <p className="eyebrow">Source-bound public reasoning</p>
-      <h1>Sisyphus Watch</h1>
-      <p className="lede">{preparedCase.normalized_public_interest_question}</p>
+      <header className="masthead" aria-label="Sisyphus Watch">
+        <a className="wordmark" href="#top" aria-label="Sisyphus Watch home">
+          <span className="wordmark-mark" aria-hidden="true">S</span>
+          <span>Sisyphus Watch</span>
+        </a>
+        <span className="header-note">Public-interest source lineage</span>
+      </header>
 
-      <div className="status-row" aria-label="Prepared case runtime status">
-        <span className="status-pill">
-          {run?.status === "live" ? "Live candidates" : "Deterministic fixture"}
-        </span>
-        <span className="status-pill">
-          {run?.status === "live" ? "Server-only OpenAI" : "No API key required"}
-        </span>
-        <span className="status-pill">
-          {run?.status === "live" ? "Bounded web search" : "No network required"}
-        </span>
-        <span className="status-pill">Canonical mutation: none</span>
+      <section className="hero" id="top" aria-labelledby="hero-title">
+        <div className="hero-copy">
+          <p className="eyebrow">When public information changes</p>
+          <h1 id="hero-title">See what changed, which source changed it, and what remains unresolved.</h1>
+          <p className="lede">
+            Sisyphus Watch helps residents, reporters, researchers, and public servants follow claims across changing notices without turning uncertain evidence into verified truth.
+          </p>
+          <div className="hero-actions">
+            <a className="primary-action" href="#case-workspace">Explore the prepared case</a>
+            <span className="hero-assurance">Works without an API key or network</span>
+          </div>
+        </div>
+        <aside className="prepared-preview" aria-label="Prepared case preview">
+          <div className="preview-heading">
+            <span className="mode-badge mode-prepared">Prepared case</span>
+            <span className="boundary-badge">Deterministic fixture</span>
+          </div>
+          <h2>Cooling centers during a severe heatwave</h2>
+          <ol className="preview-steps">
+            <li><span>01</span> City availability claim</li>
+            <li><span>02</span> Community access challenge</li>
+            <li><span>03</span> Later city update</li>
+            <li><span>04</span> Resident impact still unresolved</li>
+          </ol>
+          <p className="preview-note">Optional live analysis is bounded, server-only, and always review-only.</p>
+        </aside>
+      </section>
+
+      <section className="workspace" id="case-workspace" aria-labelledby="case-title">
+        <div className="case-heading">
+          <div>
+            <div className="case-kicker-row">
+              <span className={`mode-badge mode-${packet.mode}`}>{modeLabel(packet)}</span>
+              <span className="boundary-badge">Canonical mutation: none</span>
+            </div>
+            <p className="eyebrow">Current case</p>
+            <h2 id="case-title">{packet.title}</h2>
+            <p className="case-question">{packet.normalized_public_interest_question}</p>
+          </div>
+          {packet.mode !== "deterministic" ? (
+            <button className="quiet-button" type="button" onClick={restorePreparedCase}>Return to prepared case</button>
+          ) : null}
+        </div>
+
+        <div className={`run-notice run-notice-${runNotice.tone}`} role="status" aria-live="polite">
+          <strong>{runNotice.title}</strong><span>{runNotice.message}</span>
+        </div>
+
+        <nav className="view-nav" aria-label="Case views">
+          <div className="tab-list" role="tablist" aria-label="Case result views">
+            {EXPERIENCE_VIEWS.map((view, index) => (
+              <button
+                id={`view-tab-${view}`}
+                key={view}
+                type="button"
+                role="tab"
+                aria-selected={activeView === view}
+                aria-controls="case-view-panel"
+                tabIndex={activeView === view ? 0 : -1}
+                onClick={() => selectView(view)}
+                onKeyDown={(event) => handleTabKey(event, index)}
+              >
+                {VIEW_LABELS[view]}
+                {view === "unresolved" ? <span className="tab-count" aria-label={`${packet.unresolved_questions.length} items`}>{packet.unresolved_questions.length}</span> : null}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        <div className={`result-layout${focus ? " has-detail" : ""}`}>
+          <section id="case-view-panel" className="view-panel" role="tabpanel" aria-labelledby={`view-tab-${activeView}`} tabIndex={0}>
+            {activeView === "overview" ? (
+              <OverviewView
+                packet={packet}
+                liveEnabled={liveEnabled}
+                question={question}
+                sourceLimit={sourceLimit}
+                isLoading={isLoading}
+                routeError={routeError}
+                onQuestionChange={setQuestion}
+                onSourceLimitChange={setSourceLimit}
+                onSubmit={submitAnalysis}
+              />
+            ) : null}
+            {activeView === "timeline" ? <TimelineView packet={packet} timeAxis={timeAxis} onTimeAxisChange={setTimeAxis} onFocus={openDetail} /> : null}
+            {activeView === "lineage" ? <LineageView packet={packet} onFocus={openDetail} /> : null}
+            {activeView === "sources" ? <SourcesView packet={packet} onFocus={openDetail} /> : null}
+            {activeView === "unresolved" ? <UnresolvedView packet={packet} onFocus={openDetail} /> : null}
+          </section>
+          {focus ? <FocusedDetailPanel selection={focus} payload={focusedDetail} state={detailState} onClose={closeDetail} /> : null}
+        </div>
+      </section>
+
+      <footer className="site-footer">
+        <p>Sisyphus Watch keeps source records, candidate reasoning, and accepted fixture state visibly separate.</p>
+        <p>Relation evidence never changes accepted state by itself.</p>
+      </footer>
+    </main>
+  );
+}
+
+export function OverviewView({
+  packet,
+  liveEnabled,
+  question,
+  sourceLimit,
+  isLoading,
+  routeError,
+  onQuestionChange,
+  onSourceLimitChange,
+  onSubmit,
+}: {
+  packet: SiteReadyCasePacket;
+  liveEnabled: boolean;
+  question: string;
+  sourceLimit: number;
+  isLoading: boolean;
+  routeError: string | null;
+  onQuestionChange: (value: string) => void;
+  onSourceLimitChange: (value: number) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <div className="view-stack">
+      <section className="synthesis-card" aria-labelledby="synthesis-title">
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Current source-bound synthesis</p>
+            <h3 id="synthesis-title">What the bounded record shows now</h3>
+          </div>
+          <span className="review-label">{packet.mode === "deterministic" ? "Fixture synthesis" : "Candidate synthesis"}</span>
+        </div>
+        <ol className="synthesis-list">
+          {packet.current_source_bound_candidate_synthesis.map((item) => <li key={item}>{item}</li>)}
+        </ol>
+        <p className="boundary-callout">This synthesis organizes bounded records. It is not a declaration of verified truth.</p>
+      </section>
+
+      <section className="metric-grid" aria-label="Case counts">
+        <Metric value={packet.actual_source_count} label="Sources" />
+        <Metric value={packet.claim_occurrences.length} label="Claim occurrences" />
+        <Metric value={packet.relation_candidates.length} label="Relation candidates" />
+        <Metric value={packet.unresolved_questions.length} label="Unresolved" />
+      </section>
+
+      <div className="overview-grid">
+        <section className="standard-card" aria-labelledby="record-lanes-title">
+          <p className="eyebrow">Evidence lanes</p>
+          <h3 id="record-lanes-title">What stays separate</h3>
+          <dl className="lane-list">
+            <div><dt>Source-bound findings</dt><dd>{packet.source_bound_findings.length}</dd></div>
+            <div><dt>Actor claims</dt><dd>{packet.actor_claims.length}</dd></div>
+            <div><dt>Actions</dt><dd>{packet.actions.length}</dd></div>
+            <div><dt>Standalone time candidates</dt><dd>{packet.time_candidates.length}</dd></div>
+          </dl>
+          <p className="card-note">Only actual actor claims become claim occurrences. Findings, actions, and standalone time candidates keep their own lanes.</p>
+        </section>
+
+        <section className="standard-card" aria-labelledby="bounds-title">
+          <p className="eyebrow">Bounded work</p>
+          <h3 id="bounds-title">Reviewable by design</h3>
+          <dl className="lane-list">
+            <div><dt>Theoretical pairs</dt><dd>{packet.bounded_work_summary.theoretical_pair_count}</dd></div>
+            <div><dt>Prefilter candidates</dt><dd>{packet.bounded_work_summary.prefilter_candidate_count}</dd></div>
+            <div><dt>Hard pair limit</dt><dd>{packet.bounded_work_summary.configured_maximum_pair_count}</dd></div>
+            <div><dt>Model-classified</dt><dd>{packet.bounded_work_summary.model_classified_count}</dd></div>
+          </dl>
+          <p className="card-note">
+            {packet.bounded_work_summary.configured_bound_reached
+              ? `${packet.bounded_work_summary.deferred_pair_count} pairs were deferred when the configured bound was reached.`
+              : "The configured relation-work bound was not reached."}
+          </p>
+        </section>
       </div>
 
-      <section className="analysis-panel" aria-labelledby="analysis-title">
-        <div>
-          <p className="eyebrow">Optional bounded analysis</p>
-          <h2 id="analysis-title">Ask a public-interest question</h2>
-          <p className="item-copy">
-            The browser sends only this question and source limit to a same-Site
-            route. Live results remain review-only candidates; failures return the
-            prepared deterministic case.
-          </p>
+      <section className="analysis-card" aria-labelledby="analysis-title">
+        <div className="analysis-intro">
+          <p className="eyebrow">Optional live analysis</p>
+          <h3 id="analysis-title">Ask one bounded public-interest question</h3>
+          <p>The browser sends only the question and source limit to a same-Site route. OpenAI requests stay server-side, and every live result remains a review-only candidate.</p>
+          <ul className="safeguard-list">
+            <li>Question: 12–500 characters</li>
+            <li>Sources: default 5, hard maximum 8</li>
+            <li>Relation work: hard maximum 64 pairs</li>
+            <li>No arbitrary URLs, crawling, or visitor history</li>
+          </ul>
         </div>
-        <form className="analysis-form" onSubmit={submitAnalysis}>
-          <label>
-            Question
+        {liveEnabled ? (
+          <form className="analysis-form" onSubmit={onSubmit}>
+            <label htmlFor="analysis-question">Public-interest question</label>
             <textarea
+              id="analysis-question"
               value={question}
-              onChange={(event) => setQuestion(event.target.value)}
+              onChange={(event) => onQuestionChange(event.target.value)}
               minLength={12}
               maxLength={500}
               placeholder="How has access to cooling centers changed during the current heatwave?"
               required
             />
-          </label>
-          <div className="analysis-controls">
-            <label>
-              Source limit
-              <select
-                value={sourceLimit}
-                onChange={(event) => setSourceLimit(Number(event.target.value))}
-              >
-                <option value={3}>3</option>
-                <option value={5}>5</option>
-                <option value={8}>8</option>
+            <div className="analysis-controls">
+              <label htmlFor="source-limit">Source limit</label>
+              <select id="source-limit" value={sourceLimit} onChange={(event) => onSourceLimitChange(Number(event.target.value))}>
+                <option value={3}>3 sources</option>
+                <option value={5}>5 sources</option>
+                <option value={8}>8 sources</option>
               </select>
-            </label>
-            <button type="submit" disabled={isLoading}>
-              {isLoading ? "Analyzing…" : "Run bounded analysis"}
-            </button>
+              <button type="submit" disabled={isLoading}>{isLoading ? "Running bounded analysis…" : "Run live analysis"}</button>
+            </div>
+            <p className="form-note">Live search may be unavailable or return the prepared fallback. A fallback is never labeled live.</p>
+            {routeError ? <p className="form-error" role="alert">{routeError}</p> : null}
+          </form>
+        ) : (
+          <div className="disabled-live" role="status">
+            <span className="disabled-icon" aria-hidden="true">—</span>
+            <div>
+              <strong>Live analysis is disabled on this server.</strong>
+              <p>The prepared case remains fully available. A Site operator can enable the server-only feature flag and configure the API key in hosted settings after review.</p>
+            </div>
           </div>
-        </form>
-        {error ? <p className="analysis-error" role="alert">{error}</p> : null}
+        )}
       </section>
 
-      {run ? <LineageResult run={run} /> : null}
-
-      <label className="case-picker">
-        Prepared case
-        <select value={preparedCase.case_id} onChange={() => undefined}>
-          <option value={preparedCase.case_id}>{preparedCase.title}</option>
-        </select>
-      </label>
-
-      <section className="summary-card" aria-labelledby="case-summary-title">
-        <p className="eyebrow">Current source-bound summary</p>
-        <h2 id="case-summary-title">{preparedCase.title}</h2>
-        <ol className="summary-list">
-          {preparedCase.current_source_bound_candidate_synthesis.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ol>
+      <section className="limitations-card" aria-labelledby="limitations-title">
+        <div><p className="eyebrow">Limits and boundary</p><h3 id="limitations-title">What this case does not establish</h3></div>
+        <ul>{packet.limitations.slice(0, 6).map((limitation, index) => <li key={`${index}-${limitation}`}>{limitation}</li>)}</ul>
       </section>
-
-      <div className="content-grid">
-        <section className="panel" aria-labelledby="sources-title">
-          <h2 id="sources-title">Source snapshots</h2>
-          <ul className="item-list">
-            {preparedCase.source_snapshot_summaries.map((source) => (
-              <li className="source-item" key={source.source_id}>
-                <p className="item-title">{source.title}</p>
-                <p className="item-meta">
-                  {source.publisher} · published {formatOptionalDate(source.published_at)}
-                </p>
-                <p className="item-copy">{source.evidence_excerpt}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="panel" aria-labelledby="unresolved-title">
-          <h2 id="unresolved-title">Unresolved items</h2>
-          <ul className="unresolved-list">
-            {preparedCase.unresolved_questions.map((item) => (
-              <li className="unresolved-item" key={item.question_id}>
-                {item.question}
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="panel panel-wide" aria-labelledby="timeline-title">
-          <h2 id="timeline-title">Timeline preview</h2>
-          <ol className="timeline">
-            {preparedCase.event_timeline_rows.map((event) => (
-              <li className="timeline-item" key={event.timeline_row_id}>
-                <time className="timeline-date" dateTime={event.display_time}>
-                  {formatDate(event.display_time)}
-                </time>
-                <div>
-                  <p className="item-title">{event.summary}</p>
-                  <p className="item-copy">Axis: {event.display_time_axis.replaceAll("_", " ")}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-      </div>
-
-      <p className="footer-note">
-        {preparedCase.limitations.join(" ")} Full fixture text is available only
-        through the focused server detail boundary.
-      </p>
-    </main>
+    </div>
   );
 }
 
-export function LineageResult({ run }: { run: SiteReadyCasePacket }) {
-  const work = run.bounded_work_summary;
+export function TimelineView({
+  packet,
+  timeAxis,
+  onTimeAxisChange,
+  onFocus,
+}: {
+  packet: SiteReadyCasePacket;
+  timeAxis: TimeAxis;
+  onTimeAxisChange: (axis: TimeAxis) => void;
+  onFocus: (selection: FocusSelection) => void;
+}) {
+  const rows = orderTimelineRows(packet.event_timeline_rows, timeAxis);
   return (
-    <section className="run-panel" aria-labelledby="lineage-run-title">
-      <div className="run-header">
+    <div className="view-stack">
+      <div className="view-intro">
         <div>
-          <p className="eyebrow">{run.status} Site-ready case packet</p>
-          <h2 id="lineage-run-title">{run.normalized_public_interest_question}</h2>
+          <p className="eyebrow">Temporal view</p>
+          <h3>Claim occurrences in time</h3>
+          <p>Choose one explicit axis. Missing values stay unavailable; publication time is never substituted for event or assertion time.</p>
         </div>
-        <p className="run-count">
-          {run.actual_source_count} sources · {run.claim_occurrences.length} occurrences
-        </p>
+        <label className="axis-control" htmlFor="time-axis">
+          Selected time axis
+          <select id="time-axis" value={timeAxis} onChange={(event) => onTimeAxisChange(event.target.value as TimeAxis)}>
+            {TIME_AXES.map((axis) => <option key={axis} value={axis}>{TIME_AXIS_LABELS[axis]}</option>)}
+          </select>
+        </label>
+      </div>
+      {rows.length ? (
+        <ol className="temporal-list">
+          {rows.map((row, index) => {
+            const occurrence = packet.claim_occurrences.find((item) => row.occurrence_ids.includes(item.occurrence_id));
+            const selectedTime = timeValue(row, timeAxis);
+            return (
+              <li key={row.timeline_row_id} className="temporal-row">
+                <div className="time-rail" aria-hidden="true"><span>{String(index + 1).padStart(2, "0")}</span></div>
+                <article>
+                  <div className="row-meta">
+                    <span>{TIME_AXIS_LABELS[timeAxis]}</span>
+                    <time dateTime={selectedTime ?? undefined}>{formatTimestamp(selectedTime)}</time>
+                    <span className={`record-state record-${row.status}`}>{recordBoundaryLabel(row.status)}</span>
+                  </div>
+                  <h4>{actorLabel(occurrence?.actor ?? null)}</h4>
+                  <blockquote>{row.summary}</blockquote>
+                  <button className="detail-button" type="button" onClick={() => onFocus({ kind: "timeline_row", id: row.timeline_row_id, label: `Timeline row ${index + 1}` })}>
+                    View all four timestamps <span aria-hidden="true">→</span>
+                  </button>
+                </article>
+              </li>
+            );
+          })}
+        </ol>
+      ) : <EmptyState title="No claim timeline" message="This run contains no actual actor-claim occurrences, so no timeline rows were created." />}
+    </div>
+  );
+}
+
+export function LineageView({
+  packet,
+  onFocus,
+}: {
+  packet: SiteReadyCasePacket;
+  onFocus: (selection: FocusSelection) => void;
+}) {
+  return (
+    <div className="view-stack">
+      <div className="view-intro lineage-intro">
+        <div>
+          <p className="eyebrow">Claim lineage</p>
+          <h3>How source-bound claims relate over time</h3>
+          <p>These labels come directly from the validated packet. Candidate relations organize review; they do not adjudicate truth or mutate canonical state.</p>
+        </div>
+        <div className="lineage-summary" aria-label="Lineage counts">
+          <strong>{packet.candidate_claim_families.length}</strong> families
+          <strong>{packet.claim_lineage_rows.length}</strong> links
+        </div>
       </div>
 
-      {run.warnings.length > 0 ? (
-        <ul className="warning-list">
-          {run.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-        </ul>
+      {packet.candidate_claim_families.length ? (
+        <section className="family-strip" aria-labelledby="families-title">
+          <h4 id="families-title">Candidate claim families</h4>
+          <div className="family-grid">
+            {packet.candidate_claim_families.map((family, index) => (
+              <button
+                key={family.family_id}
+                className="family-card"
+                type="button"
+                onClick={() => onFocus({ kind: "claim_family", id: family.family_id, label: `Claim family ${index + 1}` })}
+              >
+                <span>Family {String(index + 1).padStart(2, "0")}</span>
+                <strong>{family.occurrence_ids.length} claim occurrence{family.occurrence_ids.length === 1 ? "" : "s"}</strong>
+                <small>{family.unresolved ? "Grouping unresolved · review only" : "Candidate grouping · review only"}</small>
+              </button>
+            ))}
+          </div>
+        </section>
       ) : null}
 
-      <div className="run-grid">
+      {packet.claim_lineage_rows.length ? (
+        <ol className="lineage-list">
+          {packet.claim_lineage_rows.map((row, index) => {
+            const from = packet.claim_occurrences.find((item) => item.occurrence_id === row.from_occurrence_id);
+            const to = packet.claim_occurrences.find((item) => item.occurrence_id === row.to_occurrence_id);
+            const fromSource = packet.source_snapshot_summaries.find((item) => item.source_id === from?.source_id);
+            const toSource = packet.source_snapshot_summaries.find((item) => item.source_id === to?.source_id);
+            return (
+              <li key={row.lineage_row_id} className="lineage-card">
+                <div className="lineage-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</div>
+                <div className="claim-node claim-node-from">
+                  <span className="node-label">Earlier source-bound claim</span>
+                  <h4>{actorLabel(from?.actor ?? null)}</h4>
+                  <blockquote>{from?.original_claim_text ?? "Claim text unavailable"}</blockquote>
+                  <p>{fromSource?.title ?? "Source unavailable"}</p>
+                </div>
+                <div className="relation-bridge">
+                  <span className={`relation-label relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>
+                  <span className="bridge-line" aria-hidden="true">→</span>
+                  <small>Candidate · pending review</small>
+                </div>
+                <div className="claim-node claim-node-to">
+                  <span className="node-label">Later related claim</span>
+                  <h4>{actorLabel(to?.actor ?? null)}</h4>
+                  <blockquote>{to?.original_claim_text ?? "Claim text unavailable"}</blockquote>
+                  <p>{toSource?.title ?? "Source unavailable"}</p>
+                </div>
+                <div className="lineage-reason">
+                  <p>{row.summary}</p>
+                  <button className="detail-button" type="button" onClick={() => onFocus({ kind: "relation", id: row.relation_id, label: `${relationLabel(row.relation_type)} relation` })}>
+                    Inspect support from both sides <span aria-hidden="true">→</span>
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      ) : <EmptyState title="No claim lineage" message="This run contains no reviewable cross-source claim relations. Findings and actions remain available in their separate packet lanes." />}
+    </div>
+  );
+}
+
+export function SourcesView({
+  packet,
+  onFocus,
+}: {
+  packet: SiteReadyCasePacket;
+  onFocus: (selection: FocusSelection) => void;
+}) {
+  return (
+    <div className="view-stack">
+      <div className="view-intro">
         <div>
-          <h3>Bounded relation work</h3>
-          <p className="item-copy">
-            {work.theoretical_pair_count} theoretical pairs · {work.prefilter_candidate_count}
-            {" "}prefilter candidates · {run.relation_candidates.length} relation candidates
-          </p>
-          <p className="item-meta">
-            Hard bound {work.configured_maximum_pair_count} · deferred {work.deferred_pair_count}
-            {" "}· model-classified {work.model_classified_count}
-          </p>
-        </div>
-        <div>
-          <h3>Lineage preview</h3>
-          <p className="item-copy">
-            {run.candidate_claim_families.length} claim families · {run.event_timeline_rows.length}
-            {" "}timeline rows · {run.claim_lineage_rows.length} lineage rows
-          </p>
-          <p className="item-meta">All inferred records remain candidate/review-only.</p>
+          <p className="eyebrow">Provenance</p>
+          <h3>Sources and snapshot boundaries</h3>
+          <p>Each source says what was captured, what was only summarized, and what its record cannot prove.</p>
         </div>
       </div>
+      <ol className="source-grid">
+        {packet.source_snapshot_summaries.map((source, index) => {
+          const candidateSummary = source.web_search_grounded_candidate_summary;
+          const evidence = candidateSummary ?? source.evidence_excerpt;
+          return (
+            <li key={source.source_id} className="source-card">
+              <div className="source-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</div>
+              <div className="source-card-body">
+                <div className="source-status-row">
+                  <span className={`snapshot-badge snapshot-${source.snapshot_status}`}>{sourceSnapshotLabel(source)}</span>
+                  <span className={`record-state record-${source.record_status}`}>{recordBoundaryLabel(source.record_status)}</span>
+                </div>
+                <h4>
+                  {source.url ? (
+                    <a href={source.url} target="_blank" rel="noopener noreferrer">
+                      {source.title} <span className="external-mark" aria-label="opens in a new tab">↗</span>
+                    </a>
+                  ) : source.title}
+                </h4>
+                <p className="source-publisher">{source.publisher} · {source.domain}</p>
+                <dl className="source-times">
+                  <div><dt>Published</dt><dd>{formatTimestamp(source.published_at)}</dd></div>
+                  <div><dt>Retrieved by Sisyphus</dt><dd>{formatTimestamp(source.retrieved_at)}</dd></div>
+                </dl>
+                <div className={`provenance-note ${candidateSummary ? "provenance-partial" : ""}`}>
+                  <strong>{sourceContentLabel(source)}</strong>
+                  <p>{evidence ?? "No bounded evidence or candidate summary is available."}</p>
+                </div>
+                <ul className="source-limitations">{source.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
+                <button className="detail-button" type="button" onClick={() => onFocus({ kind: "source", id: source.source_id, label: source.title })}>
+                  {source.source_text_captured ? "Read focused fixture evidence" : "Inspect source provenance"} <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+export function UnresolvedView({
+  packet,
+  onFocus,
+}: {
+  packet: SiteReadyCasePacket;
+  onFocus: (selection: FocusSelection) => void;
+}) {
+  return (
+    <div className="view-stack">
+      <div className="view-intro unresolved-intro">
+        <div>
+          <p className="eyebrow">Useful uncertainty</p>
+          <h3>Questions the available record cannot yet answer</h3>
+          <p>These are evidence gaps to investigate, not system errors. Related references show where the question came from.</p>
+        </div>
+      </div>
+      {packet.unresolved_questions.length ? (
+        <ol className="question-list">
+          {packet.unresolved_questions.map((question, index) => (
+            <li key={question.question_id} className="question-card">
+              <span className="question-number">Open question {String(index + 1).padStart(2, "0")}</span>
+              <h4>{question.question}</h4>
+              <div className="related-records">
+                <strong>Related record{question.related_ids.length === 1 ? "" : "s"}</strong>
+                {question.related_ids.length ? <ul>{question.related_ids.map((id) => <li key={id}>{relatedRecordLabel(packet, id)}</li>)}</ul> : <p>No related record was supplied.</p>}
+              </div>
+              <p className="question-status">Status: unresolved · {recordBoundaryLabel(question.record_status)}</p>
+              <button className="detail-button" type="button" onClick={() => onFocus({ kind: "unresolved_question", id: question.question_id, label: `Open question ${index + 1}` })}>
+                Inspect reference keys <span aria-hidden="true">→</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      ) : <EmptyState title="No unresolved questions were returned" message="The absence of an unresolved record does not imply that the public-interest question is fully resolved." />}
+    </div>
+  );
+}
+
+function FocusedDetailPanel({
+  selection,
+  payload,
+  state,
+  onClose,
+}: {
+  selection: FocusSelection;
+  payload: SiteReadyCaseDetail | null;
+  state: "idle" | "loading" | "error";
+  onClose: () => void;
+}) {
+  return (
+    <aside className="detail-panel" aria-labelledby="detail-panel-title">
+      <div className="detail-header">
+        <div><p className="eyebrow">Focused detail</p><h3 id="detail-panel-title">{selection.label}</h3></div>
+        <button className="close-button" type="button" onClick={onClose} aria-label="Close focused detail">×</button>
+      </div>
+      <p className="detail-kind">{selection.kind.replaceAll("_", " ")} · stable ID</p>
+      <code className="stable-id">{selection.id}</code>
+      {state === "loading" ? <p className="detail-loading" role="status">Loading bounded focused detail…</p> : null}
+      {state === "error" ? <p className="form-error" role="alert">Focused detail is unavailable. The summary record remains unchanged.</p> : null}
+      {payload ? <DetailBody kind={selection.kind} detail={payload.detail} /> : null}
+    </aside>
+  );
+}
+
+function DetailBody({ kind, detail }: { kind: SiteDetailKind; detail: unknown }) {
+  const item = asRecord(detail);
+  if (kind === "source") {
+    return (
+      <div className="detail-body">
+        <DetailField label="Publisher" value={item.publisher} />
+        <DetailField label="Publication time" value={formatTimestamp(asNullableString(item.published_at))} />
+        <DetailField label="Sisyphus retrieval time" value={formatTimestamp(asNullableString(item.retrieved_at))} />
+        <DetailField label="Snapshot status" value={item.snapshot_status} />
+        {typeof item.source_text === "string" ? (
+          <div className="captured-text"><strong>Captured deterministic fixture text</strong><p>{item.source_text}</p></div>
+        ) : (
+          <div className="captured-text"><strong>Captured page text</strong><p>Unavailable. This record preserves only bounded search provenance and a model-generated candidate summary.</p></div>
+        )}
+      </div>
+    );
+  }
+  if (kind === "timeline_row") {
+    return (
+      <div className="detail-body">
+        <DetailField label="Event time" value={formatTimestamp(asNullableString(item.event_time))} />
+        <DetailField label="Actor assertion time" value={formatTimestamp(asNullableString(item.actor_assertion_time))} />
+        <DetailField label="Publication time" value={formatTimestamp(asNullableString(item.publication_time))} />
+        <DetailField label="Sisyphus retrieval time" value={formatTimestamp(asNullableString(item.retrieval_time))} />
+        <p className="detail-note">No time axis was inferred or substituted.</p>
+      </div>
+    );
+  }
+  if (kind === "relation") {
+    const left = asRecord(item.left_support_reference);
+    const right = asRecord(item.right_support_reference);
+    return (
+      <div className="detail-body">
+        <DetailField label="Relation" value={item.relation_type} />
+        <DetailField label="Reason" value={item.reason} />
+        <DetailField label="Review status" value={item.review_status} />
+        <div className="support-box"><strong>Left support</strong><p>{stringValue(left.bounded_excerpt)}</p><small>{stringValue(left.proves)}</small></div>
+        <div className="support-box"><strong>Right support</strong><p>{stringValue(right.bounded_excerpt)}</p><small>{stringValue(right.proves)}</small></div>
+        <p className="detail-note">A confidence score cannot change this candidate into canonical state.</p>
+      </div>
+    );
+  }
+  if (kind === "claim_occurrence") {
+    return (
+      <div className="detail-body">
+        <DetailField label="Actor" value={typeof item.actor === "string" ? item.actor : "Unknown actor"} />
+        <DetailField label="Claim" value={item.original_claim_text} />
+        <DetailField label="Support kind" value={item.support_kind} />
+        <DetailField label="Status" value={item.status} />
+      </div>
+    );
+  }
+  if (kind === "claim_family") {
+    return (
+      <div className="detail-body">
+        <DetailField label="Grouping reason" value={item.grouping_reason} />
+        <DetailField label="Occurrence IDs" value={arrayValue(item.occurrence_ids).join(" · ")} />
+        <DetailField label="Review status" value={item.review_status} />
+        <p className="detail-note">A candidate family does not collapse different actors or propositions into one truth state.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="detail-body">
+      <DetailField label="Summary" value={item.summary ?? item.question ?? "Focused record"} />
+      <DetailField label="Status" value={item.review_status ?? item.record_status ?? item.status} />
+      <DetailField label="Related IDs" value={arrayValue(item.related_ids).join(" · ")} />
+    </div>
+  );
+}
+
+function DetailField({ label, value }: { label: string; value: unknown }) {
+  return <div className="detail-field"><strong>{label}</strong><p>{stringValue(value)}</p></div>;
+}
+
+function Metric({ value, label }: { value: number; label: string }) {
+  return <div className="metric"><strong>{value}</strong><span>{label}</span></div>;
+}
+
+function EmptyState({ title, message }: { title: string; message: string }) {
+  return <div className="empty-state"><strong>{title}</strong><p>{message}</p></div>;
+}
+
+export function getRunNotice(
+  packet: SiteReadyCasePacket,
+  isLoading: boolean,
+  error: string | null,
+): {
+  tone: "prepared" | "loading" | "live" | "partial" | "fallback" | "error";
+  title: string;
+  message: string;
+} {
+  if (isLoading) return { tone: "loading", title: "Running bounded live analysis", message: "Discovering up to the requested source limit and validating each source-local record." };
+  if (error) return { tone: "error", title: "Live analysis unavailable", message: `${error} The prepared case remains intact.` };
+  if (packet.mode === "fallback") return { tone: "fallback", title: "Prepared fallback shown", message: "The live attempt did not succeed. This is the deterministic prepared case, not a live result." };
+  if (packet.mode === "live" && packet.warnings.length) return { tone: "partial", title: "Partial live result", message: "Validated candidates are shown with warnings and remain review-only." };
+  if (packet.mode === "live") return { tone: "live", title: "Bounded live candidates", message: "The server returned a validated candidate packet. No canonical state changed." };
+  return { tone: "prepared", title: "Prepared community case ready", message: "Deterministic, source-bound, and available without an API key or network." };
+}
+
+function relationLabel(value: string): string {
+  return value.replaceAll("_", " ");
+}
+
+function formatTimestamp(value: string | null): string {
+  if (!value) return "Unavailable";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  }).format(date);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
+}
+
+function asNullableString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function arrayValue(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function stringValue(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  return "Unavailable";
+}
+
+export function LineageResult({ run }: { run: SiteReadyCasePacket }) {
+  return (
+    <section className="run-panel" aria-labelledby="lineage-run-title">
+      <p className="eyebrow">{run.status} Site-ready case packet</p>
+      <h2 id="lineage-run-title">{run.normalized_public_interest_question}</h2>
+      <p>{run.actual_source_count} sources · {run.claim_occurrences.length} occurrences · {run.relation_candidates.length} relation candidates</p>
+      <p>All inferred records remain candidate/review-only. Canonical mutation: none.</p>
     </section>
   );
 }
@@ -232,101 +794,22 @@ export function LineageResult({ run }: { run: SiteReadyCasePacket }) {
 export function AnalysisResult({ run }: { run: AnalysisRunPacket }) {
   return (
     <section className="run-panel" aria-labelledby="run-title">
-      <div className="run-header">
-        <div>
-          <p className="eyebrow">{run.status} run packet</p>
-          <h2 id="run-title">{run.normalized_question}</h2>
-        </div>
-        <p className="run-count">
-          {run.actual_source_count} sources · {run.candidate_ids.length} candidates
-        </p>
-      </div>
-
-      {run.warnings.length > 0 ? (
-        <ul className="warning-list">
-          {run.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-        </ul>
-      ) : null}
-
-      <div className="run-grid">
-        <div>
-          <h3>Source snapshot refs</h3>
-          <ul className="item-list">
-            {run.source_snapshot_summaries.map((source) => (
-              <li className="source-item" key={source.source_id}>
-                <p className="item-title">
-                  {source.url ? (
-                    <a href={source.url} target="_blank" rel="noreferrer">
-                      {source.title}
-                    </a>
-                  ) : source.title}
-                </p>
-                <p className="item-meta">
-                  {source.domain} · {source.snapshot_status} · {source.record_status}
-                </p>
-                <p className="item-meta">
-                  {source.content_kind === "model_generated_web_search_summary"
-                    ? "Model-generated web-search candidate summary — not page text"
-                    : "Deterministic fixture evidence excerpt"}
-                </p>
-                <p className="item-copy">
-                  {source.web_search_grounded_candidate_summary ??
-                    source.evidence_excerpt}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <h3>Validated candidate records</h3>
-          {run.candidates.length > 0 ? (
-            <ul className="item-list">
-              {run.candidates.map((candidate) => (
-                <li className="source-item" key={candidate.candidate_id}>
-                  <p className="item-meta">{candidate.candidate_type} · candidate</p>
-                  <p className="item-title">{candidate.text}</p>
-                  <p className="item-meta">Model-generated supporting summary span</p>
-                  <p className="item-copy">{candidate.supporting_summary_span}</p>
-                  <p className="candidate-citation">
-                    <a
-                      href={candidate.source_reference.url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {candidate.source_reference.kind === "url_citation"
-                        ? "Cited source"
-                        : "Web-search source"}
-                      : {candidate.source_reference.title}
-                    </a>
-                  </p>
-                  <p className="item-meta">
-                    Source ref: {candidate.source_reference.source_id}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="item-copy">
-              No live candidates were accepted. The deterministic prepared case is
-              shown instead.
-            </p>
-          )}
-        </div>
-      </div>
+      <p className="eyebrow">{run.status} run packet</p>
+      <h2 id="run-title">{run.normalized_question}</h2>
+      <p>{run.actual_source_count} sources · {run.candidate_ids.length} candidates</p>
+      <ul className="item-list">
+        {run.candidates.map((candidate) => (
+          <li className="source-item" key={candidate.candidate_id}>
+            <p>{candidate.candidate_type} · candidate</p>
+            <strong>{candidate.text}</strong>
+            <p>{candidate.supporting_summary_span}</p>
+            <a href={candidate.source_reference.url} target="_blank" rel="noreferrer">
+              {candidate.source_reference.kind === "url_citation" ? "Cited source" : "Web-search source"}: {candidate.source_reference.title}
+            </a>
+            <p>Source ref: {candidate.source_reference.source_id}</p>
+          </li>
+        ))}
+      </ul>
     </section>
   );
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(value));
-}
-
-function formatOptionalDate(value: string | null): string {
-  return value ? formatDate(value) : "date unavailable";
 }
