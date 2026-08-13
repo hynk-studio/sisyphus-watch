@@ -61,6 +61,10 @@ test("renders the compressed public story, new navigation, and compact disabled 
   assert.match(html, /Impact still unresolved/);
   assert.match(html, /What happened/);
   assert.match(html, /Why it matters/);
+  assert.match(
+    html,
+    /<span class="story-stage">What changed<\/span><strong>Official correction \/ update<\/strong>/,
+  );
   assert.match(html, /What remains unresolved/);
   assert.match(html, /Current picture from the available sources/);
   assert.match(html, /Prepared case summary/);
@@ -68,6 +72,10 @@ test("renders the compressed public story, new navigation, and compact disabled 
   assert.match(html, /OpenAI-assisted live analysis/);
   assert.match(html, /disabled in this public demo for a conservative release/);
   assert.match(html, /prepared case remains fully interactive/i);
+  assert.match(
+    html,
+    /one question, a bounded source limit, and a discovery approach are sent to the same Site/i,
+  );
   assert.doesNotMatch(html, /Site operator|hosted settings|configure the API key/i);
   assert.doesNotMatch(html, /<textarea/);
   assert.doesNotMatch(html, /id="discovery-profile"/);

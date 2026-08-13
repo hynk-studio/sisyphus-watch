@@ -301,7 +301,7 @@ export function OverviewView({
     "Official correction / update",
   ];
   const storyStages = preparedCoolingCase
-    ? ["What happened", "Why it matters", "What happened"]
+    ? ["What happened", "Why it matters", "What changed"]
     : ["What the sources say", "What the sources say", "What the sources say"];
   const storyItems = packet.current_source_bound_candidate_synthesis
     .slice(0, 3)
@@ -490,7 +490,7 @@ export function OverviewView({
               <p>The bounded live workflow is implemented but disabled in this public demo for a conservative release. The prepared case remains fully interactive.</p>
               <details className="live-explainer">
                 <summary>How it works</summary>
-                <p>When enabled, one question and a bounded source limit are sent to the same Site. Results remain review-only and never change accepted records automatically.</p>
+                <p>When enabled, one question, a bounded source limit, and a discovery approach are sent to the same Site. Results remain review-only and never change accepted records automatically.</p>
               </details>
             </div>
           </div>
