@@ -16,7 +16,11 @@ export async function handleAnalysisRequest(
   request: Request,
   dependencies: AnalysisHandlerDependencies,
 ): Promise<Response> {
-  let normalized: { question: string; sourceLimit: number };
+  let normalized: {
+    question: string;
+    sourceLimit: number;
+    discoveryProfile: "standard" | "coverage_expansion";
+  };
   try {
     normalized = parseAnalysisRequest(await readBoundedJSON(request));
   } catch (error) {

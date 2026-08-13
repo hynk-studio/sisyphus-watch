@@ -15,6 +15,7 @@ import type { ClaimOccurrence, RelationType } from "../app/lib/lineage/contracts
 import {
   buildBoundedRelations,
   buildClaimFamilies,
+  MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR,
   MAX_RELATION_PAIR_WORKLOAD,
   normalizeClaimText,
   type FixtureRelationRule,
@@ -22,6 +23,7 @@ import {
 import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
 import { handleLineageRequest } from "../app/lib/lineage/handler";
 import { siteReadyCasePacketSchema } from "../app/lib/lineage/contracts";
+import { buildCoverageSummary } from "../app/lib/source-profile";
 
 const GENERATED_AT = "2026-08-12T12:00:00.000Z";
 
@@ -110,6 +112,16 @@ function liveSource(index: number): AnalysisSourceSummary {
       citation_title: `Public source ${index}`,
       citation_start: 0,
       citation_end: 30,
+    },
+    source_selection: {
+      discovery_pass: "baseline",
+      discovery_lane: "baseline_authority",
+      source_context: "established_editorial",
+      information_proximity: "secondary_reporting",
+      why_included: "Provides a conventional baseline report.",
+      classification_basis: "model_generated_web_search_classification",
+      classification_status: "candidate_review_only",
+      comparison_target_source_ids: [],
     },
   };
 }
@@ -209,6 +221,16 @@ function analysisRun(
 ): AnalysisRunPacket {
   const candidateCounts = emptyCandidateCounts();
   for (const candidate of candidates) candidateCounts[candidate.candidate_type] += 1;
+  const coverageSummary = buildCoverageSummary({
+    discoveryProfile: "standard",
+    requestedSourceLimit: sources.length,
+    baselineRequested: sources.length,
+    expansionRequested: 0,
+    sources,
+    duplicateURLCount: 0,
+    expansionAttempted: false,
+    expansionCompletedSuccessfully: false,
+  });
   return {
     run_id: "run_live_fixture",
     case_id: "case_candidate_live_fixture",
@@ -217,6 +239,8 @@ function analysisRun(
     normalized_question: "How did public cooling-center access change?",
     requested_source_limit: sources.length,
     actual_source_count: sources.length,
+    discovery_profile: "standard",
+    coverage_summary: coverageSummary,
     source_snapshot_summaries: sources,
     candidate_counts: candidateCounts,
     candidate_ids: candidates.map((item) => item.candidate_id),
@@ -247,6 +271,175 @@ test("builds one validated compact Site-ready packet for the cooling-center case
   const serialized = JSON.stringify(packet);
   assert.doesNotMatch(serialized, /"source_text":|"output_parsed":|raw_response/);
   assert.ok(Buffer.byteLength(serialized) < 180_000);
+});
+
+test("prepared heatwave sources carry curated coverage metadata without changing record status", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const byId = new Map(
+    packet.source_snapshot_summaries.map((source) => [source.source_id, source]),
+  );
+  const initial = byId.get("src_city_heatwave_initial_announcement_2026_06_10");
+  const local = byId.get("src_community_cooling_center_access_report_2026_06_12");
+  const update = byId.get("src_city_heatwave_updated_guidance_2026_06_14");
+  const editorial = byId.get("src_editorial_heatwave_accountability_note_2026_06_15");
+
+  assert.equal(initial?.source_selection.discovery_lane, "baseline_authority");
+  assert.equal(initial?.source_selection.source_context, "official");
+  assert.equal(initial?.source_selection.information_proximity, "primary_actor_statement");
+  assert.equal(local?.source_selection.discovery_lane, "local_or_firsthand");
+  assert.equal(local?.source_selection.source_context, "community_organization");
+  assert.equal(local?.source_selection.information_proximity, "firsthand_observation");
+  assert.equal(update?.source_selection.discovery_lane, "challenge_or_correction");
+  assert.equal(editorial?.source_selection.information_proximity, "analysis_or_commentary");
+  assert.equal(editorial?.record_status, "candidate");
+  assert.ok(packet.source_snapshot_summaries.every(
+    (source) => source.source_selection.classification_status === "curated_fixture_metadata",
+  ));
+  assert.equal(packet.discovery_profile, null);
+  const coverage = packet.coverage_summary;
+  assert.equal(coverage.coverage_basis, "prepared_fixture");
+  if (coverage.coverage_basis !== "prepared_fixture") {
+    throw new Error("expected prepared fixture coverage");
+  }
+  assert.equal(coverage.fixture_source_count, 4);
+  assert.equal("baseline_requested" in coverage, false);
+  assert.equal("expansion_attempted" in coverage, false);
+  assert.equal("expansion_completed_successfully" in coverage, false);
+  assert.ok(coverage.missing_target_lanes.includes("primary_or_origin"));
+});
+
+test("a source comparison hint cannot admit semantically unrelated claims", () => {
+  const baseline = occurrence("coverage_baseline", "City service hours expanded.", {
+    source_id: "src_baseline",
+    actor: "City office",
+  });
+  const expansion = occurrence("coverage_expansion", "Residents described transit barriers.", {
+    source_id: "src_expansion",
+    actor: "Neighborhood group",
+    assertion_time_candidate: null,
+    event_time_candidate: null,
+    source_publication_time: null,
+  });
+
+  assert.equal(buildBoundedRelations([baseline, expansion]).relations.length, 0);
+  const hinted = buildBoundedRelations(
+    [baseline, expansion],
+    [],
+    MAX_RELATION_PAIR_WORKLOAD,
+    [{
+      source_id: "src_expansion",
+      comparison_target_source_ids: ["src_baseline"],
+    }],
+  );
+  assert.equal(hinted.relations.length, 0);
+  assert.equal(hinted.summary.theoretical_pair_count, 1);
+  assert.equal(hinted.summary.prefilter_candidate_count, 0);
+  assert.equal(hinted.summary.filtered_out_count, 1);
+});
+
+test("a weak coverage comparison hint admits only a topic-linked unresolved review pair", () => {
+  const baseline = occurrence("coverage_topic_baseline", "City service hours expanded.", {
+    source_id: "src_baseline",
+    actor: "City office",
+  });
+  const expansion = occurrence(
+    "coverage_topic_expansion",
+    "Residents described service barriers.",
+    {
+      source_id: "src_expansion",
+      actor: "Neighborhood group",
+      assertion_time_candidate: null,
+      event_time_candidate: null,
+      source_publication_time: null,
+    },
+  );
+  const hinted = buildBoundedRelations(
+    [baseline, expansion],
+    [],
+    MAX_RELATION_PAIR_WORKLOAD,
+    [{
+      source_id: "src_expansion",
+      comparison_target_source_ids: ["src_baseline"],
+    }],
+  );
+  assert.equal(hinted.relations.length, 1);
+  assert.equal(hinted.relations[0].relation_type, "unresolved");
+  assert.equal(hinted.relations[0].insufficient_evidence, true);
+  assert.ok(hinted.relations[0].confidence_score <= 0.35);
+  assert.equal(hinted.relations[0].review_status, "pending_review");
+  assert.match(hinted.relations[0].reason, /does not imply corroboration/i);
+});
+
+test("source hints cap three-by-three claim fan-out before the global workload bound", () => {
+  const baselineTexts = [
+    "Service alpha hours expanded.",
+    "Service beta sites opened.",
+    "Service gamma transport added.",
+  ];
+  const expansionTexts = [
+    "Service delta residents observed.",
+    "Service epsilon access limited.",
+    "Service zeta signs missing.",
+  ];
+  const baseline = baselineTexts.map((text, index) =>
+    occurrence(`hint_baseline_${index}`, text, { source_id: "src_baseline" }),
+  );
+  const expansion = expansionTexts.map((text, index) =>
+    occurrence(`hint_expansion_${index}`, text, { source_id: "src_expansion" }),
+  );
+
+  const result = buildBoundedRelations(
+    [...baseline, ...expansion],
+    [],
+    MAX_RELATION_PAIR_WORKLOAD,
+    [{
+      source_id: "src_expansion",
+      comparison_target_source_ids: ["src_baseline"],
+    }],
+  );
+
+  assert.equal(result.summary.theoretical_pair_count, 15);
+  assert.equal(
+    result.summary.prefilter_candidate_count,
+    MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR,
+  );
+  assert.equal(result.relations.length, MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR);
+  assert.equal(result.summary.filtered_out_count, 13);
+  assert.equal(result.summary.deferred_pair_count, 0);
+  assert.equal(
+    result.summary.prefilter_candidate_count + result.summary.filtered_out_count,
+    result.summary.theoretical_pair_count,
+  );
+  assert.ok(result.relations.every((relation) => relation.relation_type === "unresolved"));
+  assert.ok(result.relations.every((relation) => relation.insufficient_evidence));
+  assert.ok(result.relations.every((relation) => relation.review_status === "pending_review"));
+  assert.ok(result.relations.every((relation) => relation.confidence_score <= 0.35));
+});
+
+test("packet validation rejects mixed prepared and live coverage provenance", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const liveCoverage = buildCoverageSummary({
+    discoveryProfile: "coverage_expansion",
+    requestedSourceLimit: 5,
+    baselineRequested: 2,
+    expansionRequested: 3,
+    sources: packet.source_snapshot_summaries,
+    duplicateURLCount: 0,
+    expansionAttempted: true,
+    expansionCompletedSuccessfully: true,
+  });
+  const invalidPrepared = structuredClone(packet) as unknown as Record<string, unknown>;
+  invalidPrepared.discovery_profile = "coverage_expansion";
+  invalidPrepared.coverage_summary = liveCoverage;
+
+  const invalidFallback = structuredClone(packet) as unknown as Record<string, unknown>;
+  invalidFallback.mode = "fallback";
+  invalidFallback.status = "fallback";
+  invalidFallback.discovery_profile = "coverage_expansion";
+  invalidFallback.coverage_summary = liveCoverage;
+
+  assert.equal(siteReadyCasePacketSchema.safeParse(invalidPrepared).success, false);
+  assert.equal(siteReadyCasePacketSchema.safeParse(invalidFallback).success, false);
 });
 
 test("represents the required deterministic relation fixture semantics", () => {
@@ -533,6 +726,12 @@ test("no-key lineage route returns the prepared fallback contract without networ
   assert.equal(packet.mode, "fallback");
   assert.equal(packet.status, "fallback");
   assert.equal(packet.contract_version, "site_ready_case_packet.v1");
+  assert.equal(packet.discovery_profile, "standard");
+  assert.equal(packet.coverage_summary.coverage_basis, "prepared_fixture");
+  assert.equal(packet.coverage_summary.lane_counts.local_or_firsthand, 1);
+  assert.equal("baseline_returned" in packet.coverage_summary, false);
+  assert.equal("expansion_returned" in packet.coverage_summary, false);
+  assert.match(packet.warnings.join(" "), /missing_api_key/);
   assert.ok(packet.relation_candidates.length >= 1);
   assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
   assert.equal(liveCalls, 0);

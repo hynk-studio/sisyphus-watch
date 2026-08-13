@@ -5,6 +5,14 @@ import type {
   CandidateConfidence,
 } from "../analysis/contracts";
 import type { RecordStatus } from "../contracts";
+import {
+  DISCOVERY_LANES,
+  DISCOVERY_PROFILES,
+  INFORMATION_PROXIMITIES,
+  SOURCE_CONTEXTS,
+  type CoverageSummary,
+  type DiscoveryProfile,
+} from "../source-profile";
 
 export const RELATION_TYPES = [
   "same_event",
@@ -218,6 +226,8 @@ export interface SiteReadyCasePacket {
   normalized_public_interest_question: string;
   requested_source_limit: number;
   actual_source_count: number;
+  discovery_profile: DiscoveryProfile | null;
+  coverage_summary: CoverageSummary;
   source_snapshot_summaries: AnalysisSourceSummary[];
   source_bound_findings: PacketFinding[];
   actor_claims: PacketActorClaim[];
@@ -271,6 +281,59 @@ const searchProvenanceSchema = z.object({
   citation_start: z.number().int().min(0).nullable(),
   citation_end: z.number().int().min(0).nullable(),
 });
+
+const sourceSelectionSchema = z.object({
+  discovery_pass: z.enum(["baseline", "coverage_expansion"]),
+  discovery_lane: z.enum(DISCOVERY_LANES),
+  source_context: z.enum(SOURCE_CONTEXTS),
+  information_proximity: z.enum(INFORMATION_PROXIMITIES),
+  why_included: z.string().min(1).max(240),
+  classification_basis: z.enum([
+    "curated_fixture",
+    "model_generated_web_search_classification",
+  ]),
+  classification_status: z.enum([
+    "curated_fixture_metadata",
+    "candidate_review_only",
+  ]),
+  comparison_target_source_ids: z.array(z.string().min(1).max(160)).max(8),
+}).strict();
+
+const laneCountsSchema = z.object({
+  baseline_authority: z.number().int().min(0).max(8),
+  primary_or_origin: z.number().int().min(0).max(8),
+  local_or_firsthand: z.number().int().min(0).max(8),
+  specialist_context: z.number().int().min(0).max(8),
+  challenge_or_correction: z.number().int().min(0).max(8),
+}).strict();
+
+const liveDiscoveryCoverageSummarySchema = z.object({
+  coverage_basis: z.literal("live_discovery"),
+  discovery_profile: z.enum(DISCOVERY_PROFILES),
+  baseline_requested: z.number().int().min(0).max(8),
+  baseline_returned: z.number().int().min(0).max(8),
+  expansion_requested: z.number().int().min(0).max(8),
+  expansion_returned: z.number().int().min(0).max(8),
+  lane_counts: laneCountsSchema,
+  missing_target_lanes: z.array(z.enum(DISCOVERY_LANES)).max(DISCOVERY_LANES.length),
+  unique_domain_count: z.number().int().min(0).max(8),
+  duplicate_url_count: z.number().int().min(0),
+  source_limit_reached: z.boolean(),
+  expansion_attempted: z.boolean(),
+  expansion_completed_successfully: z.boolean(),
+}).strict();
+
+const preparedFixtureCoverageSummarySchema = z.object({
+  coverage_basis: z.literal("prepared_fixture"),
+  fixture_source_count: z.number().int().min(0).max(8),
+  lane_counts: laneCountsSchema,
+  missing_target_lanes: z.array(z.enum(DISCOVERY_LANES)).max(DISCOVERY_LANES.length),
+}).strict();
+
+const coverageSummarySchema = z.discriminatedUnion("coverage_basis", [
+  liveDiscoveryCoverageSummarySchema,
+  preparedFixtureCoverageSummarySchema,
+]) satisfies z.ZodType<CoverageSummary>;
 
 const boundedSupportSchema = z.object({
   support_kind: supportKindSchema,
@@ -365,6 +428,7 @@ const sourceSchema = z.object({
   web_search_grounded_candidate_summary: z.string().nullable(),
   limitations: z.array(z.string()),
   api_provenance: searchProvenanceSchema.nullable(),
+  source_selection: sourceSelectionSchema,
 });
 
 export const siteReadyCasePacketSchema = z.object({
@@ -377,6 +441,8 @@ export const siteReadyCasePacketSchema = z.object({
   normalized_public_interest_question: z.string().min(1).max(500),
   requested_source_limit: z.number().int().min(1).max(8),
   actual_source_count: z.number().int().min(0).max(8),
+  discovery_profile: z.enum(DISCOVERY_PROFILES).nullable(),
+  coverage_summary: coverageSummarySchema,
   source_snapshot_summaries: z.array(sourceSchema).max(8),
   source_bound_findings: z.array(z.object({
     finding_id: z.string().min(1), text: z.string().min(1), source_ids: z.array(z.string()),
@@ -443,6 +509,57 @@ export const siteReadyCasePacketSchema = z.object({
   focused_detail_lookup_keys: z.array(z.object({
     kind: z.enum(DETAIL_KINDS), id: z.string().min(1), key: z.string().min(1),
   })),
+}).superRefine((packet, context) => {
+  if (packet.mode === "deterministic") {
+    if (packet.discovery_profile !== null) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["discovery_profile"],
+        message: "prepared deterministic packets do not represent a live discovery profile",
+      });
+    }
+    if (packet.coverage_summary.coverage_basis !== "prepared_fixture") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["coverage_summary", "coverage_basis"],
+        message: "prepared deterministic packets require prepared fixture coverage",
+      });
+    }
+    return;
+  }
+
+  if (packet.discovery_profile === null) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["discovery_profile"],
+      message: "live attempts require the requested discovery profile",
+    });
+  }
+
+  if (packet.mode === "live") {
+    if (packet.coverage_summary.coverage_basis !== "live_discovery") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["coverage_summary", "coverage_basis"],
+        message: "live packets require live discovery coverage telemetry",
+      });
+    } else if (packet.coverage_summary.discovery_profile !== packet.discovery_profile) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["coverage_summary", "discovery_profile"],
+        message: "live discovery coverage profile must match the requested profile",
+      });
+    }
+    return;
+  }
+
+  if (packet.coverage_summary.coverage_basis !== "prepared_fixture") {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["coverage_summary", "coverage_basis"],
+      message: "fallback packets require prepared fixture coverage",
+    });
+  }
 }) satisfies z.ZodType<SiteReadyCasePacket>;
 
 export function validateSiteReadyCasePacket(input: unknown): SiteReadyCasePacket {

@@ -39,6 +39,11 @@ test("renders the public product story, prepared case, accessible navigation, an
   assert.match(html, /Live analysis is disabled on this server/);
   assert.match(html, /prepared case remains fully available/i);
   assert.doesNotMatch(html, /<textarea/);
+  assert.doesNotMatch(html, /id="discovery-profile"/);
+  assert.match(html, /Source coverage/i);
+  assert.match(html, /Prepared fixture coverage/);
+  assert.match(html, /Fixture lane not represented: Primary or origin/i);
+  assert.doesNotMatch(html, /\d+\/\d+ baseline/);
   assert.doesNotMatch(html, /Kaggle|course|Apps SDK|MCP App/i);
   assert.equal(JSON.stringify(packet), before);
 });
@@ -53,6 +58,10 @@ test("renders the bounded live form only when the server feature flag is enabled
   assert.match(html, /minLength="12"/);
   assert.match(html, /maxLength="500"/);
   assert.match(html, /8 sources/);
+  assert.match(html, /id="discovery-profile"/);
+  assert.match(html, /Standard review/);
+  assert.match(html, /Expand source coverage/);
+  assert.match(html, /ordinary authority-ranked search may under-surface/);
   assert.match(html, /hard maximum 64 pairs/);
   assert.match(html, /No arbitrary URLs, crawling, or visitor history/);
 });
@@ -139,6 +148,10 @@ test("sources distinguish captured fixture evidence from live partial summaries 
   }));
   assert.match(preparedHtml, /Captured deterministic fixture evidence/);
   assert.match(preparedHtml, /Read focused fixture evidence/);
+  assert.match(preparedHtml, /Why found/);
+  assert.match(preparedHtml, /Source context/);
+  assert.match(preparedHtml, /Information proximity/);
+  assert.match(preparedHtml, /Inclusion does not establish reliability, representativeness, or truth/);
 
   const live = structuredClone(prepared);
   live.mode = "live";
@@ -152,6 +165,16 @@ test("sources distinguish captured fixture evidence from live partial summaries 
   source.source_text_captured = false;
   source.evidence_excerpt = null;
   source.web_search_grounded_candidate_summary = "A bounded model-generated search-grounded candidate summary.";
+  source.source_selection = {
+    discovery_pass: "coverage_expansion",
+    discovery_lane: "local_or_firsthand",
+    source_context: "community_organization",
+    information_proximity: "firsthand_observation",
+    why_included: "Adds local street-level observations.",
+    classification_basis: "model_generated_web_search_classification",
+    classification_status: "candidate_review_only",
+    comparison_target_source_ids: [],
+  };
   live.source_snapshot_summaries = [source];
   live.actual_source_count = 1;
   assert.match(sourceContentLabel(source), /not captured page text/);
@@ -164,6 +187,8 @@ test("sources distinguish captured fixture evidence from live partial summaries 
   assert.match(liveHtml, /href="https:\/\/public\.example\.org\/changing-notice"/);
   assert.match(liveHtml, /target="_blank"/);
   assert.match(liveHtml, /rel="noopener noreferrer"/);
+  assert.match(liveHtml, /candidate metadata · review only/i);
+  assert.match(liveHtml, /local street-level observations/i);
   assert.doesNotMatch(liveHtml, /Captured deterministic fixture evidence/);
 });
 
@@ -182,16 +207,38 @@ test("fallback and partial-live states are never mislabeled as successful live a
   const fallback = buildPreparedSiteReadyCasePacket();
   fallback.mode = "fallback";
   fallback.status = "fallback";
+  fallback.discovery_profile = "coverage_expansion";
   const fallbackHtml = renderToStaticMarkup(createElement(CaseExplorer, {
     preparedCase: fallback,
     liveEnabled: true,
   }));
   assert.match(fallbackHtml, /Prepared fallback shown/);
   assert.match(fallbackHtml, /not a live result/);
+  assert.match(fallbackHtml, /Prepared fallback coverage/);
+  assert.match(fallbackHtml, /The live attempt failed/);
+  assert.match(fallbackHtml, /lane counts belong to the prepared fallback record/);
+  assert.match(fallbackHtml, /Fixture lane not represented/);
+  assert.doesNotMatch(fallbackHtml, /\d+\/\d+ expansion/);
 
   const partial = buildPreparedSiteReadyCasePacket();
   partial.mode = "live";
   partial.status = "live";
+  partial.discovery_profile = "standard";
+  partial.coverage_summary = {
+    coverage_basis: "live_discovery",
+    discovery_profile: "standard",
+    baseline_requested: 5,
+    baseline_returned: 4,
+    expansion_requested: 0,
+    expansion_returned: 0,
+    lane_counts: structuredClone(fallback.coverage_summary.lane_counts),
+    missing_target_lanes: [],
+    unique_domain_count: 1,
+    duplicate_url_count: 0,
+    source_limit_reached: false,
+    expansion_attempted: false,
+    expansion_completed_successfully: false,
+  };
   partial.warnings = ["one source extraction failed"];
   const partialHtml = renderToStaticMarkup(createElement(CaseExplorer, {
     preparedCase: partial,
@@ -199,6 +246,30 @@ test("fallback and partial-live states are never mislabeled as successful live a
   }));
   assert.match(partialHtml, /Partial live result/);
   assert.match(partialHtml, /review-only/);
+  assert.match(partialHtml, /Standard live review/);
+
+  const expansion = structuredClone(partial);
+  expansion.discovery_profile = "coverage_expansion";
+  expansion.coverage_summary = {
+    coverage_basis: "live_discovery",
+    discovery_profile: "coverage_expansion",
+    baseline_requested: 2,
+    baseline_returned: 2,
+    expansion_requested: 3,
+    expansion_returned: 2,
+    lane_counts: structuredClone(partial.coverage_summary.lane_counts),
+    missing_target_lanes: ["primary_or_origin"],
+    unique_domain_count: 1,
+    duplicate_url_count: 0,
+    source_limit_reached: false,
+    expansion_attempted: true,
+    expansion_completed_successfully: true,
+  };
+  const expansionHtml = renderToStaticMarkup(createElement(CaseExplorer, {
+    preparedCase: expansion,
+    liveEnabled: true,
+  }));
+  assert.match(expansionHtml, /Live coverage expansion/);
 });
 
 test("loading and route-unavailable states use bounded public copy", () => {

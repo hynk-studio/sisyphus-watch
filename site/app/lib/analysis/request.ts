@@ -16,6 +16,7 @@ export class RequestValidationError extends Error {
 export function parseAnalysisRequest(value: unknown): {
   question: string;
   sourceLimit: number;
+  discoveryProfile: "standard" | "coverage_expansion";
 } {
   const request = AnalysisRequestSchema.safeParse(value);
   if (!request.success) {
@@ -26,13 +27,14 @@ export function parseAnalysisRequest(value: unknown): {
       sourceLimitIssue ? "source_limit_violation" : "invalid_request",
       sourceLimitIssue
         ? "Source limit must be an integer between 1 and 8."
-        : "Request must contain only a question and optional sourceLimit.",
+        : "Request must contain only a question, optional sourceLimit, and optional discoveryProfile.",
     );
   }
 
   const normalized = NormalizedAnalysisRequestSchema.safeParse({
     question: request.data.question.trim().replace(/\s+/g, " "),
     sourceLimit: request.data.sourceLimit,
+    discoveryProfile: request.data.discoveryProfile,
   });
   if (!normalized.success) {
     const questionIssue = normalized.error.issues.some(

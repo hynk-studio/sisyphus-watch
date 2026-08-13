@@ -6,9 +6,13 @@ import type {
 import type { PreparedCaseReadModel, SourceSnapshotSummary } from "../contracts";
 import { getPreparedCase } from "../read-model";
 import {
+  buildPreparedFixtureCoverageSummary,
+} from "../source-profile";
+import {
   applyFamilyReferences,
   buildBoundedRelations,
   buildClaimFamilies,
+  MAX_RELATION_PAIR_WORKLOAD,
   normalizeClaimText,
   stableLineageId,
   type FixtureRelationRule,
@@ -93,6 +97,9 @@ export function buildPreparedSiteReadyCasePacket(
     occurrencesWithFamilies,
     preparedRelationRules,
   );
+  const coverageSummary = buildPreparedFixtureCoverageSummary({
+    sources: sourceSummaries,
+  });
 
   return assembleAndValidate({
     contract_version: "site_ready_case_packet.v1",
@@ -104,6 +111,8 @@ export function buildPreparedSiteReadyCasePacket(
     normalized_public_interest_question: PREPARED_QUESTION,
     requested_source_limit: 5,
     actual_source_count: sourceSummaries.length,
+    discovery_profile: null,
+    coverage_summary: coverageSummary,
     source_snapshot_summaries: sourceSummaries,
     source_bound_findings: preparedCase.findings.map((finding) => ({
       ...finding,
@@ -171,6 +180,8 @@ export function buildSiteReadyCasePacketFromAnalysis(
       status: "fallback",
       normalized_public_interest_question: run.normalized_question,
       requested_source_limit: run.requested_source_limit,
+      discovery_profile: run.discovery_profile,
+      coverage_summary: run.coverage_summary,
       warnings: [...run.warnings, ...prepared.warnings],
       limitations: [...run.limitations, ...prepared.limitations],
       focused_detail_lookup_keys: [],
@@ -185,7 +196,16 @@ export function buildSiteReadyCasePacketFromAnalysis(
     .map((candidate) => liveOccurrence(candidate, sourceById));
   const families = buildClaimFamilies(occurrences);
   const occurrencesWithFamilies = applyFamilyReferences(occurrences, families);
-  const relationResult = buildBoundedRelations(occurrencesWithFamilies);
+  const relationResult = buildBoundedRelations(
+    occurrencesWithFamilies,
+    [],
+    MAX_RELATION_PAIR_WORKLOAD,
+    run.source_snapshot_summaries.map((source) => ({
+      source_id: source.source_id,
+      comparison_target_source_ids:
+        source.source_selection.comparison_target_source_ids,
+    })),
+  );
   const findings = run.candidates.filter((item) => item.candidate_type === "finding");
   const claims = run.candidates.filter((item) => item.candidate_type === "actor_claim");
   const actions = run.candidates.filter((item) => item.candidate_type === "action");
@@ -208,6 +228,8 @@ export function buildSiteReadyCasePacketFromAnalysis(
     normalized_public_interest_question: run.normalized_question,
     requested_source_limit: run.requested_source_limit,
     actual_source_count: run.actual_source_count,
+    discovery_profile: run.discovery_profile,
+    coverage_summary: run.coverage_summary,
     source_snapshot_summaries: run.source_snapshot_summaries,
     source_bound_findings: findings.map((candidate) => candidateToFinding(candidate)),
     actor_claims: claims.map(candidateToClaim),
@@ -367,6 +389,7 @@ function preparedSourceToAnalysisSummary(source: SourceSnapshotSummary): Analysi
       source.web_search_grounded_candidate_summary,
     limitations: source.limitations,
     api_provenance: source.api_provenance,
+    source_selection: source.source_selection,
   };
 }
 
