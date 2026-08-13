@@ -34,8 +34,8 @@ test("renders the deterministic prepared-case shell", async () => {
   assert.match(html, /City Heatwave Cooling Centers/);
   assert.match(html, /Deterministic fixture/);
   assert.match(html, /without an API key or network/i);
-  assert.match(html, /Claim lineage/);
-  assert.match(html, /Unresolved/);
+  assert.match(html, /What changed/);
+  assert.match(html, /Open questions/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
   assert.doesNotMatch(html, /DEMO FIXTURE ONLY/);
 });

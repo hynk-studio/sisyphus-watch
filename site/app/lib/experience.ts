@@ -11,8 +11,8 @@ import type {
 
 export const EXPERIENCE_VIEWS = [
   "overview",
-  "timeline",
   "lineage",
+  "timeline",
   "sources",
   "unresolved",
 ] as const;
@@ -30,10 +30,10 @@ export type TimeAxis = (typeof TIME_AXES)[number];
 
 export const VIEW_LABELS: Record<ExperienceView, string> = {
   overview: "Overview",
+  lineage: "What changed",
   timeline: "Timeline",
-  lineage: "Claim lineage",
   sources: "Sources",
-  unresolved: "Unresolved",
+  unresolved: "Open questions",
 };
 
 export const TIME_AXIS_LABELS: Record<TimeAxis, string> = {
@@ -44,11 +44,11 @@ export const TIME_AXIS_LABELS: Record<TimeAxis, string> = {
 };
 
 const DISCOVERY_LANE_LABELS: Record<DiscoveryLane, string> = {
-  baseline_authority: "Baseline authority",
-  primary_or_origin: "Primary or origin",
-  local_or_firsthand: "Local or firsthand",
+  baseline_authority: "Official & established",
+  primary_or_origin: "Original records",
+  local_or_firsthand: "Local & firsthand",
   specialist_context: "Specialist context",
-  challenge_or_correction: "Challenge or correction",
+  challenge_or_correction: "Challenges & corrections",
 };
 
 export function discoveryLaneLabel(lane: DiscoveryLane): string {
@@ -63,14 +63,36 @@ export function informationProximityLabel(proximity: InformationProximity): stri
   return proximity.replaceAll("_", " ");
 }
 
+export function sourceRoleLabel(
+  source: SiteReadyCasePacket["source_snapshot_summaries"][number],
+): string {
+  const { source_context: context, discovery_lane: lane } = source.source_selection;
+  const prepared = source.retrieval_mode === "deterministic_fixture";
+
+  if (context === "official") {
+    return lane === "challenge_or_correction" ? "Official update" : "Official notice";
+  }
+  if (context === "community_organization") return "Community report";
+  if (context === "individual_account") return "Firsthand account";
+  if (context === "local_editorial") return "Local report";
+  if (context === "established_editorial") return "News report";
+  if (context === "specialist_publication") {
+    return prepared && source.source_selection.information_proximity === "analysis_or_commentary"
+      ? "Opinion / interpretation"
+      : "Specialist context";
+  }
+  if (context === "archive") return "Archive";
+  return "Public source";
+}
+
 export function actorLabel(actor: string | null): string {
   return actor ?? "Unknown actor";
 }
 
 export function recordBoundaryLabel(status: "candidate" | "canonical"): string {
   return status === "canonical"
-    ? "Accepted deterministic fixture record"
-    : "Candidate · review only";
+    ? "Prepared case record"
+    : "Needs review";
 }
 
 export function modeLabel(packet: SiteReadyCasePacket): string {
@@ -94,17 +116,33 @@ export function sourceCoverageNote(packet: SiteReadyCasePacket): string {
 
   if (packet.coverage_summary.coverage_basis === "prepared_fixture") {
     const fixtureGap = missing
-      ? `Fixture lane not represented: ${missing}.`
-      : "Every target lane is represented in this prepared fixture; exhaustive web coverage is not claimed.";
+      ? `Prepared case source type not represented: ${missing}.`
+      : "Every target source type is represented in this prepared case; exhaustive web coverage is not claimed.";
     return packet.mode === "fallback"
-      ? `The live attempt failed. These lane counts belong to the prepared fallback record. ${fixtureGap}`
-      : fixtureGap;
+      ? `The live attempt failed. These counts describe the prepared fallback, not live discovery. ${fixtureGap}`
+      : `These counts describe curated prepared-case coverage, not live discovery. ${fixtureGap}`;
   }
 
-  if (missing) return `Live search coverage gap: ${missing}.`;
+  if (missing) return `Live discovery source-type gap: ${missing}.`;
   return packet.coverage_summary.discovery_profile === "coverage_expansion"
-    ? "Every target lane is represented in this bounded live packet; exhaustive web coverage is still not claimed."
-    : "Standard live review does not claim to fill every source-role lane or exhaustively cover the web.";
+    ? "Every target source type is represented in this bounded live packet; exhaustive web coverage is still not claimed."
+    : "Standard live review does not claim to fill every source type or exhaustively cover the web.";
+}
+
+const RELATION_LABELS: Record<string, string> = {
+  same_event: "Describes the same event",
+  correction: "Corrects the earlier claim",
+  contradicts: "Challenges the earlier claim",
+  supersedes: "Replaces earlier guidance",
+  follow_up: "Responds to the earlier report",
+  corroborates: "Supports the earlier report",
+  narrows: "Makes the earlier claim more specific",
+  unresolved: "Connection remains unclear",
+  unrelated: "No direct change identified",
+};
+
+export function relationDisplayLabel(value: string): string {
+  return RELATION_LABELS[value] ?? value.replaceAll("_", " ");
 }
 
 export function sourceContentLabel(

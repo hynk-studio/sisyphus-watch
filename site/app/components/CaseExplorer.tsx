@@ -17,13 +17,12 @@ import {
   modeLabel,
   orderTimelineRows,
   recordBoundaryLabel,
+  relationDisplayLabel,
   relatedRecordLabel,
-  informationProximityLabel,
-  sourceContextLabel,
   sourceContentLabel,
   sourceCoverageLabel,
   sourceCoverageNote,
-  sourceSnapshotLabel,
+  sourceRoleLabel,
   timeValue,
   type ExperienceView,
   type TimeAxis,
@@ -167,10 +166,10 @@ export function CaseExplorer({
 
       <section className="hero" id="top" aria-labelledby="hero-title">
         <div className="hero-copy">
-          <p className="eyebrow">When public information changes</p>
-          <h1 id="hero-title">See what changed, which source changed it, and what remains unresolved.</h1>
+          <p className="eyebrow">Version history for public information</p>
+          <h1 id="hero-title">See what changed, where it came from, and what is still unclear.</h1>
           <p className="lede">
-            Sisyphus Watch helps residents, reporters, researchers, and public servants follow claims across changing notices without turning uncertain evidence into verified truth.
+            Sisyphus Watch helps residents, caregivers, community organizers, nonprofit staff, and local journalists follow changing guidance without treating uncertain evidence as verified truth.
           </p>
           <div className="hero-actions">
             <a className="primary-action" href="#case-workspace">Explore the prepared case</a>
@@ -198,7 +197,7 @@ export function CaseExplorer({
           <div>
             <div className="case-kicker-row">
               <span className={`mode-badge mode-${packet.mode}`}>{modeLabel(packet)}</span>
-              <span className="boundary-badge">Canonical mutation: none</span>
+              <span className="boundary-badge">Review-only · Nothing is accepted automatically</span>
             </div>
             <p className="eyebrow">Current case</p>
             <h2 id="case-title">{packet.title}</h2>
@@ -293,103 +292,153 @@ export function OverviewView({
   onDiscoveryProfileChange: (value: DiscoveryProfile) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const preparedCoolingCase =
+    packet.case_id === "city_heatwave_cooling_centers" &&
+    packet.coverage_summary.coverage_basis === "prepared_fixture";
+  const preparedRoles = [
+    "Official notice",
+    "Community access challenge",
+    "Official correction / update",
+  ];
+  const storyStages = preparedCoolingCase
+    ? ["What happened", "Why it matters", "What happened"]
+    : ["What the sources say", "What the sources say", "What the sources say"];
+  const storyItems = packet.current_source_bound_candidate_synthesis
+    .slice(0, 3)
+    .map((summary, index) => ({
+      stage: storyStages[index] ?? "What happened",
+      role: preparedCoolingCase
+        ? preparedRoles[index]
+        : `Source-bound summary ${index + 1}`,
+      summary,
+    }));
+  const impactQuestion =
+    packet.unresolved_questions.find((item) =>
+      item.question.toLowerCase().includes("reach vulnerable residents"),
+    ) ?? packet.unresolved_questions[0];
+  if (impactQuestion) {
+    storyItems.push({
+      stage: "What remains unresolved",
+      role: preparedCoolingCase ? "Impact still unresolved" : "Open question",
+      summary: impactQuestion.question,
+    });
+  }
+
   return (
     <div className="view-stack">
       <section className="synthesis-card" aria-labelledby="synthesis-title">
         <div className="section-heading-row">
           <div>
-            <p className="eyebrow">Current source-bound synthesis</p>
-            <h3 id="synthesis-title">What the bounded record shows now</h3>
+            <p className="eyebrow">Current picture from the available sources</p>
+            <h3 id="synthesis-title">What happened — and what is still unclear</h3>
           </div>
-          <span className="review-label">{packet.mode === "deterministic" ? "Fixture synthesis" : "Candidate synthesis"}</span>
+          <span className="review-label">{packet.mode === "deterministic" ? "Prepared case summary" : "Review-only summary"}</span>
         </div>
-        <ol className="synthesis-list">
-          {packet.current_source_bound_candidate_synthesis.map((item) => <li key={item}>{item}</li>)}
-        </ol>
-        <p className="boundary-callout">This synthesis organizes bounded records. It is not a declaration of verified truth.</p>
-      </section>
-
-      <section className="metric-grid" aria-label="Case counts">
-        <Metric value={packet.actual_source_count} label="Sources" />
-        <Metric value={packet.claim_occurrences.length} label="Claim occurrences" />
-        <Metric value={packet.relation_candidates.length} label="Relation candidates" />
-        <Metric value={packet.unresolved_questions.length} label="Unresolved" />
-      </section>
-
-      <section className="standard-card coverage-card" aria-labelledby="source-coverage-title">
-        <div className="section-heading-row">
-          <div>
-            <p className="eyebrow">Source coverage</p>
-            <h3 id="source-coverage-title">Represented discovery lanes</h3>
-          </div>
-          <span className="review-label">{sourceCoverageLabel(packet)}</span>
-        </div>
-        <dl className="coverage-lanes">
-          {DISCOVERY_LANES.map((lane) => (
-            <div key={lane}>
-              <dt>{discoveryLaneLabel(lane)}</dt>
-              <dd>{packet.coverage_summary.lane_counts[lane]}</dd>
-            </div>
+        <ol className="story-flow">
+          {storyItems.map((item, index) => (
+            <li key={`${item.role}-${item.summary}`}>
+              <span className="story-stage">{item.stage}</span>
+              <strong>{item.role}</strong>
+              <p>{item.summary}</p>
+              {index < storyItems.length - 1 ? <span className="story-arrow" aria-hidden="true">→</span> : null}
+            </li>
           ))}
-        </dl>
-        {packet.coverage_summary.coverage_basis === "live_discovery" ? (
-          <div className="coverage-summary-line">
-            <span>{packet.coverage_summary.baseline_returned}/{packet.coverage_summary.baseline_requested} baseline</span>
-            <span>{packet.coverage_summary.expansion_returned}/{packet.coverage_summary.expansion_requested} expansion</span>
-            <span>{packet.coverage_summary.unique_domain_count} unique domains</span>
-            <span>{packet.coverage_summary.duplicate_url_count} duplicate URLs removed</span>
-          </div>
-        ) : (
-          <div className="coverage-summary-line">
-            <span>{packet.coverage_summary.fixture_source_count} curated fixture sources</span>
-          </div>
-        )}
-        <p className="card-note">{sourceCoverageNote(packet)}</p>
+        </ol>
+        <p className="boundary-callout">This view organizes what the available sources say. It does not independently verify the claims or decide what is true.</p>
       </section>
 
-      <div className="overview-grid">
-        <section className="standard-card" aria-labelledby="record-lanes-title">
-          <p className="eyebrow">Evidence lanes</p>
-          <h3 id="record-lanes-title">What stays separate</h3>
-          <dl className="lane-list">
-            <div><dt>Source-bound findings</dt><dd>{packet.source_bound_findings.length}</dd></div>
-            <div><dt>Actor claims</dt><dd>{packet.actor_claims.length}</dd></div>
-            <div><dt>Actions</dt><dd>{packet.actions.length}</dd></div>
-            <div><dt>Standalone time candidates</dt><dd>{packet.time_candidates.length}</dd></div>
-          </dl>
-          <p className="card-note">Only actual actor claims become claim occurrences. Findings, actions, and standalone time candidates keep their own lanes.</p>
-        </section>
+      <details className="method-card">
+        <summary>
+          <span>
+            <strong>Method &amp; coverage</strong>
+            <small>Source mix, record boundaries, and bounded review workload</small>
+          </span>
+          <span className="review-label">{sourceCoverageLabel(packet)}</span>
+        </summary>
+        <div className="method-card-body">
+          <section className="metric-grid method-metrics" aria-label="Case counts">
+            <Metric value={packet.actual_source_count} label="Sources" />
+            <Metric value={packet.claim_occurrences.length} label="Claims found in sources" />
+            <Metric value={packet.relation_candidates.length} label="Possible changes to review" />
+            <Metric value={packet.unresolved_questions.length} label="Open questions" />
+          </section>
 
-        <section className="standard-card" aria-labelledby="bounds-title">
-          <p className="eyebrow">Bounded work</p>
-          <h3 id="bounds-title">Reviewable by design</h3>
-          <dl className="lane-list">
-            <div><dt>Theoretical pairs</dt><dd>{packet.bounded_work_summary.theoretical_pair_count}</dd></div>
-            <div><dt>Prefilter candidates</dt><dd>{packet.bounded_work_summary.prefilter_candidate_count}</dd></div>
-            <div><dt>Hard pair limit</dt><dd>{packet.bounded_work_summary.configured_maximum_pair_count}</dd></div>
-            <div><dt>Model-classified</dt><dd>{packet.bounded_work_summary.model_classified_count}</dd></div>
-          </dl>
-          <p className="card-note">
-            {packet.bounded_work_summary.configured_bound_reached
-              ? `${packet.bounded_work_summary.deferred_pair_count} pairs were deferred when the configured bound was reached.`
-              : "The configured relation-work bound was not reached."}
-          </p>
-        </section>
-      </div>
+          <section className="standard-card coverage-card" aria-labelledby="source-coverage-title">
+            <div className="section-heading-row">
+              <div>
+                <p className="eyebrow">Source coverage</p>
+                <h3 id="source-coverage-title">What kinds of sources are represented?</h3>
+              </div>
+            </div>
+            <dl className="coverage-lanes">
+              {DISCOVERY_LANES.map((lane) => (
+                <div key={lane}>
+                  <dt>{discoveryLaneLabel(lane)}</dt>
+                  <dd>{packet.coverage_summary.lane_counts[lane]}</dd>
+                </div>
+              ))}
+            </dl>
+            {packet.coverage_summary.coverage_basis === "live_discovery" ? (
+              <div className="coverage-summary-line">
+                <span>{packet.coverage_summary.baseline_returned}/{packet.coverage_summary.baseline_requested} baseline results</span>
+                <span>{packet.coverage_summary.expansion_returned}/{packet.coverage_summary.expansion_requested} coverage-expansion results</span>
+                <span>{packet.coverage_summary.unique_domain_count} unique domains</span>
+                <span>{packet.coverage_summary.duplicate_url_count} duplicate URLs removed</span>
+              </div>
+            ) : (
+              <div className="coverage-summary-line">
+                <span>{packet.coverage_summary.fixture_source_count} curated prepared-case sources</span>
+              </div>
+            )}
+            <p className="card-note">{sourceCoverageNote(packet)}</p>
+          </section>
 
-      <section className="analysis-card" aria-labelledby="analysis-title">
-        <div className="analysis-intro">
-          <p className="eyebrow">Optional live analysis</p>
-          <h3 id="analysis-title">Ask one bounded public-interest question</h3>
-          <p>The browser sends only the question, source limit, and selected discovery profile to a same-Site route. OpenAI requests stay server-side, and every live result remains a review-only candidate.</p>
-          <ul className="safeguard-list">
-            <li>Question: 12–500 characters</li>
-            <li>Sources: default 5, hard maximum 8</li>
-            <li>Relation work: hard maximum 64 pairs</li>
-            <li>No arbitrary URLs, crawling, or visitor history</li>
-          </ul>
+          <div className="overview-grid">
+            <section className="standard-card" aria-labelledby="record-lanes-title">
+              <p className="eyebrow">What we keep separate</p>
+              <h3 id="record-lanes-title">Different record types stay distinct</h3>
+              <dl className="lane-list">
+                <div><dt>Source-bound findings</dt><dd>{packet.source_bound_findings.length}</dd></div>
+                <div><dt>Actor claims</dt><dd>{packet.actor_claims.length}</dd></div>
+                <div><dt>Actions</dt><dd>{packet.actions.length}</dd></div>
+                <div><dt>Standalone time candidates</dt><dd>{packet.time_candidates.length}</dd></div>
+              </dl>
+              <p className="card-note">Only actual actor claims become claims found in sources. Findings, actions, and standalone time candidates keep their own record types.</p>
+            </section>
+
+            <section className="standard-card" aria-labelledby="bounds-title">
+              <p className="eyebrow">Technical workload</p>
+              <h3 id="bounds-title">Bounded for human review</h3>
+              <dl className="lane-list">
+                <div><dt>Theoretical pairs</dt><dd>{packet.bounded_work_summary.theoretical_pair_count}</dd></div>
+                <div><dt>Prefilter candidates</dt><dd>{packet.bounded_work_summary.prefilter_candidate_count}</dd></div>
+                <div><dt>Hard pair limit</dt><dd>{packet.bounded_work_summary.configured_maximum_pair_count}</dd></div>
+                <div><dt>Model-classified</dt><dd>{packet.bounded_work_summary.model_classified_count}</dd></div>
+              </dl>
+              <p className="card-note">
+                {packet.bounded_work_summary.configured_bound_reached
+                  ? `${packet.bounded_work_summary.deferred_pair_count} pairs were deferred when the configured bound was reached.`
+                  : "The configured relation-work bound was not reached."}
+              </p>
+            </section>
+          </div>
         </div>
+      </details>
+
+      <section className={`analysis-card${liveEnabled ? "" : " analysis-card-compact"}`} aria-labelledby="analysis-title">
         {liveEnabled ? (
+          <>
+            <div className="analysis-intro">
+              <p className="eyebrow">OpenAI-assisted live analysis</p>
+              <h3 id="analysis-title">Ask one bounded public-interest question</h3>
+              <p>The browser sends only the question, source limit, and selected discovery profile to a same-Site route. OpenAI requests stay server-side, and every live result remains a review-only candidate.</p>
+              <ul className="safeguard-list">
+                <li>Question: 12–500 characters</li>
+                <li>Sources: default 5, hard maximum 8</li>
+                <li>Relation work: hard maximum 64 pairs</li>
+                <li>No arbitrary URLs, crawling, or visitor history</li>
+              </ul>
+            </div>
           <form className="analysis-form" onSubmit={onSubmit}>
             <label htmlFor="analysis-question">Public-interest question</label>
             <textarea
@@ -431,12 +480,18 @@ export function OverviewView({
             <p className="form-note">Live search may be unavailable or return the prepared fallback. A fallback is never labeled live.</p>
             {routeError ? <p className="form-error" role="alert">{routeError}</p> : null}
           </form>
+          </>
         ) : (
           <div className="disabled-live" role="status">
             <span className="disabled-icon" aria-hidden="true">—</span>
             <div>
-              <strong>Live analysis is disabled on this server.</strong>
-              <p>The prepared case remains fully available. A Site operator can enable the server-only feature flag and configure the API key in hosted settings after review.</p>
+              <p className="eyebrow">Optional workflow</p>
+              <h3 id="analysis-title">OpenAI-assisted live analysis</h3>
+              <p>The bounded live workflow is implemented but disabled in this public demo for a conservative release. The prepared case remains fully interactive.</p>
+              <details className="live-explainer">
+                <summary>How it works</summary>
+                <p>When enabled, one question and a bounded source limit are sent to the same Site. Results remain review-only and never change accepted records automatically.</p>
+              </details>
             </div>
           </div>
         )}
@@ -467,7 +522,7 @@ export function TimelineView({
       <div className="view-intro">
         <div>
           <p className="eyebrow">Temporal view</p>
-          <h3>Claim occurrences in time</h3>
+          <h3>Claims found in sources over time</h3>
           <p>Choose one explicit axis. Missing values stay unavailable; publication time is never substituted for event or assertion time.</p>
         </div>
         <label className="axis-control" htmlFor="time-axis">
@@ -517,8 +572,9 @@ export function LineageView({
     <div className="view-stack">
       <div className="view-intro lineage-intro">
         <div>
-          <p className="eyebrow">Claim lineage</p>
-          <h3>How source-bound claims relate over time</h3>
+          <p className="eyebrow">What changed</p>
+          <h3>How claims relate over time</h3>
+          <p className="view-subtitle">Claim lineage across sources</p>
           <p>These labels come directly from the validated packet. Candidate relations organize review; they do not adjudicate truth or mutate canonical state.</p>
         </div>
         <div className="lineage-summary" aria-label="Lineage counts">
@@ -529,7 +585,7 @@ export function LineageView({
 
       {packet.candidate_claim_families.length ? (
         <section className="family-strip" aria-labelledby="families-title">
-          <h4 id="families-title">Candidate claim families</h4>
+          <h4 id="families-title">Related claims</h4>
           <div className="family-grid">
             {packet.candidate_claim_families.map((family, index) => (
               <button
@@ -539,7 +595,7 @@ export function LineageView({
                 onClick={() => onFocus({ kind: "claim_family", id: family.family_id, label: `Claim family ${index + 1}` })}
               >
                 <span>Family {String(index + 1).padStart(2, "0")}</span>
-                <strong>{family.occurrence_ids.length} claim occurrence{family.occurrence_ids.length === 1 ? "" : "s"}</strong>
+                <strong>{family.occurrence_ids.length} claim{family.occurrence_ids.length === 1 ? "" : "s"} found in sources</strong>
                 <small>{family.unresolved ? "Grouping unresolved · review only" : "Candidate grouping · review only"}</small>
               </button>
             ))}
@@ -564,9 +620,9 @@ export function LineageView({
                   <p>{fromSource?.title ?? "Source unavailable"}</p>
                 </div>
                 <div className="relation-bridge">
-                  <span className={`relation-label relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>
+                  <span className={`relation-label relation-${row.relation_type}`}>{relationDisplayLabel(row.relation_type)}</span>
                   <span className="bridge-line" aria-hidden="true">→</span>
-                  <small>Candidate · pending review</small>
+                  <small>Needs review</small>
                 </div>
                 <div className="claim-node claim-node-to">
                   <span className="node-label">Later related claim</span>
@@ -576,7 +632,7 @@ export function LineageView({
                 </div>
                 <div className="lineage-reason">
                   <p>{row.summary}</p>
-                  <button className="detail-button" type="button" onClick={() => onFocus({ kind: "relation", id: row.relation_id, label: `${relationLabel(row.relation_type)} relation` })}>
+                  <button className="detail-button" type="button" onClick={() => onFocus({ kind: "relation", id: row.relation_id, label: relationDisplayLabel(row.relation_type) })}>
                     Inspect support from both sides <span aria-hidden="true">→</span>
                   </button>
                 </div>
@@ -614,7 +670,7 @@ export function SourcesView({
               <div className="source-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</div>
               <div className="source-card-body">
                 <div className="source-status-row">
-                  <span className={`snapshot-badge snapshot-${source.snapshot_status}`}>{sourceSnapshotLabel(source)}</span>
+                  <span className="source-role-badge">{sourceRoleLabel(source)}</span>
                   <span className={`record-state record-${source.record_status}`}>{recordBoundaryLabel(source.record_status)}</span>
                 </div>
                 <h4>
@@ -624,27 +680,20 @@ export function SourcesView({
                     </a>
                   ) : source.title}
                 </h4>
-                <p className="source-publisher">{source.publisher} · {source.domain}</p>
+                <p className="source-publisher">{source.publisher}</p>
                 <dl className="source-times">
                   <div><dt>Published</dt><dd>{formatTimestamp(source.published_at)}</dd></div>
-                  <div><dt>Retrieved by Sisyphus</dt><dd>{formatTimestamp(source.retrieved_at)}</dd></div>
                 </dl>
                 <div className={`provenance-note ${candidateSummary ? "provenance-partial" : ""}`}>
                   <strong>{sourceContentLabel(source)}</strong>
                   <p>{evidence ?? "No bounded evidence or candidate summary is available."}</p>
                 </div>
-                <dl className="source-selection-metadata">
-                  <div><dt>Why found</dt><dd>{source.source_selection.why_included}</dd></div>
-                  <div><dt>Source context</dt><dd>{sourceContextLabel(source.source_selection.source_context)}</dd></div>
-                  <div><dt>Information proximity</dt><dd>{informationProximityLabel(source.source_selection.information_proximity)}</dd></div>
-                </dl>
-                {source.source_selection.classification_status === "candidate_review_only" ? (
-                  <p className="candidate-metadata-note">Source-role classification is candidate metadata · review only.</p>
-                ) : null}
-                <p className="source-inclusion-boundary">This source was included to widen coverage. Inclusion does not establish reliability, representativeness, or truth.</p>
-                <ul className="source-limitations">{source.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
+                <div className="source-why">
+                  <strong>Why this source matters</strong>
+                  <p>{source.source_selection.why_included}</p>
+                </div>
                 <button className="detail-button" type="button" onClick={() => onFocus({ kind: "source", id: source.source_id, label: source.title })}>
-                  {source.source_text_captured ? "Read focused fixture evidence" : "Inspect source provenance"} <span aria-hidden="true">→</span>
+                  {source.source_text_captured ? "Read demo source" : "View source details"} <span aria-hidden="true">→</span>
                 </button>
               </div>
             </li>
@@ -667,7 +716,7 @@ export function UnresolvedView({
       <div className="view-intro unresolved-intro">
         <div>
           <p className="eyebrow">Useful uncertainty</p>
-          <h3>Questions the available record cannot yet answer</h3>
+          <h3>Open questions the available sources cannot yet answer</h3>
           <p>These are evidence gaps to investigate, not system errors. Related references show where the question came from.</p>
         </div>
       </div>
@@ -683,7 +732,7 @@ export function UnresolvedView({
               </div>
               <p className="question-status">Status: unresolved · {recordBoundaryLabel(question.record_status)}</p>
               <button className="detail-button" type="button" onClick={() => onFocus({ kind: "unresolved_question", id: question.question_id, label: `Open question ${index + 1}` })}>
-                Inspect reference keys <span aria-hidden="true">→</span>
+                See question details <span aria-hidden="true">→</span>
               </button>
             </li>
           ))}
@@ -693,7 +742,7 @@ export function UnresolvedView({
   );
 }
 
-function FocusedDetailPanel({
+export function FocusedDetailPanel({
   selection,
   payload,
   state,
@@ -710,11 +759,14 @@ function FocusedDetailPanel({
         <div><p className="eyebrow">Focused detail</p><h3 id="detail-panel-title">{selection.label}</h3></div>
         <button className="close-button" type="button" onClick={onClose} aria-label="Close focused detail">×</button>
       </div>
-      <p className="detail-kind">{selection.kind.replaceAll("_", " ")} · stable ID</p>
-      <code className="stable-id">{selection.id}</code>
       {state === "loading" ? <p className="detail-loading" role="status">Loading bounded focused detail…</p> : null}
       {state === "error" ? <p className="form-error" role="alert">Focused detail is unavailable. The summary record remains unchanged.</p> : null}
       {payload ? <DetailBody kind={selection.kind} detail={payload.detail} /> : null}
+      <details className="technical-details">
+        <summary>Technical details</summary>
+        <p className="detail-kind">{selection.kind.replaceAll("_", " ")} · stable ID</p>
+        <code className="stable-id">{selection.id}</code>
+      </details>
     </aside>
   );
 }
@@ -722,17 +774,52 @@ function FocusedDetailPanel({
 function DetailBody({ kind, detail }: { kind: SiteDetailKind; detail: unknown }) {
   const item = asRecord(detail);
   if (kind === "source") {
+    const selection = asRecord(item.source_selection);
+    const provenance = asRecord(item.api_provenance);
+    const limitations = arrayValue(item.limitations);
+    const sourceText = typeof item.source_text === "string" ? item.source_text : null;
+    const candidateSummary = typeof item.web_search_grounded_candidate_summary === "string"
+      ? item.web_search_grounded_candidate_summary
+      : null;
     return (
       <div className="detail-body">
         <DetailField label="Publisher" value={item.publisher} />
         <DetailField label="Publication time" value={formatTimestamp(asNullableString(item.published_at))} />
-        <DetailField label="Sisyphus retrieval time" value={formatTimestamp(asNullableString(item.retrieved_at))} />
-        <DetailField label="Snapshot status" value={item.snapshot_status} />
-        {typeof item.source_text === "string" ? (
-          <div className="captured-text"><strong>Captured deterministic fixture text</strong><p>{item.source_text}</p></div>
+        <DetailField label="Why this source matters" value={selection.why_included} />
+        {sourceText ? (
+          <div className="captured-text"><strong>Captured deterministic fixture text</strong><p>{sourceText}</p></div>
         ) : (
-          <div className="captured-text"><strong>Captured page text</strong><p>Unavailable. This record preserves only bounded search provenance and a model-generated candidate summary.</p></div>
+          <div className="captured-text">
+            <strong>Model-generated web-search candidate summary · not captured page text</strong>
+            <p>{candidateSummary ?? "Unavailable. This record preserves only bounded search provenance."}</p>
+          </div>
         )}
+        <details className="detail-disclosure">
+          <summary>Source context &amp; limitations</summary>
+          <div className="detail-disclosure-body">
+            <DetailField label="Source context" value={humanize(selection.source_context)} />
+            <DetailField label="Information proximity" value={humanize(selection.information_proximity)} />
+            <DetailField label="Classification basis" value={humanize(selection.classification_basis)} />
+            <DetailField label="Classification status" value={humanize(selection.classification_status)} />
+            <DetailField label="Retrieval method" value={humanize(item.retrieval_mode)} />
+            <DetailField label="Retrieved by Sisyphus" value={formatTimestamp(asNullableString(item.retrieved_at))} />
+            <DetailField label="Snapshot status" value={humanize(item.snapshot_status)} />
+            <p className="detail-note">Inclusion widens the review record. It does not establish reliability, representativeness, or truth.</p>
+            {limitations.length ? (
+              <div className="detail-limitations"><strong>Limitations</strong><ul>{limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul></div>
+            ) : null}
+          </div>
+        </details>
+        <details className="technical-details source-technical-details">
+          <summary>Source provenance identifiers</summary>
+          <div className="detail-disclosure-body">
+            <DetailField label="Snapshot ID" value={item.snapshot_id} />
+            <DetailField label="Content hash" value={item.content_sha256} />
+            <DetailField label="Candidate summary hash" value={item.candidate_summary_sha256} />
+            <DetailField label="Comparison target source IDs" value={arrayValue(selection.comparison_target_source_ids).join(" · ")} />
+            <DetailField label="Provider search call ID" value={provenance.search_call_id} />
+          </div>
+        </details>
       </div>
     );
   }
@@ -752,12 +839,20 @@ function DetailBody({ kind, detail }: { kind: SiteDetailKind; detail: unknown })
     const right = asRecord(item.right_support_reference);
     return (
       <div className="detail-body">
-        <DetailField label="Relation" value={item.relation_type} />
+        <DetailField label="Connection" value={relationDisplayLabel(stringValue(item.relation_type))} />
         <DetailField label="Reason" value={item.reason} />
-        <DetailField label="Review status" value={item.review_status} />
+        <DetailField label="Review status" value="Needs review" />
         <div className="support-box"><strong>Left support</strong><p>{stringValue(left.bounded_excerpt)}</p><small>{stringValue(left.proves)}</small></div>
         <div className="support-box"><strong>Right support</strong><p>{stringValue(right.bounded_excerpt)}</p><small>{stringValue(right.proves)}</small></div>
         <p className="detail-note">A confidence score cannot change this candidate into canonical state.</p>
+        <details className="technical-details">
+          <summary>Relation technical details</summary>
+          <div className="detail-disclosure-body">
+            <DetailField label="Relation enum" value={item.relation_type} />
+            <DetailField label="Review status enum" value={item.review_status} />
+            <DetailField label="Confidence score" value={item.confidence_score} />
+          </div>
+        </details>
       </div>
     );
   }
@@ -775,17 +870,25 @@ function DetailBody({ kind, detail }: { kind: SiteDetailKind; detail: unknown })
     return (
       <div className="detail-body">
         <DetailField label="Grouping reason" value={item.grouping_reason} />
-        <DetailField label="Occurrence IDs" value={arrayValue(item.occurrence_ids).join(" · ")} />
-        <DetailField label="Review status" value={item.review_status} />
+        <DetailField label="Review status" value="Needs review" />
         <p className="detail-note">A candidate family does not collapse different actors or propositions into one truth state.</p>
+        <details className="technical-details">
+          <summary>Related claim identifiers</summary>
+          <DetailField label="Occurrence IDs" value={arrayValue(item.occurrence_ids).join(" · ")} />
+        </details>
       </div>
     );
   }
   return (
     <div className="detail-body">
       <DetailField label="Summary" value={item.summary ?? item.question ?? "Focused record"} />
-      <DetailField label="Status" value={item.review_status ?? item.record_status ?? item.status} />
-      <DetailField label="Related IDs" value={arrayValue(item.related_ids).join(" · ")} />
+      <DetailField label="Status" value={humanize(item.review_status ?? item.record_status ?? item.status)} />
+      {arrayValue(item.related_ids).length ? (
+        <details className="technical-details">
+          <summary>Related record identifiers</summary>
+          <DetailField label="Related IDs" value={arrayValue(item.related_ids).join(" · ")} />
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -819,10 +922,6 @@ export function getRunNotice(
   return { tone: "prepared", title: "Prepared community case ready", message: "Deterministic, source-bound, and available without an API key or network." };
 }
 
-function relationLabel(value: string): string {
-  return value.replaceAll("_", " ");
-}
-
 function formatTimestamp(value: string | null): string {
   if (!value) return "Unavailable";
   const date = new Date(value);
@@ -853,6 +952,10 @@ function arrayValue(value: unknown): string[] {
 function stringValue(value: unknown): string {
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
   return "Unavailable";
+}
+
+function humanize(value: unknown): string {
+  return stringValue(value).replaceAll("_", " ");
 }
 
 export function LineageResult({ run }: { run: SiteReadyCasePacket }) {
