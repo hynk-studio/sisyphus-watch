@@ -1,7 +1,6 @@
 import { getPreparedCase } from "../read-model";
 import {
-  allocateCoverageExpansionBudget,
-  buildCoverageSummary,
+  buildPreparedFixtureCoverageSummary,
   type DiscoveryProfile,
 } from "../source-profile";
 import type { AnalysisRunPacket, AnalysisSourceSummary } from "./contracts";
@@ -49,20 +48,8 @@ export async function buildFallbackPacket(input: {
     source_selection: source.source_selection,
   }));
 
-  const requestedBudget = input.discoveryProfile === "coverage_expansion"
-    ? allocateCoverageExpansionBudget(input.sourceLimit)
-    : { baseline: input.sourceLimit, expansion: 0 };
-  const coverageSummary = buildCoverageSummary({
-    discoveryProfile: input.discoveryProfile,
-    requestedSourceLimit: input.sourceLimit,
-    baselineRequested: requestedBudget.baseline,
-    expansionRequested: requestedBudget.expansion,
+  const coverageSummary = buildPreparedFixtureCoverageSummary({
     sources,
-    duplicateURLCount: 0,
-    expansionAttempted: false,
-    expansionCompletedSuccessfully: false,
-    baselineReturned: 0,
-    expansionReturned: 0,
   });
 
   return {

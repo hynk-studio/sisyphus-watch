@@ -109,6 +109,14 @@ passes, while distinct documents on the same domain remain eligible. There are
 no recursive retries to fill missing roles. Missing lanes are reported as
 coverage gaps, and the packet never claims complete or exhaustive web coverage.
 
+Coverage summaries carry an explicit basis. `live_discovery` summaries contain
+requested/returned baseline and expansion telemetry from an actual search run.
+`prepared_fixture` summaries contain only curated fixture lane coverage; they
+do not contain pass telemetry or claim that coverage expansion was attempted or
+completed. When a live attempt falls back, the requested profile and failure
+remain in run metadata and warnings while the visible lane counts are explicitly
+identified as prepared fallback fixture coverage.
+
 If only the expansion pass fails, a usable baseline remains a partial live
 result with an explicit warning. A total live failure retains the prepared
 fallback behavior and is never labeled successful live analysis.
@@ -173,10 +181,14 @@ and does not claim completeness.
 
 An expansion source may carry a weak comparison target naming a selected
 baseline source. That hint means only that the source was selected to inspect a
-coverage gap around the baseline. It can admit an otherwise missed claim pair
-to conservative review only as `unresolved`; it does not imply corroboration,
-contradiction, correction, supersession, truth, or falsity. Evidence-to-claim
-relations remain outside this bounded lineage architecture.
+coverage gap around the baseline. A hint can admit an otherwise missed claim
+pair only when the claims share at least one normalized non-stopword topic
+token, and hint-only admissions are deterministically capped at two claim pairs
+per hinted source pair before the existing 64-pair workload cap. Admitted pairs
+remain `unresolved`, low-confidence, insufficient-evidence review candidates;
+the hint does not imply corroboration, contradiction, correction, supersession,
+truth, or falsity. Evidence-to-claim relations remain outside this bounded
+lineage architecture.
 
 All new claim families, relations, and lineage rows use non-canonical candidate
 IDs and remain review-only. Confidence cannot promote them. Correction and

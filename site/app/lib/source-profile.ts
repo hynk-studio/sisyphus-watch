@@ -53,20 +53,33 @@ export interface SourceSelectionMetadata {
 
 export type DiscoveryLaneCounts = Record<DiscoveryLane, number>;
 
-export interface CoverageSummary {
+interface CoverageLaneSummary {
+  lane_counts: DiscoveryLaneCounts;
+  missing_target_lanes: DiscoveryLane[];
+}
+
+export interface LiveDiscoveryCoverageSummary extends CoverageLaneSummary {
+  coverage_basis: "live_discovery";
   discovery_profile: DiscoveryProfile;
   baseline_requested: number;
   baseline_returned: number;
   expansion_requested: number;
   expansion_returned: number;
-  lane_counts: DiscoveryLaneCounts;
-  missing_target_lanes: DiscoveryLane[];
   unique_domain_count: number;
   duplicate_url_count: number;
   source_limit_reached: boolean;
   expansion_attempted: boolean;
   expansion_completed_successfully: boolean;
 }
+
+export interface PreparedFixtureCoverageSummary extends CoverageLaneSummary {
+  coverage_basis: "prepared_fixture";
+  fixture_source_count: number;
+}
+
+export type CoverageSummary =
+  | LiveDiscoveryCoverageSummary
+  | PreparedFixtureCoverageSummary;
 
 export const COVERAGE_EXPANSION_TARGET_LANES: DiscoveryLane[] = [
   "baseline_authority",
@@ -111,7 +124,7 @@ export function buildCoverageSummary(input: {
   expansionCompletedSuccessfully: boolean;
   baselineReturned?: number;
   expansionReturned?: number;
-}): CoverageSummary {
+}): LiveDiscoveryCoverageSummary {
   const laneCounts = emptyDiscoveryLaneCounts();
   let baselineReturned = 0;
   let expansionReturned = 0;
@@ -122,6 +135,7 @@ export function buildCoverageSummary(input: {
   }
 
   return {
+    coverage_basis: "live_discovery",
     discovery_profile: input.discoveryProfile,
     baseline_requested: input.baselineRequested,
     baseline_returned: input.baselineReturned ?? baselineReturned,
@@ -137,5 +151,25 @@ export function buildCoverageSummary(input: {
     source_limit_reached: input.sources.length >= input.requestedSourceLimit,
     expansion_attempted: input.expansionAttempted,
     expansion_completed_successfully: input.expansionCompletedSuccessfully,
+  };
+}
+
+export function buildPreparedFixtureCoverageSummary(input: {
+  sources: Array<{
+    source_selection: SourceSelectionMetadata;
+  }>;
+}): PreparedFixtureCoverageSummary {
+  const laneCounts = emptyDiscoveryLaneCounts();
+  for (const source of input.sources) {
+    laneCounts[source.source_selection.discovery_lane] += 1;
+  }
+
+  return {
+    coverage_basis: "prepared_fixture",
+    fixture_source_count: input.sources.length,
+    lane_counts: laneCounts,
+    missing_target_lanes: COVERAGE_EXPANSION_TARGET_LANES.filter(
+      (lane) => laneCounts[lane] === 0,
+    ),
   };
 }

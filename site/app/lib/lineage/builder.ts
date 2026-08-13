@@ -6,8 +6,7 @@ import type {
 import type { PreparedCaseReadModel, SourceSnapshotSummary } from "../contracts";
 import { getPreparedCase } from "../read-model";
 import {
-  allocateCoverageExpansionBudget,
-  buildCoverageSummary,
+  buildPreparedFixtureCoverageSummary,
 } from "../source-profile";
 import {
   applyFamilyReferences,
@@ -98,16 +97,8 @@ export function buildPreparedSiteReadyCasePacket(
     occurrencesWithFamilies,
     preparedRelationRules,
   );
-  const preparedBudget = allocateCoverageExpansionBudget(5);
-  const coverageSummary = buildCoverageSummary({
-    discoveryProfile: "coverage_expansion",
-    requestedSourceLimit: 5,
-    baselineRequested: preparedBudget.baseline,
-    expansionRequested: preparedBudget.expansion,
+  const coverageSummary = buildPreparedFixtureCoverageSummary({
     sources: sourceSummaries,
-    duplicateURLCount: 0,
-    expansionAttempted: true,
-    expansionCompletedSuccessfully: true,
   });
 
   return assembleAndValidate({
@@ -120,7 +111,7 @@ export function buildPreparedSiteReadyCasePacket(
     normalized_public_interest_question: PREPARED_QUESTION,
     requested_source_limit: 5,
     actual_source_count: sourceSummaries.length,
-    discovery_profile: "coverage_expansion",
+    discovery_profile: null,
     coverage_summary: coverageSummary,
     source_snapshot_summaries: sourceSummaries,
     source_bound_findings: preparedCase.findings.map((finding) => ({

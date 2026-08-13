@@ -79,6 +79,34 @@ export function modeLabel(packet: SiteReadyCasePacket): string {
   return "Prepared case";
 }
 
+export function sourceCoverageLabel(packet: SiteReadyCasePacket): string {
+  if (packet.mode === "deterministic") return "Prepared fixture coverage";
+  if (packet.mode === "fallback") return "Prepared fallback coverage";
+  return packet.discovery_profile === "coverage_expansion"
+    ? "Live coverage expansion"
+    : "Standard live review";
+}
+
+export function sourceCoverageNote(packet: SiteReadyCasePacket): string {
+  const missing = packet.coverage_summary.missing_target_lanes
+    .map(discoveryLaneLabel)
+    .join(", ");
+
+  if (packet.coverage_summary.coverage_basis === "prepared_fixture") {
+    const fixtureGap = missing
+      ? `Fixture lane not represented: ${missing}.`
+      : "Every target lane is represented in this prepared fixture; exhaustive web coverage is not claimed.";
+    return packet.mode === "fallback"
+      ? `The live attempt failed. These lane counts belong to the prepared fallback record. ${fixtureGap}`
+      : fixtureGap;
+  }
+
+  if (missing) return `Live search coverage gap: ${missing}.`;
+  return packet.coverage_summary.discovery_profile === "coverage_expansion"
+    ? "Every target lane is represented in this bounded live packet; exhaustive web coverage is still not claimed."
+    : "Standard live review does not claim to fill every source-role lane or exhaustively cover the web.";
+}
+
 export function sourceContentLabel(
   source: SiteReadyCasePacket["source_snapshot_summaries"][number],
 ): string {

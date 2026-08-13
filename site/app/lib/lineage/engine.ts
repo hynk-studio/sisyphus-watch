@@ -7,6 +7,7 @@ import type {
 } from "./contracts";
 
 export const MAX_RELATION_PAIR_WORKLOAD = 64;
+export const MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR = 2;
 
 const STOP_WORDS = new Set([
   "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has",
@@ -45,6 +46,7 @@ interface PairSignals {
   compatible_claim_types: boolean;
   explicit_fixture_rule: FixtureRelationRule | null;
   coverage_gap_hint: boolean;
+  coverage_hint_admission: boolean;
   plausible: boolean;
   score: number;
 }
@@ -206,12 +208,21 @@ export function buildBoundedRelations(
   }
 
   const theoreticalPairCount = rankedPairs.length;
-  const plausiblePairs = rankedPairs
+  const claimRelevantPairs = rankedPairs
     .filter((pair) => pair.signals.plausible)
     .sort((left, right) =>
       right.signals.score - left.signals.score ||
       pairKey(left).localeCompare(pairKey(right)),
     );
+  const hintAdmissionCounts = new Map<string, number>();
+  const plausiblePairs = claimRelevantPairs.filter((pair) => {
+    if (!pair.signals.coverage_hint_admission) return true;
+    const key = sourcePairKey(pair);
+    const admitted = hintAdmissionCounts.get(key) ?? 0;
+    if (admitted >= MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR) return false;
+    hintAdmissionCounts.set(key, admitted + 1);
+    return true;
+  });
   const selectedPairs = plausiblePairs.slice(0, maximumPairWorkload);
   const deferredPairCount = Math.max(0, plausiblePairs.length - selectedPairs.length);
   const relations = selectedPairs.map(classifyPair);
@@ -273,6 +284,12 @@ function inspectPair(
     overlap.score >= 0.22 &&
     (sharedActor || nearbyDates) &&
     compatibleClaimTypes;
+  const coverageHintAdmission =
+    coverageGapHint &&
+    compatibleClaimTypes &&
+    overlap.shared.length >= 1 &&
+    !explicitFixtureRule &&
+    !multiSignalPlausible;
   const score =
     (explicitFixtureRule ? 10 : 0) +
     (sharedActor ? 1.5 : 0) +
@@ -290,7 +307,8 @@ function inspectPair(
     compatible_claim_types: compatibleClaimTypes,
     explicit_fixture_rule: explicitFixtureRule,
     coverage_gap_hint: coverageGapHint,
-    plausible: Boolean(explicitFixtureRule) || multiSignalPlausible || coverageGapHint,
+    coverage_hint_admission: coverageHintAdmission,
+    plausible: Boolean(explicitFixtureRule) || multiSignalPlausible || coverageHintAdmission,
     score,
   };
 }
@@ -313,9 +331,9 @@ function classifyPair(pair: RankedPair): RelationCandidate {
     insufficientEvidence =
       rule.evidence_basis === "insufficient_evidence" || relationType === "unresolved";
     generatedBy = "deterministic_fixture";
-  } else if (signals.coverage_gap_hint) {
+  } else if (signals.coverage_hint_admission) {
     reason =
-      "These sources were selected for bounded comparison around a coverage gap. The hint makes the pair reviewable but does not imply corroboration, contradiction, correction, supersession, truth, or falsity.";
+      "These sources were selected for bounded comparison around a coverage gap, and the claims share a normalized topic token. The bounded hint admission makes the pair reviewable but does not imply corroboration, contradiction, correction, supersession, truth, or falsity.";
     confidenceScore = Math.min(0.35, 0.2 + signals.token_overlap * 0.2);
   }
 
@@ -411,6 +429,10 @@ function orderByTime(
 
 function pairKey(pair: RankedPair): string {
   return [pair.left.occurrence_id, pair.right.occurrence_id].sort().join("|");
+}
+
+function sourcePairKey(pair: RankedPair): string {
+  return [pair.left.source_id, pair.right.source_id].sort().join("|");
 }
 
 function clampScore(value: number): number {

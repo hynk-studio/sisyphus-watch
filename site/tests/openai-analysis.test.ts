@@ -18,7 +18,11 @@ import {
 } from "../app/lib/analysis/openai-adapter";
 import { parseAnalysisRequest, RequestValidationError } from "../app/lib/analysis/request";
 import type { DiscoverySource } from "../app/lib/analysis/schemas";
-import { allocateCoverageExpansionBudget } from "../app/lib/source-profile";
+import {
+  allocateCoverageExpansionBudget,
+  type LiveDiscoveryCoverageSummary,
+  type PreparedFixtureCoverageSummary,
+} from "../app/lib/source-profile";
 
 const GENERATED_AT = "2026-08-12T10:00:00.000Z";
 
@@ -153,6 +157,20 @@ async function runWithSources(count: number): Promise<{
   return { packet, port };
 }
 
+function liveCoverage(packet: AnalysisRunPacket): LiveDiscoveryCoverageSummary {
+  if (packet.coverage_summary.coverage_basis !== "live_discovery") {
+    throw new Error("expected live discovery coverage telemetry");
+  }
+  return packet.coverage_summary;
+}
+
+function preparedCoverage(packet: AnalysisRunPacket): PreparedFixtureCoverageSummary {
+  if (packet.coverage_summary.coverage_basis !== "prepared_fixture") {
+    throw new Error("expected prepared fixture coverage");
+  }
+  return packet.coverage_summary;
+}
+
 test("normalizes bounded questions and enforces the source maximum", () => {
   assert.deepEqual(
     parseAnalysisRequest({ question: "  How   is public access changing?  " }),
@@ -214,8 +232,9 @@ test("builds a compact live packet from API-provenanced partial snapshots", asyn
   assert.equal(packet.requested_source_limit, 2);
   assert.equal(packet.actual_source_count, 2);
   assert.equal(packet.discovery_profile, "standard");
-  assert.equal(packet.coverage_summary.baseline_requested, 2);
-  assert.equal(packet.coverage_summary.expansion_attempted, false);
+  const coverage = liveCoverage(packet);
+  assert.equal(coverage.baseline_requested, 2);
+  assert.equal(coverage.expansion_attempted, false);
   assert.equal(packet.canonical_mutation, "none");
   assert.equal(packet.candidate_counts.finding, 2);
   assert.equal(packet.candidate_counts.unresolved_question, 2);
@@ -502,17 +521,18 @@ test("coverage expansion performs two bounded passes and carries candidate role 
   assert.equal(port.calls.length, 7);
   assert.equal(port.calls[0].instructions, DISCOVERY_INSTRUCTIONS);
   assert.equal(port.calls[1].instructions, COVERAGE_EXPANSION_DISCOVERY_INSTRUCTIONS);
+  const coverage = liveCoverage(packet);
   assert.deepEqual(
     {
-      baseline: packet.coverage_summary.baseline_requested,
-      expansion: packet.coverage_summary.expansion_requested,
+      baseline: coverage.baseline_requested,
+      expansion: coverage.expansion_requested,
     },
     { baseline: 2, expansion: 3 },
   );
-  assert.equal(packet.coverage_summary.baseline_returned, 2);
-  assert.equal(packet.coverage_summary.expansion_returned, 3);
-  assert.equal(packet.coverage_summary.expansion_completed_successfully, true);
-  assert.equal(packet.coverage_summary.source_limit_reached, true);
+  assert.equal(coverage.baseline_returned, 2);
+  assert.equal(coverage.expansion_returned, 3);
+  assert.equal(coverage.expansion_completed_successfully, true);
+  assert.equal(coverage.source_limit_reached, true);
   assert.equal(packet.source_snapshot_summaries[0].source_selection.discovery_pass, "baseline");
   assert.ok(packet.source_snapshot_summaries.slice(2).every(
     (item) =>
@@ -555,10 +575,11 @@ test("unused baseline capacity is made available to the single expansion pass", 
     responses: port,
   });
 
-  assert.equal(packet.coverage_summary.baseline_requested, 2);
-  assert.equal(packet.coverage_summary.baseline_returned, 1);
-  assert.equal(packet.coverage_summary.expansion_requested, 4);
-  assert.equal(packet.coverage_summary.expansion_returned, 4);
+  const coverage = liveCoverage(packet);
+  assert.equal(coverage.baseline_requested, 2);
+  assert.equal(coverage.baseline_returned, 1);
+  assert.equal(coverage.expansion_requested, 4);
+  assert.equal(coverage.expansion_returned, 4);
   assert.equal(packet.actual_source_count, 5);
   assert.equal(port.calls.length, 7);
 });
@@ -594,8 +615,9 @@ test("deduplicates exact normalized URLs across passes without collapsing a doma
   });
 
   assert.equal(packet.actual_source_count, 2);
-  assert.equal(packet.coverage_summary.duplicate_url_count, 1);
-  assert.equal(packet.coverage_summary.unique_domain_count, 1);
+  const coverage = liveCoverage(packet);
+  assert.equal(coverage.duplicate_url_count, 1);
+  assert.equal(coverage.unique_domain_count, 1);
   assert.deepEqual(
     packet.source_snapshot_summaries.map((item) => item.url),
     ["https://same.example.org/report-a", "https://same.example.org/report-b"],
@@ -653,8 +675,9 @@ test("expansion-only failure preserves a usable baseline as partial live output"
   assert.equal(packet.mode, "live");
   assert.equal(packet.status, "live");
   assert.equal(packet.actual_source_count, 2);
-  assert.equal(packet.coverage_summary.expansion_attempted, true);
-  assert.equal(packet.coverage_summary.expansion_completed_successfully, false);
+  const coverage = liveCoverage(packet);
+  assert.equal(coverage.expansion_attempted, true);
+  assert.equal(coverage.expansion_completed_successfully, false);
   assert.match(packet.warnings.join(" "), /coverage_expansion_failed:rate_limited/);
   assert.doesNotMatch(packet.run_id, /fallback/);
 });
@@ -675,8 +698,9 @@ test("an empty expansion result reports gaps without retrying or claiming comple
   });
 
   assert.equal(port.calls.length, 3);
-  assert.equal(packet.coverage_summary.expansion_completed_successfully, true);
-  assert.equal(packet.coverage_summary.expansion_returned, 0);
+  const coverage = liveCoverage(packet);
+  assert.equal(coverage.expansion_completed_successfully, true);
+  assert.equal(coverage.expansion_returned, 0);
   assert.ok(packet.coverage_summary.missing_target_lanes.length > 0);
   assert.equal("coverage_complete" in packet.coverage_summary, false);
   assert.match(packet.warnings.join(" "), /coverage_expansion_empty/);
@@ -704,7 +728,7 @@ test("malformed expansion role metadata leaves the validated baseline live", asy
   });
 
   assert.equal(packet.actual_source_count, 1);
-  assert.equal(packet.coverage_summary.expansion_completed_successfully, false);
+  assert.equal(liveCoverage(packet).expansion_completed_successfully, false);
   assert.match(packet.warnings.join(" "), /coverage_expansion_failed:structured_output_invalid/);
 });
 
@@ -879,11 +903,16 @@ test("missing key and known provider failures return deterministic fallback pack
     (await coverageMissingKeyResponse.json()) as AnalysisRunPacket;
   assert.equal(coverageMissingKeyBody.mode, "fallback");
   assert.equal(coverageMissingKeyBody.discovery_profile, "coverage_expansion");
-  assert.equal(coverageMissingKeyBody.coverage_summary.baseline_requested, 2);
-  assert.equal(coverageMissingKeyBody.coverage_summary.expansion_requested, 3);
-  assert.equal(coverageMissingKeyBody.coverage_summary.baseline_returned, 0);
-  assert.equal(coverageMissingKeyBody.coverage_summary.expansion_returned, 0);
-  assert.equal(coverageMissingKeyBody.coverage_summary.expansion_attempted, false);
+  const coverage = preparedCoverage(coverageMissingKeyBody);
+  assert.equal(coverage.fixture_source_count, 4);
+  assert.equal(coverage.lane_counts.local_or_firsthand, 1);
+  assert.equal("baseline_requested" in coverage, false);
+  assert.equal("baseline_returned" in coverage, false);
+  assert.equal("expansion_attempted" in coverage, false);
+  assert.equal(
+    "expansion_completed_successfully" in coverage,
+    false,
+  );
 
   for (const code of [
     "invalid_api_key",

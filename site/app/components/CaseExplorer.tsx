@@ -21,6 +21,8 @@ import {
   informationProximityLabel,
   sourceContextLabel,
   sourceContentLabel,
+  sourceCoverageLabel,
+  sourceCoverageNote,
   sourceSnapshotLabel,
   timeValue,
   type ExperienceView,
@@ -320,11 +322,7 @@ export function OverviewView({
             <p className="eyebrow">Source coverage</p>
             <h3 id="source-coverage-title">Represented discovery lanes</h3>
           </div>
-          <span className="review-label">
-            {packet.coverage_summary.discovery_profile === "coverage_expansion"
-              ? "Coverage expansion"
-              : "Standard review"}
-          </span>
+          <span className="review-label">{sourceCoverageLabel(packet)}</span>
         </div>
         <dl className="coverage-lanes">
           {DISCOVERY_LANES.map((lane) => (
@@ -334,19 +332,19 @@ export function OverviewView({
             </div>
           ))}
         </dl>
-        <div className="coverage-summary-line">
-          <span>{packet.coverage_summary.baseline_returned}/{packet.coverage_summary.baseline_requested} baseline</span>
-          <span>{packet.coverage_summary.expansion_returned}/{packet.coverage_summary.expansion_requested} expansion</span>
-          <span>{packet.coverage_summary.unique_domain_count} unique domains</span>
-          <span>{packet.coverage_summary.duplicate_url_count} duplicate URLs removed</span>
-        </div>
-        <p className="card-note">
-          {packet.coverage_summary.missing_target_lanes.length
-            ? `Coverage gaps: ${packet.coverage_summary.missing_target_lanes.map(discoveryLaneLabel).join(", ")}.`
-            : packet.coverage_summary.discovery_profile === "coverage_expansion"
-              ? "Every target lane is represented in this bounded packet; exhaustive web coverage is still not claimed."
-              : "Standard review does not claim to fill every source-role lane or exhaustively cover the web."}
-        </p>
+        {packet.coverage_summary.coverage_basis === "live_discovery" ? (
+          <div className="coverage-summary-line">
+            <span>{packet.coverage_summary.baseline_returned}/{packet.coverage_summary.baseline_requested} baseline</span>
+            <span>{packet.coverage_summary.expansion_returned}/{packet.coverage_summary.expansion_requested} expansion</span>
+            <span>{packet.coverage_summary.unique_domain_count} unique domains</span>
+            <span>{packet.coverage_summary.duplicate_url_count} duplicate URLs removed</span>
+          </div>
+        ) : (
+          <div className="coverage-summary-line">
+            <span>{packet.coverage_summary.fixture_source_count} curated fixture sources</span>
+          </div>
+        )}
+        <p className="card-note">{sourceCoverageNote(packet)}</p>
       </section>
 
       <div className="overview-grid">
