@@ -3,16 +3,23 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import type { AnalysisRoutePayload, AnalysisRunPacket } from "../lib/analysis/contracts";
 import {
+  DISCOVERY_LANES,
+  type DiscoveryProfile,
+} from "../lib/source-profile";
+import {
   EXPERIENCE_VIEWS,
   TIME_AXES,
   TIME_AXIS_LABELS,
   VIEW_LABELS,
   actorLabel,
+  discoveryLaneLabel,
   hasFocusedDetailKey,
   modeLabel,
   orderTimelineRows,
   recordBoundaryLabel,
   relatedRecordLabel,
+  informationProximityLabel,
+  sourceContextLabel,
   sourceContentLabel,
   sourceSnapshotLabel,
   timeValue,
@@ -44,6 +51,8 @@ export function CaseExplorer({
   const [timeAxis, setTimeAxis] = useState<TimeAxis>("event_time");
   const [question, setQuestion] = useState("");
   const [sourceLimit, setSourceLimit] = useState(5);
+  const [discoveryProfile, setDiscoveryProfile] =
+    useState<DiscoveryProfile>("standard");
   const [routeError, setRouteError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [focus, setFocus] = useState<FocusSelection | null>(null);
@@ -66,7 +75,7 @@ export function CaseExplorer({
       const response = await fetch("/api/lineage", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question, sourceLimit }),
+        body: JSON.stringify({ question, sourceLimit, discoveryProfile }),
       });
       const payload = (await response.json()) as
         | SiteReadyCasePacket
@@ -231,10 +240,12 @@ export function CaseExplorer({
                 liveEnabled={liveEnabled}
                 question={question}
                 sourceLimit={sourceLimit}
+                discoveryProfile={discoveryProfile}
                 isLoading={isLoading}
                 routeError={routeError}
                 onQuestionChange={setQuestion}
                 onSourceLimitChange={setSourceLimit}
+                onDiscoveryProfileChange={setDiscoveryProfile}
                 onSubmit={submitAnalysis}
               />
             ) : null}
@@ -260,20 +271,24 @@ export function OverviewView({
   liveEnabled,
   question,
   sourceLimit,
+  discoveryProfile,
   isLoading,
   routeError,
   onQuestionChange,
   onSourceLimitChange,
+  onDiscoveryProfileChange,
   onSubmit,
 }: {
   packet: SiteReadyCasePacket;
   liveEnabled: boolean;
   question: string;
   sourceLimit: number;
+  discoveryProfile: DiscoveryProfile;
   isLoading: boolean;
   routeError: string | null;
   onQuestionChange: (value: string) => void;
   onSourceLimitChange: (value: number) => void;
+  onDiscoveryProfileChange: (value: DiscoveryProfile) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
@@ -297,6 +312,41 @@ export function OverviewView({
         <Metric value={packet.claim_occurrences.length} label="Claim occurrences" />
         <Metric value={packet.relation_candidates.length} label="Relation candidates" />
         <Metric value={packet.unresolved_questions.length} label="Unresolved" />
+      </section>
+
+      <section className="standard-card coverage-card" aria-labelledby="source-coverage-title">
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Source coverage</p>
+            <h3 id="source-coverage-title">Represented discovery lanes</h3>
+          </div>
+          <span className="review-label">
+            {packet.coverage_summary.discovery_profile === "coverage_expansion"
+              ? "Coverage expansion"
+              : "Standard review"}
+          </span>
+        </div>
+        <dl className="coverage-lanes">
+          {DISCOVERY_LANES.map((lane) => (
+            <div key={lane}>
+              <dt>{discoveryLaneLabel(lane)}</dt>
+              <dd>{packet.coverage_summary.lane_counts[lane]}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="coverage-summary-line">
+          <span>{packet.coverage_summary.baseline_returned}/{packet.coverage_summary.baseline_requested} baseline</span>
+          <span>{packet.coverage_summary.expansion_returned}/{packet.coverage_summary.expansion_requested} expansion</span>
+          <span>{packet.coverage_summary.unique_domain_count} unique domains</span>
+          <span>{packet.coverage_summary.duplicate_url_count} duplicate URLs removed</span>
+        </div>
+        <p className="card-note">
+          {packet.coverage_summary.missing_target_lanes.length
+            ? `Coverage gaps: ${packet.coverage_summary.missing_target_lanes.map(discoveryLaneLabel).join(", ")}.`
+            : packet.coverage_summary.discovery_profile === "coverage_expansion"
+              ? "Every target lane is represented in this bounded packet; exhaustive web coverage is still not claimed."
+              : "Standard review does not claim to fill every source-role lane or exhaustively cover the web."}
+        </p>
       </section>
 
       <div className="overview-grid">
@@ -333,7 +383,7 @@ export function OverviewView({
         <div className="analysis-intro">
           <p className="eyebrow">Optional live analysis</p>
           <h3 id="analysis-title">Ask one bounded public-interest question</h3>
-          <p>The browser sends only the question and source limit to a same-Site route. OpenAI requests stay server-side, and every live result remains a review-only candidate.</p>
+          <p>The browser sends only the question, source limit, and selected discovery profile to a same-Site route. OpenAI requests stay server-side, and every live result remains a review-only candidate.</p>
           <ul className="safeguard-list">
             <li>Question: 12–500 characters</li>
             <li>Sources: default 5, hard maximum 8</li>
@@ -353,6 +403,24 @@ export function OverviewView({
               placeholder="How has access to cooling centers changed during the current heatwave?"
               required
             />
+            <div className="profile-control">
+              <label htmlFor="discovery-profile">Discovery profile</label>
+              <select
+                id="discovery-profile"
+                value={discoveryProfile}
+                onChange={(event) =>
+                  onDiscoveryProfileChange(event.target.value as DiscoveryProfile)
+                }
+              >
+                <option value="standard">Standard review</option>
+                <option value="coverage_expansion">Expand source coverage</option>
+              </select>
+              <p>
+                {discoveryProfile === "coverage_expansion"
+                  ? "Also seek primary, local, specialist, firsthand, contradictory, or corrective sources that ordinary authority-ranked search may under-surface."
+                  : "Use one conventional, authority-oriented discovery pass. Coverage expansion also seeks primary, local, specialist, firsthand, contradictory, or corrective sources that ordinary authority-ranked search may under-surface."}
+              </p>
+            </div>
             <div className="analysis-controls">
               <label htmlFor="source-limit">Source limit</label>
               <select id="source-limit" value={sourceLimit} onChange={(event) => onSourceLimitChange(Number(event.target.value))}>
@@ -567,6 +635,15 @@ export function SourcesView({
                   <strong>{sourceContentLabel(source)}</strong>
                   <p>{evidence ?? "No bounded evidence or candidate summary is available."}</p>
                 </div>
+                <dl className="source-selection-metadata">
+                  <div><dt>Why found</dt><dd>{source.source_selection.why_included}</dd></div>
+                  <div><dt>Source context</dt><dd>{sourceContextLabel(source.source_selection.source_context)}</dd></div>
+                  <div><dt>Information proximity</dt><dd>{informationProximityLabel(source.source_selection.information_proximity)}</dd></div>
+                </dl>
+                {source.source_selection.classification_status === "candidate_review_only" ? (
+                  <p className="candidate-metadata-note">Source-role classification is candidate metadata · review only.</p>
+                ) : null}
+                <p className="source-inclusion-boundary">This source was included to widen coverage. Inclusion does not establish reliability, representativeness, or truth.</p>
                 <ul className="source-limitations">{source.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
                 <button className="detail-button" type="button" onClick={() => onFocus({ kind: "source", id: source.source_id, label: source.title })}>
                   {source.source_text_captured ? "Read focused fixture evidence" : "Inspect source provenance"} <span aria-hidden="true">→</span>

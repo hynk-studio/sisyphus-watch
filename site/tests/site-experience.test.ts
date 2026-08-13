@@ -39,6 +39,9 @@ test("renders the public product story, prepared case, accessible navigation, an
   assert.match(html, /Live analysis is disabled on this server/);
   assert.match(html, /prepared case remains fully available/i);
   assert.doesNotMatch(html, /<textarea/);
+  assert.doesNotMatch(html, /id="discovery-profile"/);
+  assert.match(html, /Source coverage/i);
+  assert.match(html, /Coverage gaps: primary or origin/i);
   assert.doesNotMatch(html, /Kaggle|course|Apps SDK|MCP App/i);
   assert.equal(JSON.stringify(packet), before);
 });
@@ -53,6 +56,10 @@ test("renders the bounded live form only when the server feature flag is enabled
   assert.match(html, /minLength="12"/);
   assert.match(html, /maxLength="500"/);
   assert.match(html, /8 sources/);
+  assert.match(html, /id="discovery-profile"/);
+  assert.match(html, /Standard review/);
+  assert.match(html, /Expand source coverage/);
+  assert.match(html, /ordinary authority-ranked search may under-surface/);
   assert.match(html, /hard maximum 64 pairs/);
   assert.match(html, /No arbitrary URLs, crawling, or visitor history/);
 });
@@ -139,6 +146,10 @@ test("sources distinguish captured fixture evidence from live partial summaries 
   }));
   assert.match(preparedHtml, /Captured deterministic fixture evidence/);
   assert.match(preparedHtml, /Read focused fixture evidence/);
+  assert.match(preparedHtml, /Why found/);
+  assert.match(preparedHtml, /Source context/);
+  assert.match(preparedHtml, /Information proximity/);
+  assert.match(preparedHtml, /Inclusion does not establish reliability, representativeness, or truth/);
 
   const live = structuredClone(prepared);
   live.mode = "live";
@@ -152,6 +163,16 @@ test("sources distinguish captured fixture evidence from live partial summaries 
   source.source_text_captured = false;
   source.evidence_excerpt = null;
   source.web_search_grounded_candidate_summary = "A bounded model-generated search-grounded candidate summary.";
+  source.source_selection = {
+    discovery_pass: "coverage_expansion",
+    discovery_lane: "local_or_firsthand",
+    source_context: "community_organization",
+    information_proximity: "firsthand_observation",
+    why_included: "Adds local street-level observations.",
+    classification_basis: "model_generated_web_search_classification",
+    classification_status: "candidate_review_only",
+    comparison_target_source_ids: [],
+  };
   live.source_snapshot_summaries = [source];
   live.actual_source_count = 1;
   assert.match(sourceContentLabel(source), /not captured page text/);
@@ -164,6 +185,8 @@ test("sources distinguish captured fixture evidence from live partial summaries 
   assert.match(liveHtml, /href="https:\/\/public\.example\.org\/changing-notice"/);
   assert.match(liveHtml, /target="_blank"/);
   assert.match(liveHtml, /rel="noopener noreferrer"/);
+  assert.match(liveHtml, /candidate metadata · review only/i);
+  assert.match(liveHtml, /local street-level observations/i);
   assert.doesNotMatch(liveHtml, /Captured deterministic fixture evidence/);
 });
 

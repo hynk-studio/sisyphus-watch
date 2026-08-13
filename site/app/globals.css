@@ -146,6 +146,12 @@ p, li, blockquote { text-wrap: pretty; }
 .lane-list dt { color: var(--muted); font-size: .78rem; }
 .lane-list dd { margin: 0; font-family: var(--font-geist-mono), monospace; font-size: .72rem; font-weight: 720; }
 .card-note { margin: 16px 0 0; color: var(--muted); font-size: .75rem; line-height: 1.55; }
+.coverage-card { background: #f8faf7; }
+.coverage-lanes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.coverage-lanes div { display: grid; gap: 5px; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.coverage-lanes dt { color: var(--muted); font-size: .67rem; line-height: 1.35; }
+.coverage-lanes dd { margin: 0; font-family: var(--font-geist-mono), monospace; font-size: 1rem; font-weight: 720; }
+.coverage-summary-line { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 13px; color: var(--muted); font-family: var(--font-geist-mono), monospace; font-size: .62rem; }
 
 .analysis-card { display: grid; grid-template-columns: .86fr 1.14fr; gap: 28px; padding: clamp(22px, 4vw, 32px); background: #f8faf7; }
 .analysis-intro > p { color: var(--muted); font-size: .82rem; line-height: 1.6; }
@@ -154,6 +160,9 @@ p, li, blockquote { text-wrap: pretty; }
 .analysis-form label, .axis-control { color: #4b5852; font-size: .7rem; font-weight: 720; }
 .analysis-form textarea, .analysis-form select, .axis-control select { border: 1px solid var(--line-strong); border-radius: 7px; background: white; color: var(--ink); }
 .analysis-form textarea { min-height: 110px; padding: 12px; resize: vertical; line-height: 1.45; }
+.profile-control { display: grid; grid-template-columns: auto minmax(170px, .8fr); gap: 5px 9px; align-items: center; margin: 4px 0; }
+.profile-control select { min-height: 42px; padding: 0 9px; }
+.profile-control p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .68rem; line-height: 1.45; }
 .analysis-controls { display: grid; grid-template-columns: auto minmax(116px, .4fr) 1fr; gap: 8px; align-items: center; }
 .analysis-controls select { min-height: 42px; padding: 0 9px; }
 .analysis-controls button { min-height: 42px; border: 0; border-radius: 7px; background: var(--green-dark); color: white; cursor: pointer; font-weight: 720; }
@@ -232,6 +241,13 @@ p, li, blockquote { text-wrap: pretty; }
 .provenance-partial { border-left-color: var(--amber); background: var(--amber-soft); }
 .provenance-note strong { display: block; margin-bottom: 7px; font-size: .68rem; line-height: 1.4; }
 .provenance-note p { margin: 0; color: #46544d; font-size: .72rem; line-height: 1.5; }
+.source-selection-metadata { display: grid; gap: 6px; margin: 14px 0 0; }
+.source-selection-metadata div { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 8px; }
+.source-selection-metadata dt { color: var(--muted); font-size: .65rem; }
+.source-selection-metadata dd { margin: 0; font-size: .7rem; line-height: 1.4; }
+.candidate-metadata-note, .source-inclusion-boundary { margin: 10px 0 0; font-size: .67rem; line-height: 1.45; }
+.candidate-metadata-note { color: #315668; }
+.source-inclusion-boundary { padding: 10px 11px; border-left: 3px solid #527486; background: var(--blue-soft); color: #315668; }
 .source-limitations { display: grid; gap: 5px; margin: 14px 0; padding-left: 17px; color: var(--muted); font-size: .68rem; line-height: 1.42; }
 
 .question-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -277,6 +293,7 @@ p, li, blockquote { text-wrap: pretty; }
   .bridge-line { transform: rotate(90deg); }
   .source-grid { grid-template-columns: 1fr; }
   .question-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .coverage-lanes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 720px) {
@@ -296,6 +313,9 @@ p, li, blockquote { text-wrap: pretty; }
   .review-label { flex: none; }
   .metric-grid { grid-template-columns: 1fr 1fr; }
   .overview-grid, .analysis-card, .limitations-card { grid-template-columns: 1fr; }
+  .coverage-lanes { grid-template-columns: 1fr 1fr; }
+  .profile-control { grid-template-columns: 1fr; align-items: stretch; }
+  .profile-control p { grid-column: auto; }
   .analysis-controls { grid-template-columns: 1fr; align-items: stretch; }
   .analysis-controls label { margin-top: 6px; }
   .axis-control { width: 100%; min-width: 0; }

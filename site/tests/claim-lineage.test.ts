@@ -22,6 +22,7 @@ import {
 import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
 import { handleLineageRequest } from "../app/lib/lineage/handler";
 import { siteReadyCasePacketSchema } from "../app/lib/lineage/contracts";
+import { buildCoverageSummary } from "../app/lib/source-profile";
 
 const GENERATED_AT = "2026-08-12T12:00:00.000Z";
 
@@ -110,6 +111,16 @@ function liveSource(index: number): AnalysisSourceSummary {
       citation_title: `Public source ${index}`,
       citation_start: 0,
       citation_end: 30,
+    },
+    source_selection: {
+      discovery_pass: "baseline",
+      discovery_lane: "baseline_authority",
+      source_context: "established_editorial",
+      information_proximity: "secondary_reporting",
+      why_included: "Provides a conventional baseline report.",
+      classification_basis: "model_generated_web_search_classification",
+      classification_status: "candidate_review_only",
+      comparison_target_source_ids: [],
     },
   };
 }
@@ -209,6 +220,16 @@ function analysisRun(
 ): AnalysisRunPacket {
   const candidateCounts = emptyCandidateCounts();
   for (const candidate of candidates) candidateCounts[candidate.candidate_type] += 1;
+  const coverageSummary = buildCoverageSummary({
+    discoveryProfile: "standard",
+    requestedSourceLimit: sources.length,
+    baselineRequested: sources.length,
+    expansionRequested: 0,
+    sources,
+    duplicateURLCount: 0,
+    expansionAttempted: false,
+    expansionCompletedSuccessfully: false,
+  });
   return {
     run_id: "run_live_fixture",
     case_id: "case_candidate_live_fixture",
@@ -217,6 +238,8 @@ function analysisRun(
     normalized_question: "How did public cooling-center access change?",
     requested_source_limit: sources.length,
     actual_source_count: sources.length,
+    discovery_profile: "standard",
+    coverage_summary: coverageSummary,
     source_snapshot_summaries: sources,
     candidate_counts: candidateCounts,
     candidate_ids: candidates.map((item) => item.candidate_id),
@@ -247,6 +270,62 @@ test("builds one validated compact Site-ready packet for the cooling-center case
   const serialized = JSON.stringify(packet);
   assert.doesNotMatch(serialized, /"source_text":|"output_parsed":|raw_response/);
   assert.ok(Buffer.byteLength(serialized) < 180_000);
+});
+
+test("prepared heatwave sources carry curated coverage metadata without changing record status", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const byId = new Map(
+    packet.source_snapshot_summaries.map((source) => [source.source_id, source]),
+  );
+  const initial = byId.get("src_city_heatwave_initial_announcement_2026_06_10");
+  const local = byId.get("src_community_cooling_center_access_report_2026_06_12");
+  const update = byId.get("src_city_heatwave_updated_guidance_2026_06_14");
+  const editorial = byId.get("src_editorial_heatwave_accountability_note_2026_06_15");
+
+  assert.equal(initial?.source_selection.discovery_lane, "baseline_authority");
+  assert.equal(initial?.source_selection.source_context, "official");
+  assert.equal(initial?.source_selection.information_proximity, "primary_actor_statement");
+  assert.equal(local?.source_selection.discovery_lane, "local_or_firsthand");
+  assert.equal(local?.source_selection.source_context, "community_organization");
+  assert.equal(local?.source_selection.information_proximity, "firsthand_observation");
+  assert.equal(update?.source_selection.discovery_lane, "challenge_or_correction");
+  assert.equal(editorial?.source_selection.information_proximity, "analysis_or_commentary");
+  assert.equal(editorial?.record_status, "candidate");
+  assert.ok(packet.source_snapshot_summaries.every(
+    (source) => source.source_selection.classification_status === "curated_fixture_metadata",
+  ));
+  assert.equal(packet.coverage_summary.discovery_profile, "coverage_expansion");
+  assert.ok(packet.coverage_summary.missing_target_lanes.includes("primary_or_origin"));
+});
+
+test("a weak coverage comparison hint admits only an unresolved review pair", () => {
+  const baseline = occurrence("coverage_baseline", "City service hours expanded.", {
+    source_id: "src_baseline",
+    actor: "City office",
+  });
+  const expansion = occurrence("coverage_expansion", "Residents described transit barriers.", {
+    source_id: "src_expansion",
+    actor: "Neighborhood group",
+    assertion_time_candidate: null,
+    event_time_candidate: null,
+    source_publication_time: null,
+  });
+
+  assert.equal(buildBoundedRelations([baseline, expansion]).relations.length, 0);
+  const hinted = buildBoundedRelations(
+    [baseline, expansion],
+    [],
+    MAX_RELATION_PAIR_WORKLOAD,
+    [{
+      source_id: "src_expansion",
+      comparison_target_source_ids: ["src_baseline"],
+    }],
+  );
+  assert.equal(hinted.relations.length, 1);
+  assert.equal(hinted.relations[0].relation_type, "unresolved");
+  assert.equal(hinted.relations[0].insufficient_evidence, true);
+  assert.ok(hinted.relations[0].confidence_score <= 0.35);
+  assert.match(hinted.relations[0].reason, /does not imply corroboration/i);
 });
 
 test("represents the required deterministic relation fixture semantics", () => {

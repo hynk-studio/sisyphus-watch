@@ -70,10 +70,11 @@ executed as HTML or instructions.
 ## Optional server-side OpenAI analysis
 
 `POST /api/analysis` is the source-local browser-to-analysis boundary. The route
-accepts a normalized public-interest question and a source limit (default 5,
-hard maximum 8), then reads `OPENAI_API_KEY` only from the server process. The
-client never imports the OpenAI adapter and receives no raw provider response
-or unbounded source text.
+accepts only a normalized public-interest question, an optional source limit
+(default 5, hard maximum 8), and an optional discovery profile. The profile
+defaults to `standard`. The route then reads `OPENAI_API_KEY` only from the
+server process. The client never imports the OpenAI adapter and receives no raw
+provider response or unbounded source text.
 
 The adapter uses the current OpenAI JavaScript SDK with:
 
@@ -83,6 +84,42 @@ The adapter uses the current OpenAI JavaScript SDK with:
 - `include: ["web_search_call.action.sources"]` plus URL-citation annotations
   for available search provenance;
 - `store: false`, a 20-second request timeout, and zero automatic retries.
+
+### Discovery profiles
+
+`standard` preserves the original one-pass behavior: one compact web-search
+pass prefers directly relevant conventional public sources such as official
+records, primary public documents, direct actor statements, and established
+reporting.
+
+`coverage_expansion` complements that baseline with one additional bounded
+pass. It asks for directly relevant source roles that conventional
+authority-oriented search may under-surface: primary or origin records, local
+or firsthand observations, community-organization records, specialist context,
+early reports, and later challenge, narrowing, or correction signals. This is
+not a reliability downgrade or a generic alternative-sources mode. Lower
+authority does not mean false, higher authority does not mean true, and source
+inclusion is neither endorsement nor truth adjudication.
+
+The total hard maximum remains eight. Deterministic allocations are `1 + 2`
+for a three-source request, `2 + 3` for five, and `3 + 5` for eight. If the
+baseline returns fewer than its allocation, its unused capacity is offered to
+the single expansion pass. Exact normalized URLs are deduplicated across
+passes, while distinct documents on the same domain remain eligible. There are
+no recursive retries to fill missing roles. Missing lanes are reported as
+coverage gaps, and the packet never claims complete or exhaustive web coverage.
+
+If only the expansion pass fails, a usable baseline remains a partial live
+result with an explicit warning. A total live failure retains the prepared
+fallback behavior and is never labeled successful live analysis.
+
+Every source carries selection metadata for discovery pass/lane, source
+context, information proximity, and a concise inclusion reason. Prepared
+fixture metadata is curated; live/model-derived classification is always
+`candidate_review_only`. These fields stay separate from epistemic status and
+cannot raise or lower candidate confidence, relation confidence, truth
+likelihood, or canonical state. No trust, reliability, authority, or truth
+probability score is computed.
 
 Discovered items are not canonical evidence. Each accepted HTTPS source is
 passed through the source snapshot/provenance contract as a `partial` candidate
@@ -133,6 +170,13 @@ and date signals, and stops plausible-pair work at a hard maximum of 64. The
 packet records theoretical, filtered, deferred, unrelated, unresolved, and
 model-classified counts. If the cap is reached, it reports the exact deferral
 and does not claim completeness.
+
+An expansion source may carry a weak comparison target naming a selected
+baseline source. That hint means only that the source was selected to inspect a
+coverage gap around the baseline. It can admit an otherwise missed claim pair
+to conservative review only as `unresolved`; it does not imply corroboration,
+contradiction, correction, supersession, truth, or falsity. Evidence-to-claim
+relations remain outside this bounded lineage architecture.
 
 All new claim families, relations, and lineage rows use non-canonical candidate
 IDs and remain review-only. Confidence cannot promote them. Correction and
@@ -187,4 +231,6 @@ prepared fallback; it is never represented as a successful live run.
 The public route retains the 500-character question maximum, eight-source hard
 maximum, 64-pair relation-work maximum, bounded request/response sizes, provider
 timeout, no arbitrary URL input, no recursive crawling, and no visitor/result
-persistence. Disabling live mode does not affect the prepared case.
+persistence. Source content cannot change the discovery profile, authorize
+tools, request secrets, or mutate canonical state. Disabling live mode does not
+affect the prepared case.

@@ -1,4 +1,9 @@
 import { getPreparedCase } from "../read-model";
+import {
+  allocateCoverageExpansionBudget,
+  buildCoverageSummary,
+  type DiscoveryProfile,
+} from "../source-profile";
 import type { AnalysisRunPacket, AnalysisSourceSummary } from "./contracts";
 import { emptyCandidateCounts } from "./contracts";
 import { shortStableHash } from "./ids";
@@ -8,13 +13,14 @@ const PREPARED_CASE_ID = "city_heatwave_cooling_centers";
 export async function buildFallbackPacket(input: {
   question: string;
   sourceLimit: number;
+  discoveryProfile: DiscoveryProfile;
   generatedAt: string;
   reasonCode: string;
   reasonMessage: string;
 }): Promise<AnalysisRunPacket> {
   const preparedCase = getPreparedCase(PREPARED_CASE_ID);
   const runHash = await shortStableHash(
-    `${input.question}|${input.sourceLimit}|${input.generatedAt}`,
+    `${input.question}|${input.sourceLimit}|${input.discoveryProfile}|${input.generatedAt}`,
   );
   const sources: AnalysisSourceSummary[] = preparedCase.sources.map((source) => ({
     source_id: source.source_id,
@@ -40,7 +46,24 @@ export async function buildFallbackPacket(input: {
       source.web_search_grounded_candidate_summary,
     limitations: source.limitations,
     api_provenance: source.api_provenance,
+    source_selection: source.source_selection,
   }));
+
+  const requestedBudget = input.discoveryProfile === "coverage_expansion"
+    ? allocateCoverageExpansionBudget(input.sourceLimit)
+    : { baseline: input.sourceLimit, expansion: 0 };
+  const coverageSummary = buildCoverageSummary({
+    discoveryProfile: input.discoveryProfile,
+    requestedSourceLimit: input.sourceLimit,
+    baselineRequested: requestedBudget.baseline,
+    expansionRequested: requestedBudget.expansion,
+    sources,
+    duplicateURLCount: 0,
+    expansionAttempted: false,
+    expansionCompletedSuccessfully: false,
+    baselineReturned: 0,
+    expansionReturned: 0,
+  });
 
   return {
     run_id: `run_fallback_${runHash}`,
@@ -50,6 +73,8 @@ export async function buildFallbackPacket(input: {
     normalized_question: input.question,
     requested_source_limit: input.sourceLimit,
     actual_source_count: sources.length,
+    discovery_profile: input.discoveryProfile,
+    coverage_summary: coverageSummary,
     source_snapshot_summaries: sources,
     candidate_counts: emptyCandidateCounts(),
     candidate_ids: [],

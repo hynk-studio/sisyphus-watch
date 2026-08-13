@@ -3,6 +3,11 @@ import type {
   SiteReadyCasePacket,
   SiteTimelineRow,
 } from "./lineage/contracts";
+import type {
+  DiscoveryLane,
+  InformationProximity,
+  SourceContext,
+} from "./source-profile";
 
 export const EXPERIENCE_VIEWS = [
   "overview",
@@ -37,6 +42,26 @@ export const TIME_AXIS_LABELS: Record<TimeAxis, string> = {
   publication_time: "Publication time",
   retrieval_time: "Sisyphus retrieval time",
 };
+
+const DISCOVERY_LANE_LABELS: Record<DiscoveryLane, string> = {
+  baseline_authority: "Baseline authority",
+  primary_or_origin: "Primary or origin",
+  local_or_firsthand: "Local or firsthand",
+  specialist_context: "Specialist context",
+  challenge_or_correction: "Challenge or correction",
+};
+
+export function discoveryLaneLabel(lane: DiscoveryLane): string {
+  return DISCOVERY_LANE_LABELS[lane];
+}
+
+export function sourceContextLabel(context: SourceContext): string {
+  return context.replaceAll("_", " ");
+}
+
+export function informationProximityLabel(proximity: InformationProximity): string {
+  return proximity.replaceAll("_", " ");
+}
 
 export function actorLabel(actor: string | null): string {
   return actor ?? "Unknown actor";

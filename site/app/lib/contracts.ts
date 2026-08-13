@@ -1,3 +1,5 @@
+import type { SourceSelectionMetadata } from "./source-profile";
+
 export type RecordStatus = "candidate" | "canonical";
 
 export type RetrievalMode = "deterministic_fixture" | "openai_web_search";
@@ -32,6 +34,7 @@ interface SourceSnapshotBase {
   retrieved_at: string;
   limitations: string[];
   source_hygiene_notes: string[];
+  source_selection: SourceSelectionMetadata;
   status: RecordStatus;
 }
 

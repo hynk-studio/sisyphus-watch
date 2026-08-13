@@ -8,6 +8,7 @@ import type { AnalysisRunPacket } from "../app/lib/analysis/contracts";
 import { AnalysisFailure, classifyProviderError } from "../app/lib/analysis/errors";
 import { handleAnalysisRequest } from "../app/lib/analysis/handler";
 import {
+  COVERAGE_EXPANSION_DISCOVERY_INSTRUCTIONS,
   DISCOVERY_INSTRUCTIONS,
   EXTRACTION_INSTRUCTIONS,
   normalizePublicSourceURL,
@@ -16,6 +17,8 @@ import {
   type ResponsesPort,
 } from "../app/lib/analysis/openai-adapter";
 import { parseAnalysisRequest, RequestValidationError } from "../app/lib/analysis/request";
+import type { DiscoverySource } from "../app/lib/analysis/schemas";
+import { allocateCoverageExpansionBudget } from "../app/lib/source-profile";
 
 const GENERATED_AT = "2026-08-12T10:00:00.000Z";
 
@@ -36,7 +39,11 @@ class FakeResponsesPort implements ResponsesPort {
   }
 }
 
-function source(index: number, excerpt?: string) {
+function source(
+  index: number,
+  excerpt?: string,
+  overrides: Partial<DiscoverySource> = {},
+): DiscoverySource {
   return {
     title: `Public source ${index}`,
     url: `https://news${index}.example.org/report`,
@@ -44,7 +51,13 @@ function source(index: number, excerpt?: string) {
     published_at: `2026-08-${String(index).padStart(2, "0")}T12:00:00Z`,
     web_search_grounded_candidate_summary:
       excerpt ?? `Bounded model-generated search summary ${index}.`,
+    discovery_lane: "baseline_authority",
+    source_context: "established_editorial",
+    information_proximity: "secondary_reporting",
+    why_included: "Provides a conventional directly relevant baseline.",
+    comparison_target_source_ids: [],
     limitations: ["Model-generated discovery summary only."],
+    ...overrides,
   };
 }
 
@@ -143,11 +156,41 @@ async function runWithSources(count: number): Promise<{
 test("normalizes bounded questions and enforces the source maximum", () => {
   assert.deepEqual(
     parseAnalysisRequest({ question: "  How   is public access changing?  " }),
-    { question: "How is public access changing?", sourceLimit: 5 },
+    {
+      question: "How is public access changing?",
+      sourceLimit: 5,
+      discoveryProfile: "standard",
+    },
+  );
+  assert.deepEqual(
+    parseAnalysisRequest({
+      question: "How is public access changing?",
+      discoveryProfile: "coverage_expansion",
+    }),
+    {
+      question: "How is public access changing?",
+      sourceLimit: 5,
+      discoveryProfile: "coverage_expansion",
+    },
+  );
+  assert.throws(
+    () =>
+      parseAnalysisRequest({
+        question: "How is public access changing?",
+        discoveryProfile: "alternative_sources",
+      }),
+    (error) =>
+      error instanceof RequestValidationError && error.code === "invalid_request",
   );
 
   assert.throws(
     () => parseAnalysisRequest({ question: "How is public access changing?", sourceLimit: 9 }),
+    (error) =>
+      error instanceof RequestValidationError &&
+      error.code === "source_limit_violation",
+  );
+  assert.throws(
+    () => parseAnalysisRequest({ question: "How is public access changing?", sourceLimit: 3.5 }),
     (error) =>
       error instanceof RequestValidationError &&
       error.code === "source_limit_violation",
@@ -170,6 +213,9 @@ test("builds a compact live packet from API-provenanced partial snapshots", asyn
   assert.equal(packet.status, "live");
   assert.equal(packet.requested_source_limit, 2);
   assert.equal(packet.actual_source_count, 2);
+  assert.equal(packet.discovery_profile, "standard");
+  assert.equal(packet.coverage_summary.baseline_requested, 2);
+  assert.equal(packet.coverage_summary.expansion_attempted, false);
   assert.equal(packet.canonical_mutation, "none");
   assert.equal(packet.candidate_counts.finding, 2);
   assert.equal(packet.candidate_counts.unresolved_question, 2);
@@ -189,6 +235,9 @@ test("builds a compact live packet from API-provenanced partial snapshots", asyn
       /model-generated search summary/,
     );
     assert.equal(item.api_provenance?.provider_source_included, true);
+    assert.equal(item.source_selection.discovery_pass, "baseline");
+    assert.equal(item.source_selection.discovery_lane, "baseline_authority");
+    assert.equal(item.source_selection.classification_status, "candidate_review_only");
     assert.match(item.url ?? "", /^https:\/\//);
   }
 
@@ -304,6 +353,45 @@ test("candidate IDs stay in a non-canonical namespace", async () => {
   }
 });
 
+test("source context and information proximity do not alter candidate confidence or status", async () => {
+  const sources = [
+    source(1, undefined, {
+      source_context: "official",
+      information_proximity: "direct_document",
+      why_included: "Official direct document.",
+    }),
+    source(2, undefined, {
+      source_context: "individual_account",
+      information_proximity: "analysis_or_commentary",
+      why_included: "Individual interpretive account.",
+    }),
+  ];
+  const port = new FakeResponsesPort([
+    discoveryResponse(sources),
+    extractionResponse(1),
+    extractionResponse(2),
+  ]);
+  const packet = await runOpenAIAnalysis({
+    question: "How is a public service changing for residents?",
+    sourceLimit: 2,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.deepEqual(
+    packet.source_snapshot_summaries.map((item) => item.source_selection.source_context),
+    ["official", "individual_account"],
+  );
+  assert.ok(packet.candidates.every((candidate) =>
+    candidate.confidence === "medium" || candidate.confidence === "unknown"));
+  assert.ok(packet.candidates.every((candidate) => candidate.status === "candidate"));
+  assert.equal(packet.canonical_mutation, "none");
+  assert.doesNotMatch(
+    JSON.stringify(packet.source_snapshot_summaries),
+    /trust_score|reliability_score|authority_score|truth_probability/,
+  );
+});
+
 test("live analysis cannot mutate the prepared canonical case", async () => {
   const before = JSON.stringify(getPreparedCase("city_heatwave_cooling_centers"));
   const { packet } = await runWithSources(1);
@@ -340,6 +428,11 @@ test("keeps an adversarial search summary inside an untrusted no-tool boundary",
   );
   assert.match(String(extractionCall.input), /IGNORE PRIOR INSTRUCTIONS/);
   assert.equal(packet.canonical_mutation, "none");
+  assert.equal(packet.discovery_profile, "standard");
+  assert.equal(
+    packet.source_snapshot_summaries[0].source_selection.discovery_lane,
+    "baseline_authority",
+  );
   assert.ok(packet.candidates.every((candidate) => candidate.status === "candidate"));
 });
 
@@ -359,6 +452,260 @@ test("truncates discovery to the requested source bound", async () => {
   assert.equal(packet.actual_source_count, 5);
   assert.match(packet.warnings.join(" "), /source_limit_truncated:8->5/);
   assert.equal(port.calls.length, 6);
+  assert.equal(port.calls[0].instructions, DISCOVERY_INSTRUCTIONS);
+});
+
+test("allocates deterministic 3, 5, and 8 source coverage budgets", () => {
+  assert.deepEqual(allocateCoverageExpansionBudget(3), { baseline: 1, expansion: 2 });
+  assert.deepEqual(allocateCoverageExpansionBudget(5), { baseline: 2, expansion: 3 });
+  assert.deepEqual(allocateCoverageExpansionBudget(8), { baseline: 3, expansion: 5 });
+});
+
+test("coverage expansion performs two bounded passes and carries candidate role metadata", async () => {
+  const baseline = [source(1), source(2)];
+  const expansion = [
+    source(3, undefined, {
+      discovery_lane: "primary_or_origin",
+      source_context: "official",
+      information_proximity: "direct_document",
+      why_included: "Adds the origin record.",
+    }),
+    source(4, undefined, {
+      discovery_lane: "local_or_firsthand",
+      source_context: "community_organization",
+      information_proximity: "firsthand_observation",
+      why_included: "Adds local observations.",
+    }),
+    source(5, undefined, {
+      discovery_lane: "challenge_or_correction",
+      source_context: "established_editorial",
+      information_proximity: "secondary_reporting",
+      why_included: "Adds a later corrective signal.",
+    }),
+  ];
+  const port = new FakeResponsesPort([
+    discoveryResponse(baseline),
+    discoveryResponse(expansion),
+    ...[1, 2, 3, 4, 5].map((index) => extractionResponse(index)),
+  ]);
+
+  const packet = await runOpenAIAnalysis({
+    question: "How is a public service changing for residents?",
+    sourceLimit: 5,
+    discoveryProfile: "coverage_expansion",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(packet.discovery_profile, "coverage_expansion");
+  assert.equal(packet.actual_source_count, 5);
+  assert.equal(port.calls.length, 7);
+  assert.equal(port.calls[0].instructions, DISCOVERY_INSTRUCTIONS);
+  assert.equal(port.calls[1].instructions, COVERAGE_EXPANSION_DISCOVERY_INSTRUCTIONS);
+  assert.deepEqual(
+    {
+      baseline: packet.coverage_summary.baseline_requested,
+      expansion: packet.coverage_summary.expansion_requested,
+    },
+    { baseline: 2, expansion: 3 },
+  );
+  assert.equal(packet.coverage_summary.baseline_returned, 2);
+  assert.equal(packet.coverage_summary.expansion_returned, 3);
+  assert.equal(packet.coverage_summary.expansion_completed_successfully, true);
+  assert.equal(packet.coverage_summary.source_limit_reached, true);
+  assert.equal(packet.source_snapshot_summaries[0].source_selection.discovery_pass, "baseline");
+  assert.ok(packet.source_snapshot_summaries.slice(2).every(
+    (item) =>
+      item.source_selection.discovery_pass === "coverage_expansion" &&
+      item.source_selection.classification_status === "candidate_review_only",
+  ));
+
+  const expansionInput = JSON.parse(String(port.calls[1].input)) as {
+    already_selected_sources: Array<{ source_id: string; url: string }>;
+    requested_additional_source_limit: number;
+  };
+  assert.equal(expansionInput.requested_additional_source_limit, 3);
+  assert.equal(expansionInput.already_selected_sources.length, 2);
+  assert.deepEqual(
+    expansionInput.already_selected_sources.map((item) => item.url),
+    baseline.map((item) => item.url),
+  );
+});
+
+test("unused baseline capacity is made available to the single expansion pass", async () => {
+  const baseline = [source(1)];
+  const expansion = [2, 3, 4, 5].map((index) =>
+    source(index, undefined, {
+      discovery_lane: index === 2 ? "primary_or_origin" : "specialist_context",
+      source_context: "specialist_publication",
+      information_proximity: "analysis_or_commentary",
+      why_included: `Adds bounded coverage role ${index}.`,
+    }),
+  );
+  const port = new FakeResponsesPort([
+    discoveryResponse(baseline),
+    discoveryResponse(expansion),
+    ...[1, 2, 3, 4, 5].map((index) => extractionResponse(index)),
+  ]);
+  const packet = await runOpenAIAnalysis({
+    question: "How is a public service changing for residents?",
+    sourceLimit: 5,
+    discoveryProfile: "coverage_expansion",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(packet.coverage_summary.baseline_requested, 2);
+  assert.equal(packet.coverage_summary.baseline_returned, 1);
+  assert.equal(packet.coverage_summary.expansion_requested, 4);
+  assert.equal(packet.coverage_summary.expansion_returned, 4);
+  assert.equal(packet.actual_source_count, 5);
+  assert.equal(port.calls.length, 7);
+});
+
+test("deduplicates exact normalized URLs across passes without collapsing a domain", async () => {
+  const baselineItem = source(1, undefined, {
+    url: "https://same.example.org/report-a#baseline",
+  });
+  const duplicate = source(2, undefined, {
+    url: "https://same.example.org/report-a",
+    discovery_lane: "primary_or_origin",
+    why_included: "Duplicates the baseline URL after normalization.",
+  });
+  const distinctSameDomain = source(3, undefined, {
+    url: "https://same.example.org/report-b",
+    discovery_lane: "local_or_firsthand",
+    source_context: "local_editorial",
+    information_proximity: "firsthand_observation",
+    why_included: "Adds a distinct local document on the same domain.",
+  });
+  const port = new FakeResponsesPort([
+    discoveryResponse([baselineItem]),
+    discoveryResponse([duplicate, distinctSameDomain]),
+    extractionResponse(1),
+    extractionResponse(3),
+  ]);
+  const packet = await runOpenAIAnalysis({
+    question: "How is a public service changing for residents?",
+    sourceLimit: 3,
+    discoveryProfile: "coverage_expansion",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(packet.actual_source_count, 2);
+  assert.equal(packet.coverage_summary.duplicate_url_count, 1);
+  assert.equal(packet.coverage_summary.unique_domain_count, 1);
+  assert.deepEqual(
+    packet.source_snapshot_summaries.map((item) => item.url),
+    ["https://same.example.org/report-a", "https://same.example.org/report-b"],
+  );
+  assert.match(packet.warnings.join(" "), /duplicate_url_candidates:1/);
+});
+
+test("rejects a proposed URL that is absent from provider provenance", async () => {
+  const proposed = source(1);
+  const provenanced = source(2);
+  const port = new FakeResponsesPort([
+    {
+      output_parsed: { sources: [proposed] },
+      output: [
+        {
+          type: "web_search_call",
+          id: "search_other_url",
+          status: "completed",
+          action: {
+            type: "search",
+            sources: [{ type: "url", url: provenanced.url }],
+          },
+        },
+      ],
+    },
+  ]);
+
+  await assert.rejects(
+    runOpenAIAnalysis({
+      question: "How is a public service changing for residents?",
+      sourceLimit: 1,
+      generatedAt: GENERATED_AT,
+      responses: port,
+    }),
+    (error) => error instanceof AnalysisFailure && error.code === "malformed_source_set",
+  );
+});
+
+test("expansion-only failure preserves a usable baseline as partial live output", async () => {
+  const baseline = [source(1), source(2)];
+  const port = new FakeResponsesPort([
+    discoveryResponse(baseline),
+    Object.assign(new Error("expansion unavailable"), { status: 429 }),
+    extractionResponse(1),
+    extractionResponse(2),
+  ]);
+  const packet = await runOpenAIAnalysis({
+    question: "How is a public service changing for residents?",
+    sourceLimit: 5,
+    discoveryProfile: "coverage_expansion",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(packet.mode, "live");
+  assert.equal(packet.status, "live");
+  assert.equal(packet.actual_source_count, 2);
+  assert.equal(packet.coverage_summary.expansion_attempted, true);
+  assert.equal(packet.coverage_summary.expansion_completed_successfully, false);
+  assert.match(packet.warnings.join(" "), /coverage_expansion_failed:rate_limited/);
+  assert.doesNotMatch(packet.run_id, /fallback/);
+});
+
+test("an empty expansion result reports gaps without retrying or claiming completeness", async () => {
+  const baseline = [source(1)];
+  const port = new FakeResponsesPort([
+    discoveryResponse(baseline),
+    { output_parsed: { sources: [] }, output: [] },
+    extractionResponse(1),
+  ]);
+  const packet = await runOpenAIAnalysis({
+    question: "How is a public service changing for residents?",
+    sourceLimit: 3,
+    discoveryProfile: "coverage_expansion",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(port.calls.length, 3);
+  assert.equal(packet.coverage_summary.expansion_completed_successfully, true);
+  assert.equal(packet.coverage_summary.expansion_returned, 0);
+  assert.ok(packet.coverage_summary.missing_target_lanes.length > 0);
+  assert.equal("coverage_complete" in packet.coverage_summary, false);
+  assert.match(packet.warnings.join(" "), /coverage_expansion_empty/);
+});
+
+test("malformed expansion role metadata leaves the validated baseline live", async () => {
+  const malformed = {
+    ...source(2),
+    discovery_lane: "trustworthy_source",
+  };
+  const port = new FakeResponsesPort([
+    discoveryResponse([source(1)]),
+    {
+      output_parsed: { sources: [malformed] },
+      output: discoveryResponse([source(2)]).output,
+    },
+    extractionResponse(1),
+  ]);
+  const packet = await runOpenAIAnalysis({
+    question: "How is a public service changing for residents?",
+    sourceLimit: 3,
+    discoveryProfile: "coverage_expansion",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(packet.actual_source_count, 1);
+  assert.equal(packet.coverage_summary.expansion_completed_successfully, false);
+  assert.match(packet.warnings.join(" "), /coverage_expansion_failed:structured_output_invalid/);
 });
 
 test("allows one source extraction failure while others succeed", async () => {
@@ -519,6 +866,24 @@ test("missing key and known provider failures return deterministic fallback pack
   assert.equal(missingKeyBody.mode, "fallback");
   assert.equal(missingKeyBody.canonical_mutation, "none");
   assert.equal(liveCalls, 0);
+
+  const coverageMissingKeyResponse = await handleAnalysisRequest(
+    analysisRequest({
+      question: "How is public service access changing?",
+      sourceLimit: 5,
+      discoveryProfile: "coverage_expansion",
+    }),
+    { apiKey: undefined, now: () => GENERATED_AT },
+  );
+  const coverageMissingKeyBody =
+    (await coverageMissingKeyResponse.json()) as AnalysisRunPacket;
+  assert.equal(coverageMissingKeyBody.mode, "fallback");
+  assert.equal(coverageMissingKeyBody.discovery_profile, "coverage_expansion");
+  assert.equal(coverageMissingKeyBody.coverage_summary.baseline_requested, 2);
+  assert.equal(coverageMissingKeyBody.coverage_summary.expansion_requested, 3);
+  assert.equal(coverageMissingKeyBody.coverage_summary.baseline_returned, 0);
+  assert.equal(coverageMissingKeyBody.coverage_summary.expansion_returned, 0);
+  assert.equal(coverageMissingKeyBody.coverage_summary.expansion_attempted, false);
 
   for (const code of [
     "invalid_api_key",

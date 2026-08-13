@@ -3,6 +3,11 @@ import type {
   SnapshotContentKind,
   SnapshotStatus,
 } from "../contracts";
+import type {
+  CoverageSummary,
+  DiscoveryProfile,
+  SourceSelectionMetadata,
+} from "../source-profile";
 
 export const DEFAULT_SOURCE_LIMIT = 5;
 export const MAX_SOURCE_LIMIT = 8;
@@ -72,6 +77,7 @@ export interface AnalysisSourceSummary {
   web_search_grounded_candidate_summary: string | null;
   limitations: string[];
   api_provenance: SearchProvenance | null;
+  source_selection: SourceSelectionMetadata;
 }
 
 export type CandidateCounts = Record<CandidateType, number>;
@@ -84,6 +90,8 @@ export interface AnalysisRunPacket {
   normalized_question: string;
   requested_source_limit: number;
   actual_source_count: number;
+  discovery_profile: DiscoveryProfile;
+  coverage_summary: CoverageSummary;
   source_snapshot_summaries: AnalysisSourceSummary[];
   candidate_counts: CandidateCounts;
   candidate_ids: string[];
