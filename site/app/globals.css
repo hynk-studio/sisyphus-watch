@@ -220,11 +220,16 @@ p, li, blockquote { text-wrap: pretty; }
 .detail-button { padding: 0; border: 0; background: none; color: var(--green); font-size: .8125rem; font-weight: 720; text-align: left; }
 .detail-button:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-.lineage-summary { display: grid; grid-template-columns: auto auto; gap: 2px 9px; align-items: baseline; color: var(--muted); font-family: var(--font-geist-mono), monospace; font-size: .75rem; }
-.lineage-summary strong { color: var(--ink); font-size: 1.2rem; font-weight: 620; }
-.family-strip { padding: 18px; background: #faf9f4; }
-.family-strip > h4 { margin-bottom: 12px; font-size: .8125rem; }
-.family-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.family-strip { overflow: hidden; background: #faf9f4; }
+.family-strip > summary { display: flex; min-height: 64px; align-items: center; gap: 12px; padding: 15px 18px; cursor: pointer; list-style: none; }
+.family-strip > summary::-webkit-details-marker { display: none; }
+.family-strip > summary::before { color: var(--green); content: "+"; font-family: var(--font-geist-mono), monospace; font-size: 1.05rem; font-weight: 720; }
+.family-strip[open] > summary::before { content: "−"; }
+.family-strip > summary > span { display: grid; gap: 3px; }
+.family-strip > summary strong { font-size: .875rem; }
+.family-strip > summary small { color: var(--muted); font-size: .75rem; line-height: 1.4; }
+.family-strip > summary:focus-visible { outline: 3px solid #2d7f67; outline-offset: -4px; }
+.family-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 16px 18px 18px; border-top: 1px solid var(--line); }
 .family-card { display: grid; gap: 5px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); text-align: left; }
 .family-card:hover { border-color: #8fb2a4; }
 .family-card span, .family-card small { color: var(--muted); font-family: var(--font-geist-mono), monospace; font-size: .75rem; }

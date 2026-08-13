@@ -577,31 +577,7 @@ export function LineageView({
           <p className="view-subtitle">Claim lineage across sources</p>
           <p>These labels come directly from the validated packet. Candidate relations organize review; they do not adjudicate truth or mutate canonical state.</p>
         </div>
-        <div className="lineage-summary" aria-label="Lineage counts">
-          <strong>{packet.candidate_claim_families.length}</strong> families
-          <strong>{packet.claim_lineage_rows.length}</strong> links
-        </div>
       </div>
-
-      {packet.candidate_claim_families.length ? (
-        <section className="family-strip" aria-labelledby="families-title">
-          <h4 id="families-title">Related claims</h4>
-          <div className="family-grid">
-            {packet.candidate_claim_families.map((family, index) => (
-              <button
-                key={family.family_id}
-                className="family-card"
-                type="button"
-                onClick={() => onFocus({ kind: "claim_family", id: family.family_id, label: `Claim family ${index + 1}` })}
-              >
-                <span>Family {String(index + 1).padStart(2, "0")}</span>
-                <strong>{family.occurrence_ids.length} claim{family.occurrence_ids.length === 1 ? "" : "s"} found in sources</strong>
-                <small>{family.unresolved ? "Grouping unresolved · review only" : "Candidate grouping · review only"}</small>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       {packet.claim_lineage_rows.length ? (
         <ol className="lineage-list">
@@ -641,6 +617,33 @@ export function LineageView({
           })}
         </ol>
       ) : <EmptyState title="No claim lineage" message="This run contains no reviewable cross-source claim relations. Findings and actions remain available in their separate packet lanes." />}
+
+      {packet.candidate_claim_families.length ? (
+        <details className="family-strip">
+          <summary>
+            <span>
+              <strong>Related claim groupings ({packet.candidate_claim_families.length})</strong>
+              <small>
+                {packet.claim_lineage_rows.length} relation link{packet.claim_lineage_rows.length === 1 ? "" : "s"} · Candidate grouping metadata
+              </small>
+            </span>
+          </summary>
+          <div className="family-grid">
+            {packet.candidate_claim_families.map((family, index) => (
+              <button
+                key={family.family_id}
+                className="family-card"
+                type="button"
+                onClick={() => onFocus({ kind: "claim_family", id: family.family_id, label: `Claim family ${index + 1}` })}
+              >
+                <span>Family {String(index + 1).padStart(2, "0")}</span>
+                <strong>{family.occurrence_ids.length} claim{family.occurrence_ids.length === 1 ? "" : "s"} found in sources</strong>
+                <small>{family.unresolved ? "Grouping unresolved · review only" : "Candidate grouping · review only"}</small>
+              </button>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

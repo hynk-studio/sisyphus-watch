@@ -171,10 +171,11 @@ test("timeline labels the selected axis, keeps missing times unavailable, and ex
   assert.match(html, /View all four timestamps/);
 });
 
-test("lineage renders actual or explicit unknown actors without substituting publisher", () => {
+test("lineage surfaces relations before collapsed family metadata without mutating packet state", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   packet.claim_occurrences[0].actor = null;
   const publisher = packet.source_snapshot_summaries[0].publisher;
+  const beforeRender = JSON.stringify(packet);
   assert.equal(actorLabel(null), "Unknown actor");
 
   const html = renderToStaticMarkup(createElement(LineageView, {
@@ -184,14 +185,30 @@ test("lineage renders actual or explicit unknown actors without substituting pub
   assert.match(html, /<h4>Unknown actor<\/h4><blockquote>Residents could find safe/);
   assert.notEqual("Unknown actor", publisher);
   assert.match(html, /Claim lineage across sources/);
-  assert.match(html, /Related claims/);
+  const firstRelationIndex = html.indexOf("Earlier source-bound claim");
+  const supportIndex = html.indexOf("Inspect support from both sides");
+  const groupingIndex = html.indexOf("Related claim groupings");
+  assert.ok(firstRelationIndex >= 0);
+  assert.ok(supportIndex > firstRelationIndex);
+  assert.ok(groupingIndex > supportIndex);
+  assert.match(html, /<details class="family-strip"><summary>/);
+  assert.doesNotMatch(html, /<details class="family-strip" open/);
+  assert.match(html, /Related claim groupings \(2\)/);
+  assert.match(html, /Family 01/);
+  assert.match(html, /Family 02/);
+  assert.match(html, /Candidate grouping · review only/);
+  assert.match(html, /Grouping unresolved · review only/);
   assert.match(html, /Needs review/);
+  assert.match(html, /Inspect support from both sides/);
   assert.match(html, /Replaces earlier guidance/);
   assert.equal(relationDisplayLabel("contradicts"), "Challenges the earlier claim");
   assert.equal(relationDisplayLabel("follow_up"), "Responds to the earlier report");
   assert.equal(relationDisplayLabel("corroborates"), "Supports the earlier report");
   assert.equal(relationDisplayLabel("narrows"), "Makes the earlier claim more specific");
   assert.equal(relationDisplayLabel("unresolved"), "Connection remains unclear");
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
+  assert.ok(packet.relation_candidates.every((relation) => relation.review_status === "pending_review"));
+  assert.equal(JSON.stringify(packet), beforeRender);
 });
 
 test("source cards are concise while focused detail preserves context, limitations, and technical provenance", () => {
