@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent } from "react";
 import {
   TIME_AXES,
   TIME_AXIS_LABELS,
@@ -291,6 +291,9 @@ function SourceMapNode({
         aria-pressed={selected}
         aria-label={`${source.sourceRole} source node: ${source.title}. ${source.selectedTimeAxisLabel}: ${source.selectedTime ? formatDate(source.selectedTime) : "Time unavailable"}. ${selected ? "Selected" : "Not selected"}.`}
         onClick={() => onFocus({ kind: "source", id: source.sourceId, label: source.title })}
+        onKeyDown={(event) => activateWithKeyboard(event, () =>
+          onFocus({ kind: "source", id: source.sourceId, label: source.title }),
+        )}
       >
         <span className="node-state-text">{selected ? "Selected source" : "Source node"}</span>
         <span className="source-role-badge">{source.sourceRole}</span>
@@ -346,6 +349,11 @@ function QuestionMapNode({
           id: question.questionId,
           label: `Open question ${index + 1}`,
         })}
+        onKeyDown={(event) => activateWithKeyboard(event, () => onFocus({
+          kind: "unresolved_question",
+          id: question.questionId,
+          label: `Open question ${index + 1}`,
+        }))}
       >
         <span className="question-mark" aria-hidden="true">?</span>
         <span className="node-state-text">
@@ -396,6 +404,9 @@ function RelationLedger({
                   aria-pressed={selected}
                   aria-label={`${edge.label} from ${from?.title ?? edge.leftSourceId} to ${to?.title ?? edge.rightSourceId}. Needs review. Inspect support from both sides.`}
                   onClick={() => onFocus({ kind: "relation", id: edge.relationId, label: edge.label })}
+                  onKeyDown={(event) => activateWithKeyboard(event, () =>
+                    onFocus({ kind: "relation", id: edge.relationId, label: edge.label }),
+                  )}
                 >
                   <span>{edge.label}</span>
                   <small>
@@ -469,6 +480,9 @@ function MobileInvestigationPath({
                     type="button"
                     aria-pressed={selectedEdgeId === edge.edgeId}
                     onClick={() => onFocus({ kind: "relation", id: edge.relationId, label: edge.label })}
+                    onKeyDown={(event) => activateWithKeyboard(event, () =>
+                      onFocus({ kind: "relation", id: edge.relationId, label: edge.label }),
+                    )}
                   >
                     <span>{edge.label}</span>
                     <small>To {other?.title ?? otherId} · Needs review</small>
@@ -599,4 +613,13 @@ function formatDate(value: string): string {
     day: "numeric",
     timeZone: "UTC",
   }).format(date);
+}
+
+function activateWithKeyboard(
+  event: KeyboardEvent<HTMLButtonElement>,
+  action: () => void,
+) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  action();
 }
