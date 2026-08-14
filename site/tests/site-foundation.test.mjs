@@ -24,18 +24,19 @@ async function request(path) {
   );
 }
 
-test("renders the deterministic prepared-case shell", async () => {
+test("renders the search-first shell with a truthful no-key prepared-example path", async () => {
   const response = await request("/");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Sisyphus Watch \| Follow changing public information<\/title>/i);
-  assert.match(html, /City Heatwave Cooling Centers/);
-  assert.match(html, /Deterministic fixture/);
+  assert.match(html, /<title>Sisyphus Watch \| Build an investigation map<\/title>/i);
+  assert.match(html, /What do you want to investigate/);
+  assert.match(html, /Build investigation map/);
+  assert.match(html, /Try the cooling-center example/);
   assert.match(html, /without an API key or network/i);
-  assert.match(html, /What changed/);
-  assert.match(html, /Open questions/);
+  assert.match(html, /Live source discovery is not enabled/);
+  assert.doesNotMatch(html, /id="investigation-workspace"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
   assert.doesNotMatch(html, /DEMO FIXTURE ONLY/);
 });

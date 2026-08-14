@@ -10,11 +10,10 @@ import type {
 } from "./source-profile";
 
 export const EXPERIENCE_VIEWS = [
-  "overview",
-  "lineage",
+  "map",
   "timeline",
   "sources",
-  "unresolved",
+  "method",
 ] as const;
 
 export type ExperienceView = (typeof EXPERIENCE_VIEWS)[number];
@@ -29,11 +28,10 @@ export const TIME_AXES = [
 export type TimeAxis = (typeof TIME_AXES)[number];
 
 export const VIEW_LABELS: Record<ExperienceView, string> = {
-  overview: "Overview",
-  lineage: "What changed",
+  map: "Map",
   timeline: "Timeline",
   sources: "Sources",
-  unresolved: "Open questions",
+  method: "Method",
 };
 
 export const TIME_AXIS_LABELS: Record<TimeAxis, string> = {

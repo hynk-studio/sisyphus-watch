@@ -1,0 +1,329 @@
+import {
+  TIME_AXES,
+  TIME_AXIS_LABELS,
+  actorLabel,
+  discoveryLaneLabel,
+  orderTimelineRows,
+  recordBoundaryLabel,
+  sourceContentLabel,
+  sourceCoverageLabel,
+  sourceCoverageNote,
+  sourceRoleLabel,
+  timeValue,
+  type TimeAxis,
+} from "../lib/experience";
+import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
+import { DISCOVERY_LANES } from "../lib/source-profile";
+import type { FocusSelection } from "./investigation-types";
+
+export function TimelineView({
+  packet,
+  timeAxis,
+  onTimeAxisChange,
+  onFocus,
+}: {
+  packet: SiteReadyCasePacket;
+  timeAxis: TimeAxis;
+  onTimeAxisChange: (axis: TimeAxis) => void;
+  onFocus: (selection: FocusSelection) => void;
+}) {
+  const rows = orderTimelineRows(packet.event_timeline_rows, timeAxis);
+  const availableRows = rows.filter((row) => timeValue(row, timeAxis));
+  const unavailableRows = rows.filter((row) => !timeValue(row, timeAxis));
+  return (
+    <div className="view-stack">
+      <div className="view-intro">
+        <div>
+          <p className="eyebrow">Temporal view</p>
+          <h3>Claims found in sources over time</h3>
+          <p>
+            Choose one explicit axis. Missing values remain in a labeled Time
+            unavailable region; no other axis is substituted.
+          </p>
+        </div>
+        <label className="axis-control" htmlFor="time-axis">
+          Selected time axis
+          <select
+            id="time-axis"
+            value={timeAxis}
+            onChange={(event) => onTimeAxisChange(event.target.value as TimeAxis)}
+          >
+            {TIME_AXES.map((axis) => (
+              <option key={axis} value={axis}>{TIME_AXIS_LABELS[axis]}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {rows.length ? (
+        <>
+          <TimelineRows
+            packet={packet}
+            rows={availableRows}
+            timeAxis={timeAxis}
+            onFocus={onFocus}
+          />
+          {unavailableRows.length ? (
+            <section className="time-unavailable-region" aria-labelledby="time-unavailable-title">
+              <h4 id="time-unavailable-title">Time unavailable</h4>
+              <p>
+                {unavailableRows.length} row{unavailableRows.length === 1 ? " has" : "s have"}
+                {" "}no explicit {TIME_AXIS_LABELS[timeAxis].toLowerCase()} value.
+              </p>
+              <TimelineRows
+                packet={packet}
+                rows={unavailableRows}
+                timeAxis={timeAxis}
+                onFocus={onFocus}
+              />
+            </section>
+          ) : null}
+        </>
+      ) : (
+        <EmptyState
+          title="No claim timeline"
+          message="This packet contains no actor-claim occurrences, so no timeline rows were created."
+        />
+      )}
+    </div>
+  );
+}
+
+function TimelineRows({
+  packet,
+  rows,
+  timeAxis,
+  onFocus,
+}: {
+  packet: SiteReadyCasePacket;
+  rows: SiteReadyCasePacket["event_timeline_rows"];
+  timeAxis: TimeAxis;
+  onFocus: (selection: FocusSelection) => void;
+}) {
+  return (
+    <ol className="temporal-list">
+      {rows.map((row, index) => {
+        const occurrence = packet.claim_occurrences.find((item) =>
+          row.occurrence_ids.includes(item.occurrence_id),
+        );
+        const selectedTime = timeValue(row, timeAxis);
+        return (
+          <li key={row.timeline_row_id} className="temporal-row">
+            <div className="time-rail" aria-hidden="true">
+              <span>{String(index + 1).padStart(2, "0")}</span>
+            </div>
+            <article>
+              <div className="row-meta">
+                <span>{TIME_AXIS_LABELS[timeAxis]}</span>
+                <time dateTime={selectedTime ?? undefined}>{formatTimestamp(selectedTime)}</time>
+                <span className={`record-state record-${row.status}`}>
+                  {recordBoundaryLabel(row.status)}
+                </span>
+              </div>
+              <h4>{actorLabel(occurrence?.actor ?? null)}</h4>
+              <blockquote>{row.summary}</blockquote>
+              <button
+                className="detail-button"
+                type="button"
+                onClick={() => onFocus({
+                  kind: "timeline_row",
+                  id: row.timeline_row_id,
+                  label: `Timeline row ${index + 1}`,
+                })}
+              >
+                View all four timestamps <span aria-hidden="true">→</span>
+              </button>
+            </article>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export function SourcesView({
+  packet,
+  onFocus,
+}: {
+  packet: SiteReadyCasePacket;
+  onFocus: (selection: FocusSelection) => void;
+}) {
+  return (
+    <div className="view-stack">
+      <div className="view-intro">
+        <div>
+          <p className="eyebrow">Provenance</p>
+          <h3>Sources and snapshot boundaries</h3>
+          <p>
+            Each source says what was captured, what was only summarized, and what
+            its record cannot prove.
+          </p>
+        </div>
+      </div>
+      <ol className="source-grid">
+        {packet.source_snapshot_summaries.map((source, index) => {
+          const candidateSummary = source.web_search_grounded_candidate_summary;
+          const evidence = candidateSummary ?? source.evidence_excerpt;
+          return (
+            <li key={source.source_id} className="source-card">
+              <div className="source-index" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
+              </div>
+              <div className="source-card-body">
+                <div className="source-status-row">
+                  <span className="source-role-badge">{sourceRoleLabel(source)}</span>
+                  <span className={`record-state record-${source.record_status}`}>
+                    {recordBoundaryLabel(source.record_status)}
+                  </span>
+                </div>
+                <h4>
+                  {source.url ? (
+                    <a href={source.url} target="_blank" rel="noopener noreferrer">
+                      {source.title} <span className="external-mark" aria-label="opens in a new tab">↗</span>
+                    </a>
+                  ) : source.title}
+                </h4>
+                <p className="source-publisher">{source.publisher} · {source.domain}</p>
+                <dl className="source-times">
+                  <div><dt>Publication time</dt><dd>{formatTimestamp(source.published_at)}</dd></div>
+                </dl>
+                <div className={`provenance-note ${candidateSummary ? "provenance-partial" : ""}`}>
+                  <strong>{sourceContentLabel(source)}</strong>
+                  <p>{evidence ?? "No bounded evidence or candidate summary is available."}</p>
+                </div>
+                <div className="source-why">
+                  <strong>Why this source matters</strong>
+                  <p>{source.source_selection.why_included}</p>
+                </div>
+                <button
+                  className="detail-button"
+                  type="button"
+                  onClick={() => onFocus({
+                    kind: "source",
+                    id: source.source_id,
+                    label: source.title,
+                  })}
+                >
+                  {source.source_text_captured ? "Inspect source evidence" : "View source details"}
+                  {" "}<span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
+  return (
+    <div className="view-stack">
+      <div className="view-intro">
+        <div>
+          <p className="eyebrow">Method and coverage</p>
+          <h3>What this map contains—and what it cannot establish</h3>
+          <p>
+            Coverage metadata, record boundaries, and workload limits remain
+            inspectable without crowding the map.
+          </p>
+        </div>
+        <span className="review-label">{sourceCoverageLabel(packet)}</span>
+      </div>
+      <section className="metric-grid" aria-label="Packet counts">
+        <Metric value={packet.actual_source_count} label="Sources" />
+        <Metric value={packet.claim_occurrences.length} label="Actor-claim occurrences" />
+        <Metric value={packet.relation_candidates.length} label="Candidate relations" />
+        <Metric value={packet.unresolved_questions.length} label="Open questions" />
+      </section>
+      <section className="standard-card coverage-card" aria-labelledby="source-coverage-title">
+        <p className="eyebrow">Source coverage</p>
+        <h3 id="source-coverage-title">Represented source roles</h3>
+        <dl className="coverage-lanes">
+          {DISCOVERY_LANES.map((lane) => (
+            <div key={lane}>
+              <dt>{discoveryLaneLabel(lane)}</dt>
+              <dd>{packet.coverage_summary.lane_counts[lane]}</dd>
+            </div>
+          ))}
+        </dl>
+        {packet.coverage_summary.coverage_basis === "live_discovery" ? (
+          <div className="coverage-summary-line">
+            <span>{packet.coverage_summary.baseline_returned}/{packet.coverage_summary.baseline_requested} baseline results</span>
+            <span>{packet.coverage_summary.expansion_returned}/{packet.coverage_summary.expansion_requested} expansion results</span>
+            <span>{packet.coverage_summary.unique_domain_count} unique domains</span>
+            <span>{packet.coverage_summary.duplicate_url_count} duplicate URLs removed</span>
+          </div>
+        ) : (
+          <div className="coverage-summary-line">
+            <span>{packet.coverage_summary.fixture_source_count} curated prepared sources</span>
+          </div>
+        )}
+        <p className="card-note">{sourceCoverageNote(packet)}</p>
+      </section>
+      <div className="method-grid">
+        <section className="standard-card">
+          <p className="eyebrow">Separate records</p>
+          <h3>No #43 evidence-to-claim inference</h3>
+          <dl className="lane-list">
+            <div><dt>Source-bound findings</dt><dd>{packet.source_bound_findings.length}</dd></div>
+            <div><dt>Actor claims</dt><dd>{packet.actor_claims.length}</dd></div>
+            <div><dt>Actions</dt><dd>{packet.actions.length}</dd></div>
+            <div><dt>Standalone time candidates</dt><dd>{packet.time_candidates.length}</dd></div>
+          </dl>
+          <p className="card-note">
+            Only actor claims become claim occurrences. Findings and actions can
+            appear in source inspection but never create a map edge.
+          </p>
+        </section>
+        <section className="standard-card">
+          <p className="eyebrow">Bounded work</p>
+          <h3>Deterministic and reviewable</h3>
+          <dl className="lane-list">
+            <div><dt>Theoretical pairs</dt><dd>{packet.bounded_work_summary.theoretical_pair_count}</dd></div>
+            <div><dt>Prefilter candidates</dt><dd>{packet.bounded_work_summary.prefilter_candidate_count}</dd></div>
+            <div><dt>Hard pair limit</dt><dd>{packet.bounded_work_summary.configured_maximum_pair_count}</dd></div>
+            <div><dt>Model-classified pairs</dt><dd>{packet.bounded_work_summary.model_classified_count}</dd></div>
+          </dl>
+          <p className="card-note">
+            Maximum 8 sources and 64 relation-pair workload. Browser focus and
+            coverage lenses cannot mutate the packet.
+          </p>
+        </section>
+      </div>
+      <section className="limitations-card" aria-labelledby="limitations-title">
+        <div>
+          <p className="eyebrow">Limits</p>
+          <h3 id="limitations-title">What this packet does not establish</h3>
+        </div>
+        <ul>
+          {packet.limitations.map((limitation, index) => (
+            <li key={`${index}-${limitation}`}>{limitation}</li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+function Metric({ value, label }: { value: number; label: string }) {
+  return <div className="metric"><strong>{value}</strong><span>{label}</span></div>;
+}
+
+function EmptyState({ title, message }: { title: string; message: string }) {
+  return <div className="empty-state"><strong>{title}</strong><p>{message}</p></div>;
+}
+
+function formatTimestamp(value: string | null): string {
+  if (!value) return "Unavailable";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  }).format(date);
+}

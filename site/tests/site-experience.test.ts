@@ -6,20 +6,19 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   CaseExplorer,
   FocusedDetailPanel,
-  getRunNotice,
-  LineageView,
+  InvestigationMapView,
+  MethodView,
+  SearchComposer,
   SourcesView,
   TimelineView,
-  UnresolvedView,
+  getRunNotice,
 } from "../app/components/CaseExplorer";
 import {
   EXPERIENCE_VIEWS,
   VIEW_LABELS,
-  actorLabel,
-  orderTimelineRows,
-  relationDisplayLabel,
   sourceContentLabel,
 } from "../app/lib/experience";
+import { deriveInvestigationMap } from "../app/lib/investigation-map";
 import {
   isLiveAnalysisEnabled,
   liveAnalysisDisabledResponse,
@@ -30,7 +29,7 @@ import { POST as postLineage } from "../app/api/lineage/route";
 
 const noop = () => undefined;
 
-test("renders the compressed public story, new navigation, and compact disabled live state without mutating the packet", () => {
+test("search-first landing makes the question composer the first product action and tells the truth when live is disabled", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const before = JSON.stringify(packet);
   const html = renderToStaticMarkup(createElement(CaseExplorer, {
@@ -38,79 +37,258 @@ test("renders the compressed public story, new navigation, and compact disabled 
     liveEnabled: false,
   }));
 
-  assert.match(html, /Version history for public information/);
-  assert.match(html, /See what changed, where it came from, and what is still unclear/);
-  assert.match(html, /residents, caregivers, community organizers, nonprofit staff, and local journalists/);
-  assert.match(html, /role="tablist"/);
-  assert.match(html, /aria-selected="true"/);
-  assert.deepEqual(EXPERIENCE_VIEWS, ["overview", "lineage", "timeline", "sources", "unresolved"]);
-  assert.deepEqual(EXPERIENCE_VIEWS.map((view) => VIEW_LABELS[view]), [
-    "Overview",
-    "What changed",
-    "Timeline",
-    "Sources",
-    "Open questions",
-  ]);
-  assert.ok(html.indexOf("Overview") < html.indexOf("What changed"));
-  assert.ok(html.indexOf("What changed") < html.indexOf("Timeline"));
-  assert.ok(html.indexOf("Timeline") < html.indexOf("Sources"));
-  assert.ok(html.indexOf("Sources") < html.indexOf("Open questions"));
-  assert.match(html, /Official notice/);
-  assert.match(html, /Community access challenge/);
-  assert.match(html, /Official correction \/ update/);
-  assert.match(html, /Impact still unresolved/);
-  assert.match(html, /What happened/);
-  assert.match(html, /Why it matters/);
-  assert.match(
-    html,
-    /<span class="story-stage">What changed<\/span><strong>Official correction \/ update<\/strong>/,
-  );
-  assert.match(html, /What remains unresolved/);
-  assert.match(html, /Current picture from the available sources/);
-  assert.match(html, /Prepared case summary/);
-  assert.match(html, /Review-only · Nothing is accepted automatically/);
-  assert.match(html, /OpenAI-assisted live analysis/);
-  assert.match(html, /disabled in this public demo for a conservative release/);
-  assert.match(html, /prepared case remains fully interactive/i);
-  assert.match(
-    html,
-    /one question, a bounded source limit, and a discovery approach are sent to the same Site/i,
-  );
-  assert.doesNotMatch(html, /Site operator|hosted settings|configure the API key/i);
-  assert.doesNotMatch(html, /<textarea/);
-  assert.doesNotMatch(html, /id="discovery-profile"/);
-  assert.match(html, /<details class="method-card"><summary>/);
-  assert.doesNotMatch(html, /<details class="method-card" open/);
-  assert.match(html, /Method &amp; coverage/);
-  assert.match(html, /What kinds of sources are represented/);
-  assert.match(html, /Prepared fixture coverage/);
-  assert.match(html, /curated prepared-case coverage, not live discovery/i);
-  assert.match(html, /Prepared case source type not represented: Original records/i);
-  assert.match(html, /Official &amp; established/);
-  assert.match(html, /Local &amp; firsthand/);
-  assert.match(html, /Challenges &amp; corrections/);
-  assert.doesNotMatch(html, /\d+\/\d+ baseline/);
-  assert.doesNotMatch(html, /Kaggle|course|Apps SDK|MCP App/i);
+  assert.match(html, /What do you want to investigate\?/);
+  assert.match(html, /Topic or public-interest question/);
+  assert.match(html, /Build investigation map/);
+  assert.match(html, /disabled=""/);
+  assert.match(html, /Standard review/);
+  assert.match(html, /Start with official and established sources/);
+  assert.match(html, /Expand source coverage/);
+  assert.match(html, /Also look for local, firsthand, specialist, and corrective sources/);
+  assert.match(html, /3 sources/);
+  assert.match(html, /5 sources/);
+  assert.match(html, /8 sources · maximum/);
+  assert.match(html, /Try the cooling-center example/);
+  assert.match(html, /Live source discovery is not enabled on this public version/);
+  assert.match(html, /Arbitrary questions cannot run here yet/);
+  assert.doesNotMatch(html, /id="investigation-workspace"/);
+  assert.doesNotMatch(html, /Prepared demonstration/);
   assert.equal(JSON.stringify(packet), before);
 });
 
-test("renders the bounded live form only when the server feature flag is enabled", () => {
-  const html = renderToStaticMarkup(createElement(CaseExplorer, {
-    preparedCase: buildPreparedSiteReadyCasePacket(),
+test("live composer exposes the existing bounded request controls without claiming success", () => {
+  const html = renderToStaticMarkup(createElement(SearchComposer, {
+    question: "How is public access changing?",
+    sourceLimit: 5,
+    discoveryProfile: "standard",
     liveEnabled: true,
+    isLoading: false,
+    routeError: null,
+    investigationStarted: false,
+    onQuestionChange: noop,
+    onSourceLimitChange: noop,
+    onDiscoveryProfileChange: noop,
+    onSubmit: noop,
+    onPreparedExample: noop,
   }));
 
-  assert.match(html, /for="analysis-question"/);
   assert.match(html, /minLength="12"/);
   assert.match(html, /maxLength="500"/);
-  assert.match(html, /8 sources/);
-  assert.match(html, /id="discovery-profile"/);
-  assert.match(html, /Standard review/);
-  assert.match(html, /Expand source coverage/);
-  assert.match(html, /ordinary authority-ranked search may under-surface/);
-  assert.match(html, /hard maximum 64 pairs/);
-  assert.match(html, /No arbitrary URLs, crawling, or visitor history/);
-  assert.doesNotMatch(html, /disabled in this public demo/);
+  assert.match(html, /Bounded live discovery is available/);
+  assert.match(html, /live, partial, or a clearly labeled prepared fallback/);
+  assert.doesNotMatch(html, /disabled=""/);
+});
+
+test("map is the primary result model with four top-level views and visible question nodes", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const map = deriveInvestigationMap(packet, "event_time");
+  const html = renderToStaticMarkup(createElement(InvestigationMapView, {
+    packet,
+    map,
+    timeAxis: "event_time",
+    coverageLens: "all",
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    threadTraceActive: false,
+    liveEnabled: false,
+    isLoading: false,
+    onTimeAxisChange: noop,
+    onCoverageLensChange: noop,
+    onFocus: noop,
+    onTraceThread: noop,
+    onShowFullMap: noop,
+    onExpandCoverage: noop,
+  }));
+
+  assert.deepEqual(EXPERIENCE_VIEWS, ["map", "timeline", "sources", "method"]);
+  assert.deepEqual(EXPERIENCE_VIEWS.map((view) => VIEW_LABELS[view]), [
+    "Map",
+    "Timeline",
+    "Sources",
+    "Method",
+  ]);
+  assert.match(html, /Structured investigation map/);
+  assert.match(html, /Time moves left to right/);
+  assert.match(html, /Topic root/);
+  assert.match(html, /spatial-map-stage/);
+  assert.match(html, /spatial-connection-layer/);
+  assert.match(html, /Spatial candidate relation controls/);
+  assert.match(html, /Candidate connections/);
+  assert.match(html, /Accessible relation list/);
+  assert.match(html, /Open questions/);
+  assert.match(html, /Visible endpoints · not conclusions/);
+  assert.match(html, /Evidence gap from/);
+  assert.match(html, /Fictional city updates cooling center list and adds transport support/);
+  assert.match(html, /Inspect support from both sides/);
+  assert.match(html, /Prepared comparison only/);
+  assert.match(html, /Prepared baseline/);
+  assert.match(html, /Complete prepared set/);
+  assert.match(html, /mobile-investigation-path/);
+  for (const question of packet.unresolved_questions) {
+    assert.match(html, new RegExp(escapeRegex(question.question)));
+  }
+});
+
+test("source selection and relation inspection expose text states and exact support affordances", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const map = deriveInvestigationMap(packet, "event_time");
+  const selectedSourceId = map.sources[0].sourceId;
+  const selectedHtml = renderToStaticMarkup(createElement(InvestigationMapView, {
+    packet,
+    map,
+    timeAxis: "event_time",
+    coverageLens: "all",
+    selectedNodeId: selectedSourceId,
+    selectedEdgeId: null,
+    threadTraceActive: true,
+    liveEnabled: false,
+    isLoading: false,
+    onTimeAxisChange: noop,
+    onCoverageLensChange: noop,
+    onFocus: noop,
+    onTraceThread: noop,
+    onShowFullMap: noop,
+    onExpandCoverage: noop,
+  }));
+  assert.match(selectedHtml, /Thread trace active/);
+  assert.match(selectedHtml, /Selected source/);
+  assert.match(selectedHtml, /Trace this thread|Thread trace/);
+  assert.match(selectedHtml, /Show full map/);
+  assert.match(selectedHtml, /unrelated context remains visible but dimmed/);
+  assert.match(selectedHtml, /data-map-state="dimmed"/);
+
+  const relation = packet.relation_candidates[0];
+  const relationDetail = {
+    case_id: packet.case_id,
+    run_id: packet.run_id,
+    focus_kind: "relation" as const,
+    focus_id: relation.relation_id,
+    detail: relation,
+  };
+  const detailHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: {
+      kind: "relation",
+      id: relation.relation_id,
+      label: "Candidate relation",
+    },
+    payload: relationDetail,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.match(detailHtml, /Left support/);
+  assert.match(detailHtml, /Right support/);
+  assert.match(detailHtml, /Exact relation and support references/);
+  assert.match(detailHtml, new RegExp(relation.left_occurrence_id));
+  assert.match(detailHtml, new RegExp(relation.right_occurrence_id));
+  assert.match(detailHtml, new RegExp(escapeRegex(relation.left_support_reference.evidence_reference)));
+  assert.match(detailHtml, new RegExp(escapeRegex(relation.right_support_reference.evidence_reference)));
+});
+
+test("source inspector prioritizes role, evidence, claims, changes, questions, and progressive provenance", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const sourceId = packet.source_snapshot_summaries[0].source_id;
+  const sourceDetail = getPreparedCaseDetail(packet.case_id, "source", sourceId);
+  assert.ok(sourceDetail);
+  const html = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: { kind: "source", id: sourceId, label: packet.source_snapshot_summaries[0].title },
+    payload: {
+      case_id: packet.case_id,
+      run_id: packet.run_id,
+      focus_kind: "source",
+      focus_id: sourceId,
+      detail: sourceDetail.detail,
+    },
+    state: "idle",
+    onClose: noop,
+  }));
+
+  assert.match(html, /Source role/);
+  assert.match(html, /Publisher \/ domain/);
+  assert.match(html, /Why this source matters/);
+  assert.match(html, /Captured deterministic fixture evidence/);
+  assert.match(html, /Claims found in this source/);
+  assert.match(html, /Connected changes/);
+  assert.match(html, /Related open questions/);
+  assert.match(html, /Findings, actions, context, and limitations/);
+  assert.match(html, /Hashes and provider identifiers/);
+  assert.match(html, /Prepared fixture: no external citation URL/);
+});
+
+test("timeline keeps all four axes explicit and isolates missing selected-axis times", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  packet.event_timeline_rows[0].event_time = null;
+  const html = renderToStaticMarkup(createElement(TimelineView, {
+    packet,
+    timeAxis: "event_time",
+    onTimeAxisChange: noop,
+    onFocus: noop,
+  }));
+  assert.match(html, /Selected time axis/);
+  assert.match(html, /Time unavailable/);
+  assert.match(html, /no other axis is substituted/i);
+  assert.match(html, /View all four timestamps/);
+});
+
+test("sources and method preserve provenance labels, coverage, and the no-#43 boundary", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const sourcesHtml = renderToStaticMarkup(createElement(SourcesView, {
+    packet,
+    onFocus: noop,
+  }));
+  assert.match(sourcesHtml, /Captured deterministic fixture evidence/);
+  assert.match(sourcesHtml, /Official notice/);
+  assert.match(sourcesHtml, /Community report/);
+  assert.match(sourcesHtml, /Official update/);
+  assert.match(sourcesHtml, /Opinion \/ interpretation/);
+
+  const live = structuredClone(packet);
+  const source = live.source_snapshot_summaries[0];
+  source.url = "https://public.example.org/changing-notice";
+  source.snapshot_status = "partial";
+  source.record_status = "candidate";
+  source.content_kind = "model_generated_web_search_summary";
+  source.retrieval_mode = "openai_web_search";
+  source.source_text_captured = false;
+  source.evidence_excerpt = null;
+  source.web_search_grounded_candidate_summary = "A bounded candidate summary.";
+  assert.match(sourceContentLabel(source), /not captured page text/);
+  const liveHtml = renderToStaticMarkup(createElement(SourcesView, {
+    packet: live,
+    onFocus: noop,
+  }));
+  assert.match(liveHtml, /not captured page text/);
+  assert.match(liveHtml, /href="https:\/\/public\.example\.org\/changing-notice"/);
+
+  const methodHtml = renderToStaticMarkup(createElement(MethodView, { packet }));
+  assert.match(methodHtml, /No #43 evidence-to-claim inference/);
+  assert.match(methodHtml, /Only actor claims become claim occurrences/);
+  assert.match(methodHtml, /Maximum 8 sources and 64 relation-pair workload/);
+  assert.match(methodHtml, /Prepared fixture coverage/);
+});
+
+test("fallback, partial, loading, and error notices never mislabel the displayed packet", () => {
+  const prepared = buildPreparedSiteReadyCasePacket();
+  const fallback = structuredClone(prepared);
+  fallback.mode = "fallback";
+  fallback.status = "fallback";
+  assert.match(getRunNotice(fallback, false, null).message, /not a live investigation/);
+
+  const partial = structuredClone(prepared);
+  partial.mode = "live";
+  partial.status = "live";
+  partial.warnings = ["one bounded source failed"];
+  assert.equal(getRunNotice(partial, false, null).title, "Partial live investigation");
+  assert.match(getRunNotice(partial, false, null).message, /review-only/);
+
+  const loading = getRunNotice(prepared, true, null);
+  assert.equal(loading.title, "Building a bounded investigation map");
+  assert.match(loading.message, /displayed packet stays intact/);
+
+  const error = getRunNotice(prepared, false, "The route is unavailable.");
+  assert.equal(error.tone, "error");
+  assert.match(error.message, /displayed packet remains intact/);
 });
 
 test("server-only live flag defaults closed and the disabled route returns a bounded safe error", async () => {
@@ -152,247 +330,34 @@ test("server-only live flag defaults closed and the disabled route returns a bou
   }
 });
 
-test("timeline labels the selected axis, keeps missing times unavailable, and exposes focused detail", () => {
-  const packet = buildPreparedSiteReadyCasePacket();
-  packet.event_timeline_rows[0].event_time = null;
-  const ordered = orderTimelineRows(packet.event_timeline_rows, "event_time");
-  assert.equal(ordered.at(-1)?.event_time, null);
-
-  const html = renderToStaticMarkup(createElement(TimelineView, {
-    packet,
-    timeAxis: "event_time",
-    onTimeAxisChange: noop,
-    onFocus: noop,
-  }));
-  assert.match(html, /Selected time axis/);
-  assert.match(html, /Event time/);
-  assert.match(html, /Unavailable/);
-  assert.match(html, /publication time is never substituted/i);
-  assert.match(html, /View all four timestamps/);
-});
-
-test("lineage surfaces relations before collapsed family metadata without mutating packet state", () => {
-  const packet = buildPreparedSiteReadyCasePacket();
-  packet.claim_occurrences[0].actor = null;
-  const publisher = packet.source_snapshot_summaries[0].publisher;
-  const beforeRender = JSON.stringify(packet);
-  assert.equal(actorLabel(null), "Unknown actor");
-
-  const html = renderToStaticMarkup(createElement(LineageView, {
-    packet,
-    onFocus: noop,
-  }));
-  assert.match(html, /<h4>Unknown actor<\/h4><blockquote>Residents could find safe/);
-  assert.notEqual("Unknown actor", publisher);
-  assert.match(html, /Claim lineage across sources/);
-  const firstRelationIndex = html.indexOf("Earlier source-bound claim");
-  const supportIndex = html.indexOf("Inspect support from both sides");
-  const groupingIndex = html.indexOf("Related claim groupings");
-  assert.ok(firstRelationIndex >= 0);
-  assert.ok(supportIndex > firstRelationIndex);
-  assert.ok(groupingIndex > supportIndex);
-  assert.match(html, /<details class="family-strip"><summary>/);
-  assert.doesNotMatch(html, /<details class="family-strip" open/);
-  assert.match(html, /Related claim groupings \(2\)/);
-  assert.match(html, /Family 01/);
-  assert.match(html, /Family 02/);
-  assert.match(html, /Candidate grouping · review only/);
-  assert.match(html, /Grouping unresolved · review only/);
-  assert.match(html, /Needs review/);
-  assert.match(html, /Inspect support from both sides/);
-  assert.match(html, /Replaces earlier guidance/);
-  assert.equal(relationDisplayLabel("contradicts"), "Challenges the earlier claim");
-  assert.equal(relationDisplayLabel("follow_up"), "Responds to the earlier report");
-  assert.equal(relationDisplayLabel("corroborates"), "Supports the earlier report");
-  assert.equal(relationDisplayLabel("narrows"), "Makes the earlier claim more specific");
-  assert.equal(relationDisplayLabel("unresolved"), "Connection remains unclear");
-  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
-  assert.ok(packet.relation_candidates.every((relation) => relation.review_status === "pending_review"));
-  assert.equal(JSON.stringify(packet), beforeRender);
-});
-
-test("source cards are concise while focused detail preserves context, limitations, and technical provenance", () => {
-  const prepared = buildPreparedSiteReadyCasePacket();
-  const preparedHtml = renderToStaticMarkup(createElement(SourcesView, {
-    packet: prepared,
-    onFocus: noop,
-  }));
-  assert.match(preparedHtml, /Captured deterministic fixture evidence/);
-  assert.match(preparedHtml, /Official notice/);
-  assert.match(preparedHtml, /Community report/);
-  assert.match(preparedHtml, /Official update/);
-  assert.match(preparedHtml, /Opinion \/ interpretation/);
-  assert.match(preparedHtml, /Read demo source/);
-  assert.match(preparedHtml, /Why this source matters/);
-  assert.doesNotMatch(preparedHtml, /Source context/);
-  assert.doesNotMatch(preparedHtml, /Information proximity/);
-  assert.doesNotMatch(preparedHtml, /Retrieved by Sisyphus/);
-  assert.doesNotMatch(preparedHtml, /stable ID/);
-
-  const sourceId = prepared.source_snapshot_summaries[0].source_id;
-  const sourceDetail = getPreparedCaseDetail(prepared.case_id, "source", sourceId);
-  assert.ok(sourceDetail);
-  const detailHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
-    selection: { kind: "source", id: sourceId, label: prepared.source_snapshot_summaries[0].title },
-    payload: {
-      case_id: prepared.case_id,
-      run_id: prepared.run_id,
-      focus_kind: "source",
-      focus_id: sourceId,
-      detail: sourceDetail.detail,
-    },
-    state: "idle",
-    onClose: noop,
-  }));
-  assert.match(detailHtml, /Captured deterministic fixture text/);
-  assert.match(detailHtml, /Source context &amp; limitations/);
-  assert.match(detailHtml, /Information proximity/);
-  assert.match(detailHtml, /Classification basis/);
-  assert.match(detailHtml, /Retrieval method/);
-  assert.match(detailHtml, /Source provenance identifiers/);
-  assert.match(detailHtml, /Technical details/);
-  assert.match(detailHtml, new RegExp(sourceId));
-  assert.ok(detailHtml.indexOf("Captured deterministic fixture text") < detailHtml.indexOf("Technical details"));
-
-  const live = structuredClone(prepared);
-  live.mode = "live";
-  live.status = "live";
-  const source = live.source_snapshot_summaries[0];
-  source.url = "https://public.example.org/changing-notice";
-  source.snapshot_status = "partial";
-  source.record_status = "candidate";
-  source.content_kind = "model_generated_web_search_summary";
-  source.retrieval_mode = "openai_web_search";
-  source.source_text_captured = false;
-  source.evidence_excerpt = null;
-  source.web_search_grounded_candidate_summary = "A bounded model-generated search-grounded candidate summary.";
-  source.source_selection = {
-    discovery_pass: "coverage_expansion",
-    discovery_lane: "local_or_firsthand",
-    source_context: "community_organization",
-    information_proximity: "firsthand_observation",
-    why_included: "Adds local street-level observations.",
-    classification_basis: "model_generated_web_search_classification",
-    classification_status: "candidate_review_only",
-    comparison_target_source_ids: [],
-  };
-  live.source_snapshot_summaries = [source];
-  live.actual_source_count = 1;
-  assert.match(sourceContentLabel(source), /not captured page text/);
-
-  const liveHtml = renderToStaticMarkup(createElement(SourcesView, {
-    packet: live,
-    onFocus: noop,
-  }));
-  assert.match(liveHtml, /Model-generated web-search candidate summary · not captured page text/);
-  assert.match(liveHtml, /href="https:\/\/public\.example\.org\/changing-notice"/);
-  assert.match(liveHtml, /target="_blank"/);
-  assert.match(liveHtml, /rel="noopener noreferrer"/);
-  assert.match(liveHtml, /local street-level observations/i);
-  assert.match(liveHtml, /Needs review/);
-  assert.match(liveHtml, /View source details/);
-  assert.doesNotMatch(liveHtml, /Captured deterministic fixture evidence/);
-  assert.doesNotMatch(liveHtml, /Source context/);
-});
-
-test("unresolved view presents evidence gaps with related record labels", () => {
-  const html = renderToStaticMarkup(createElement(UnresolvedView, {
-    packet: buildPreparedSiteReadyCasePacket(),
-    onFocus: noop,
-  }));
-  assert.match(html, /Useful uncertainty/);
-  assert.match(html, /evidence gaps to investigate, not system errors/i);
-  assert.match(html, /Related record/);
-  assert.match(html, /Fictional Neighborhood Volunteer Network/);
-});
-
-test("fallback and partial-live states are never mislabeled as successful live analysis", () => {
-  const fallback = buildPreparedSiteReadyCasePacket();
-  fallback.mode = "fallback";
-  fallback.status = "fallback";
-  fallback.discovery_profile = "coverage_expansion";
-  const fallbackHtml = renderToStaticMarkup(createElement(CaseExplorer, {
-    preparedCase: fallback,
-    liveEnabled: true,
-  }));
-  assert.match(fallbackHtml, /Prepared fallback shown/);
-  assert.match(fallbackHtml, /not a live result/);
-  assert.match(fallbackHtml, /Prepared fallback coverage/);
-  assert.match(fallbackHtml, /The live attempt failed/);
-  assert.match(fallbackHtml, /prepared fallback, not live discovery/);
-  assert.match(fallbackHtml, /Prepared case source type not represented/);
-  assert.doesNotMatch(fallbackHtml, /\d+\/\d+ expansion/);
-
-  const partial = buildPreparedSiteReadyCasePacket();
-  partial.mode = "live";
-  partial.status = "live";
-  partial.discovery_profile = "standard";
-  partial.coverage_summary = {
-    coverage_basis: "live_discovery",
-    discovery_profile: "standard",
-    baseline_requested: 5,
-    baseline_returned: 4,
-    expansion_requested: 0,
-    expansion_returned: 0,
-    lane_counts: structuredClone(fallback.coverage_summary.lane_counts),
-    missing_target_lanes: [],
-    unique_domain_count: 1,
-    duplicate_url_count: 0,
-    source_limit_reached: false,
-    expansion_attempted: false,
-    expansion_completed_successfully: false,
-  };
-  partial.warnings = ["one source extraction failed"];
-  const partialHtml = renderToStaticMarkup(createElement(CaseExplorer, {
-    preparedCase: partial,
-    liveEnabled: true,
-  }));
-  assert.match(partialHtml, /Partial live result/);
-  assert.match(partialHtml, /review-only/);
-  assert.match(partialHtml, /Standard live review/);
-
-  const expansion = structuredClone(partial);
-  expansion.discovery_profile = "coverage_expansion";
-  expansion.coverage_summary = {
-    coverage_basis: "live_discovery",
-    discovery_profile: "coverage_expansion",
-    baseline_requested: 2,
-    baseline_returned: 2,
-    expansion_requested: 3,
-    expansion_returned: 2,
-    lane_counts: structuredClone(partial.coverage_summary.lane_counts),
-    missing_target_lanes: ["primary_or_origin"],
-    unique_domain_count: 1,
-    duplicate_url_count: 0,
-    source_limit_reached: false,
-    expansion_attempted: true,
-    expansion_completed_successfully: true,
-  };
-  const expansionHtml = renderToStaticMarkup(createElement(CaseExplorer, {
-    preparedCase: expansion,
-    liveEnabled: true,
-  }));
-  assert.match(expansionHtml, /Live coverage expansion/);
-});
-
-test("loading and route-unavailable states use bounded public copy", () => {
-  const packet = buildPreparedSiteReadyCasePacket();
-  assert.deepEqual(getRunNotice(packet, true, null), {
-    tone: "loading",
-    title: "Running bounded live analysis",
-    message: "Discovering up to the requested source limit and validating each source-local record.",
-  });
-  const error = getRunNotice(packet, false, "The same-Site analysis route is unavailable.");
-  assert.equal(error.tone, "error");
-  assert.match(error.message, /prepared case remains intact/i);
-  assert.doesNotMatch(error.message, /stack|provider|OPENAI_API_KEY/i);
-});
-
-test("mobile result navigation keeps all five views visible without horizontal discovery loss", () => {
+test("mobile CSS switches to a vertical path with usable controls and no page-width overflow rule", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
-
-  assert.match(mobileRules, /\.tab-list \{ display: grid; grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
-  assert.match(mobileRules, /\.tab-list button \{[^}]*white-space: normal/);
-  assert.match(mobileRules, /\.tab-list button \{[^}]*min-height: 60px/);
+  assert.match(mobileRules, /\.desktop-map \{ display: none; \}/);
+  assert.match(mobileRules, /\.mobile-investigation-path \{ display: grid/);
+  assert.match(mobileRules, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(mobileRules, /\.mobile-relation-label \{/);
+  assert.match(mobileRules, /min-height: 42px/);
+  assert.doesNotMatch(mobileRules, /width:\s*100vw/);
 });
+
+test("desktop map renders anchored connection layers with a public metadata floor", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const desktopRules = css.slice(
+    css.indexOf(".desktop-map"),
+    css.indexOf(".mobile-investigation-path { display: none; }") + 46,
+  );
+  assert.match(desktopRules, /\.spatial-connection-layer \{/);
+  assert.match(desktopRules, /\.spatial-relation-path \{[\s\S]*?stroke-width: 2\.4/);
+  assert.match(desktopRules, /\.spatial-question-path \{[\s\S]*?stroke-dasharray: 7 6/);
+  assert.match(desktopRules, /\.spatial-relation-controls button span,[\s\S]*?font-size: \.72rem/);
+  assert.match(desktopRules, /\.map-time-scale small \{[\s\S]*?font-size: \.72rem/);
+  assert.match(desktopRules, /\.node-state-text,[\s\S]*?font-size: \.72rem/);
+  assert.match(desktopRules, /\.map-source-publisher \{[\s\S]*?font-size: \.75rem/);
+  assert.match(desktopRules, /\.map-node-time \{[\s\S]*?font-size: \.72rem/);
+  assert.match(desktopRules, /\.question-connector \{[\s\S]*?font-size: \.72rem/);
+});
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
