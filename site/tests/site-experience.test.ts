@@ -42,7 +42,9 @@ test("search-first landing makes the question composer the first product action 
   assert.match(html, /Build investigation map/);
   assert.match(html, /disabled=""/);
   assert.match(html, /Standard review/);
+  assert.match(html, /Start with official and established sources/);
   assert.match(html, /Expand source coverage/);
+  assert.match(html, /Also look for local, firsthand, specialist, and corrective sources/);
   assert.match(html, /3 sources/);
   assert.match(html, /5 sources/);
   assert.match(html, /8 sources · maximum/);
@@ -108,9 +110,15 @@ test("map is the primary result model with four top-level views and visible ques
   assert.match(html, /Structured investigation map/);
   assert.match(html, /Time moves left to right/);
   assert.match(html, /Topic root/);
+  assert.match(html, /spatial-map-stage/);
+  assert.match(html, /spatial-connection-layer/);
+  assert.match(html, /Spatial candidate relation controls/);
   assert.match(html, /Candidate connections/);
+  assert.match(html, /Accessible relation list/);
   assert.match(html, /Open questions/);
   assert.match(html, /Visible endpoints · not conclusions/);
+  assert.match(html, /Evidence gap from/);
+  assert.match(html, /Fictional city updates cooling center list and adds transport support/);
   assert.match(html, /Inspect support from both sides/);
   assert.match(html, /Prepared comparison only/);
   assert.match(html, /Prepared baseline/);
@@ -331,6 +339,23 @@ test("mobile CSS switches to a vertical path with usable controls and no page-wi
   assert.match(mobileRules, /\.mobile-relation-label \{/);
   assert.match(mobileRules, /min-height: 42px/);
   assert.doesNotMatch(mobileRules, /width:\s*100vw/);
+});
+
+test("desktop map renders anchored connection layers with a public metadata floor", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const desktopRules = css.slice(
+    css.indexOf(".desktop-map"),
+    css.indexOf(".mobile-investigation-path { display: none; }") + 46,
+  );
+  assert.match(desktopRules, /\.spatial-connection-layer \{/);
+  assert.match(desktopRules, /\.spatial-relation-path \{[\s\S]*?stroke-width: 2\.4/);
+  assert.match(desktopRules, /\.spatial-question-path \{[\s\S]*?stroke-dasharray: 7 6/);
+  assert.match(desktopRules, /\.spatial-relation-controls button span,[\s\S]*?font-size: \.72rem/);
+  assert.match(desktopRules, /\.map-time-scale small \{[\s\S]*?font-size: \.72rem/);
+  assert.match(desktopRules, /\.node-state-text,[\s\S]*?font-size: \.72rem/);
+  assert.match(desktopRules, /\.map-source-publisher \{[\s\S]*?font-size: \.75rem/);
+  assert.match(desktopRules, /\.map-node-time \{[\s\S]*?font-size: \.72rem/);
+  assert.match(desktopRules, /\.question-connector \{[\s\S]*?font-size: \.72rem/);
 });
 
 function escapeRegex(value: string): string {

@@ -68,7 +68,7 @@ export function SearchComposer({
               />
               <span>
                 <strong>Standard review</strong>
-                <small>One conventional bounded pass</small>
+                <small>Start with official and established sources</small>
               </span>
             </label>
             <label aria-label="Expand source coverage discovery approach">
@@ -81,7 +81,7 @@ export function SearchComposer({
               />
               <span>
                 <strong>Expand source coverage</strong>
-                <small>Seek under-surfaced source roles</small>
+                <small>Also look for local, firsthand, specialist, and corrective sources</small>
               </span>
             </label>
           </fieldset>
