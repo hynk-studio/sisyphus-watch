@@ -4,9 +4,9 @@ import { isLiveAnalysisEnabledOnServer } from "./lib/live-mode";
 import { buildPreparedSiteReadyCasePacket } from "./lib/lineage/builder";
 
 export const metadata: Metadata = {
-  title: "Sisyphus Watch | Follow changing public information",
+  title: "Sisyphus Watch | Build an investigation map",
   description:
-    "Version history for public information. See what changed, where it came from, and what is still unclear.",
+    "Start with a public-interest question, map bounded sources and candidate relations, and keep open questions visible.",
 };
 
 export default async function Home() {

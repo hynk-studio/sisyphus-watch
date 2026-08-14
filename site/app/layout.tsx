@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Sisyphus Watch",
   description:
-    "Deterministic, source-bound claim timelines for public-interest communication.",
+    "Search-first, source-bound investigation maps for changing public information.",
 };
 
 export default function RootLayout({
