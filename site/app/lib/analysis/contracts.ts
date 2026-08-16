@@ -9,7 +9,8 @@ import type {
   SourceSelectionMetadata,
 } from "../source-profile";
 
-export const DEFAULT_SOURCE_LIMIT = 5;
+export const PUBLIC_DEFAULT_SOURCE_LIMIT = 3;
+export const PUBLIC_MAX_SOURCE_LIMIT = 5;
 export const MAX_SOURCE_LIMIT = 8;
 export const MIN_QUESTION_LENGTH = 12;
 export const MAX_QUESTION_LENGTH = 500;

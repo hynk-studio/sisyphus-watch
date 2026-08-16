@@ -1,10 +1,11 @@
 import { z } from "zod";
 import {
-  DEFAULT_SOURCE_LIMIT,
   MAX_CANDIDATES_PER_SOURCE,
   MAX_QUESTION_LENGTH,
   MAX_SOURCE_LIMIT,
   MIN_QUESTION_LENGTH,
+  PUBLIC_DEFAULT_SOURCE_LIMIT,
+  PUBLIC_MAX_SOURCE_LIMIT,
 } from "./contracts";
 import {
   DISCOVERY_LANES,
@@ -21,9 +22,28 @@ export const AnalysisRequestSchema = z
   })
   .strict();
 
+export const PublicAnalysisRequestSchema = z
+  .object({
+    question: z.string(),
+    sourceLimit: z.number().int().min(1).max(PUBLIC_MAX_SOURCE_LIMIT).optional(),
+    discoveryProfile: z.enum(DISCOVERY_PROFILES).optional(),
+  })
+  .strict();
+
 export const NormalizedAnalysisRequestSchema = z.object({
   question: z.string().min(MIN_QUESTION_LENGTH).max(MAX_QUESTION_LENGTH),
-  sourceLimit: z.number().int().min(1).max(MAX_SOURCE_LIMIT).default(DEFAULT_SOURCE_LIMIT),
+  sourceLimit: z.number().int().min(1).max(MAX_SOURCE_LIMIT),
+  discoveryProfile: z.enum(DISCOVERY_PROFILES).default("standard"),
+});
+
+export const NormalizedPublicAnalysisRequestSchema = z.object({
+  question: z.string().min(MIN_QUESTION_LENGTH).max(MAX_QUESTION_LENGTH),
+  sourceLimit: z
+    .number()
+    .int()
+    .min(1)
+    .max(PUBLIC_MAX_SOURCE_LIMIT)
+    .default(PUBLIC_DEFAULT_SOURCE_LIMIT),
   discoveryProfile: z.enum(DISCOVERY_PROFILES).default("standard"),
 });
 

@@ -295,8 +295,9 @@ export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
             <div><dt>Model-classified pairs</dt><dd>{packet.bounded_work_summary.model_classified_count}</dd></div>
           </dl>
           <p className="card-note">
-            Maximum 8 sources and 64 relation-pair workload. Browser focus and
-            coverage lenses cannot mutate the packet.
+            Public runs accept at most 5 sources. Internal analysis retains an
+            8-source hard maximum and 64 relation-pair workload. Browser focus
+            and coverage lenses cannot mutate the packet.
           </p>
         </section>
       </div>

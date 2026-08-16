@@ -72,7 +72,8 @@ export function InvestigationMapView({
   selectedEdgeId,
   threadTraceActive,
   liveEnabled,
-  isLoading,
+  runBlocked,
+  runStatusLabel,
   onTimeAxisChange,
   onCoverageLensChange,
   onFocus,
@@ -88,7 +89,8 @@ export function InvestigationMapView({
   selectedEdgeId: string | null;
   threadTraceActive: boolean;
   liveEnabled: boolean;
-  isLoading: boolean;
+  runBlocked: boolean;
+  runStatusLabel: string | null;
   onTimeAxisChange: (axis: TimeAxis) => void;
   onCoverageLensChange: (lens: CoverageLens) => void;
   onFocus: FocusHandler;
@@ -208,10 +210,10 @@ export function InvestigationMapView({
           <button
             className="expand-coverage-button"
             type="button"
-            disabled={!liveEnabled || isLoading}
+            disabled={!liveEnabled || runBlocked}
             onClick={onExpandCoverage}
           >
-            {isLoading ? "Expanding source coverage…" : "Expand source coverage"}
+            {runStatusLabel ?? "Expand source coverage"}
           </button>
         ) : null}
       </section>

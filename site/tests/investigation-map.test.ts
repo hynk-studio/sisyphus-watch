@@ -12,6 +12,7 @@ import type {
   PacketUnresolvedQuestion,
   SiteReadyCasePacket,
 } from "../app/lib/lineage/contracts";
+import { buildMapDensityFixture } from "./fixtures/map-density";
 
 test("map derivation is deterministic, presentation-only, and preserves source roles and provenance labels", () => {
   const packet = buildPreparedSiteReadyCasePacket();
@@ -313,6 +314,36 @@ test("the vertical list model contains the visual map's material source, relatio
   assert.ok(material.sources.every((source) => source.role && source.title && source.publisher && source.axis && source.preview));
   assert.ok(material.relations.every((edge) => edge.id && edge.from && edge.to && edge.label && edge.review));
   assert.ok(material.questions.every((questionNode) => questionNode.id && questionNode.question && questionNode.targets.length));
+});
+
+test("deterministic 3, 5, and internal 8-source fixtures preserve material map information without mutation", () => {
+  for (const sourceCount of [3, 5, 8] as const) {
+    const packet = buildMapDensityFixture(sourceCount);
+    const before = JSON.stringify(packet);
+    const map = deriveInvestigationMap(packet, "event_time");
+    assert.equal(map.sources.length, sourceCount);
+    assert.ok(map.sources.every((source) =>
+      source.sourceId &&
+      source.title &&
+      source.publisher &&
+      source.sourceRole &&
+      source.preview &&
+      source.recordBoundaryLabel
+    ));
+    assert.equal(map.relationEdges.length, packet.relation_candidates.length);
+    assert.equal(map.questions.length, packet.unresolved_questions.length);
+    assert.ok(map.questionEdges.length >= map.questions.length);
+
+    const firstSource = map.sources[0];
+    deriveThreadTrace(map, firstSource.nodeId);
+    deriveCoverageHighlight(map, "all");
+    deriveCoverageHighlight(map, "open_questions");
+    assert.equal(JSON.stringify(packet), before);
+  }
+
+  const stress = buildMapDensityFixture(8);
+  assert.match(stress.limitations.join(" "), /test-only/i);
+  assert.match(stress.limitations.join(" "), /not a public selectable input/i);
 });
 
 function question(questionId: string, relatedId: string): PacketUnresolvedQuestion {

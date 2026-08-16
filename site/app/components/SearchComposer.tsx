@@ -7,6 +7,7 @@ export function SearchComposer({
   discoveryProfile,
   liveEnabled,
   isLoading,
+  cooldownRemainingSeconds,
   routeError,
   investigationStarted,
   onQuestionChange,
@@ -20,6 +21,7 @@ export function SearchComposer({
   discoveryProfile: DiscoveryProfile;
   liveEnabled: boolean;
   isLoading: boolean;
+  cooldownRemainingSeconds: number;
   routeError: string | null;
   investigationStarted: boolean;
   onQuestionChange: (value: string) => void;
@@ -58,8 +60,28 @@ export function SearchComposer({
           maxLength={500}
           placeholder="How has access to cooling centers changed during the current heatwave?"
           required
-          aria-describedby="live-availability-note"
+          aria-describedby="live-input-privacy live-availability-note"
         />
+        <p id="live-input-privacy" className="live-input-privacy">
+          Your question is sent to OpenAI to discover and analyze public sources.
+          Do not enter personal, confidential, sensitive, or identifying information.
+          This release does not persist visitor questions or results. Results may be
+          incomplete or wrong; records and relations remain review candidates.
+        </p>
+        <details className="live-privacy-disclosure">
+          <summary>Privacy &amp; limits</summary>
+          <p>
+            Source inclusion is not endorsement or truth verification. A live map
+            can take time because several bounded discovery and source-local
+            extraction operations may be required. The 20-second timeout applies
+            to each provider request, not necessarily the whole workflow.
+          </p>
+          <p>
+            The 30-second in-memory cooldown reduces accidental repeats in this
+            page session. It is a usability guard, not strong abuse prevention,
+            and resets naturally in a new page session.
+          </p>
+        </details>
         <div className="composer-options">
           <fieldset className="profile-fieldset">
             <legend>Discovery approach</legend>
@@ -98,8 +120,7 @@ export function SearchComposer({
               onChange={(event) => onSourceLimitChange(Number(event.target.value))}
             >
               <option value={3}>3 sources</option>
-              <option value={5}>5 sources</option>
-              <option value={8}>8 sources · maximum</option>
+              <option value={5}>5 sources · broader and slower</option>
             </select>
           </label>
         </div>
@@ -107,9 +128,13 @@ export function SearchComposer({
           <button
             className="build-map-button"
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || cooldownRemainingSeconds > 0}
           >
-            {isLoading ? "Building investigation map…" : "Build investigation map"}
+            {isLoading
+              ? "Building investigation map…"
+              : cooldownRemainingSeconds > 0
+                ? `Try again in ${cooldownRemainingSeconds}s`
+                : "Build investigation map"}
           </button>
           <button
             className="prepared-example-button"
@@ -125,11 +150,18 @@ export function SearchComposer({
           role="status"
         >
           <strong>
-            Bounded live discovery is available.
+            {isLoading
+              ? "Bounded live investigation running."
+              : cooldownRemainingSeconds > 0
+                ? `Next live attempt available in ${cooldownRemainingSeconds}s.`
+                : "Bounded live discovery is available."}
           </strong>
           <span>
-            Results can be live, partial, or a clearly labeled prepared fallback.
-            Every inferred record remains review-only.
+            {isLoading
+              ? "The displayed investigation stays intact until one validated response is available."
+              : cooldownRemainingSeconds > 0
+                ? "The prepared investigation and New investigation remain usable during this accidental-repeat guard."
+                : "Results can be live, partial, or a clearly labeled prepared fallback. Every inferred record remains review-only."}
           </span>
         </div>
         {routeError ? <p className="form-error" role="alert">{routeError}</p> : null}

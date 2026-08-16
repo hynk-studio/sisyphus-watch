@@ -40,6 +40,11 @@ import {
   focusedRecordStatusLabel,
 } from "../app/components/FocusedDetailPanel";
 import { focusTriggerId } from "../app/components/investigation-types";
+import {
+  PUBLIC_LIVE_COOLDOWN_MS,
+  PublicLiveRunGuard,
+  publicRerunSourceLimit,
+} from "../app/lib/public-live";
 
 const noop = () => undefined;
 
@@ -69,10 +74,11 @@ test("live-disabled landing makes the prepared investigation the primary usable 
 test("live composer exposes the existing bounded request controls without claiming success", () => {
   const html = renderToStaticMarkup(createElement(SearchComposer, {
     question: "How is public access changing?",
-    sourceLimit: 5,
+    sourceLimit: 3,
     discoveryProfile: "standard",
     liveEnabled: true,
     isLoading: false,
+    cooldownRemainingSeconds: 0,
     routeError: null,
     investigationStarted: false,
     onQuestionChange: noop,
@@ -84,10 +90,135 @@ test("live composer exposes the existing bounded request controls without claimi
 
   assert.match(html, /minLength="12"/);
   assert.match(html, /maxLength="500"/);
+  assert.match(html, /value="3" selected=""/);
+  assert.match(html, /3 sources/);
+  assert.match(html, /5 sources · broader and slower/);
+  assert.doesNotMatch(html, /8 sources/);
   assert.match(html, /Bounded live discovery is available/);
   assert.match(html, /live, partial, or a clearly labeled prepared fallback/);
   assert.doesNotMatch(html, /disabled=""/);
   assert.ok(html.indexOf("Build investigation map") < html.indexOf("Try the cooling-center example"));
+});
+
+test("live composer presents concise privacy, review, persistence, and cost-density limits", () => {
+  const html = renderToStaticMarkup(createElement(SearchComposer, {
+    question: "How is public access changing?",
+    sourceLimit: 3,
+    discoveryProfile: "standard",
+    liveEnabled: true,
+    isLoading: false,
+    cooldownRemainingSeconds: 0,
+    routeError: null,
+    investigationStarted: false,
+    onQuestionChange: noop,
+    onSourceLimitChange: noop,
+    onDiscoveryProfileChange: noop,
+    onSubmit: noop,
+    onPreparedExample: noop,
+  }));
+
+  assert.match(html, /question is sent to OpenAI to discover and analyze public sources/i);
+  assert.match(html, /personal, confidential, sensitive, or identifying information/i);
+  assert.match(html, /does not persist visitor questions or results/i);
+  assert.match(html, /Results may be incomplete or wrong/i);
+  assert.match(html, /records and relations remain review candidates/i);
+  assert.match(html, /Privacy &amp; limits/);
+  assert.match(html, /Source inclusion is not endorsement or truth verification/i);
+  assert.match(html, /20-second timeout applies to each provider request/i);
+  assert.match(html, /not strong abuse prevention/i);
+  assert.doesNotMatch(html, /anonymous|independently verified|fact.checked|no network activity/i);
+  assert.doesNotMatch(html, /OPENAI_API_KEY|SISYPHUS_LIVE_ENABLED/);
+});
+
+test("synchronous run guard blocks rapid and overlapping actions and rejects stale responses", () => {
+  let now = 1_000;
+  const guard = new PublicLiveRunGuard({ now: () => now });
+  let startedRequests = 0;
+  const start = () => {
+    const requestId = guard.begin();
+    if (requestId !== null) startedRequests += 1;
+    return requestId;
+  };
+  const buildRequest = start();
+  assert.equal(buildRequest, 1);
+  assert.equal(start(), null);
+  assert.equal(startedRequests, 1);
+  assert.equal(guard.state().inFlight, true);
+  assert.equal(guard.acceptsResponse(buildRequest), true);
+
+  guard.invalidateResponse();
+  assert.equal(guard.acceptsResponse(buildRequest), false);
+  assert.equal(guard.complete(buildRequest, "success"), true);
+  assert.equal(guard.begin(), null);
+
+  now += PUBLIC_LIVE_COOLDOWN_MS;
+  const expandRequest = start();
+  assert.equal(expandRequest, 2);
+  assert.equal(guard.acceptsResponse(buildRequest), false);
+  assert.equal(guard.acceptsResponse(expandRequest), true);
+
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(explorerSource.indexOf("runGuard.current.begin()") < explorerSource.indexOf("fetch(\"/api/lineage\""));
+  assert.match(explorerSource, /runGuard\.current\.acceptsResponse\(requestId\)/);
+});
+
+test("every public coverage rerun clamps the internal stress maximum to the public maximum", () => {
+  assert.equal(publicRerunSourceLimit(3), 3);
+  assert.equal(publicRerunSourceLimit(5), 5);
+  assert.equal(publicRerunSourceLimit(8), 5);
+});
+
+test("memory-only cooldown starts after success and failure and expires on a fake clock", () => {
+  let now = 10_000;
+  const guard = new PublicLiveRunGuard({ now: () => now });
+
+  const success = guard.begin();
+  assert.ok(success);
+  guard.complete(success, "success");
+  assert.equal(guard.cooldownRemainingSeconds(), 30);
+  now += 12_250;
+  assert.equal(guard.cooldownRemainingSeconds(), 18);
+  assert.equal(guard.begin(), null);
+  now += 17_750;
+  assert.equal(guard.cooldownRemainingSeconds(), 0);
+
+  const failure = guard.begin();
+  assert.ok(failure);
+  guard.complete(failure, "failure");
+  assert.equal(guard.cooldownRemainingSeconds(), 30);
+  now += PUBLIC_LIVE_COOLDOWN_MS;
+  assert.ok(guard.begin());
+
+  const implementation = [
+    readFileSync(new URL("../app/lib/public-live.ts", import.meta.url), "utf8"),
+    readFileSync(new URL("../app/components/InvestigationExplorer.tsx", import.meta.url), "utf8"),
+  ].join("\n");
+  assert.doesNotMatch(implementation, /localStorage|sessionStorage|document\.cookie|indexedDB/);
+});
+
+test("composer disables live starts during cooldown while keeping the prepared example usable", () => {
+  const html = renderToStaticMarkup(createElement(SearchComposer, {
+    question: "How is public access changing?",
+    sourceLimit: 3,
+    discoveryProfile: "standard",
+    liveEnabled: true,
+    isLoading: false,
+    cooldownRemainingSeconds: 12,
+    routeError: null,
+    investigationStarted: true,
+    onQuestionChange: noop,
+    onSourceLimitChange: noop,
+    onDiscoveryProfileChange: noop,
+    onSubmit: noop,
+    onPreparedExample: noop,
+  }));
+  assert.match(html, /Try again in 12s/);
+  assert.match(html, /Next live attempt available in 12s/);
+  assert.match(html, /build-map-button" type="submit" disabled=""/);
+  assert.doesNotMatch(html, /prepared-example-button" type="button" disabled/);
 });
 
 test("prepared focused detail is immediate and same-key source supplements are cached or failure-deduped", async () => {
@@ -276,7 +407,8 @@ test("desktop inspector keeps one nonmutating map-action surface for source, rel
     selectedEdgeId: null,
     threadTraceActive: false,
     liveEnabled: false,
-    isLoading: false,
+    runBlocked: false,
+    runStatusLabel: null,
     onTimeAxisChange: noop,
     onCoverageLensChange: noop,
     onFocus: noop,
@@ -315,7 +447,8 @@ test("map is the primary result model with four top-level views and visible ques
     selectedEdgeId: null,
     threadTraceActive: false,
     liveEnabled: false,
-    isLoading: false,
+    runBlocked: false,
+    runStatusLabel: null,
     onTimeAxisChange: noop,
     onCoverageLensChange: noop,
     onFocus: noop,
@@ -368,7 +501,8 @@ test("source selection and relation inspection expose text states and exact supp
     selectedEdgeId: null,
     threadTraceActive: true,
     liveEnabled: false,
-    isLoading: false,
+    runBlocked: false,
+    runStatusLabel: null,
     onTimeAxisChange: noop,
     onCoverageLensChange: noop,
     onFocus: noop,
@@ -493,7 +627,8 @@ test("sources and method preserve provenance labels, coverage, and plain-languag
   assert.match(methodHtml, /Findings, actions, and claims stay separate/);
   assert.match(methodHtml, /Only statements attributed to an actor become claim records/);
   assert.doesNotMatch(methodHtml, /#43/);
-  assert.match(methodHtml, /Maximum 8 sources and 64 relation-pair workload/);
+  assert.match(methodHtml, /Public runs accept at most 5 sources/);
+  assert.match(methodHtml, /Internal analysis retains an 8-source hard maximum and 64 relation-pair workload/);
   assert.match(methodHtml, /Prepared fixture coverage/);
 });
 
@@ -526,7 +661,8 @@ test("inspection actions have distinguishable accessible names on every repeated
     selectedEdgeId: null,
     threadTraceActive: false,
     liveEnabled: false,
-    isLoading: false,
+    runBlocked: false,
+    runStatusLabel: null,
     onTimeAxisChange: noop,
     onCoverageLensChange: noop,
     onFocus: noop,
@@ -656,6 +792,27 @@ test("fallback, partial, loading, and error notices never mislabel the displayed
   fallback.status = "fallback";
   assert.match(getRunNotice(fallback, false, null).message, /not a live investigation/);
 
+  const rateLimited = structuredClone(fallback);
+  rateLimited.warnings = ["rate_limited: raw provider detail must not render"];
+  const rateNotice = getRunNotice(rateLimited, false, null);
+  assert.equal(rateNotice.title, "Live request rate limited");
+  assert.match(rateNotice.message, /prepared fallback is shown/i);
+  assert.doesNotMatch(rateNotice.message, /raw provider detail/);
+
+  const timeout = structuredClone(fallback);
+  timeout.warnings = ["api_timeout: private stack detail must not render"];
+  const timeoutNotice = getRunNotice(timeout, false, null);
+  assert.equal(timeoutNotice.title, "Live provider request timed out");
+  assert.match(timeoutNotice.message, /not a live result/i);
+  assert.doesNotMatch(timeoutNotice.message, /private stack detail/);
+
+  const providerFailure = structuredClone(fallback);
+  providerFailure.warnings = ["provider_failure: hidden provider payload"];
+  const unavailableNotice = getRunNotice(providerFailure, false, null);
+  assert.equal(unavailableNotice.title, "Live investigation unavailable");
+  assert.doesNotMatch(JSON.stringify(unavailableNotice), /hidden provider payload/);
+  assert.doesNotMatch(JSON.stringify(unavailableNotice), /usage limit reached|spend limit reached/i);
+
   const partial = structuredClone(prepared);
   partial.mode = "live";
   partial.status = "live";
@@ -670,6 +827,11 @@ test("fallback, partial, loading, and error notices never mislabel the displayed
   const error = getRunNotice(prepared, false, "The route is unavailable.");
   assert.equal(error.tone, "error");
   assert.match(error.message, /displayed packet remains intact/);
+
+  const cooldown = getRunNotice(prepared, false, null, 17);
+  assert.equal(cooldown.title, "Live request cooldown");
+  assert.match(cooldown.message, /17s/);
+  assert.match(cooldown.message, /not strong abuse prevention/i);
 });
 
 test("server-only live flag defaults closed and the disabled route returns a bounded safe error", async () => {
