@@ -12,6 +12,7 @@ import type {
   PacketUnresolvedQuestion,
   SiteReadyCasePacket,
 } from "../app/lib/lineage/contracts";
+import { validateSiteReadyCasePacket } from "../app/lib/lineage/contracts";
 import { buildMapDensityFixture } from "./fixtures/map-density";
 
 test("map derivation is deterministic, presentation-only, and preserves source roles and provenance labels", () => {
@@ -317,11 +318,14 @@ test("the vertical list model contains the visual map's material source, relatio
 });
 
 test("deterministic 3, 5, and internal 8-source fixtures preserve material map information without mutation", () => {
+  const expectedRelationCounts = { 3: 3, 5: 10, 8: 18 } as const;
   for (const sourceCount of [3, 5, 8] as const) {
     const packet = buildMapDensityFixture(sourceCount);
+    validateSiteReadyCasePacket(packet);
     const before = JSON.stringify(packet);
     const map = deriveInvestigationMap(packet, "event_time");
     assert.equal(map.sources.length, sourceCount);
+    assert.equal(packet.relation_candidates.length, expectedRelationCounts[sourceCount]);
     assert.ok(map.sources.every((source) =>
       source.sourceId &&
       source.title &&
@@ -344,6 +348,67 @@ test("deterministic 3, 5, and internal 8-source fixtures preserve material map i
   const stress = buildMapDensityFixture(8);
   assert.match(stress.limitations.join(" "), /test-only/i);
   assert.match(stress.limitations.join(" "), /not a public selectable input/i);
+});
+
+test("5/8-source density relations use only fixture-backed IDs and remain review-only", () => {
+  const five = buildMapDensityFixture(5);
+  const eight = buildMapDensityFixture(8);
+  assert.equal(five.relation_candidates.length, 10);
+  assert.equal(eight.relation_candidates.length, 18);
+  assert.ok(eight.relation_candidates.length > five.relation_candidates.length);
+
+  for (const packet of [five, eight]) {
+    const sourceById = new Map(
+      packet.source_snapshot_summaries.map((source) => [source.source_id, source]),
+    );
+    const occurrenceById = new Map(
+      packet.claim_occurrences.map((occurrence) => [occurrence.occurrence_id, occurrence]),
+    );
+    const relationDetailIds = new Set(
+      packet.focused_detail_lookup_keys
+        .filter((item) => item.kind === "relation")
+        .map((item) => item.id),
+    );
+    const representedSources = new Set<string>();
+
+    for (const relation of packet.relation_candidates) {
+      const leftOccurrence = occurrenceById.get(relation.left_occurrence_id);
+      const rightOccurrence = occurrenceById.get(relation.right_occurrence_id);
+      assert.ok(leftOccurrence);
+      assert.ok(rightOccurrence);
+      assert.equal(leftOccurrence.source_id, relation.left_source_id);
+      assert.equal(rightOccurrence.source_id, relation.right_source_id);
+      assert.equal(leftOccurrence.snapshot_id, relation.left_snapshot_id);
+      assert.equal(rightOccurrence.snapshot_id, relation.right_snapshot_id);
+      assert.deepEqual(leftOccurrence.support_reference, relation.left_support_reference);
+      assert.deepEqual(rightOccurrence.support_reference, relation.right_support_reference);
+      assert.equal(relation.left_support_reference.source_id, relation.left_source_id);
+      assert.equal(relation.right_support_reference.source_id, relation.right_source_id);
+      assert.equal(relation.left_support_reference.snapshot_id, relation.left_snapshot_id);
+      assert.equal(relation.right_support_reference.snapshot_id, relation.right_snapshot_id);
+      assert.ok(sourceById.has(relation.left_source_id));
+      assert.ok(sourceById.has(relation.right_source_id));
+      assert.equal(relation.status, "candidate");
+      assert.equal(relation.review_status, "pending_review");
+      assert.ok(relationDetailIds.has(relation.relation_id));
+      representedSources.add(relation.left_source_id);
+      representedSources.add(relation.right_source_id);
+
+      if (relation.relation_id.includes("density_fixture")) {
+        assert.equal(relation.generated_by, "deterministic_fixture");
+        assert.equal(relation.relation_type, "unresolved");
+        assert.equal(relation.insufficient_evidence, true);
+        assert.match(relation.reason, /test-only relation-density candidate/i);
+        assert.match(relation.reason, /does not assert endorsement, truth, correction, or canonical state/i);
+      }
+    }
+    assert.equal(representedSources.size, packet.actual_source_count);
+  }
+
+  const eightMap = deriveInvestigationMap(eight, "event_time");
+  const parallel = eightMap.relationEdges.filter((edge) => edge.parallelCount === 2);
+  assert.equal(parallel.length, 2);
+  assert.deepEqual(parallel.map((edge) => edge.parallelIndex).sort(), [0, 1]);
 });
 
 function question(questionId: string, relatedId: string): PacketUnresolvedQuestion {
