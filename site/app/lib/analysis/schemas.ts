@@ -69,6 +69,38 @@ export const DiscoveryOutputSchema = z
   })
   .strict();
 
+export const ACTOR_SEMANTIC_ROLES = [
+  "performer_or_responsible_actor",
+  "speaker_or_claimant",
+  "recipient_target_or_beneficiary",
+  "generic_or_ambiguous",
+  "not_applicable",
+] as const;
+
+export const STATEMENT_SEMANTICS = [
+  "concrete_performed_or_announced_action",
+  "recommendation_or_instruction",
+  "recipient_behavior",
+  "claim_or_guidance",
+  "ambiguous",
+  "not_applicable",
+] as const;
+
+export const ACTOR_SPECIFICITIES = [
+  "specifically_identifiable",
+  "generic_or_ambiguous",
+  "recipient_target_or_beneficiary",
+  "not_applicable",
+] as const;
+
+export const CandidateSemanticReviewSchema = z
+  .object({
+    actor_role: z.enum(ACTOR_SEMANTIC_ROLES),
+    statement_semantics: z.enum(STATEMENT_SEMANTICS),
+    actor_specificity: z.enum(ACTOR_SPECIFICITIES),
+  })
+  .strict();
+
 export const CandidateProposalSchema = z
   .object({
     candidate_type: z.enum([
@@ -86,6 +118,7 @@ export const CandidateProposalSchema = z
     time_candidate: z.string().max(64).nullable(),
     confidence: z.enum(["high", "medium", "low", "unknown"]),
     uncertainty: z.string().max(240),
+    semantic_review: CandidateSemanticReviewSchema,
   })
   .strict();
 
@@ -98,5 +131,6 @@ export const SourceExtractionOutputSchema = z
 
 export type DiscoveryOutput = z.infer<typeof DiscoveryOutputSchema>;
 export type DiscoverySource = z.infer<typeof DiscoverySourceSchema>;
+export type CandidateSemanticReview = z.infer<typeof CandidateSemanticReviewSchema>;
 export type CandidateProposal = z.infer<typeof CandidateProposalSchema>;
 export type SourceExtractionOutput = z.infer<typeof SourceExtractionOutputSchema>;
