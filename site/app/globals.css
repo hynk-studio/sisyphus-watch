@@ -465,6 +465,7 @@ p, li, blockquote { text-wrap: pretty; }
 .focus-toolbar span { color: #3f5149; font-size: .76rem; line-height: 1.4; }
 .focus-toolbar > div:last-child { display: flex; flex-wrap: wrap; gap: 7px; }
 .focus-toolbar button { border-color: #93ad9f; color: var(--green-dark); }
+.result-layout.has-detail .focus-toolbar-actions { visibility: hidden; pointer-events: none; }
 .focus-toolbar-idle { border-color: var(--line); background: #f8faf7; }
 .focus-toolbar-idle small { max-width: 360px; color: var(--muted); font-size: .72rem; line-height: 1.45; text-align: right; }
 .thread-trace-summary { padding: 18px; background: #f7faf8; }
@@ -799,7 +800,12 @@ p, li, blockquote { text-wrap: pretty; }
 }
 dialog.detail-panel::backdrop { background: rgba(20, 37, 30, .48); }
 .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 20px 20px 16px; border-bottom: 1px solid var(--line); background: #f7f7f2; }
+.detail-header-copy { display: grid; min-width: 0; gap: 8px; }
 .detail-header h3 { margin-bottom: 8px; overflow-wrap: anywhere; font-size: 1.06rem; line-height: 1.35; }
+.detail-view-actions { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--line); }
+.detail-view-actions > span { color: var(--muted); font-size: .68rem; font-weight: 720; text-transform: uppercase; letter-spacing: .06em; }
+.detail-view-actions > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.detail-view-actions button { min-height: 36px; padding: 0 11px; border: 1px solid #93ad9f; border-radius: 999px; background: white; color: var(--green-dark); cursor: pointer; font-size: .72rem; font-weight: 690; }
 .close-button { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: white; color: var(--muted); cursor: pointer; font-size: 1.15rem; }
 .detail-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 20px 24px; scrollbar-gutter: stable; }
 .detail-kind { margin: 10px 0 6px; color: var(--muted); font-family: var(--font-geist-mono), monospace; font-size: .7rem; text-transform: capitalize; }
@@ -855,6 +861,7 @@ dialog.detail-panel::backdrop { background: rgba(20, 37, 30, .48); }
   .view-panel { padding: 22px 14px 28px; }
   .detail-panel { inset: 8px; width: auto; height: calc(100dvh - 16px); border-radius: 12px; }
   .detail-header { padding: 15px 15px 13px; }
+  .detail-view-actions { display: none; }
   .detail-scroll { padding: 6px 15px 20px; }
   .view-intro { align-items: stretch; flex-direction: column; }
   .axis-control { width: 100%; min-width: 0; }

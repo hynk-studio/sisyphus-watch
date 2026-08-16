@@ -109,6 +109,15 @@ export function CaseExplorer({
     });
   }
 
+  function showThreadTrace() {
+    const scrollY = window.scrollY;
+    const scrollX = window.scrollX;
+    setThreadTraceActive(true);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, left: scrollX, behavior: "instant" });
+    });
+  }
+
   async function runAnalysis(input: {
     question: string;
     sourceLimit: number;
@@ -353,7 +362,7 @@ export function CaseExplorer({
                   onTimeAxisChange={setTimeAxis}
                   onCoverageLensChange={setCoverageLens}
                   onFocus={openDetail}
-                  onTraceThread={() => setThreadTraceActive(true)}
+                  onTraceThread={showThreadTrace}
                   onShowFullMap={closeDetail}
                   onExpandCoverage={() => void runAnalysis({
                     question: packet.normalized_public_interest_question,
@@ -382,6 +391,12 @@ export function CaseExplorer({
                 payload={focusedDetail}
                 state={detailState}
                 onClose={closeDetail}
+                mapViewActions={activeView === "map" ? {
+                  canTraceThread: selectedNodeId !== null,
+                  threadTraceActive,
+                  onTraceThread: showThreadTrace,
+                  onShowFullMap: closeDetail,
+                } : undefined}
               />
             ) : null}
           </div>
