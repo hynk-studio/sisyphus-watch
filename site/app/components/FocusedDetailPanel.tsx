@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   actorLabel,
+  recordBoundaryLabel,
   relationDisplayLabel,
   sourceRoleLabel,
 } from "../lib/experience";
@@ -42,12 +43,20 @@ const INSPECTOR_FOCUSABLE_SELECTOR = [
 type InspectorAccessibilityModel =
   (typeof INSPECTOR_ACCESSIBILITY_MODELS)[keyof typeof INSPECTOR_ACCESSIBILITY_MODELS];
 
+export type FocusedMapViewActions = {
+  canTraceThread: boolean;
+  threadTraceActive: boolean;
+  onTraceThread: () => void;
+  onShowFullMap: () => void;
+};
+
 export function FocusedDetailPanel({
   packet,
   selection,
   payload,
   state,
   onClose,
+  mapViewActions,
   modelOverride,
 }: {
   packet?: SiteReadyCasePacket;
@@ -55,12 +64,16 @@ export function FocusedDetailPanel({
   payload: SiteReadyCaseDetail | null;
   state: "idle" | "loading" | "error";
   onClose: () => void;
+  mapViewActions?: FocusedMapViewActions;
   modelOverride?: InspectorAccessibilityModel;
 }) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const responsiveModel = useResponsiveInspectorModel();
   const model = modelOverride ?? responsiveModel;
+  const visibleMapViewActions = model === INSPECTOR_ACCESSIBILITY_MODELS.desktop
+    ? mapViewActions
+    : undefined;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -91,9 +104,36 @@ export function FocusedDetailPanel({
   const contents = (
     <>
       <div className="detail-header">
-        <div>
+        <div className="detail-header-copy">
           <p className="eyebrow">Focused inspector</p>
           <h3 id="detail-panel-title">{selection.label}</h3>
+          {visibleMapViewActions ? (
+            <div
+              className="detail-view-actions"
+              role="group"
+              aria-label="Focused map viewing actions"
+            >
+              <span>
+                {visibleMapViewActions.threadTraceActive
+                  ? "Thread trace active"
+                  : "Map context"}
+              </span>
+              <div>
+                {visibleMapViewActions.canTraceThread ? (
+                  <button
+                    type="button"
+                    aria-pressed={visibleMapViewActions.threadTraceActive}
+                    onClick={visibleMapViewActions.onTraceThread}
+                  >
+                    Trace this thread
+                  </button>
+                ) : null}
+                <button type="button" onClick={visibleMapViewActions.onShowFullMap}>
+                  Show full map
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
         <button
           ref={closeButtonRef}
@@ -252,7 +292,11 @@ function DetailBody({
         />
         <DetailField label="Claim" value={item.original_claim_text} />
         <DetailField label="Support kind" value={item.support_kind} />
-        <DetailField label="Status" value={item.status} />
+        <DetailField label="Record status" value={focusedRecordStatusLabel(item.status)} />
+        <details className="technical-details">
+          <summary>Record status enum</summary>
+          <DetailField label="Status enum" value={item.status} />
+        </details>
       </div>
     );
   }
@@ -308,6 +352,10 @@ function SourceDetail({
       <DetailField
         label="Source role"
         value={sourceSummary ? sourceRoleLabel(sourceSummary) : "Source"}
+      />
+      <DetailField
+        label="Record status"
+        value={focusedRecordStatusLabel(item.record_status ?? sourceSummary?.record_status)}
       />
       <DetailField
         label="Publisher / domain"
@@ -405,6 +453,10 @@ function SourceDetail({
           <DetailField label="Content hash" value={item.content_sha256} />
           <DetailField label="Candidate summary hash" value={item.candidate_summary_sha256} />
           <DetailField
+            label="Record status enum"
+            value={item.record_status ?? sourceSummary?.record_status}
+          />
+          <DetailField
             label="Comparison target source IDs"
             value={arrayValue(selectionMetadata.comparison_target_source_ids).join(" · ")}
           />
@@ -487,8 +539,10 @@ function QuestionDetail({
         value={item.question ?? item.summary ?? "Focused record"}
       />
       <DetailField
-        label="Status"
-        value={humanize(item.review_status ?? item.record_status ?? item.status)}
+        label="Record status"
+        value={focusedRecordStatusLabel(
+          item.record_status ?? item.review_status ?? item.status,
+        )}
       />
       <div className="inspector-list">
         <strong>Related evidence origin</strong>
@@ -523,6 +577,8 @@ function QuestionDetail({
             label="Resolution types"
             value={origins.map((origin) => origin.resolution).join(" · ")}
           />
+          <DetailField label="Record status enum" value={item.record_status} />
+          <DetailField label="Question status enum" value={item.status} />
         </details>
       ) : null}
     </div>
@@ -613,4 +669,10 @@ function stringValue(value: unknown): string {
 
 function humanize(value: unknown): string {
   return stringValue(value).replaceAll("_", " ");
+}
+
+export function focusedRecordStatusLabel(value: unknown): string {
+  return value === "canonical" || value === "candidate"
+    ? recordBoundaryLabel(value)
+    : humanize(value);
 }

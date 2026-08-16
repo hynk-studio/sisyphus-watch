@@ -226,11 +226,15 @@ export function InvestigationMapView({
                 ?? "Selected relation and both connected sources"}
             </span>
           </div>
-          <div>
+          <div className="focus-toolbar-actions" aria-hidden="true">
             {selectedNodeId && !threadTraceActive ? (
-              <button type="button" onClick={onTraceThread}>Trace this thread</button>
+              <button type="button" tabIndex={-1} onClick={onTraceThread}>
+                Trace this thread
+              </button>
             ) : null}
-            <button type="button" onClick={onShowFullMap}>Show full map</button>
+            <button type="button" tabIndex={-1} onClick={onShowFullMap}>
+              Show full map
+            </button>
           </div>
         </div>
       ) : (

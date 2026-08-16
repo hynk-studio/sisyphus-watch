@@ -37,6 +37,7 @@ import {
   INSPECTOR_ACCESSIBILITY_MODELS,
   INSPECTOR_CLOSE_KEY,
   MOBILE_INSPECTOR_MEDIA_QUERY,
+  focusedRecordStatusLabel,
 } from "../app/components/FocusedDetailPanel";
 import { focusTriggerId } from "../app/components/investigation-types";
 
@@ -195,6 +196,113 @@ test("inspector uses responsive desktop-nonmodal and mobile-modal semantics with
   assert.match(explorerSource, /window\.scrollTo\(\{ top: scrollY, left: window\.scrollX, behavior: "instant" \}\)/);
 });
 
+test("desktop inspector keeps one nonmutating map-action surface for source, relation, and question focus while mobile exposes none", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const before = JSON.stringify(packet);
+  const source = packet.source_snapshot_summaries[0];
+  const relation = packet.relation_candidates[0];
+  const question = packet.unresolved_questions[0];
+  const selections = [
+    {
+      selection: { kind: "source" as const, id: source.source_id, label: source.title },
+      canTraceThread: true,
+    },
+    {
+      selection: { kind: "relation" as const, id: relation.relation_id, label: "Candidate relation" },
+      canTraceThread: false,
+    },
+    {
+      selection: {
+        kind: "unresolved_question" as const,
+        id: question.question_id,
+        label: "Open question 1",
+      },
+      canTraceThread: true,
+    },
+  ];
+  let traceCalls = 0;
+  let showFullMapCalls = 0;
+
+  for (const { selection, canTraceThread } of selections) {
+    const payload = getSiteReadyCaseDetail(packet, selection.kind, selection.id);
+    assert.ok(payload);
+    const mapViewActions = {
+      canTraceThread,
+      threadTraceActive: false,
+      onTraceThread: () => { traceCalls += 1; },
+      onShowFullMap: () => { showFullMapCalls += 1; },
+    };
+    const desktopHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+      packet,
+      selection,
+      payload,
+      state: "idle",
+      onClose: noop,
+      mapViewActions,
+      modelOverride: INSPECTOR_ACCESSIBILITY_MODELS.desktop,
+    }));
+    assert.match(desktopHtml, /aria-label="Focused map viewing actions"/);
+    assert.match(desktopHtml, /Show full map/);
+    if (canTraceThread) assert.match(desktopHtml, /Trace this thread/);
+    else assert.doesNotMatch(desktopHtml, /Trace this thread/);
+
+    const mobileHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+      packet,
+      selection,
+      payload,
+      state: "idle",
+      onClose: noop,
+      mapViewActions,
+      modelOverride: INSPECTOR_ACCESSIBILITY_MODELS.mobile,
+    }));
+    assert.doesNotMatch(mobileHtml, /Focused map viewing actions/);
+    assert.doesNotMatch(mobileHtml, /Trace this thread/);
+    assert.doesNotMatch(mobileHtml, /Show full map/);
+
+    if (canTraceThread) mapViewActions.onTraceThread();
+    mapViewActions.onShowFullMap();
+  }
+
+  assert.equal(traceCalls, 2);
+  assert.equal(showFullMapCalls, 3);
+  assert.equal(JSON.stringify(packet), before);
+
+  const selectedMapHtml = renderToStaticMarkup(createElement(InvestigationMapView, {
+    packet,
+    map: deriveInvestigationMap(packet, "event_time"),
+    timeAxis: "event_time",
+    coverageLens: "all",
+    selectedNodeId: source.source_id,
+    selectedEdgeId: null,
+    threadTraceActive: false,
+    liveEnabled: false,
+    isLoading: false,
+    onTimeAxisChange: noop,
+    onCoverageLensChange: noop,
+    onFocus: noop,
+    onTraceThread: noop,
+    onShowFullMap: noop,
+    onExpandCoverage: noop,
+  }));
+  assert.match(selectedMapHtml, /class="focus-toolbar-actions" aria-hidden="true"/);
+  assert.equal((selectedMapHtml.match(/tabindex="-1"/g) ?? []).length, 2);
+
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.result-layout\.has-detail \.focus-toolbar-actions \{ visibility: hidden; pointer-events: none; \}/);
+  const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
+  assert.match(mobileRules, /\.detail-view-actions \{ display: none; \}/);
+
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(explorerSource, /function showThreadTrace\(\)/);
+  assert.match(explorerSource, /const scrollY = window\.scrollY;[\s\S]*setThreadTraceActive\(true\);[\s\S]*window\.scrollTo\(\{ top: scrollY, left: scrollX, behavior: "instant" \}\)/);
+  assert.match(explorerSource, /onTraceThread=\{showThreadTrace\}/);
+  assert.match(explorerSource, /onTraceThread: showThreadTrace/);
+  assert.match(explorerSource, /onShowFullMap: closeDetail/);
+});
+
 test("map is the primary result model with four top-level views and visible question nodes", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const map = deriveInvestigationMap(packet, "event_time");
@@ -323,6 +431,8 @@ test("source inspector prioritizes role, evidence, claims, changes, questions, a
   }));
 
   assert.match(html, /Source role/);
+  assert.match(html, /Record status<\/strong><p>Prepared case record/);
+  assert.doesNotMatch(html, /Record status<\/strong><p>canonical/);
   assert.match(html, /Publisher \/ domain/);
   assert.match(html, /Why this source matters/);
   assert.match(html, /Captured deterministic fixture evidence/);
@@ -447,6 +557,9 @@ test("open-question inspector shows only conservatively resolved evidence origin
     onClose: noop,
   }));
   assert.match(html, /Related evidence origin/);
+  assert.match(html, /Record status<\/strong><p>Prepared case record/);
+  assert.doesNotMatch(html, /Record status<\/strong><p>canonical/);
+  assert.match(html, /Conservative resolution details[\s\S]*Record status enum[\s\S]*canonical/);
   assert.match(html, /This record is related to the evidence gap, but the available evidence does not answer the question/);
   assert.match(html, /does not itself establish causation, contradiction, or truth\/falsity/);
 
@@ -466,6 +579,60 @@ test("open-question inspector shows only conservatively resolved evidence origin
     onClose: noop,
   }));
   assert.match(unknownHtml, /resolution stops at the investigation topic; no source edge is added/);
+});
+
+test("focused record statuses use public boundary labels while exact enums stay in technical disclosure", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const question = packet.unresolved_questions[0];
+  const candidatePacket = structuredClone(packet);
+  candidatePacket.unresolved_questions[0].record_status = "candidate";
+  const candidateQuestionPayload = getSiteReadyCaseDetail(
+    candidatePacket,
+    "unresolved_question",
+    question.question_id,
+  );
+  assert.ok(candidateQuestionPayload);
+  const candidateQuestionHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet: candidatePacket,
+    selection: {
+      kind: "unresolved_question",
+      id: question.question_id,
+      label: "Open question 1",
+    },
+    payload: candidateQuestionPayload,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.match(candidateQuestionHtml, /Record status<\/strong><p>Needs review/);
+  assert.doesNotMatch(candidateQuestionHtml, /Record status<\/strong><p>candidate/);
+  assert.match(candidateQuestionHtml, /Conservative resolution details[\s\S]*Record status enum[\s\S]*candidate/);
+
+  const occurrence = packet.claim_occurrences[0];
+  const occurrencePayload = getSiteReadyCaseDetail(
+    packet,
+    "claim_occurrence",
+    occurrence.occurrence_id,
+  );
+  assert.ok(occurrencePayload);
+  const occurrenceHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: {
+      kind: "claim_occurrence",
+      id: occurrence.occurrence_id,
+      label: "Claim occurrence",
+    },
+    payload: occurrencePayload,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.match(occurrenceHtml, /Record status<\/strong><p>Prepared case record|Record status<\/strong><p>Needs review/);
+  assert.doesNotMatch(occurrenceHtml, /Record status<\/strong><p>(canonical|candidate)/);
+  assert.match(occurrenceHtml, /Record status enum[\s\S]*Status enum[\s\S]*(canonical|candidate)/);
+
+  assert.equal(focusedRecordStatusLabel("canonical"), "Prepared case record");
+  assert.equal(focusedRecordStatusLabel("candidate"), "Needs review");
+  assert.equal(JSON.stringify(packet).includes("#43"), false);
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
 });
 
 test("public copy avoids project shorthand and inaccurate no-network claims while preserving record boundaries", () => {
