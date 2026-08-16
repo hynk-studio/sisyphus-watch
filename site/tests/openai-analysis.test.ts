@@ -5,6 +5,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AnalysisResult } from "../app/components/CaseExplorer";
 import { getPreparedCase } from "../app/lib/read-model";
 import type { AnalysisRunPacket } from "../app/lib/analysis/contracts";
+import {
+  MAX_SOURCE_LIMIT,
+  PUBLIC_DEFAULT_SOURCE_LIMIT,
+  PUBLIC_MAX_SOURCE_LIMIT,
+} from "../app/lib/analysis/contracts";
 import { AnalysisFailure, classifyProviderError } from "../app/lib/analysis/errors";
 import { handleAnalysisRequest } from "../app/lib/analysis/handler";
 import {
@@ -23,6 +28,7 @@ import {
   type LiveDiscoveryCoverageSummary,
   type PreparedFixtureCoverageSummary,
 } from "../app/lib/source-profile";
+import { PROVIDER_CALL_PLANNING_BOUNDS } from "../app/lib/public-live";
 
 const GENERATED_AT = "2026-08-12T10:00:00.000Z";
 
@@ -176,7 +182,7 @@ test("normalizes bounded questions and enforces the source maximum", () => {
     parseAnalysisRequest({ question: "  How   is public access changing?  " }),
     {
       question: "How is public access changing?",
-      sourceLimit: 5,
+      sourceLimit: 3,
       discoveryProfile: "standard",
     },
   );
@@ -187,7 +193,7 @@ test("normalizes bounded questions and enforces the source maximum", () => {
     }),
     {
       question: "How is public access changing?",
-      sourceLimit: 5,
+      sourceLimit: 3,
       discoveryProfile: "coverage_expansion",
     },
   );
@@ -201,6 +207,19 @@ test("normalizes bounded questions and enforces the source maximum", () => {
       error instanceof RequestValidationError && error.code === "invalid_request",
   );
 
+  assert.throws(
+    () => parseAnalysisRequest({ question: "How is public access changing?", sourceLimit: 6 }),
+    (error) =>
+      error instanceof RequestValidationError &&
+      error.code === "source_limit_violation" &&
+      /public demo accepts at most 5 sources/i.test(error.message),
+  );
+  assert.throws(
+    () => parseAnalysisRequest({ question: "How is public access changing?", sourceLimit: 8 }),
+    (error) =>
+      error instanceof RequestValidationError &&
+      error.code === "source_limit_violation",
+  );
   assert.throws(
     () => parseAnalysisRequest({ question: "How is public access changing?", sourceLimit: 9 }),
     (error) =>
@@ -223,6 +242,86 @@ test("normalizes bounded questions and enforces the source maximum", () => {
     (error) =>
       error instanceof RequestValidationError && error.code === "invalid_request",
   );
+});
+
+test("public and internal source constants remain deliberately separate", () => {
+  assert.equal(PUBLIC_DEFAULT_SOURCE_LIMIT, 3);
+  assert.equal(PUBLIC_MAX_SOURCE_LIMIT, 5);
+  assert.equal(MAX_SOURCE_LIMIT, 8);
+});
+
+test("public route defaults to 3, accepts 3 and 5, and rejects 6 and 8 before provider work", async () => {
+  const acceptedLimits: number[] = [];
+  for (const sourceLimit of [undefined, 3, 5]) {
+    const response = await handleAnalysisRequest(
+      analysisRequest({
+        question: "How is public service access changing?",
+        ...(sourceLimit === undefined ? {} : { sourceLimit }),
+      }),
+      {
+        apiKey: "test-secret-material",
+        now: () => GENERATED_AT,
+        runLive: async (input) => {
+          acceptedLimits.push(input.sourceLimit);
+          throw new AnalysisFailure("provider_failure");
+        },
+      },
+    );
+    assert.equal(response.status, 200);
+  }
+  assert.deepEqual(acceptedLimits, [3, 3, 5]);
+
+  let rejectedProviderCalls = 0;
+  for (const sourceLimit of [6, 8]) {
+    const response = await handleAnalysisRequest(
+      analysisRequest({
+        question: "How is public service access changing?",
+        sourceLimit,
+      }),
+      {
+        apiKey: "test-secret-material",
+        runLive: async () => {
+          rejectedProviderCalls += 1;
+          throw new Error("must not run");
+        },
+      },
+    );
+    assert.equal(response.status, 400);
+    const body = JSON.stringify(await response.json());
+    assert.match(body, /source_limit_violation/);
+    assert.match(body, /public demo accepts at most 5 sources/i);
+  }
+  assert.equal(rejectedProviderCalls, 0);
+});
+
+test("public request body and normalized-question bounds remain 4 KB and 12–500 characters", async () => {
+  let providerCalls = 0;
+  const dependencies = {
+    apiKey: "test-secret-material",
+    runLive: async () => {
+      providerCalls += 1;
+      throw new Error("must not run");
+    },
+  };
+  for (const question of ["x".repeat(11), "x".repeat(501)]) {
+    const response = await handleAnalysisRequest(
+      analysisRequest({ question, sourceLimit: 3 }),
+      dependencies,
+    );
+    assert.equal(response.status, 400);
+    assert.match(JSON.stringify(await response.json()), /invalid_question/);
+  }
+
+  const oversized = await handleAnalysisRequest(
+    analysisRequest({
+      question: "How is public access changing?",
+      padding: "x".repeat(4_096),
+    }),
+    dependencies,
+  );
+  assert.equal(oversized.status, 400);
+  assert.match(JSON.stringify(await oversized.json()), /invalid_json/);
+  assert.equal(providerCalls, 0);
 });
 
 test("builds a compact live packet from API-provenanced partial snapshots", async () => {
@@ -478,6 +577,31 @@ test("allocates deterministic 3, 5, and 8 source coverage budgets", () => {
   assert.deepEqual(allocateCoverageExpansionBudget(3), { baseline: 1, expansion: 2 });
   assert.deepEqual(allocateCoverageExpansionBudget(5), { baseline: 2, expansion: 3 });
   assert.deepEqual(allocateCoverageExpansionBudget(8), { baseline: 3, expansion: 5 });
+});
+
+test("documents the exact public provider-call planning shape without executing calls", () => {
+  assert.deepEqual(
+    PROVIDER_CALL_PLANNING_BOUNDS.map((bound) => ({
+      sourceLimit: bound.sourceLimit,
+      discoveryProfile: bound.discoveryProfile,
+      discoveryRequests: bound.discoveryRequests,
+      extractionRequests: bound.extractionRequests,
+      approximateTotalRequests: bound.approximateTotalRequests,
+    })),
+    [
+      { sourceLimit: 3, discoveryProfile: "standard", discoveryRequests: 1, extractionRequests: 3, approximateTotalRequests: 4 },
+      { sourceLimit: 3, discoveryProfile: "coverage_expansion", discoveryRequests: 2, extractionRequests: 3, approximateTotalRequests: 5 },
+      { sourceLimit: 5, discoveryProfile: "standard", discoveryRequests: 1, extractionRequests: 5, approximateTotalRequests: 6 },
+      { sourceLimit: 5, discoveryProfile: "coverage_expansion", discoveryRequests: 2, extractionRequests: 5, approximateTotalRequests: 7 },
+    ],
+  );
+});
+
+test("direct adapter execution retains the internal eight-source hard bound", async () => {
+  const { packet, port } = await runWithSources(8);
+  assert.equal(packet.requested_source_limit, 8);
+  assert.equal(packet.actual_source_count, 8);
+  assert.equal(port.calls.length, 9);
 });
 
 test("coverage expansion performs two bounded passes and carries candidate role metadata", async () => {
@@ -869,6 +993,7 @@ test("classifies authentication, timeout, rate, and search failures without raw 
   assert.equal(classifyProviderError({ status: 429 }).code, "rate_limited");
   assert.equal(classifyProviderError({ name: "APIConnectionTimeoutError" }).code, "api_timeout");
   assert.equal(classifyProviderError({ code: "web_search_failed" }).code, "web_search_failed");
+  assert.equal(classifyProviderError({ code: "insufficient_quota" }).code, "provider_failure");
 });
 
 test("missing key and known provider failures return deterministic fallback packets", async () => {

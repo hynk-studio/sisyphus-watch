@@ -1,6 +1,6 @@
 import {
-  AnalysisRequestSchema,
-  NormalizedAnalysisRequestSchema,
+  NormalizedPublicAnalysisRequestSchema,
+  PublicAnalysisRequestSchema,
 } from "./schemas";
 
 export class RequestValidationError extends Error {
@@ -18,7 +18,7 @@ export function parseAnalysisRequest(value: unknown): {
   sourceLimit: number;
   discoveryProfile: "standard" | "coverage_expansion";
 } {
-  const request = AnalysisRequestSchema.safeParse(value);
+  const request = PublicAnalysisRequestSchema.safeParse(value);
   if (!request.success) {
     const sourceLimitIssue = request.error.issues.some(
       (issue) => issue.path[0] === "sourceLimit",
@@ -26,12 +26,12 @@ export function parseAnalysisRequest(value: unknown): {
     throw new RequestValidationError(
       sourceLimitIssue ? "source_limit_violation" : "invalid_request",
       sourceLimitIssue
-        ? "Source limit must be an integer between 1 and 8."
+        ? "The public demo accepts at most 5 sources. Source limit must be an integer between 1 and 5."
         : "Request must contain only a question, optional sourceLimit, and optional discoveryProfile.",
     );
   }
 
-  const normalized = NormalizedAnalysisRequestSchema.safeParse({
+  const normalized = NormalizedPublicAnalysisRequestSchema.safeParse({
     question: request.data.question.trim().replace(/\s+/g, " "),
     sourceLimit: request.data.sourceLimit,
     discoveryProfile: request.data.discoveryProfile,
@@ -44,7 +44,7 @@ export function parseAnalysisRequest(value: unknown): {
       questionIssue ? "invalid_question" : "source_limit_violation",
       questionIssue
         ? "Question must contain between 12 and 500 characters after normalization."
-        : "Source limit must be an integer between 1 and 8.",
+        : "The public demo accepts at most 5 sources. Source limit must be an integer between 1 and 5.",
     );
   }
 

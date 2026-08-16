@@ -71,8 +71,11 @@ executed as HTML or instructions.
 
 `POST /api/analysis` is the source-local browser-to-analysis boundary. The route
 accepts only a normalized public-interest question, an optional source limit
-(default 5, hard maximum 8), and an optional discovery profile. The profile
-defaults to `standard`. The route then reads `OPENAI_API_KEY` only from the
+(public default 3, public maximum 5), and an optional discovery profile. The
+profile defaults to `standard`. Requests above 5 are rejected before adapter or
+provider work. The analysis adapter retains a separate internal hard maximum of
+8 for direct unit/stress use; 8 is not a public browser-route option. The route
+then reads `OPENAI_API_KEY` only from the
 server process. The client never imports the OpenAI adapter and receives no raw
 provider response or unbounded source text.
 
@@ -120,6 +123,25 @@ identified as prepared fallback fixture coverage.
 If only the expansion pass fails, a usable baseline remains a partial live
 result with an explicit warning. A total live failure retains the prepared
 fallback behavior and is never labeled successful live analysis.
+
+### Provider-call planning bounds
+
+The existing orchestration uses one discovery request for a standard review,
+or at most two discovery requests for coverage expansion, followed by one
+source-local extraction request per returned source. Absent partial failure,
+the public planning shape is:
+
+| Public source limit | Discovery profile | Discovery requests | Extraction requests | Approximate total |
+| --- | --- | ---: | ---: | ---: |
+| 3 | Standard review | 1 | 3 | 4 |
+| 3 | Expand source coverage | up to 2 | 3 | 5 |
+| 5 | Standard review | 1 | 5 | 6 |
+| 5 | Expand source coverage | up to 2 | 5 | 7 |
+
+These are planning bounds for rate/cost preparation, not a promise that every
+run completes every request. Each provider request retains the 20-second
+timeout; that is not a 20-second total-workflow promise. There are no automatic
+provider retries, streaming responses, or background jobs.
 
 Every source carries selection metadata for discovery pass/lane, source
 context, information proximity, and a concise inclusion reason. Prepared
@@ -240,9 +262,19 @@ be configured separately in the server or future ChatGPT Sites environment
 settings. A missing key or known provider failure returns an explicitly labeled
 prepared fallback; it is never represented as a successful live run.
 
-The public route retains the 500-character question maximum, eight-source hard
-maximum, 64-pair relation-work maximum, bounded request/response sizes, provider
-timeout, no arbitrary URL input, no recursive crawling, and no visitor/result
-persistence. Source content cannot change the discovery profile, authorize
-tools, request secrets, or mutate canonical state. Disabling live mode does not
-affect the prepared case.
+The public route retains the 12–500 normalized-question bound, 4 KB request-body
+bound, public five-source maximum, internal eight-source hard maximum, 64-pair
+relation-work maximum, bounded response structures, provider timeout, no
+arbitrary URL input, no recursive crawling, and no visitor/result persistence.
+The browser uses a synchronous one-in-flight request identity guard and a
+30-second in-memory cooldown after success or failure. The cooldown prevents
+accidental repeats in one page session; it is not strong abuse prevention and
+uses no local storage, session storage, cookie, D1, or R2 state.
+
+The installed OpenAI SDK exposes a generic rate-limit/provider error surface,
+not a stable separately typed usage- or spend-limit classification used here.
+Until an explicitly documented or observed code is reviewed, those failures use
+the bounded generic provider-unavailable copy rather than invented public error
+detail. Source content cannot change the discovery profile, authorize tools,
+request secrets, or mutate canonical state. Disabling live mode does not affect
+the prepared case.

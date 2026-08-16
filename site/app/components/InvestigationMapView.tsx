@@ -72,7 +72,8 @@ export function InvestigationMapView({
   selectedEdgeId,
   threadTraceActive,
   liveEnabled,
-  isLoading,
+  runBlocked,
+  runStatusLabel,
   onTimeAxisChange,
   onCoverageLensChange,
   onFocus,
@@ -88,7 +89,8 @@ export function InvestigationMapView({
   selectedEdgeId: string | null;
   threadTraceActive: boolean;
   liveEnabled: boolean;
-  isLoading: boolean;
+  runBlocked: boolean;
+  runStatusLabel: string | null;
   onTimeAxisChange: (axis: TimeAxis) => void;
   onCoverageLensChange: (lens: CoverageLens) => void;
   onFocus: FocusHandler;
@@ -208,10 +210,10 @@ export function InvestigationMapView({
           <button
             className="expand-coverage-button"
             type="button"
-            disabled={!liveEnabled || isLoading}
+            disabled={!liveEnabled || runBlocked}
             onClick={onExpandCoverage}
           >
-            {isLoading ? "Expanding source coverage…" : "Expand source coverage"}
+            {runStatusLabel ?? "Expand source coverage"}
           </button>
         ) : null}
       </section>
@@ -844,11 +846,12 @@ function measureSpatialConnections(
       end,
       horizontal,
       parallelOffset,
-      [...boxes.values(), ...occupiedLabelBoxes],
+      [...boxes.values()],
+      occupiedLabelBoxes,
       stageRect.width,
       stageRect.height,
     );
-    occupiedLabelBoxes.push(labelCollisionBox(label));
+    occupiedLabelBoxes.push(labelCollisionBox(label, relationLabelHalfWidth(stageRect.width)));
     return [{ edgeId: edge.edgeId, path, start, end, label }];
   });
 
@@ -897,23 +900,89 @@ function relationLabelPoint(
   end: SpatialPoint,
   horizontal: boolean,
   offset: number,
-  occupied: SpatialNodeBox[],
+  sourceBoxes: SpatialNodeBox[],
+  occupiedLabelBoxes: SpatialNodeBox[],
   stageWidth: number,
   stageHeight: number,
 ): SpatialPoint {
-  const fractions = [0.5, 0.35, 0.65, 0.25, 0.75];
-  const candidates = fractions.map((fraction) => {
+  const labelHalfWidth = relationLabelHalfWidth(stageWidth);
+  const collisionBox = (point: SpatialPoint) => labelCollisionBox(point, labelHalfWidth);
+  const fractions = [
+    0.5,
+    0.35,
+    0.65,
+    0.25,
+    0.75,
+    0.15,
+    0.85,
+    0.45,
+    0.55,
+    0.05,
+    0.95,
+  ];
+  const perpendicularOffsets = [
+    0,
+    -72,
+    72,
+    -144,
+    144,
+    -216,
+    216,
+    -288,
+    288,
+    -432,
+    432,
+    -576,
+    576,
+    -720,
+    720,
+    -864,
+    864,
+  ];
+  const candidates = fractions.flatMap((fraction) => {
     const point = horizontal
       ? pointOnHorizontalConnection(start, end, offset, fraction)
       : pointOnVerticalConnection(start, end, offset, fraction);
-    return {
-      x: clamp(point.x + (horizontal ? 0 : 74 + offset), 92, stageWidth - 92),
-      y: clamp(point.y, 42, stageHeight - 42),
-    };
+    return perpendicularOffsets.map((perpendicularOffset) => ({
+      x: clamp(
+        point.x + (horizontal ? 0 : 74 + offset + perpendicularOffset),
+        92,
+        stageWidth - 92,
+      ),
+      y: clamp(
+        point.y + (horizontal ? perpendicularOffset : 0),
+        42,
+        stageHeight - 42,
+      ),
+    }));
   });
-  return candidates.find((candidate) => (
-    occupied.every((box) => !spatialBoxesOverlap(labelCollisionBox(candidate), box, 6))
-  )) ?? candidates[0];
+  const sourceFreeCandidates = candidates.filter((candidate) => (
+    sourceBoxes.every((box) => !spatialBoxesOverlap(collisionBox(candidate), box, 6))
+  ));
+  const collisionFree = sourceFreeCandidates.find((candidate) => (
+    occupiedLabelBoxes.every(
+      (box) => !spatialBoxesOverlap(collisionBox(candidate), box, 6),
+    )
+  ));
+  if (collisionFree) return collisionFree;
+
+  const fallbackCandidates = sourceFreeCandidates.length
+    ? sourceFreeCandidates
+    : candidates;
+  return fallbackCandidates.reduce((best, candidate) => {
+    const candidateScore = [
+      spatialOverlapTotal(candidate, sourceBoxes, labelHalfWidth),
+      spatialOverlapTotal(candidate, occupiedLabelBoxes, labelHalfWidth),
+    ];
+    const bestScore = [
+      spatialOverlapTotal(best, sourceBoxes, labelHalfWidth),
+      spatialOverlapTotal(best, occupiedLabelBoxes, labelHalfWidth),
+    ];
+    return candidateScore[0] < bestScore[0]
+      || (candidateScore[0] === bestScore[0] && candidateScore[1] < bestScore[1])
+      ? candidate
+      : best;
+  }, fallbackCandidates[0]);
 }
 
 function pointOnHorizontalConnection(
@@ -968,8 +1037,10 @@ function cubicPoint(
   };
 }
 
-function labelCollisionBox(point: SpatialPoint): SpatialNodeBox {
-  const halfWidth = 88;
+function labelCollisionBox(
+  point: SpatialPoint,
+  halfWidth: number,
+): SpatialNodeBox {
   const halfHeight = 40;
   return {
     left: point.x - halfWidth,
@@ -981,6 +1052,10 @@ function labelCollisionBox(point: SpatialPoint): SpatialNodeBox {
   };
 }
 
+function relationLabelHalfWidth(stageWidth: number): number {
+  return Math.min(84, stageWidth * 0.105);
+}
+
 function spatialBoxesOverlap(
   left: SpatialNodeBox,
   right: SpatialNodeBox,
@@ -990,6 +1065,37 @@ function spatialBoxesOverlap(
     && left.right > right.left - gap
     && left.top < right.bottom + gap
     && left.bottom > right.top - gap;
+}
+
+function spatialOverlapArea(
+  left: SpatialNodeBox,
+  right: SpatialNodeBox,
+  gap: number,
+): number {
+  const width = Math.max(
+    0,
+    Math.min(left.right, right.right + gap) - Math.max(left.left, right.left - gap),
+  );
+  const height = Math.max(
+    0,
+    Math.min(left.bottom, right.bottom + gap) - Math.max(left.top, right.top - gap),
+  );
+  return width * height;
+}
+
+function spatialOverlapTotal(
+  point: SpatialPoint,
+  boxes: SpatialNodeBox[],
+  labelHalfWidth: number,
+): number {
+  return boxes.reduce(
+    (total, box) => total + spatialOverlapArea(
+      labelCollisionBox(point, labelHalfWidth),
+      box,
+      6,
+    ),
+    0,
+  );
 }
 
 function questionConnectionLabel(

@@ -86,7 +86,7 @@ try {
   const fallback = await requestNoKeyAnalysis(env, 200);
   assert.equal(fallback.mode, "fallback");
   assert.equal(fallback.status, "fallback");
-  assert.equal(fallback.requested_source_limit, 5);
+  assert.equal(fallback.requested_source_limit, 3);
   assert.equal(fallback.canonical_mutation, "none");
   assert.deepEqual(fallback.candidate_ids, []);
   assert.match(fallback.warnings[0], /^missing_api_key:/);

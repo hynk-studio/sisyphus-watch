@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,7 @@ import type {
   AnalysisRoutePayload,
   AnalysisRunPacket,
 } from "../lib/analysis/contracts";
+import { PUBLIC_DEFAULT_SOURCE_LIMIT } from "../lib/analysis/contracts";
 import {
   EXPERIENCE_VIEWS,
   VIEW_LABELS,
@@ -35,6 +37,12 @@ import type {
 } from "../lib/lineage/contracts";
 import { getSiteReadyCaseDetail } from "../lib/lineage/details";
 import type { DiscoveryProfile } from "../lib/source-profile";
+import {
+  PublicLiveRunGuard,
+  fallbackFailureCode,
+  publicRerunSourceLimit,
+  safePublicFailureMessage,
+} from "../lib/public-live";
 import { FocusedDetailPanel } from "./FocusedDetailPanel";
 import { InvestigationMapView } from "./InvestigationMapView";
 import {
@@ -61,17 +69,20 @@ export function CaseExplorer({
   const [activeView, setActiveView] = useState<ExperienceView>("map");
   const [timeAxis, setTimeAxis] = useState<TimeAxis>("event_time");
   const [question, setQuestion] = useState("");
-  const [sourceLimit, setSourceLimit] = useState(5);
+  const [sourceLimit, setSourceLimit] = useState(PUBLIC_DEFAULT_SOURCE_LIMIT);
   const [discoveryProfile, setDiscoveryProfile] =
     useState<DiscoveryProfile>("standard");
   const [coverageLens, setCoverageLens] = useState<CoverageLens>("all");
   const [routeError, setRouteError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [cooldownUntilMs, setCooldownUntilMs] = useState(0);
+  const [cooldownRemainingSeconds, setCooldownRemainingSeconds] = useState(0);
   const [focus, setFocus] = useState<FocusSelection | null>(null);
   const [threadTraceActive, setThreadTraceActive] = useState(false);
   const [focusedDetail, setFocusedDetail] = useState<SiteReadyCaseDetail | null>(null);
   const [detailState, setDetailState] = useState<"idle" | "loading" | "error">("idle");
   const detailCache = useRef(new FocusedDetailSupplementCache());
+  const runGuard = useRef(new PublicLiveRunGuard());
   const activeDetailKey = useRef<string | null>(null);
   const activatingElement = useRef<HTMLElement | null>(null);
   const activatingTriggerId = useRef<string | null>(null);
@@ -80,6 +91,18 @@ export function CaseExplorer({
     () => deriveInvestigationMap(packet, timeAxis),
     [packet, timeAxis],
   );
+
+  useEffect(() => {
+    if (cooldownUntilMs === 0) return;
+    const updateCooldown = () => {
+      const remaining = runGuard.current.cooldownRemainingSeconds();
+      setCooldownRemainingSeconds(remaining);
+      if (remaining === 0) setCooldownUntilMs(0);
+    };
+    updateCooldown();
+    const timer = window.setInterval(updateCooldown, 250);
+    return () => window.clearInterval(timer);
+  }, [cooldownUntilMs]);
 
   function clearDetail() {
     activeDetailKey.current = null;
@@ -124,6 +147,10 @@ export function CaseExplorer({
     discoveryProfile: DiscoveryProfile;
   }) {
     if (!liveEnabled) return;
+    const requestId = runGuard.current.begin();
+    if (requestId === null) return;
+    const hadDisplayedInvestigation = investigationStarted;
+    let outcome: "success" | "failure" = "failure";
     setRouteError(null);
     setIsLoading(true);
     try {
@@ -135,6 +162,7 @@ export function CaseExplorer({
       const payload = (await response.json()) as
         | SiteReadyCasePacket
         | Extract<AnalysisRoutePayload, { status: "error" }>;
+      if (!runGuard.current.acceptsResponse(requestId)) return;
       if (payload.status === "error") {
         setRouteError(payload.error.message);
         return;
@@ -143,15 +171,27 @@ export function CaseExplorer({
         setRouteError("The bounded investigation request did not complete.");
         return;
       }
+      if (payload.mode === "fallback" && hadDisplayedInvestigation) {
+        setRouteError(safePublicFailureMessage(payload));
+        return;
+      }
       setPacket(payload);
       setInvestigationStarted(true);
       setActiveView("map");
       setCoverageLens("all");
       clearDetail();
+      outcome = payload.mode === "live" ? "success" : "failure";
     } catch {
-      setRouteError("The same-Site investigation route is unavailable.");
+      if (runGuard.current.acceptsResponse(requestId)) {
+        setRouteError("The same-Site investigation route is unavailable.");
+      }
     } finally {
-      setIsLoading(false);
+      if (runGuard.current.complete(requestId, outcome)) {
+        const state = runGuard.current.state();
+        setIsLoading(false);
+        setCooldownUntilMs(state.cooldownUntilMs);
+        setCooldownRemainingSeconds(state.cooldownRemainingSeconds);
+      }
     }
   }
 
@@ -161,6 +201,7 @@ export function CaseExplorer({
   }
 
   function startPreparedExample() {
+    runGuard.current.invalidateResponse();
     setPacket(preparedCase);
     setInvestigationStarted(true);
     setActiveView("map");
@@ -176,6 +217,7 @@ export function CaseExplorer({
   }
 
   function startNewInvestigation() {
+    runGuard.current.invalidateResponse();
     setPacket(preparedCase);
     setInvestigationStarted(false);
     setActiveView("map");
@@ -247,7 +289,12 @@ export function CaseExplorer({
     });
   }
 
-  const runNotice = getRunNotice(packet, isLoading, routeError);
+  const runNotice = getRunNotice(
+    packet,
+    isLoading,
+    routeError,
+    cooldownRemainingSeconds,
+  );
   const selectedNodeId = focus?.kind === "source" || focus?.kind === "unresolved_question"
     ? focus.id
     : null;
@@ -269,6 +316,7 @@ export function CaseExplorer({
         discoveryProfile={discoveryProfile}
         liveEnabled={liveEnabled}
         isLoading={isLoading}
+        cooldownRemainingSeconds={cooldownRemainingSeconds}
         routeError={routeError}
         investigationStarted={investigationStarted}
         onQuestionChange={setQuestion}
@@ -358,7 +406,12 @@ export function CaseExplorer({
                   selectedEdgeId={selectedEdgeId}
                   threadTraceActive={threadTraceActive}
                   liveEnabled={liveEnabled}
-                  isLoading={isLoading}
+                  runBlocked={isLoading || cooldownRemainingSeconds > 0}
+                  runStatusLabel={isLoading
+                    ? "Expanding source coverage…"
+                    : cooldownRemainingSeconds > 0
+                      ? `Try again in ${cooldownRemainingSeconds}s`
+                      : null}
                   onTimeAxisChange={setTimeAxis}
                   onCoverageLensChange={setCoverageLens}
                   onFocus={openDetail}
@@ -366,7 +419,7 @@ export function CaseExplorer({
                   onShowFullMap={closeDetail}
                   onExpandCoverage={() => void runAnalysis({
                     question: packet.normalized_public_interest_question,
-                    sourceLimit: packet.requested_source_limit,
+                    sourceLimit: publicRerunSourceLimit(packet.requested_source_limit),
                     discoveryProfile: "coverage_expansion",
                   })}
                 />
@@ -415,8 +468,18 @@ export function getRunNotice(
   packet: SiteReadyCasePacket,
   isLoading: boolean,
   error: string | null,
+  cooldownRemainingSeconds = 0,
 ): {
-  tone: "prepared" | "loading" | "live" | "partial" | "fallback" | "error";
+  tone:
+    | "prepared"
+    | "loading"
+    | "cooldown"
+    | "live"
+    | "partial"
+    | "fallback"
+    | "rate-limited"
+    | "timeout"
+    | "error";
   title: string;
   message: string;
 } {
@@ -434,25 +497,50 @@ export function getRunNotice(
       message: `${error} The displayed packet remains intact.`,
     };
   }
+  const cooldownMessage = cooldownRemainingSeconds > 0
+    ? ` Next live attempt in ${cooldownRemainingSeconds}s; this in-memory accidental-repeat guard is not strong abuse prevention.`
+    : "";
   if (packet.mode === "fallback") {
+    const failureCode = fallbackFailureCode(packet);
+    if (failureCode === "rate_limited") {
+      return {
+        tone: "rate-limited",
+        title: "Live request rate limited",
+        message: `The live attempt did not succeed. A prepared fallback is shown and is not a live result.${cooldownMessage}`,
+      };
+    }
+    if (failureCode === "api_timeout") {
+      return {
+        tone: "timeout",
+        title: "Live provider request timed out",
+        message: `The live attempt did not succeed. A prepared fallback is shown and is not a live result.${cooldownMessage}`,
+      };
+    }
     return {
       tone: "fallback",
-      title: "Prepared fallback shown",
-      message: "The live attempt did not succeed. This is the deterministic prepared example, not a live investigation.",
+      title: "Live investigation unavailable",
+      message: `The provider attempt did not complete. This is the deterministic prepared fallback, not a live investigation.${cooldownMessage}`,
     };
   }
   if (packet.mode === "live" && packet.warnings.length) {
     return {
       tone: "partial",
       title: "Partial live investigation",
-      message: "Validated candidates are shown with warnings and remain review-only.",
+      message: `Validated candidates are shown with warnings and remain review-only.${cooldownMessage}`,
     };
   }
   if (packet.mode === "live") {
     return {
       tone: "live",
       title: "Bounded live investigation",
-      message: "The server returned one validated review packet. Browsing it does not change the prepared record.",
+      message: `The server returned one validated review packet. Browsing it does not change the prepared record.${cooldownMessage}`,
+    };
+  }
+  if (cooldownRemainingSeconds > 0) {
+    return {
+      tone: "cooldown",
+      title: "Live request cooldown",
+      message: `${cooldownRemainingSeconds}s until another live attempt. This in-memory accidental-repeat guard is not strong abuse prevention.`,
     };
   }
   return {
