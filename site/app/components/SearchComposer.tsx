@@ -36,14 +36,19 @@ export function SearchComposer({
     >
       <div className="composer-heading">
         <p className="eyebrow">Build a source-bound version map</p>
-        <h1 id="composer-title">What do you want to investigate?</h1>
+        <h1 id="composer-title">
+          {liveEnabled
+            ? "What do you want to investigate?"
+            : "Explore how public information changes"}
+        </h1>
         <p>
-          Start with a public-interest topic or question. Sisyphus Watch organizes
-          bounded sources, candidate claim relations, and unanswered questions
-          without turning them into accepted truth.
+          {liveEnabled
+            ? "Start with a public-interest topic or question. Sisyphus Watch organizes bounded sources, candidate claim relations, and unanswered questions without turning them into accepted truth."
+            : "An investigation map keeps sources, actor claims, changes, and unanswered questions inspectable without turning them into accepted truth."}
         </p>
       </div>
-      <form className="investigation-form" onSubmit={onSubmit}>
+      {liveEnabled ? (
+        <form className="investigation-form" onSubmit={onSubmit}>
         <label htmlFor="investigation-question">Topic or public-interest question</label>
         <textarea
           id="investigation-question"
@@ -102,7 +107,7 @@ export function SearchComposer({
           <button
             className="build-map-button"
             type="submit"
-            disabled={!liveEnabled || isLoading}
+            disabled={isLoading}
           >
             {isLoading ? "Building investigation map…" : "Build investigation map"}
           </button>
@@ -120,18 +125,48 @@ export function SearchComposer({
           role="status"
         >
           <strong>
-            {liveEnabled
-              ? "Bounded live discovery is available."
-              : "Live source discovery is not enabled on this public version."}
+            Bounded live discovery is available.
           </strong>
           <span>
-            {liveEnabled
-              ? "Results can be live, partial, or a clearly labeled prepared fallback. Every inferred record remains review-only."
-              : "Arbitrary questions cannot run here yet. The prepared cooling-center example uses the same map components without an API key or network."}
+            Results can be live, partial, or a clearly labeled prepared fallback.
+            Every inferred record remains review-only.
           </span>
         </div>
         {routeError ? <p className="form-error" role="alert">{routeError}</p> : null}
-      </form>
+        </form>
+      ) : (
+        <div className="prepared-launch-panel">
+          <p className="prepared-launch-kicker">Prepared investigation</p>
+          <h2>Cooling-center access during extreme heat</h2>
+          <p>
+            Follow a curated source record, inspect candidate changes, and trace
+            the open evidence gaps in a working investigation map.
+          </p>
+          <button
+            id="prepared-investigation-cta"
+            className="prepared-primary-button"
+            type="button"
+            onClick={onPreparedExample}
+          >
+            Explore the prepared investigation
+          </button>
+          <div className="availability-note" role="status">
+            <strong>Arbitrary topic investigations are not enabled in this release.</strong>
+            <span>
+              The prepared investigation is the available working path and does
+              not start external source discovery or an OpenAI provider request.
+            </span>
+          </div>
+          <details className="live-workflow-disclosure">
+            <summary>How live investigations work</summary>
+            <p>
+              When enabled, the live workflow accepts a public-interest question,
+              a Standard review or Expand source coverage approach, and a bounded
+              source limit before building a review-only map.
+            </p>
+          </details>
+        </div>
+      )}
     </section>
   );
 }

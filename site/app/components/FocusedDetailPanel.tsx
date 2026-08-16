@@ -1,15 +1,25 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import {
   actorLabel,
   relationDisplayLabel,
   sourceRoleLabel,
 } from "../lib/experience";
-import { deriveInvestigationMap } from "../lib/investigation-map";
+import {
+  deriveInvestigationMap,
+  deriveQuestionInspectionOrigins,
+  type QuestionInspectionOrigin,
+} from "../lib/investigation-map";
 import type {
   SiteDetailKind,
   SiteReadyCaseDetail,
   SiteReadyCasePacket,
 } from "../lib/lineage/contracts";
 import type { FocusSelection } from "./investigation-types";
+
+export const INSPECTOR_ACCESSIBILITY_MODEL = "nonmodal" as const;
+export const INSPECTOR_CLOSE_KEY = "Escape" as const;
 
 export function FocusedDetailPanel({
   packet,
@@ -24,14 +34,35 @@ export function FocusedDetailPanel({
   state: "idle" | "loading" | "error";
   onClose: () => void;
 }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    closeButtonRef.current?.focus({ preventScroll: true });
+  }, [selection.id, selection.kind]);
+
+  useEffect(() => {
+    function handleEscape(event: globalThis.KeyboardEvent) {
+      if (event.key !== INSPECTOR_CLOSE_KEY) return;
+      event.preventDefault();
+      onClose();
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
   return (
-    <aside className="detail-panel" aria-labelledby="detail-panel-title">
+    <aside
+      className="detail-panel"
+      aria-labelledby="detail-panel-title"
+      data-inspector-model={INSPECTOR_ACCESSIBILITY_MODEL}
+    >
       <div className="detail-header">
         <div>
           <p className="eyebrow">Focused inspector</p>
           <h3 id="detail-panel-title">{selection.label}</h3>
         </div>
         <button
+          ref={closeButtonRef}
           className="close-button"
           type="button"
           onClick={onClose}
@@ -40,27 +71,29 @@ export function FocusedDetailPanel({
           ×
         </button>
       </div>
-      {state === "loading" ? (
-        <p className="detail-loading" role="status">Loading bounded focused detail…</p>
-      ) : null}
-      {state === "error" ? (
-        <p className="form-error" role="alert">
-          Focused detail is unavailable. The packet remains unchanged.
-        </p>
-      ) : null}
-      {payload ? (
-        <DetailBody
-          packet={packet}
-          selection={selection}
-          kind={selection.kind}
-          detail={payload.detail}
-        />
-      ) : null}
-      <details className="technical-details">
-        <summary>Stable record identifier</summary>
-        <p className="detail-kind">{selection.kind.replaceAll("_", " ")}</p>
-        <code className="stable-id">{selection.id}</code>
-      </details>
+      <div className="detail-scroll">
+        {state === "loading" ? (
+          <p className="detail-loading" role="status">Loading bounded focused detail…</p>
+        ) : null}
+        {state === "error" ? (
+          <p className="form-error" role="alert">
+            Focused detail is unavailable. The packet remains unchanged.
+          </p>
+        ) : null}
+        {payload ? (
+          <DetailBody
+            packet={packet}
+            selection={selection}
+            kind={selection.kind}
+            detail={payload.detail}
+          />
+        ) : null}
+        <details className="technical-details">
+          <summary>Stable record identifier</summary>
+          <p className="detail-kind">{selection.kind.replaceAll("_", " ")}</p>
+          <code className="stable-id">{selection.id}</code>
+        </details>
+      </div>
     </aside>
   );
 }
@@ -113,30 +146,7 @@ function DetailBody({
       </div>
     );
   }
-  return (
-    <div className="detail-body">
-      <DetailField
-        label="Open question"
-        value={item.question ?? item.summary ?? "Focused record"}
-      />
-      <DetailField
-        label="Status"
-        value={humanize(item.review_status ?? item.record_status ?? item.status)}
-      />
-      <p className="detail-note">
-        A related evidence gap is not a causal, contradictory, or truth-bearing relation.
-      </p>
-      {arrayValue(item.related_ids).length ? (
-        <details className="technical-details">
-          <summary>Related record identifiers</summary>
-          <DetailField
-            label="Related IDs"
-            value={arrayValue(item.related_ids).join(" · ")}
-          />
-        </details>
-      ) : null}
-    </div>
-  );
+  return <QuestionDetail packet={packet} selection={selection} item={item} />;
 }
 
 function SourceDetail({
@@ -155,6 +165,9 @@ function SourceDetail({
   const provenance = asRecord(item.api_provenance);
   const limitations = arrayValue(item.limitations);
   const sourceText = typeof item.source_text === "string" ? item.source_text : null;
+  const evidenceExcerpt = typeof item.evidence_excerpt === "string"
+    ? item.evidence_excerpt
+    : sourceSummary?.evidence_excerpt ?? null;
   const candidateSummary = typeof item.web_search_grounded_candidate_summary === "string"
     ? item.web_search_grounded_candidate_summary
     : null;
@@ -199,6 +212,11 @@ function SourceDetail({
         <div className="captured-text">
           <strong>Captured deterministic fixture evidence</strong>
           <p>{sourceText}</p>
+        </div>
+      ) : evidenceExcerpt ? (
+        <div className="captured-text">
+          <strong>Captured evidence excerpt from the prepared record</strong>
+          <p>{evidenceExcerpt}</p>
         </div>
       ) : (
         <div className="captured-text">
@@ -315,8 +333,8 @@ function RelationDetail({
         <small>{stringValue(right.proves)}</small>
       </div>
       <p className="detail-note">
-        Both support references are inspection aids. Confidence cannot promote this
-        candidate into canonical state.
+        Both support references are inspection aids. A confidence score cannot
+        turn this review candidate into an accepted record.
       </p>
       <details className="technical-details">
         <summary>Exact relation and support references</summary>
@@ -335,6 +353,87 @@ function RelationDetail({
       </details>
     </div>
   );
+}
+
+function QuestionDetail({
+  packet,
+  selection,
+  item,
+}: {
+  packet?: SiteReadyCasePacket;
+  selection: FocusSelection;
+  item: Record<string, unknown>;
+}) {
+  const origins = packet
+    ? deriveQuestionInspectionOrigins(
+        deriveInvestigationMap(packet, "event_time"),
+        selection.id,
+      )
+    : [];
+  return (
+    <div className="detail-body">
+      <DetailField
+        label="Open question"
+        value={item.question ?? item.summary ?? "Focused record"}
+      />
+      <DetailField
+        label="Status"
+        value={humanize(item.review_status ?? item.record_status ?? item.status)}
+      />
+      <div className="inspector-list">
+        <strong>Related evidence origin</strong>
+        {origins.length ? (
+          <ul>
+            {origins.map((origin, index) => (
+              <li key={`${origin.relatedId ?? "topic-root"}-${index}`}>
+                {questionOriginDescription(origin)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No conservative source resolution is available; the question remains connected only to the investigation topic.</p>
+        )}
+      </div>
+      <p className="detail-note">
+        This record is related to the evidence gap, but the available evidence
+        does not answer the question.
+      </p>
+      <p className="detail-note">
+        The connection does not itself establish causation, contradiction, or
+        truth/falsity.
+      </p>
+      {arrayValue(item.related_ids).length ? (
+        <details className="technical-details">
+          <summary>Conservative resolution details</summary>
+          <DetailField
+            label="Related IDs"
+            value={arrayValue(item.related_ids).join(" · ")}
+          />
+          <DetailField
+            label="Resolution types"
+            value={origins.map((origin) => origin.resolution).join(" · ")}
+          />
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function questionOriginDescription(origin: QuestionInspectionOrigin): string {
+  if (origin.topicRootOnly) {
+    return "Unknown related record: conservative resolution stops at the investigation topic; no source edge is added.";
+  }
+  const sourceDescription = origin.sourceNodes
+    .map((source) => `${source.title} (${source.sourceRole})`)
+    .join("; ");
+  const connection = {
+    source: "The question directly references this source record",
+    claim: "A referenced actor claim resolves to this source record",
+    action: "A referenced action resolves to this source record",
+    occurrence: "A referenced claim occurrence resolves to this source record",
+    unknown: "No source record was conservatively resolved",
+  }[origin.resolution];
+  return `${sourceDescription || "Investigation topic only"}. ${connection}.`;
 }
 
 function InspectorList({

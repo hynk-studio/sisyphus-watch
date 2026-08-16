@@ -65,7 +65,7 @@ export async function handleAnalysisRequest(
     return jsonError(
       500,
       "server_route_failure",
-      "The analysis route failed without changing canonical state.",
+      "The analysis route failed without changing the accepted record.",
     );
   }
 }

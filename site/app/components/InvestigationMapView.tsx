@@ -23,7 +23,11 @@ import {
   type MapHighlightState,
 } from "../lib/investigation-map";
 import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
-import type { FocusSelection } from "./investigation-types";
+import {
+  focusTriggerId,
+  type FocusHandler,
+  type FocusSelection,
+} from "./investigation-types";
 
 interface SpatialPoint {
   x: number;
@@ -87,7 +91,7 @@ export function InvestigationMapView({
   isLoading: boolean;
   onTimeAxisChange: (axis: TimeAxis) => void;
   onCoverageLensChange: (lens: CoverageLens) => void;
-  onFocus: (selection: FocusSelection) => void;
+  onFocus: FocusHandler;
   onTraceThread: () => void;
   onShowFullMap: () => void;
   onExpandCoverage: () => void;
@@ -229,7 +233,15 @@ export function InvestigationMapView({
             <button type="button" onClick={onShowFullMap}>Show full map</button>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="focus-toolbar focus-toolbar-idle" aria-label="Inspector guidance">
+          <div>
+            <strong>Select a record to inspect</strong>
+            <span>Sources, candidate relations, and open questions open in the viewport inspector.</span>
+          </div>
+          <small>Closing returns focus and scroll position to the selected record.</small>
+        </div>
+      )}
 
       {threadTraceActive && trace ? (
         <ThreadTraceSummary map={map} trace={trace} selectedNodeId={selectedNodeId ?? ""} />
@@ -293,6 +305,7 @@ export function InvestigationMapView({
                         dimmed={nodeIsDimmed(source.nodeId)}
                         style={{ gridColumn: source.column }}
                         nodeRef={(node) => registerSpatialNode(source.nodeId, node)}
+                        triggerSurface="desktop-map"
                         onFocus={onFocus}
                       />
                     ))}
@@ -328,6 +341,7 @@ export function InvestigationMapView({
                   )}
                   connectionLabel={questionConnectionLabel(map, question)}
                   nodeRef={(node) => registerSpatialNode(question.nodeId, node)}
+                  triggerSurface="desktop-map"
                   onFocus={onFocus}
                 />
               ))}
@@ -366,6 +380,7 @@ function SourceMapNode({
   dimmed,
   style,
   nodeRef,
+  triggerSurface,
   onFocus,
 }: {
   source: InvestigationSourceNode;
@@ -373,8 +388,10 @@ function SourceMapNode({
   dimmed: boolean;
   style?: CSSProperties;
   nodeRef?: (node: HTMLElement | null) => void;
-  onFocus: (selection: FocusSelection) => void;
+  triggerSurface: string;
+  onFocus: FocusHandler;
 }) {
+  const selection = { kind: "source" as const, id: source.sourceId, label: source.title };
   return (
     <article
       className={`map-source-node${selected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}`}
@@ -384,12 +401,14 @@ function SourceMapNode({
     >
       <button
         type="button"
+        data-focus-trigger={focusTriggerId(triggerSurface, selection)}
         aria-pressed={selected}
         aria-label={`${source.sourceRole} source node: ${source.title}. ${source.selectedTimeAxisLabel}: ${source.selectedTime ? formatDate(source.selectedTime) : "Time unavailable"}. ${selected ? "Selected" : "Not selected"}.`}
-        onClick={() => onFocus({ kind: "source", id: source.sourceId, label: source.title })}
-        onKeyDown={(event) => activateWithKeyboard(event, () =>
-          onFocus({ kind: "source", id: source.sourceId, label: source.title }),
-        )}
+        onClick={(event) => onFocus(selection, event.currentTarget)}
+        onKeyDown={(event) => {
+          const trigger = event.currentTarget;
+          activateWithKeyboard(event, () => onFocus(selection, trigger));
+        }}
       >
         <span className="node-state-text">{selected ? "Selected source" : "Source node"}</span>
         <span className="source-role-badge">{source.sourceRole}</span>
@@ -424,6 +443,7 @@ function QuestionMapNode({
   connectionDimmed,
   connectionLabel,
   nodeRef,
+  triggerSurface,
   onFocus,
 }: {
   question: InvestigationQuestionNode;
@@ -433,8 +453,14 @@ function QuestionMapNode({
   connectionDimmed: boolean;
   connectionLabel: string;
   nodeRef?: (node: HTMLElement | null) => void;
-  onFocus: (selection: FocusSelection) => void;
+  triggerSurface: string;
+  onFocus: FocusHandler;
 }) {
+  const selection = {
+    kind: "unresolved_question" as const,
+    id: question.questionId,
+    label: `Open question ${index + 1}`,
+  };
   return (
     <article
       className={`map-question-node${selected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}`}
@@ -445,18 +471,14 @@ function QuestionMapNode({
       </span>
       <button
         type="button"
+        data-focus-trigger={focusTriggerId(triggerSurface, selection)}
         aria-pressed={selected}
         aria-label={`Open question node ${index + 1}: ${question.question}. ${connectionLabel}. ${selected ? "Selected" : "Not selected"}.`}
-        onClick={() => onFocus({
-          kind: "unresolved_question",
-          id: question.questionId,
-          label: `Open question ${index + 1}`,
-        })}
-        onKeyDown={(event) => activateWithKeyboard(event, () => onFocus({
-          kind: "unresolved_question",
-          id: question.questionId,
-          label: `Open question ${index + 1}`,
-        }))}
+        onClick={(event) => onFocus(selection, event.currentTarget)}
+        onKeyDown={(event) => {
+          const trigger = event.currentTarget;
+          activateWithKeyboard(event, () => onFocus(selection, trigger));
+        }}
       >
         <span className="question-mark" aria-hidden="true">?</span>
         <span className="node-state-text">
@@ -551,7 +573,7 @@ function SpatialRelationControls({
   geometry: SpatialConnectionGeometry;
   selectedEdgeId: string | null;
   relationIsDimmed: (edgeId: string) => boolean;
-  onFocus: (selection: FocusSelection) => void;
+  onFocus: FocusHandler;
 }) {
   const geometryById = new Map(geometry.relations.map((item) => [item.edgeId, item]));
   return (
@@ -562,11 +584,11 @@ function SpatialRelationControls({
         const from = map.sources.find((source) => source.nodeId === edge.fromNodeId);
         const to = map.sources.find((source) => source.nodeId === edge.toNodeId);
         const selected = selectedEdgeId === edge.edgeId;
-        const select = () => onFocus({
+        const selection: FocusSelection = {
           kind: "relation",
           id: edge.relationId,
           label: edge.label,
-        });
+        };
         return (
           <button
             key={edge.edgeId}
@@ -574,14 +596,18 @@ function SpatialRelationControls({
             type="button"
             aria-pressed={selected}
             aria-label={`${edge.label} from ${from?.title ?? edge.leftSourceId} to ${to?.title ?? edge.rightSourceId}. Needs review. Inspect support from both sides.`}
+            data-focus-trigger={focusTriggerId("spatial-relation", selection)}
             data-relation-id={edge.relationId}
             data-left-occurrence-id={edge.leftOccurrenceId}
             data-right-occurrence-id={edge.rightOccurrenceId}
             data-left-source-id={edge.leftSourceId}
             data-right-source-id={edge.rightSourceId}
             style={{ left: position.label.x, top: position.label.y }}
-            onClick={select}
-            onKeyDown={(event) => activateWithKeyboard(event, select)}
+            onClick={(event) => onFocus(selection, event.currentTarget)}
+            onKeyDown={(event) => {
+              const trigger = event.currentTarget;
+              activateWithKeyboard(event, () => onFocus(selection, trigger));
+            }}
           >
             <span>{edge.label}</span>
             <small>
@@ -606,7 +632,7 @@ function RelationLedger({
   map: InvestigationMap;
   selectedEdgeId: string | null;
   relationIsDimmed: (edgeId: string) => boolean;
-  onFocus: (selection: FocusSelection) => void;
+  onFocus: FocusHandler;
 }) {
   return (
     <details className="relation-ledger">
@@ -625,6 +651,11 @@ function RelationLedger({
               const from = map.sources.find((source) => source.nodeId === edge.fromNodeId);
               const to = map.sources.find((source) => source.nodeId === edge.toNodeId);
               const selected = selectedEdgeId === edge.edgeId;
+              const selection: FocusSelection = {
+                kind: "relation",
+                id: edge.relationId,
+                label: edge.label,
+              };
               return (
                 <li
                   key={edge.edgeId}
@@ -635,10 +666,12 @@ function RelationLedger({
                     type="button"
                     aria-pressed={selected}
                     aria-label={`${edge.label} from ${from?.title ?? edge.leftSourceId} to ${to?.title ?? edge.rightSourceId}. Needs review. Inspect support from both sides.`}
-                    onClick={() => onFocus({ kind: "relation", id: edge.relationId, label: edge.label })}
-                    onKeyDown={(event) => activateWithKeyboard(event, () =>
-                      onFocus({ kind: "relation", id: edge.relationId, label: edge.label }),
-                    )}
+                    data-focus-trigger={focusTriggerId("relation-list", selection)}
+                    onClick={(event) => onFocus(selection, event.currentTarget)}
+                    onKeyDown={(event) => {
+                      const trigger = event.currentTarget;
+                      activateWithKeyboard(event, () => onFocus(selection, trigger));
+                    }}
                   >
                     <span>{edge.label}</span>
                     <small>
@@ -678,7 +711,7 @@ function MobileInvestigationPath({
   selectedEdgeId: string | null;
   nodeIsDimmed: (nodeId: string) => boolean;
   relationIsDimmed: (edgeId: string) => boolean;
-  onFocus: (selection: FocusSelection) => void;
+  onFocus: FocusHandler;
 }) {
   return (
     <section className="mobile-investigation-path" aria-labelledby="mobile-path-title">
@@ -699,6 +732,7 @@ function MobileInvestigationPath({
                 source={source}
                 selected={selectedNodeId === source.nodeId}
                 dimmed={nodeIsDimmed(source.nodeId)}
+                triggerSurface="mobile-map"
                 onFocus={onFocus}
               />
               {outgoing.map((edge) => {
@@ -706,16 +740,24 @@ function MobileInvestigationPath({
                   ? edge.toNodeId
                   : edge.fromNodeId;
                 const other = map.sources.find((item) => item.nodeId === otherId);
+                const selection: FocusSelection = {
+                  kind: "relation",
+                  id: edge.relationId,
+                  label: edge.label,
+                };
                 return (
                   <button
                     key={edge.edgeId}
                     className={`mobile-relation-label${selectedEdgeId === edge.edgeId ? " is-selected" : ""}${relationIsDimmed(edge.edgeId) ? " is-dimmed" : ""}`}
                     type="button"
                     aria-pressed={selectedEdgeId === edge.edgeId}
-                    onClick={() => onFocus({ kind: "relation", id: edge.relationId, label: edge.label })}
-                    onKeyDown={(event) => activateWithKeyboard(event, () =>
-                      onFocus({ kind: "relation", id: edge.relationId, label: edge.label }),
-                    )}
+                    aria-label={`${edge.label} from ${source.title} to ${other?.title ?? otherId}. Needs review. Inspect support from both sides.`}
+                    data-focus-trigger={focusTriggerId("mobile-relation", selection)}
+                    onClick={(event) => onFocus(selection, event.currentTarget)}
+                    onKeyDown={(event) => {
+                      const trigger = event.currentTarget;
+                      activateWithKeyboard(event, () => onFocus(selection, trigger));
+                    }}
                   >
                     <span>{edge.label}</span>
                     <small>To {other?.title ?? otherId} · Needs review</small>
@@ -737,6 +779,7 @@ function MobileInvestigationPath({
             dimmed={nodeIsDimmed(question.nodeId)}
             connectionDimmed={false}
             connectionLabel={questionConnectionLabel(map, question)}
+            triggerSurface="mobile-map"
             onFocus={onFocus}
           />
         ))}
@@ -988,7 +1031,7 @@ function ThreadTraceSummary({
         <div><dt>Related open questions</dt><dd>{questions.length}</dd></div>
       </dl>
       <p className="trace-detail">{sourceTitles.join(" · ") || "No connected source node"}</p>
-      <small>The canonical/candidate packet is unchanged; unrelated context remains visible but dimmed.</small>
+      <small>The prepared and review-candidate records are unchanged; unrelated context remains visible but dimmed.</small>
     </section>
   );
 }

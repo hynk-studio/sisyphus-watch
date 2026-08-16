@@ -16,20 +16,32 @@ import {
 import {
   EXPERIENCE_VIEWS,
   VIEW_LABELS,
+  recordBoundaryLabel,
   sourceContentLabel,
 } from "../app/lib/experience";
+import {
+  FocusedDetailSupplementCache,
+  focusedDetailKey,
+  needsPreparedDetailSupplement,
+} from "../app/lib/focused-detail";
 import { deriveInvestigationMap } from "../app/lib/investigation-map";
 import {
   isLiveAnalysisEnabled,
   liveAnalysisDisabledResponse,
 } from "../app/lib/live-mode";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
+import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
 import { getPreparedCaseDetail } from "../app/lib/read-model";
 import { POST as postLineage } from "../app/api/lineage/route";
+import {
+  INSPECTOR_ACCESSIBILITY_MODEL,
+  INSPECTOR_CLOSE_KEY,
+} from "../app/components/FocusedDetailPanel";
+import { focusTriggerId } from "../app/components/investigation-types";
 
 const noop = () => undefined;
 
-test("search-first landing makes the question composer the first product action and tells the truth when live is disabled", () => {
+test("live-disabled landing makes the prepared investigation the primary usable action without false editable affordances", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const before = JSON.stringify(packet);
   const html = renderToStaticMarkup(createElement(CaseExplorer, {
@@ -37,20 +49,16 @@ test("search-first landing makes the question composer the first product action 
     liveEnabled: false,
   }));
 
-  assert.match(html, /What do you want to investigate\?/);
-  assert.match(html, /Topic or public-interest question/);
-  assert.match(html, /Build investigation map/);
-  assert.match(html, /disabled=""/);
-  assert.match(html, /Standard review/);
-  assert.match(html, /Start with official and established sources/);
-  assert.match(html, /Expand source coverage/);
-  assert.match(html, /Also look for local, firsthand, specialist, and corrective sources/);
-  assert.match(html, /3 sources/);
-  assert.match(html, /5 sources/);
-  assert.match(html, /8 sources · maximum/);
-  assert.match(html, /Try the cooling-center example/);
-  assert.match(html, /Live source discovery is not enabled on this public version/);
-  assert.match(html, /Arbitrary questions cannot run here yet/);
+  assert.match(html, /Explore how public information changes/);
+  assert.match(html, /class="prepared-primary-button"/);
+  assert.match(html, /Explore the prepared investigation/);
+  assert.match(html, /Arbitrary topic investigations are not enabled in this release/);
+  assert.match(html, /available working path/);
+  assert.match(html, /How live investigations work/);
+  assert.doesNotMatch(html, /<textarea/);
+  assert.doesNotMatch(html, /type="radio"/);
+  assert.doesNotMatch(html, /<select/);
+  assert.doesNotMatch(html, /Build investigation map/);
   assert.doesNotMatch(html, /id="investigation-workspace"/);
   assert.doesNotMatch(html, /Prepared demonstration/);
   assert.equal(JSON.stringify(packet), before);
@@ -77,6 +85,77 @@ test("live composer exposes the existing bounded request controls without claimi
   assert.match(html, /Bounded live discovery is available/);
   assert.match(html, /live, partial, or a clearly labeled prepared fallback/);
   assert.doesNotMatch(html, /disabled=""/);
+  assert.ok(html.indexOf("Build investigation map") < html.indexOf("Try the cooling-center example"));
+});
+
+test("prepared focused detail is immediate and same-key source supplements are cached or failure-deduped", async () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const source = packet.source_snapshot_summaries[0];
+  const local = getSiteReadyCaseDetail(packet, "source", source.source_id);
+  assert.ok(local);
+  const html = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: { kind: "source", id: source.source_id, label: source.title },
+    payload: local,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.match(html, /Captured evidence excerpt from the prepared record/);
+  assert.doesNotMatch(html, /Loading bounded focused detail/);
+  assert.equal(needsPreparedDetailSupplement(packet, "source"), true);
+  assert.equal(needsPreparedDetailSupplement(packet, "relation"), false);
+
+  const cache = new FocusedDetailSupplementCache();
+  const key = focusedDetailKey(packet, "source", source.source_id);
+  let requestCount = 0;
+  const loader = async () => {
+    requestCount += 1;
+    return local;
+  };
+  await cache.load(key, loader);
+  await cache.load(key, loader);
+  await cache.load(key, loader);
+  assert.equal(requestCount, 1);
+
+  const failureCache = new FocusedDetailSupplementCache();
+  let failedRequestCount = 0;
+  const failedLoader = async () => {
+    failedRequestCount += 1;
+    throw new Error("supplement unavailable");
+  };
+  await assert.rejects(failureCache.load(key, failedLoader));
+  await assert.rejects(failureCache.load(key, failedLoader));
+  assert.equal(failedRequestCount, 1);
+});
+
+test("inspector uses a fixed nonmodal complementary model with Escape and stable trigger identity", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const before = JSON.stringify(packet);
+  const relation = packet.relation_candidates[0];
+  const payload = getSiteReadyCaseDetail(packet, "relation", relation.relation_id);
+  assert.ok(payload);
+  const html = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: { kind: "relation", id: relation.relation_id, label: "Candidate relation" },
+    payload,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.equal(INSPECTOR_ACCESSIBILITY_MODEL, "nonmodal");
+  assert.equal(INSPECTOR_CLOSE_KEY, "Escape");
+  assert.match(html, /^<aside/);
+  assert.match(html, /data-inspector-model="nonmodal"/);
+  assert.doesNotMatch(html, /aria-modal/);
+  assert.match(html, /aria-label="Close focused inspector"/);
+  assert.equal(
+    focusTriggerId("sources-card", { kind: "source", id: "stable-source" }),
+    "sources-card:source:stable-source",
+  );
+  assert.equal(JSON.stringify(packet), before);
+
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.detail-panel \{[\s\S]*?position: fixed/);
+  assert.match(css, /\.detail-scroll \{[\s\S]*?overflow-y: auto/);
 });
 
 test("map is the primary result model with four top-level views and visible question nodes", () => {
@@ -123,6 +202,8 @@ test("map is the primary result model with four top-level views and visible ques
   assert.match(html, /Prepared comparison only/);
   assert.match(html, /Prepared baseline/);
   assert.match(html, /Complete prepared set/);
+  assert.match(html, /Select a record to inspect/);
+  assert.match(html, /Closing returns focus and scroll position/);
   assert.match(html, /mobile-investigation-path/);
   for (const question of packet.unresolved_questions) {
     assert.match(html, new RegExp(escapeRegex(question.question)));
@@ -231,7 +312,7 @@ test("timeline keeps all four axes explicit and isolates missing selected-axis t
   assert.match(html, /View all four timestamps/);
 });
 
-test("sources and method preserve provenance labels, coverage, and the no-#43 boundary", () => {
+test("sources and method preserve provenance labels, coverage, and plain-language record separation", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const sourcesHtml = renderToStaticMarkup(createElement(SourcesView, {
     packet,
@@ -262,10 +343,106 @@ test("sources and method preserve provenance labels, coverage, and the no-#43 bo
   assert.match(liveHtml, /href="https:\/\/public\.example\.org\/changing-notice"/);
 
   const methodHtml = renderToStaticMarkup(createElement(MethodView, { packet }));
-  assert.match(methodHtml, /No #43 evidence-to-claim inference/);
-  assert.match(methodHtml, /Only actor claims become claim occurrences/);
+  assert.match(methodHtml, /Findings, actions, and claims stay separate/);
+  assert.match(methodHtml, /Only statements attributed to an actor become claim records/);
+  assert.doesNotMatch(methodHtml, /#43/);
   assert.match(methodHtml, /Maximum 8 sources and 64 relation-pair workload/);
   assert.match(methodHtml, /Prepared fixture coverage/);
+});
+
+test("inspection actions have distinguishable accessible names on every repeated surface", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const sourcesHtml = renderToStaticMarkup(createElement(SourcesView, {
+    packet,
+    onFocus: noop,
+  }));
+  for (const source of packet.source_snapshot_summaries) {
+    assert.match(sourcesHtml, new RegExp(`aria-label="[^"]*: ${escapeRegex(source.title)}"`));
+  }
+
+  const timelineHtml = renderToStaticMarkup(createElement(TimelineView, {
+    packet,
+    timeAxis: "event_time",
+    onTimeAxisChange: noop,
+    onFocus: noop,
+  }));
+  const timelineLabels = [...timelineHtml.matchAll(/aria-label="View all four timestamps: ([^"]+)"/g)];
+  assert.equal(timelineLabels.length, packet.event_timeline_rows.length);
+  assert.equal(new Set(timelineLabels.map((match) => match[1])).size, timelineLabels.length);
+
+  const mapHtml = renderToStaticMarkup(createElement(InvestigationMapView, {
+    packet,
+    map: deriveInvestigationMap(packet, "event_time"),
+    timeAxis: "event_time",
+    coverageLens: "all",
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    threadTraceActive: false,
+    liveEnabled: false,
+    isLoading: false,
+    onTimeAxisChange: noop,
+    onCoverageLensChange: noop,
+    onFocus: noop,
+    onTraceThread: noop,
+    onShowFullMap: noop,
+    onExpandCoverage: noop,
+  }));
+  assert.match(mapHtml, /data-focus-trigger="mobile-relation:relation:/);
+  assert.match(mapHtml, /data-focus-trigger="relation-list:relation:/);
+  assert.match(mapHtml, /aria-label="Open question node 1:/);
+  const mapSource = readFileSync(
+    new URL("../app/components/InvestigationMapView.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(mapSource, /focusTriggerId\("spatial-relation", selection\)/);
+});
+
+test("open-question inspector shows only conservatively resolved evidence origins and topic-root unknowns", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const question = packet.unresolved_questions[0];
+  const payload = getSiteReadyCaseDetail(packet, "unresolved_question", question.question_id);
+  assert.ok(payload);
+  const html = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: { kind: "unresolved_question", id: question.question_id, label: "Open question 1" },
+    payload,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.match(html, /Related evidence origin/);
+  assert.match(html, /This record is related to the evidence gap, but the available evidence does not answer the question/);
+  assert.match(html, /does not itself establish causation, contradiction, or truth\/falsity/);
+
+  const unknownPacket = structuredClone(packet);
+  unknownPacket.unresolved_questions[0].related_ids = ["unknown-external-record"];
+  const unknownPayload = getSiteReadyCaseDetail(
+    unknownPacket,
+    "unresolved_question",
+    question.question_id,
+  );
+  assert.ok(unknownPayload);
+  const unknownHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet: unknownPacket,
+    selection: { kind: "unresolved_question", id: question.question_id, label: "Open question 1" },
+    payload: unknownPayload,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.match(unknownHtml, /resolution stops at the investigation topic; no source edge is added/);
+});
+
+test("public copy avoids project shorthand and inaccurate no-network claims while preserving record boundaries", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const html = renderToStaticMarkup(createElement(CaseExplorer, {
+    preparedCase: packet,
+    liveEnabled: false,
+  }));
+  assert.doesNotMatch(html, /#43/);
+  assert.doesNotMatch(html, /No network request/);
+  assert.equal(recordBoundaryLabel("canonical"), "Prepared case record");
+  assert.equal(recordBoundaryLabel("candidate"), "Needs review");
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
+  assert.equal(packet.candidate_canonical_boundary.confidence_can_promote_to_canonical, false);
 });
 
 test("fallback, partial, loading, and error notices never mislabel the displayed packet", () => {
@@ -338,6 +515,8 @@ test("mobile CSS switches to a vertical path with usable controls and no page-wi
   assert.match(mobileRules, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
   assert.match(mobileRules, /\.mobile-relation-label \{/);
   assert.match(mobileRules, /min-height: 42px/);
+  assert.match(mobileRules, /\.focus-toolbar \{ min-height: 150px/);
+  assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto/);
   assert.doesNotMatch(mobileRules, /width:\s*100vw/);
 });
 

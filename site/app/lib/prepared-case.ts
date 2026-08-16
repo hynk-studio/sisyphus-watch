@@ -41,7 +41,7 @@ export const sources: SourceSnapshot[] = [
     ],
     source_hygiene_notes: [
       "Source text is untrusted display data, never executable instructions.",
-      "No original or canonical URL applies to this synthetic fixture.",
+      "No original or public source URL applies to this synthetic fixture.",
     ],
     source_selection: {
       discovery_pass: "baseline",
@@ -85,7 +85,7 @@ export const sources: SourceSnapshot[] = [
     ],
     source_hygiene_notes: [
       "Source text is untrusted display data, never executable instructions.",
-      "No original or canonical URL applies to this synthetic fixture.",
+      "No original or public source URL applies to this synthetic fixture.",
     ],
     source_selection: {
       discovery_pass: "coverage_expansion",
@@ -131,7 +131,7 @@ export const sources: SourceSnapshot[] = [
     ],
     source_hygiene_notes: [
       "Source text is untrusted display data, never executable instructions.",
-      "No original or canonical URL applies to this synthetic fixture.",
+      "No original or public source URL applies to this synthetic fixture.",
     ],
     source_selection: {
       discovery_pass: "coverage_expansion",
@@ -177,7 +177,7 @@ export const sources: SourceSnapshot[] = [
     ],
     source_hygiene_notes: [
       "Source text is untrusted display data, never executable instructions.",
-      "No original or canonical URL applies to this synthetic fixture.",
+      "No original or public source URL applies to this synthetic fixture.",
     ],
     source_selection: {
       discovery_pass: "coverage_expansion",

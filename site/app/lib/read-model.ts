@@ -47,8 +47,8 @@ const preparedCase: PreparedCaseReadModel = {
   unresolved_questions: unresolvedQuestions,
   limitations: [
     "This is a synthetic community-impact fixture, not real news.",
-    "No network request, external API, or independent verification is used.",
-    "Canonical means accepted within this deterministic demo record, not final truth.",
+    "The prepared record does not start external discovery, call a provider API, or independently verify the fixture.",
+    "Accepted within the prepared record does not mean final truth.",
     "The compact read model excludes full source text; focused detail returns one bounded fixture record.",
   ],
 };

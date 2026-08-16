@@ -24,18 +24,19 @@ async function request(path) {
   );
 }
 
-test("renders the search-first shell with a truthful no-key prepared-example path", async () => {
+test("renders a truthful prepared-first shell when live discovery is disabled", async () => {
   const response = await request("/");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /<title>Sisyphus Watch \| Build an investigation map<\/title>/i);
-  assert.match(html, /What do you want to investigate/);
-  assert.match(html, /Build investigation map/);
-  assert.match(html, /Try the cooling-center example/);
-  assert.match(html, /without an API key or network/i);
-  assert.match(html, /Live source discovery is not enabled/);
+  assert.match(html, /Explore how public information changes/);
+  assert.match(html, /Explore the prepared investigation/);
+  assert.match(html, /Arbitrary topic investigations are not enabled/);
+  assert.match(html, /does not start external source discovery or an OpenAI provider request/i);
+  assert.doesNotMatch(html, /<textarea/);
+  assert.doesNotMatch(html, /Build investigation map/);
   assert.doesNotMatch(html, /id="investigation-workspace"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
   assert.doesNotMatch(html, /DEMO FIXTURE ONLY/);
