@@ -183,15 +183,19 @@ export function CaseExplorer({
   const openDetail: FocusHandler = (selection, trigger) => {
     if (!hasFocusedDetailKey(packet, selection.kind, selection.id)) return;
     const key = focusedDetailKey(packet, selection.kind, selection.id);
+    const scrollY = window.scrollY;
     activeDetailKey.current = key;
     activatingElement.current = trigger;
     activatingTriggerId.current = trigger.getAttribute(FOCUS_TRIGGER_ATTRIBUTE);
-    activatingScrollY.current = window.scrollY;
+    activatingScrollY.current = scrollY;
     setFocus(selection);
     setThreadTraceActive(false);
     const local = getSiteReadyCaseDetail(packet, selection.kind, selection.id);
     setFocusedDetail(local);
     setDetailState(local ? "idle" : "error");
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, left: window.scrollX, behavior: "instant" });
+    });
 
     if (!local || !needsPreparedDetailSupplement(packet, selection.kind)) return;
     const params = new URLSearchParams({

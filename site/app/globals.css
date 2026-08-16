@@ -785,13 +785,19 @@ p, li, blockquote { text-wrap: pretty; }
   display: grid;
   width: min(420px, calc(100vw - 32px));
   min-width: 0;
+  max-width: none;
+  max-height: none;
   grid-template-rows: auto minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #f7f7f2;
   box-shadow: 0 24px 72px rgba(20, 37, 30, .24);
+  color: inherit;
 }
+dialog.detail-panel::backdrop { background: rgba(20, 37, 30, .48); }
 .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 20px 20px 16px; border-bottom: 1px solid var(--line); background: #f7f7f2; }
 .detail-header h3 { margin-bottom: 8px; overflow-wrap: anywhere; font-size: 1.06rem; line-height: 1.35; }
 .close-button { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: white; color: var(--muted); cursor: pointer; font-size: 1.15rem; }
@@ -847,7 +853,7 @@ p, li, blockquote { text-wrap: pretty; }
   .tab-list button { min-width: 0; min-height: 56px; justify-content: center; padding: 7px 3px; font-size: .72rem; text-align: center; }
   .tab-list button::after { right: 4px; left: 4px; }
   .view-panel { padding: 22px 14px 28px; }
-  .detail-panel { inset: 8px; width: auto; border-radius: 12px; }
+  .detail-panel { inset: 8px; width: auto; height: calc(100dvh - 16px); border-radius: 12px; }
   .detail-header { padding: 15px 15px 13px; }
   .detail-scroll { padding: 6px 15px 20px; }
   .view-intro { align-items: stretch; flex-direction: column; }

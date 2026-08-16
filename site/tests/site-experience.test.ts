@@ -34,8 +34,9 @@ import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
 import { getPreparedCaseDetail } from "../app/lib/read-model";
 import { POST as postLineage } from "../app/api/lineage/route";
 import {
-  INSPECTOR_ACCESSIBILITY_MODEL,
+  INSPECTOR_ACCESSIBILITY_MODELS,
   INSPECTOR_CLOSE_KEY,
+  MOBILE_INSPECTOR_MEDIA_QUERY,
 } from "../app/components/FocusedDetailPanel";
 import { focusTriggerId } from "../app/components/investigation-types";
 
@@ -128,7 +129,7 @@ test("prepared focused detail is immediate and same-key source supplements are c
   assert.equal(failedRequestCount, 1);
 });
 
-test("inspector uses a fixed nonmodal complementary model with Escape and stable trigger identity", () => {
+test("inspector uses responsive desktop-nonmodal and mobile-modal semantics with Escape and stable trigger identity", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const before = JSON.stringify(packet);
   const relation = packet.relation_candidates[0];
@@ -141,12 +142,29 @@ test("inspector uses a fixed nonmodal complementary model with Escape and stable
     state: "idle",
     onClose: noop,
   }));
-  assert.equal(INSPECTOR_ACCESSIBILITY_MODEL, "nonmodal");
+  assert.deepEqual(INSPECTOR_ACCESSIBILITY_MODELS, {
+    desktop: "nonmodal",
+    mobile: "modal",
+  });
+  assert.equal(MOBILE_INSPECTOR_MEDIA_QUERY, "(max-width: 720px)");
   assert.equal(INSPECTOR_CLOSE_KEY, "Escape");
   assert.match(html, /^<aside/);
   assert.match(html, /data-inspector-model="nonmodal"/);
   assert.doesNotMatch(html, /aria-modal/);
   assert.match(html, /aria-label="Close focused inspector"/);
+
+  const mobileHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: { kind: "relation", id: relation.relation_id, label: "Candidate relation" },
+    payload,
+    state: "idle",
+    onClose: noop,
+    modelOverride: INSPECTOR_ACCESSIBILITY_MODELS.mobile,
+  }));
+  assert.match(mobileHtml, /^<dialog/);
+  assert.match(mobileHtml, /aria-modal="true"/);
+  assert.match(mobileHtml, /data-inspector-model="modal"/);
+  assert.match(mobileHtml, /aria-label="Close focused inspector"/);
   assert.equal(
     focusTriggerId("sources-card", { kind: "source", id: "stable-source" }),
     "sources-card:source:stable-source",
@@ -156,6 +174,25 @@ test("inspector uses a fixed nonmodal complementary model with Escape and stable
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.detail-panel \{[\s\S]*?position: fixed/);
   assert.match(css, /\.detail-scroll \{[\s\S]*?overflow-y: auto/);
+  assert.match(css, /dialog\.detail-panel::backdrop/);
+
+  const panelSource = readFileSync(
+    new URL("../app/components/FocusedDetailPanel.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(panelSource, /dialog\.showModal\(\)/);
+  assert.match(panelSource, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(panelSource, /onKeyDown=\{containMobileInspectorFocus\}/);
+  assert.match(panelSource, /event\.shiftKey/);
+  assert.match(panelSource, /last\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(panelSource, /first\.focus\(\{ preventScroll: true \}\)/);
+
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(explorerSource, /const scrollY = window\.scrollY/);
+  assert.match(explorerSource, /window\.scrollTo\(\{ top: scrollY, left: window\.scrollX, behavior: "instant" \}\)/);
 });
 
 test("map is the primary result model with four top-level views and visible question nodes", () => {
@@ -516,7 +553,7 @@ test("mobile CSS switches to a vertical path with usable controls and no page-wi
   assert.match(mobileRules, /\.mobile-relation-label \{/);
   assert.match(mobileRules, /min-height: 42px/);
   assert.match(mobileRules, /\.focus-toolbar \{ min-height: 150px/);
-  assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto/);
+  assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto; height: calc\(100dvh - 16px\)/);
   assert.doesNotMatch(mobileRules, /width:\s*100vw/);
 });
 

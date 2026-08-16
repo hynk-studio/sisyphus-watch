@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import {
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import {
   actorLabel,
   relationDisplayLabel,
@@ -18,8 +23,24 @@ import type {
 } from "../lib/lineage/contracts";
 import type { FocusSelection } from "./investigation-types";
 
-export const INSPECTOR_ACCESSIBILITY_MODEL = "nonmodal" as const;
+export const INSPECTOR_ACCESSIBILITY_MODELS = {
+  desktop: "nonmodal",
+  mobile: "modal",
+} as const;
+export const MOBILE_INSPECTOR_MEDIA_QUERY = "(max-width: 720px)" as const;
 export const INSPECTOR_CLOSE_KEY = "Escape" as const;
+const INSPECTOR_FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "summary",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+type InspectorAccessibilityModel =
+  (typeof INSPECTOR_ACCESSIBILITY_MODELS)[keyof typeof INSPECTOR_ACCESSIBILITY_MODELS];
 
 export function FocusedDetailPanel({
   packet,
@@ -27,18 +48,35 @@ export function FocusedDetailPanel({
   payload,
   state,
   onClose,
+  modelOverride,
 }: {
   packet?: SiteReadyCasePacket;
   selection: FocusSelection;
   payload: SiteReadyCaseDetail | null;
   state: "idle" | "loading" | "error";
   onClose: () => void;
+  modelOverride?: InspectorAccessibilityModel;
 }) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const responsiveModel = useResponsiveInspectorModel();
+  const model = modelOverride ?? responsiveModel;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (model !== INSPECTOR_ACCESSIBILITY_MODELS.mobile || !dialog) return;
+    if (!dialog.open) dialog.showModal();
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      if (dialog.open) dialog.close();
+    };
+  }, [model]);
 
   useEffect(() => {
     closeButtonRef.current?.focus({ preventScroll: true });
-  }, [selection.id, selection.kind]);
+  }, [model, selection.id, selection.kind]);
 
   useEffect(() => {
     function handleEscape(event: globalThis.KeyboardEvent) {
@@ -50,12 +88,8 @@ export function FocusedDetailPanel({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose]);
 
-  return (
-    <aside
-      className="detail-panel"
-      aria-labelledby="detail-panel-title"
-      data-inspector-model={INSPECTOR_ACCESSIBILITY_MODEL}
-    >
+  const contents = (
+    <>
       <div className="detail-header">
         <div>
           <p className="eyebrow">Focused inspector</p>
@@ -94,8 +128,84 @@ export function FocusedDetailPanel({
           <code className="stable-id">{selection.id}</code>
         </details>
       </div>
+    </>
+  );
+
+  if (model === INSPECTOR_ACCESSIBILITY_MODELS.mobile) {
+    return (
+      <dialog
+        ref={dialogRef}
+        className="detail-panel"
+        aria-labelledby="detail-panel-title"
+        aria-modal="true"
+        data-inspector-model={model}
+        onKeyDown={containMobileInspectorFocus}
+        onCancel={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
+      >
+        {contents}
+      </dialog>
+    );
+  }
+
+  return (
+    <aside
+      className="detail-panel"
+      aria-labelledby="detail-panel-title"
+      data-inspector-model={model}
+    >
+      {contents}
     </aside>
   );
+}
+
+function containMobileInspectorFocus(event: ReactKeyboardEvent<HTMLDialogElement>) {
+  if (event.key !== "Tab") return;
+  const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
+    INSPECTOR_FOCUSABLE_SELECTOR,
+  )].filter((element) => element.getClientRects().length > 0);
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) {
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
+    return;
+  }
+  const active = document.activeElement;
+  if (event.shiftKey && (active === first || !event.currentTarget.contains(active))) {
+    event.preventDefault();
+    last.focus({ preventScroll: true });
+  } else if (!event.shiftKey && (active === last || !event.currentTarget.contains(active))) {
+    event.preventDefault();
+    first.focus({ preventScroll: true });
+  }
+}
+
+function subscribeToInspectorViewport(onChange: () => void): () => void {
+  const mediaQuery = window.matchMedia(MOBILE_INSPECTOR_MEDIA_QUERY);
+  mediaQuery.addEventListener("change", onChange);
+  return () => mediaQuery.removeEventListener("change", onChange);
+}
+
+function getInspectorViewportSnapshot(): boolean {
+  return window.matchMedia(MOBILE_INSPECTOR_MEDIA_QUERY).matches;
+}
+
+function getServerInspectorViewportSnapshot(): boolean {
+  return false;
+}
+
+function useResponsiveInspectorModel(): InspectorAccessibilityModel {
+  const isMobile = useSyncExternalStore(
+    subscribeToInspectorViewport,
+    getInspectorViewportSnapshot,
+    getServerInspectorViewportSnapshot,
+  );
+  return isMobile
+    ? INSPECTOR_ACCESSIBILITY_MODELS.mobile
+    : INSPECTOR_ACCESSIBILITY_MODELS.desktop;
 }
 
 function DetailBody({
