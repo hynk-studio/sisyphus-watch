@@ -2,6 +2,7 @@
 
 import {
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
@@ -18,6 +19,11 @@ import {
   type ExperienceView,
   type TimeAxis,
 } from "../lib/experience";
+import {
+  FocusedDetailSupplementCache,
+  focusedDetailKey,
+  needsPreparedDetailSupplement,
+} from "../lib/focused-detail";
 import {
   buildLineageRequest,
   deriveInvestigationMap,
@@ -37,7 +43,11 @@ import {
   TimelineView,
 } from "./InvestigationResultViews";
 import { SearchComposer } from "./SearchComposer";
-import type { FocusSelection } from "./investigation-types";
+import {
+  FOCUS_TRIGGER_ATTRIBUTE,
+  type FocusHandler,
+  type FocusSelection,
+} from "./investigation-types";
 
 export function CaseExplorer({
   preparedCase,
@@ -61,16 +71,42 @@ export function CaseExplorer({
   const [threadTraceActive, setThreadTraceActive] = useState(false);
   const [focusedDetail, setFocusedDetail] = useState<SiteReadyCaseDetail | null>(null);
   const [detailState, setDetailState] = useState<"idle" | "loading" | "error">("idle");
+  const detailCache = useRef(new FocusedDetailSupplementCache());
+  const activeDetailKey = useRef<string | null>(null);
+  const activatingElement = useRef<HTMLElement | null>(null);
+  const activatingTriggerId = useRef<string | null>(null);
+  const activatingScrollY = useRef(0);
   const map = useMemo(
     () => deriveInvestigationMap(packet, timeAxis),
     [packet, timeAxis],
   );
 
-  function closeDetail() {
+  function clearDetail() {
+    activeDetailKey.current = null;
     setFocus(null);
     setThreadTraceActive(false);
     setFocusedDetail(null);
     setDetailState("idle");
+  }
+
+  function closeDetail() {
+    const trigger = activatingElement.current;
+    const triggerId = activatingTriggerId.current;
+    const scrollY = activatingScrollY.current;
+    clearDetail();
+    requestAnimationFrame(() => {
+      const fallback = triggerId
+        ? [...document.querySelectorAll<HTMLElement>(`[${FOCUS_TRIGGER_ATTRIBUTE}]`)]
+          .find((element) => element.getAttribute(FOCUS_TRIGGER_ATTRIBUTE) === triggerId)
+        : null;
+      const restoreTarget = trigger?.isConnected ? trigger : fallback;
+      if (restoreTarget) {
+        restoreTarget.focus({ preventScroll: true });
+      } else {
+        document.getElementById("case-view-panel")?.focus({ preventScroll: true });
+      }
+      window.scrollTo({ top: scrollY, left: window.scrollX, behavior: "instant" });
+    });
   }
 
   async function runAnalysis(input: {
@@ -102,7 +138,7 @@ export function CaseExplorer({
       setInvestigationStarted(true);
       setActiveView("map");
       setCoverageLens("all");
-      closeDetail();
+      clearDetail();
     } catch {
       setRouteError("The same-Site investigation route is unavailable.");
     } finally {
@@ -122,7 +158,7 @@ export function CaseExplorer({
     setTimeAxis("event_time");
     setCoverageLens("all");
     setRouteError(null);
-    closeDetail();
+    clearDetail();
     requestAnimationFrame(() => {
       document.getElementById("investigation-workspace")?.scrollIntoView({
         block: "start",
@@ -136,44 +172,53 @@ export function CaseExplorer({
     setActiveView("map");
     setCoverageLens("all");
     setRouteError(null);
-    closeDetail();
+    clearDetail();
     requestAnimationFrame(() => {
-      document.getElementById("investigation-question")?.focus();
+      document.getElementById(
+        liveEnabled ? "investigation-question" : "prepared-investigation-cta",
+      )?.focus();
     });
   }
 
-  async function openDetail(selection: FocusSelection) {
+  const openDetail: FocusHandler = (selection, trigger) => {
     if (!hasFocusedDetailKey(packet, selection.kind, selection.id)) return;
+    const key = focusedDetailKey(packet, selection.kind, selection.id);
+    const scrollY = window.scrollY;
+    activeDetailKey.current = key;
+    activatingElement.current = trigger;
+    activatingTriggerId.current = trigger.getAttribute(FOCUS_TRIGGER_ATTRIBUTE);
+    activatingScrollY.current = scrollY;
     setFocus(selection);
     setThreadTraceActive(false);
-    setFocusedDetail(null);
     const local = getSiteReadyCaseDetail(packet, selection.kind, selection.id);
-    if (packet.mode === "live") {
-      setFocusedDetail(local);
-      setDetailState(local ? "idle" : "error");
-      return;
-    }
-    setDetailState("loading");
-    try {
-      const params = new URLSearchParams({
-        focus: selection.kind,
-        id: selection.id,
-      });
+    setFocusedDetail(local);
+    setDetailState(local ? "idle" : "error");
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, left: window.scrollX, behavior: "instant" });
+    });
+
+    if (!local || !needsPreparedDetailSupplement(packet, selection.kind)) return;
+    const params = new URLSearchParams({
+      focus: selection.kind,
+      id: selection.id,
+    });
+    void detailCache.current.load(key, async () => {
       const response = await fetch(
         `/api/lineage/${encodeURIComponent(packet.case_id)}?${params.toString()}`,
       );
       if (!response.ok) throw new Error("focused detail unavailable");
-      setFocusedDetail((await response.json()) as SiteReadyCaseDetail);
-      setDetailState("idle");
-    } catch {
-      setFocusedDetail(local);
-      setDetailState(local ? "idle" : "error");
-    }
-  }
+      return (await response.json()) as SiteReadyCaseDetail;
+    }).then((supplement) => {
+      if (activeDetailKey.current !== key) return;
+      setFocusedDetail(supplement);
+    }).catch(() => {
+      // Keep the immediately available local packet detail intact.
+    });
+  };
 
   function selectView(view: ExperienceView) {
     setActiveView(view);
-    closeDetail();
+    clearDetail();
   }
 
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
@@ -392,7 +437,7 @@ export function getRunNotice(
     return {
       tone: "live",
       title: "Bounded live investigation",
-      message: "The server returned one validated candidate packet. No canonical state changed.",
+      message: "The server returned one validated review packet. Browsing it does not change the prepared record.",
     };
   }
   return {
@@ -410,7 +455,7 @@ export function LineageResult({ run }: { run: SiteReadyCasePacket }) {
       <p>
         {run.actual_source_count} sources · {run.claim_occurrences.length} occurrences · {run.relation_candidates.length} relation candidates
       </p>
-      <p>All inferred records remain candidate/review-only. Canonical mutation: none.</p>
+      <p>All inferred records remain review candidates. Browsing does not change the accepted prepared record.</p>
     </section>
   );
 }

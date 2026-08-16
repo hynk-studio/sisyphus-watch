@@ -69,7 +69,7 @@ export async function buildFallbackPacket(input: {
     warnings: [`${input.reasonCode}: ${input.reasonMessage}`],
     limitations: [
       ...preparedCase.limitations,
-      "The live attempt did not mutate or replace the prepared canonical case.",
+      "The live attempt did not change or replace the accepted prepared case.",
     ],
     canonical_mutation: "none",
     focused_detail_lookup_keys: sources.map((source) => source.source_id),

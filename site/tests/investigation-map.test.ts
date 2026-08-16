@@ -4,6 +4,7 @@ import {
   buildLineageRequest,
   deriveCoverageHighlight,
   deriveInvestigationMap,
+  deriveQuestionInspectionOrigins,
   deriveThreadTrace,
 } from "../app/lib/investigation-map";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
@@ -178,6 +179,18 @@ test("unresolved questions resolve source, claim, action, and occurrence IDs con
   assert.equal(unknownEdges.length, 1);
   assert.equal(unknownEdges[0].fromNodeId, map.topic.nodeId);
   assert.equal(unknownEdges[0].resolution, "unknown");
+  const sourceOrigins = deriveQuestionInspectionOrigins(map, "question_source_reference");
+  assert.equal(sourceOrigins[0].resolution, "source");
+  assert.equal(sourceOrigins[0].sourceNodes[0].title, packet.source_snapshot_summaries[0].title);
+  assert.equal(sourceOrigins[0].sourceNodes[0].sourceRole, "Official notice");
+  assert.equal(sourceOrigins[0].topicRootOnly, false);
+  const unknownOrigins = deriveQuestionInspectionOrigins(map, "question_unknown_reference");
+  assert.deepEqual(unknownOrigins, [{
+    relatedId: "unknown_external_identifier",
+    resolution: "unknown",
+    sourceNodes: [],
+    topicRootOnly: true,
+  }]);
   assert.equal(JSON.stringify(packet), before);
 });
 

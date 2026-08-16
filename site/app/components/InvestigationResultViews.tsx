@@ -14,7 +14,10 @@ import {
 } from "../lib/experience";
 import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
 import { DISCOVERY_LANES } from "../lib/source-profile";
-import type { FocusSelection } from "./investigation-types";
+import {
+  focusTriggerId,
+  type FocusHandler,
+} from "./investigation-types";
 
 export function TimelineView({
   packet,
@@ -25,7 +28,7 @@ export function TimelineView({
   packet: SiteReadyCasePacket;
   timeAxis: TimeAxis;
   onTimeAxisChange: (axis: TimeAxis) => void;
-  onFocus: (selection: FocusSelection) => void;
+  onFocus: FocusHandler;
 }) {
   const rows = orderTimelineRows(packet.event_timeline_rows, timeAxis);
   const availableRows = rows.filter((row) => timeValue(row, timeAxis));
@@ -97,7 +100,7 @@ function TimelineRows({
   packet: SiteReadyCasePacket;
   rows: SiteReadyCasePacket["event_timeline_rows"];
   timeAxis: TimeAxis;
-  onFocus: (selection: FocusSelection) => void;
+  onFocus: FocusHandler;
 }) {
   return (
     <ol className="temporal-list">
@@ -106,6 +109,11 @@ function TimelineRows({
           row.occurrence_ids.includes(item.occurrence_id),
         );
         const selectedTime = timeValue(row, timeAxis);
+        const selection = {
+          kind: "timeline_row" as const,
+          id: row.timeline_row_id,
+          label: `Timeline row ${index + 1}`,
+        };
         return (
           <li key={row.timeline_row_id} className="temporal-row">
             <div className="time-rail" aria-hidden="true">
@@ -124,11 +132,9 @@ function TimelineRows({
               <button
                 className="detail-button"
                 type="button"
-                onClick={() => onFocus({
-                  kind: "timeline_row",
-                  id: row.timeline_row_id,
-                  label: `Timeline row ${index + 1}`,
-                })}
+                aria-label={`View all four timestamps: ${actorLabel(occurrence?.actor ?? null)} — ${row.summary}`}
+                data-focus-trigger={focusTriggerId("timeline-row", selection)}
+                onClick={(event) => onFocus(selection, event.currentTarget)}
               >
                 View all four timestamps <span aria-hidden="true">→</span>
               </button>
@@ -145,7 +151,7 @@ export function SourcesView({
   onFocus,
 }: {
   packet: SiteReadyCasePacket;
-  onFocus: (selection: FocusSelection) => void;
+  onFocus: FocusHandler;
 }) {
   return (
     <div className="view-stack">
@@ -163,6 +169,11 @@ export function SourcesView({
         {packet.source_snapshot_summaries.map((source, index) => {
           const candidateSummary = source.web_search_grounded_candidate_summary;
           const evidence = candidateSummary ?? source.evidence_excerpt;
+          const selection = {
+            kind: "source" as const,
+            id: source.source_id,
+            label: source.title,
+          };
           return (
             <li key={source.source_id} className="source-card">
               <div className="source-index" aria-hidden="true">
@@ -197,11 +208,9 @@ export function SourcesView({
                 <button
                   className="detail-button"
                   type="button"
-                  onClick={() => onFocus({
-                    kind: "source",
-                    id: source.source_id,
-                    label: source.title,
-                  })}
+                  aria-label={`${source.source_text_captured ? "Inspect source evidence" : "View source details"}: ${source.title}`}
+                  data-focus-trigger={focusTriggerId("sources-card", selection)}
+                  onClick={(event) => onFocus(selection, event.currentTarget)}
                 >
                   {source.source_text_captured ? "Inspect source evidence" : "View source details"}
                   {" "}<span aria-hidden="true">→</span>
@@ -263,7 +272,7 @@ export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
       <div className="method-grid">
         <section className="standard-card">
           <p className="eyebrow">Separate records</p>
-          <h3>No #43 evidence-to-claim inference</h3>
+          <h3>Findings, actions, and claims stay separate</h3>
           <dl className="lane-list">
             <div><dt>Source-bound findings</dt><dd>{packet.source_bound_findings.length}</dd></div>
             <div><dt>Actor claims</dt><dd>{packet.actor_claims.length}</dd></div>
@@ -271,8 +280,9 @@ export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
             <div><dt>Standalone time candidates</dt><dd>{packet.time_candidates.length}</dd></div>
           </dl>
           <p className="card-note">
-            Only actor claims become claim occurrences. Findings and actions can
-            appear in source inspection but never create a map edge.
+            Only statements attributed to an actor become claim records. Findings
+            and actions stay attached to their sources and do not automatically
+            create claim relationships.
           </p>
         </section>
         <section className="standard-card">

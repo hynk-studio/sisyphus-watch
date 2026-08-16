@@ -26,7 +26,7 @@ export async function handleLineageRequest(
         status: "error",
         error: {
           code: "lineage_packet_validation_failed",
-          message: "The lineage packet failed validation without changing canonical state.",
+          message: "The lineage packet failed validation without changing the accepted record.",
         },
         canonical_mutation: "none",
       },

@@ -135,6 +135,16 @@ export interface InvestigationMap {
   columnCount: number;
 }
 
+export interface QuestionInspectionOrigin {
+  relatedId: string | null;
+  resolution: ResolvedQuestionReference["resolution"];
+  sourceNodes: Pick<
+    InvestigationSourceNode,
+    "sourceId" | "title" | "sourceRole"
+  >[];
+  topicRootOnly: boolean;
+}
+
 export interface MapHighlightState {
   nodeIds: string[];
   relationEdgeIds: string[];
@@ -273,6 +283,34 @@ export function deriveInvestigationMap(
     laneOrder: [...LANE_ORDER],
     columnCount: Math.max(sources.length, 1),
   };
+}
+
+export function deriveQuestionInspectionOrigins(
+  map: InvestigationMap,
+  questionId: string,
+): QuestionInspectionOrigin[] {
+  const question = map.questions.find((item) => item.questionId === questionId);
+  if (!question) return [];
+
+  return question.resolvedReferences.map((reference) => {
+    const sourceNodes = reference.targetNodeIds
+      .map((targetNodeId) => map.sources.find((source) => source.nodeId === targetNodeId))
+      .filter((source): source is InvestigationSourceNode => Boolean(source))
+      .map((source) => ({
+        sourceId: source.sourceId,
+        title: source.title,
+        sourceRole: source.sourceRole,
+      }));
+    return {
+      relatedId: reference.relatedId || null,
+      resolution: reference.resolution,
+      sourceNodes,
+      topicRootOnly:
+        reference.resolution === "unknown"
+        && reference.targetNodeIds.length === 1
+        && reference.targetNodeIds[0] === map.topic.nodeId,
+    };
+  });
 }
 
 export function deriveThreadTrace(
