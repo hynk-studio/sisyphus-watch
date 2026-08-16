@@ -662,7 +662,11 @@ function enforceCandidateSemantics(
   if (proposal.candidate_type === "action") {
     if (
       proposal.semantic_review.statement_semantics !==
-      "concrete_performed_or_announced_action"
+        "concrete_performed_or_announced_action" ||
+      proposal.semantic_review.actor_role ===
+        "recipient_target_or_beneficiary" ||
+      proposal.semantic_review.actor_specificity ===
+        "recipient_target_or_beneficiary"
     ) {
       return null;
     }

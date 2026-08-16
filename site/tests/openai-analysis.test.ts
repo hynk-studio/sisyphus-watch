@@ -769,6 +769,86 @@ test("structured semantic review separates performers, claimants, and advised po
   assert.match(String(port.calls[1].instructions), /recipient\/target\/beneficiary/);
 });
 
+test("recipient classification independently disqualifies inconsistent concrete actions", async () => {
+  const summary = [
+    "People without air conditioning should use cooling centers.",
+    "Residents were instructed to seek a cooling location.",
+    "The county opened centers.",
+  ].join(" ");
+  const port = new FakeResponsesPort([
+    discoveryResponse([source(1, summary)]),
+    {
+      output_parsed: {
+        candidates: [
+          {
+            candidate_type: "action",
+            actor: "People without air conditioning",
+            text: "Used cooling centers.",
+            supporting_summary_span:
+              "People without air conditioning should use cooling centers.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Actor role conflicts with the statement classification.",
+            semantic_review: {
+              actor_role: "recipient_target_or_beneficiary",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "Residents",
+            text: "Sought a cooling location.",
+            supporting_summary_span:
+              "Residents were instructed to seek a cooling location.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Actor specificity conflicts with the role classification.",
+            semantic_review: {
+              actor_role: "performer_or_responsible_actor",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "recipient_target_or_beneficiary",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "the county",
+            text: "Opened centers.",
+            supporting_summary_span: "The county opened centers.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "The county is not named.",
+            semantic_review: {
+              actor_role: "generic_or_ambiguous",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "generic_or_ambiguous",
+            },
+          },
+        ],
+        limitations: ["One-source extraction only."],
+      },
+      output: [],
+    },
+  ]);
+
+  const packet = await runOpenAIAnalysis({
+    question: "Which entities performed cooling-center actions?",
+    sourceLimit: 1,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(packet.candidate_counts.action, 1);
+  assert.deepEqual(
+    packet.candidates.map((candidate) => [candidate.text, candidate.actor]),
+    [["Opened centers.", null]],
+  );
+  assert.match(
+    packet.candidates[0].uncertainty,
+    /Responsible performer was not specifically identifiable/,
+  );
+});
+
 test("candidate IDs stay in a non-canonical namespace", async () => {
   const { packet } = await runWithSources(1);
   for (const candidate of packet.candidates) {
