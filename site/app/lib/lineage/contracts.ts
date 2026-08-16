@@ -5,6 +5,7 @@ import type {
   CandidateConfidence,
 } from "../analysis/contracts";
 import type { RecordStatus } from "../contracts";
+import { isExactTimestamp } from "../temporal";
 import {
   DISCOVERY_LANES,
   DISCOVERY_PROFILES,
@@ -272,7 +273,11 @@ const supportKindSchema = z.enum([
   "captured_fixture_source_evidence_excerpt",
   "model_generated_web_search_summary_span",
 ]);
-const nullableTimeSchema = z.string().min(1).nullable();
+const nullableTimeSchema = z
+  .string()
+  .min(1)
+  .refine(isExactTimestamp, "exact timestamps require YYYY-MM-DD or ISO date-time with zone")
+  .nullable();
 const searchProvenanceSchema = z.object({
   provider: z.literal("openai"),
   search_call_id: z.string().min(1),

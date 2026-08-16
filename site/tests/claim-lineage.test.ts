@@ -701,6 +701,22 @@ test("candidate relation generation leaves canonical prepared state byte-equival
   );
 });
 
+test("site-ready validation accepts exact dates and rejects coarse timestamp text", () => {
+  const exactDatePacket = structuredClone(buildPreparedSiteReadyCasePacket());
+  exactDatePacket.source_snapshot_summaries[0].published_at = "2025-07-15";
+  assert.equal(siteReadyCasePacketSchema.safeParse(exactDatePacket).success, true);
+
+  for (const coarseValue of ["July 2025", "2025-07", "2025"] as const) {
+    const coarsePacket = structuredClone(buildPreparedSiteReadyCasePacket());
+    coarsePacket.source_snapshot_summaries[0].published_at = coarseValue;
+    assert.equal(
+      siteReadyCasePacketSchema.safeParse(coarsePacket).success,
+      false,
+      `${coarseValue} must not survive as an exact timestamp`,
+    );
+  }
+});
+
 test("no-key lineage route returns the prepared fallback contract without network work", async () => {
   let liveCalls = 0;
   const response = await handleLineageRequest(

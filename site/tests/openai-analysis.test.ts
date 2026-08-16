@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -29,8 +30,15 @@ import {
   type PreparedFixtureCoverageSummary,
 } from "../app/lib/source-profile";
 import { PROVIDER_CALL_PLANNING_BOUNDS } from "../app/lib/public-live";
+import { normalizeExactTimestamp } from "../app/lib/temporal";
+import { buildSiteReadyCasePacketFromAnalysis } from "../app/lib/lineage/builder";
 
 const GENERATED_AT = "2026-08-12T10:00:00.000Z";
+const NOT_APPLICABLE_SEMANTIC_REVIEW = {
+  actor_role: "not_applicable",
+  statement_semantics: "not_applicable",
+  actor_specificity: "not_applicable",
+} as const;
 
 class FakeResponsesPort implements ResponsesPort {
   readonly calls: Record<string, unknown>[] = [];
@@ -120,6 +128,7 @@ function extractionResponse(index: number, supportingSpan?: string): ProviderRes
           time_candidate: null,
           confidence: "medium",
           uncertainty: "The Site did not retrieve the full page.",
+          semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
         },
         {
           candidate_type: "unresolved_question",
@@ -129,6 +138,7 @@ function extractionResponse(index: number, supportingSpan?: string): ProviderRes
           time_candidate: null,
           confidence: "unknown",
           uncertainty: "Requires reviewer follow-up.",
+          semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
         },
       ],
       limitations: ["One-source extraction only."],
@@ -250,6 +260,53 @@ test("public and internal source constants remain deliberately separate", () => 
   assert.equal(MAX_SOURCE_LIMIT, 8);
 });
 
+test("exact timestamp normalization rejects coarse dates without timezone drift", () => {
+  assert.equal(
+    normalizeExactTimestamp("2025-07-15"),
+    "2025-07-15T00:00:00.000Z",
+  );
+  assert.equal(
+    normalizeExactTimestamp("2025-07-15T08:30:45Z"),
+    "2025-07-15T08:30:45.000Z",
+  );
+  assert.equal(
+    normalizeExactTimestamp("2025-07-15T08:30:45+09:00"),
+    "2025-07-14T23:30:45.000Z",
+  );
+  for (const value of [
+    "July 2025",
+    "2025-07",
+    "2025",
+    "2025-07-15T08:30:45",
+    "sometime during the heat event",
+    "2025-02-30",
+  ]) {
+    assert.equal(normalizeExactTimestamp(value), null);
+  }
+
+  const moduleURL = new URL("../app/lib/temporal.ts", import.meta.url).href;
+  const script = [
+    `import { normalizeExactTimestamp } from ${JSON.stringify(moduleURL)};`,
+    `process.stdout.write(String(normalizeExactTimestamp("2025-07-15")));`,
+  ].join(" ");
+  const childEnvironment = { ...process.env };
+  delete childEnvironment.OPENAI_API_KEY;
+  const normalizedByTimezone = ["UTC", "Pacific/Honolulu", "Asia/Seoul"].map(
+    (TZ) =>
+      execFileSync(
+        process.execPath,
+        ["--import", "tsx", "--input-type=module", "-e", script],
+        { encoding: "utf8", env: { ...childEnvironment, TZ } },
+      ),
+  );
+  assert.deepEqual(normalizedByTimezone, [
+    "2025-07-15T00:00:00.000Z",
+    "2025-07-15T00:00:00.000Z",
+    "2025-07-15T00:00:00.000Z",
+  ]);
+  assert.ok(normalizedByTimezone.every((value) => !/June 30|July 1/.test(value)));
+});
+
 test("public route defaults to 3, accepts 3 and 5, and rejects 6 and 8 before provider work", async () => {
   const acceptedLimits: number[] = [];
   for (const sourceLimit of [undefined, 3, 5]) {
@@ -366,6 +423,62 @@ test("builds a compact live packet from API-provenanced partial snapshots", asyn
   );
 });
 
+test("coarse provider dates remain text while exact machine fields stay null", async () => {
+  const summary =
+    "During July 2025, cooling access changed. On 2025-07-15, the city published a dated update.";
+  const discovered = source(1, summary, { published_at: "July 2025" });
+  const port = new FakeResponsesPort([
+    discoveryResponse([discovered]),
+    {
+      output_parsed: {
+        candidates: [
+          {
+            candidate_type: "event_time_candidate",
+            actor: null,
+            text: "The access change occurred during July 2025.",
+            supporting_summary_span: "During July 2025, cooling access changed.",
+            time_candidate: "July 2025",
+            confidence: "medium",
+            uncertainty: "Only month-level timing is available.",
+            semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
+          },
+          {
+            candidate_type: "assertion_time_candidate",
+            actor: null,
+            text: "The city published a dated update on 2025-07-15.",
+            supporting_summary_span:
+              "On 2025-07-15, the city published a dated update.",
+            time_candidate: "2025-07-15",
+            confidence: "high",
+            uncertainty: "Exact calendar date appears in the bounded summary.",
+            semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
+          },
+        ],
+        limitations: ["One-source extraction only."],
+      },
+      output: [],
+    },
+  ]);
+
+  const run = await runOpenAIAnalysis({
+    question: "When did cooling-center access guidance change?",
+    sourceLimit: 1,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+  assert.equal(run.source_snapshot_summaries[0].published_at, null);
+  assert.equal(run.candidates[0].time_candidate, null);
+  assert.match(run.candidates[0].text, /July 2025/);
+  assert.match(run.candidates[0].supporting_summary_span, /July 2025/);
+  assert.equal(run.candidates[1].time_candidate, "2025-07-15T00:00:00.000Z");
+
+  const packet = buildSiteReadyCasePacketFromAnalysis(run);
+  assert.equal(packet.source_snapshot_summaries[0].published_at, null);
+  assert.equal(packet.time_candidates[0].time_candidate, null);
+  assert.equal(packet.time_candidates[1].time_candidate, "2025-07-15T00:00:00.000Z");
+  assert.doesNotMatch(JSON.stringify(packet), /2025-06-30|2025-07-01/);
+});
+
 test("maps every candidate to a direct clickable source reference", async () => {
   const { packet } = await runWithSources(2);
   const html = renderToStaticMarkup(createElement(AnalysisResult, { run: packet }));
@@ -407,6 +520,11 @@ test("preserves source-local claim and action actors without defaulting to publi
             time_candidate: null,
             confidence: "medium",
             uncertainty: "Model-generated summary support only.",
+            semantic_review: {
+              actor_role: "speaker_or_claimant",
+              statement_semantics: "claim_or_guidance",
+              actor_specificity: "specifically_identifiable",
+            },
           },
           {
             candidate_type: "actor_claim",
@@ -416,6 +534,11 @@ test("preserves source-local claim and action actors without defaulting to publi
             time_candidate: null,
             confidence: "medium",
             uncertainty: "Model-generated summary support only.",
+            semantic_review: {
+              actor_role: "speaker_or_claimant",
+              statement_semantics: "claim_or_guidance",
+              actor_specificity: "specifically_identifiable",
+            },
           },
           {
             candidate_type: "action",
@@ -425,6 +548,11 @@ test("preserves source-local claim and action actors without defaulting to publi
             time_candidate: null,
             confidence: "medium",
             uncertainty: "Model-generated summary support only.",
+            semantic_review: {
+              actor_role: "performer_or_responsible_actor",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "specifically_identifiable",
+            },
           },
           {
             candidate_type: "actor_claim",
@@ -434,6 +562,11 @@ test("preserves source-local claim and action actors without defaulting to publi
             time_candidate: null,
             confidence: "low",
             uncertainty: "The claimant is unknown.",
+            semantic_review: {
+              actor_role: "generic_or_ambiguous",
+              statement_semantics: "claim_or_guidance",
+              actor_specificity: "generic_or_ambiguous",
+            },
           },
         ],
         limitations: ["One-source extraction only."],
@@ -455,7 +588,265 @@ test("preserves source-local claim and action actors without defaulting to publi
     ["Agency Alpha", "Resident Beta", "City Transit", null],
   );
   assert.ok(packet.candidates.every((candidate) => candidate.actor !== "Publisher 1"));
-  assert.match(String(port.calls[1].instructions), /never substitute the source publisher/);
+  assert.match(String(port.calls[1].instructions), /never substitute the source publisher/i);
+});
+
+test("structured semantic review separates performers, claimants, and advised populations", async () => {
+  const summary = [
+    "New York City opened additional cooling centers.",
+    "The county opened centers.",
+    "People without effective air conditioning should use cooling centers.",
+    "CDC advises people without air conditioning to seek a cooling location.",
+    "City Transit added shuttle service.",
+    "Additional centers were opened.",
+  ].join(" ");
+  const discovered = source(1, summary, { publisher: "Regional Newswire" });
+  const port = new FakeResponsesPort([
+    discoveryResponse([discovered]),
+    {
+      output_parsed: {
+        candidates: [
+          {
+            candidate_type: "action",
+            actor: "New York City",
+            text: "Opened additional cooling centers.",
+            supporting_summary_span:
+              "New York City opened additional cooling centers.",
+            time_candidate: null,
+            confidence: "high",
+            uncertainty: "Summary-contained action.",
+            semantic_review: {
+              actor_role: "performer_or_responsible_actor",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "the county",
+            text: "Opened centers.",
+            supporting_summary_span: "The county opened centers.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "The county is not named.",
+            semantic_review: {
+              actor_role: "generic_or_ambiguous",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "generic_or_ambiguous",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "People without effective air conditioning",
+            text: "Should use cooling centers.",
+            supporting_summary_span:
+              "People without effective air conditioning should use cooling centers.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "This is advice to a population.",
+            semantic_review: {
+              actor_role: "recipient_target_or_beneficiary",
+              statement_semantics: "recommendation_or_instruction",
+              actor_specificity: "recipient_target_or_beneficiary",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "people without air conditioning",
+            text: "Seek a cooling location.",
+            supporting_summary_span:
+              "CDC advises people without air conditioning to seek a cooling location.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "The population is the advised audience.",
+            semantic_review: {
+              actor_role: "recipient_target_or_beneficiary",
+              statement_semantics: "recommendation_or_instruction",
+              actor_specificity: "recipient_target_or_beneficiary",
+            },
+          },
+          {
+            candidate_type: "actor_claim",
+            actor: "CDC",
+            text: "People without air conditioning should seek a cooling location.",
+            supporting_summary_span:
+              "CDC advises people without air conditioning to seek a cooling location.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Guidance is supported only by the bounded summary.",
+            semantic_review: {
+              actor_role: "speaker_or_claimant",
+              statement_semantics: "recommendation_or_instruction",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "City Transit",
+            text: "Added shuttle service.",
+            supporting_summary_span: "City Transit added shuttle service.",
+            time_candidate: null,
+            confidence: "high",
+            uncertainty: "Summary-contained action.",
+            semantic_review: {
+              actor_role: "performer_or_responsible_actor",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: null,
+            text: "Additional centers were opened.",
+            supporting_summary_span: "Additional centers were opened.",
+            time_candidate: null,
+            confidence: "low",
+            uncertainty: "No performer is stated.",
+            semantic_review: {
+              actor_role: "generic_or_ambiguous",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "generic_or_ambiguous",
+            },
+          },
+        ],
+        limitations: ["One-source extraction only."],
+      },
+      output: [],
+    },
+  ]);
+
+  const packet = await runOpenAIAnalysis({
+    question: "Who changed cooling-center access and who received guidance?",
+    sourceLimit: 1,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(packet.candidate_counts.action, 4);
+  assert.equal(packet.candidate_counts.actor_claim, 1);
+  assert.deepEqual(
+    packet.candidates.map((candidate) => [candidate.candidate_type, candidate.actor]),
+    [
+      ["action", "New York City"],
+      ["action", null],
+      ["actor_claim", "CDC"],
+      ["action", "City Transit"],
+      ["action", null],
+    ],
+  );
+  assert.ok(
+    packet.candidates.every(
+      (candidate) => candidate.actor !== "Regional Newswire",
+    ),
+  );
+  assert.ok(
+    packet.candidates.every(
+      (candidate) => candidate.actor !== "People without effective air conditioning",
+    ),
+  );
+  assert.ok(
+    packet.candidates.every(
+      (candidate) => candidate.actor !== "people without air conditioning",
+    ),
+  );
+  const ambiguousActions = packet.candidates.filter(
+    (candidate) => candidate.candidate_type === "action" && candidate.actor === null,
+  );
+  assert.equal(ambiguousActions.length, 2);
+  assert.ok(
+    ambiguousActions.every((candidate) =>
+      /Responsible performer was not specifically identifiable/.test(
+        candidate.uncertainty,
+      ),
+    ),
+  );
+  assert.ok(
+    packet.candidates.every((candidate) =>
+      summary.toLowerCase().includes(candidate.supporting_summary_span.toLowerCase()),
+    ),
+  );
+  assert.match(String(port.calls[1].instructions), /semantic_review/);
+  assert.match(String(port.calls[1].instructions), /recipient\/target\/beneficiary/);
+});
+
+test("recipient classification independently disqualifies inconsistent concrete actions", async () => {
+  const summary = [
+    "People without air conditioning should use cooling centers.",
+    "Residents were instructed to seek a cooling location.",
+    "The county opened centers.",
+  ].join(" ");
+  const port = new FakeResponsesPort([
+    discoveryResponse([source(1, summary)]),
+    {
+      output_parsed: {
+        candidates: [
+          {
+            candidate_type: "action",
+            actor: "People without air conditioning",
+            text: "Used cooling centers.",
+            supporting_summary_span:
+              "People without air conditioning should use cooling centers.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Actor role conflicts with the statement classification.",
+            semantic_review: {
+              actor_role: "recipient_target_or_beneficiary",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "Residents",
+            text: "Sought a cooling location.",
+            supporting_summary_span:
+              "Residents were instructed to seek a cooling location.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Actor specificity conflicts with the role classification.",
+            semantic_review: {
+              actor_role: "performer_or_responsible_actor",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "recipient_target_or_beneficiary",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "the county",
+            text: "Opened centers.",
+            supporting_summary_span: "The county opened centers.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "The county is not named.",
+            semantic_review: {
+              actor_role: "generic_or_ambiguous",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "generic_or_ambiguous",
+            },
+          },
+        ],
+        limitations: ["One-source extraction only."],
+      },
+      output: [],
+    },
+  ]);
+
+  const packet = await runOpenAIAnalysis({
+    question: "Which entities performed cooling-center actions?",
+    sourceLimit: 1,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(packet.candidate_counts.action, 1);
+  assert.deepEqual(
+    packet.candidates.map((candidate) => [candidate.text, candidate.actor]),
+    [["Opened centers.", null]],
+  );
+  assert.match(
+    packet.candidates[0].uncertainty,
+    /Responsible performer was not specifically identifiable/,
+  );
 });
 
 test("candidate IDs stay in a non-canonical namespace", async () => {
@@ -969,6 +1360,7 @@ test("reports web-search and structured-output failures explicitly", async () =>
             time_candidate: null,
             confidence: "low",
             uncertainty: "Unsupported.",
+            semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
           },
         ],
         limitations: [],
