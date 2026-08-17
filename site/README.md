@@ -27,10 +27,11 @@ route handlers, and a Site-managed D1 binding. No authentication or visitor
 identity store is added.
 
 `.openai/hosting.json` came from the supported starter and now declares the
-logical D1 binding `DB`; `r2` remains `null`. The linked project ID is unchanged,
-and the file contains no secret. The migration in `drizzle/` is packaged for a
-later owner-controlled Sites version. This repository change does not create or
-modify a hosted database or production binding.
+logical D1 binding `DB`; `r2` remains `null`. The linked project now targets the
+owner-provided D1-capable replacement Site, and the file contains no secret. The
+migration in `drizzle/` is packaged for a later owner-controlled Sites version.
+This repository change does not create or modify a hosted database or production
+binding.
 
 ## Commands
 
