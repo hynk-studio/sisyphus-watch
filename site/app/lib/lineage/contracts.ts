@@ -5,7 +5,10 @@ import type {
   CandidateConfidence,
 } from "../analysis/contracts";
 import type { RecordStatus } from "../contracts";
-import { isExactTimestamp } from "../temporal";
+import {
+  isExactTimestamp,
+  type TemporalPrecision,
+} from "../temporal";
 import {
   DISCOVERY_LANES,
   DISCOVERY_PROFILES,
@@ -57,9 +60,13 @@ export interface ClaimOccurrence {
   support_kind: SupportKind;
   support_reference: BoundedSupportReference;
   assertion_time_candidate: string | null;
+  assertion_time_candidate_precision: TemporalPrecision;
   event_time_candidate: string | null;
+  event_time_candidate_precision: TemporalPrecision;
   source_publication_time: string | null;
+  source_publication_time_precision: TemporalPrecision;
   source_retrieval_time: string;
+  source_retrieval_time_precision: "instant";
   confidence: CandidateConfidence;
   uncertainty: string;
   validation_status: "validated";
@@ -107,15 +114,20 @@ export interface SiteTimelineRow {
   occurrence_ids: string[];
   summary: string;
   event_time: string | null;
+  event_time_precision: TemporalPrecision;
   actor_assertion_time: string | null;
+  actor_assertion_time_precision: TemporalPrecision;
   publication_time: string | null;
+  publication_time_precision: TemporalPrecision;
   retrieval_time: string;
+  retrieval_time_precision: "instant";
   display_time_axis:
     | "event_time"
     | "actor_assertion_time"
     | "publication_time"
     | "retrieval_time";
   display_time: string;
+  display_time_precision: Exclude<TemporalPrecision, null>;
   time_inference: "none";
   status: RecordStatus;
 }
@@ -147,6 +159,7 @@ export interface PacketActorClaim {
   claim_text: string;
   source_ids: string[];
   assertion_time_candidate: string | null;
+  assertion_time_candidate_precision: TemporalPrecision;
   confidence: string;
   uncertainty: string;
   status: RecordStatus;
@@ -159,6 +172,7 @@ export interface PacketAction {
   action_text: string;
   source_ids: string[];
   event_time_candidate: string | null;
+  event_time_candidate_precision: TemporalPrecision;
   confidence: string;
   uncertainty: string;
   status: RecordStatus;
@@ -171,6 +185,7 @@ export interface PacketTimeCandidate {
   text: string;
   source_ids: string[];
   time_candidate: string | null;
+  time_candidate_precision: TemporalPrecision;
   confidence: string;
   uncertainty: string;
   status: "candidate";
@@ -278,6 +293,7 @@ const nullableTimeSchema = z
   .min(1)
   .refine(isExactTimestamp, "exact timestamps require YYYY-MM-DD or ISO date-time with zone")
   .nullable();
+const temporalPrecisionSchema = z.enum(["day", "instant"]).nullable();
 const searchProvenanceSchema = z.object({
   provider: z.literal("openai"),
   search_call_id: z.string().min(1),
@@ -364,9 +380,13 @@ const occurrenceSchema = z.object({
   support_kind: supportKindSchema,
   support_reference: boundedSupportSchema,
   assertion_time_candidate: nullableTimeSchema,
+  assertion_time_candidate_precision: temporalPrecisionSchema,
   event_time_candidate: nullableTimeSchema,
+  event_time_candidate_precision: temporalPrecisionSchema,
   source_publication_time: nullableTimeSchema,
+  source_publication_time_precision: temporalPrecisionSchema,
   source_retrieval_time: z.string().min(1),
+  source_retrieval_time_precision: z.literal("instant"),
   confidence: candidateConfidenceSchema,
   uncertainty: z.string().max(600),
   validation_status: z.literal("validated"),
@@ -418,6 +438,7 @@ const sourceSchema = z.object({
   domain: z.string().min(1),
   publisher: z.string().min(1),
   published_at: nullableTimeSchema,
+  published_at_precision: temporalPrecisionSchema,
   retrieved_at: z.string().min(1),
   snapshot_status: z.enum(["full", "partial", "failed"]),
   retrieval_mode: z.enum(["deterministic_fixture", "openai_web_search"]),
@@ -456,11 +477,13 @@ export const siteReadyCasePacketSchema = z.object({
   actor_claims: z.array(z.object({
     claim_id: z.string().min(1), actor: z.string().min(1).max(200).nullable(), claim_text: z.string().min(1),
     source_ids: z.array(z.string()), assertion_time_candidate: nullableTimeSchema,
+    assertion_time_candidate_precision: temporalPrecisionSchema,
     confidence: z.string(), uncertainty: z.string(), status: recordStatusSchema, origin: originSchema,
   })),
   actions: z.array(z.object({
     action_id: z.string().min(1), actor: z.string().min(1).max(200).nullable(), action_text: z.string().min(1),
     source_ids: z.array(z.string()), event_time_candidate: nullableTimeSchema,
+    event_time_candidate_precision: temporalPrecisionSchema,
     confidence: z.string(), uncertainty: z.string(), status: recordStatusSchema, origin: originSchema,
   })),
   time_candidates: z.array(z.object({
@@ -469,6 +492,7 @@ export const siteReadyCasePacketSchema = z.object({
     text: z.string().min(1),
     source_ids: z.array(z.string()),
     time_candidate: nullableTimeSchema,
+    time_candidate_precision: temporalPrecisionSchema,
     confidence: z.string(),
     uncertainty: z.string(),
     status: z.literal("candidate"),
@@ -479,10 +503,13 @@ export const siteReadyCasePacketSchema = z.object({
   relation_candidates: z.array(relationSchema).max(64),
   event_timeline_rows: z.array(z.object({
     timeline_row_id: z.string().min(1), occurrence_ids: z.array(z.string()), summary: z.string().min(1),
-    event_time: nullableTimeSchema, actor_assertion_time: nullableTimeSchema,
-    publication_time: nullableTimeSchema, retrieval_time: z.string().min(1),
+    event_time: nullableTimeSchema, event_time_precision: temporalPrecisionSchema,
+    actor_assertion_time: nullableTimeSchema, actor_assertion_time_precision: temporalPrecisionSchema,
+    publication_time: nullableTimeSchema, publication_time_precision: temporalPrecisionSchema,
+    retrieval_time: z.string().min(1), retrieval_time_precision: z.literal("instant"),
     display_time_axis: z.enum(["event_time", "actor_assertion_time", "publication_time", "retrieval_time"]),
-    display_time: z.string().min(1), time_inference: z.literal("none"), status: recordStatusSchema,
+    display_time: z.string().min(1), display_time_precision: z.enum(["day", "instant"]),
+    time_inference: z.literal("none"), status: recordStatusSchema,
   })),
   claim_lineage_rows: z.array(z.object({
     lineage_row_id: z.string().min(1), family_id: z.string().nullable(), relation_id: z.string().min(1),
@@ -515,6 +542,93 @@ export const siteReadyCasePacketSchema = z.object({
     kind: z.enum(DETAIL_KINDS), id: z.string().min(1), key: z.string().min(1),
   })),
 }).superRefine((packet, context) => {
+  packet.source_snapshot_summaries.forEach((source, index) => {
+    requireMatchingPrecision(
+      source.published_at,
+      source.published_at_precision,
+      context,
+      ["source_snapshot_summaries", index, "published_at_precision"],
+    );
+  });
+  packet.actor_claims.forEach((claim, index) => {
+    requireMatchingPrecision(
+      claim.assertion_time_candidate,
+      claim.assertion_time_candidate_precision,
+      context,
+      ["actor_claims", index, "assertion_time_candidate_precision"],
+    );
+  });
+  packet.actions.forEach((action, index) => {
+    requireMatchingPrecision(
+      action.event_time_candidate,
+      action.event_time_candidate_precision,
+      context,
+      ["actions", index, "event_time_candidate_precision"],
+    );
+  });
+  packet.time_candidates.forEach((candidate, index) => {
+    requireMatchingPrecision(
+      candidate.time_candidate,
+      candidate.time_candidate_precision,
+      context,
+      ["time_candidates", index, "time_candidate_precision"],
+    );
+  });
+  packet.claim_occurrences.forEach((occurrence, index) => {
+    requireMatchingPrecision(
+      occurrence.assertion_time_candidate,
+      occurrence.assertion_time_candidate_precision,
+      context,
+      ["claim_occurrences", index, "assertion_time_candidate_precision"],
+    );
+    requireMatchingPrecision(
+      occurrence.event_time_candidate,
+      occurrence.event_time_candidate_precision,
+      context,
+      ["claim_occurrences", index, "event_time_candidate_precision"],
+    );
+    requireMatchingPrecision(
+      occurrence.source_publication_time,
+      occurrence.source_publication_time_precision,
+      context,
+      ["claim_occurrences", index, "source_publication_time_precision"],
+    );
+  });
+  packet.event_timeline_rows.forEach((row, index) => {
+    requireMatchingPrecision(
+      row.event_time,
+      row.event_time_precision,
+      context,
+      ["event_timeline_rows", index, "event_time_precision"],
+    );
+    requireMatchingPrecision(
+      row.actor_assertion_time,
+      row.actor_assertion_time_precision,
+      context,
+      ["event_timeline_rows", index, "actor_assertion_time_precision"],
+    );
+    requireMatchingPrecision(
+      row.publication_time,
+      row.publication_time_precision,
+      context,
+      ["event_timeline_rows", index, "publication_time_precision"],
+    );
+    const selectedPrecision = row.display_time_axis === "event_time"
+      ? row.event_time_precision
+      : row.display_time_axis === "actor_assertion_time"
+        ? row.actor_assertion_time_precision
+        : row.display_time_axis === "publication_time"
+          ? row.publication_time_precision
+          : row.retrieval_time_precision;
+    if (selectedPrecision !== row.display_time_precision) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["event_timeline_rows", index, "display_time_precision"],
+        message: "display precision must match the selected time axis",
+      });
+    }
+  });
+
   if (packet.mode === "deterministic") {
     if (packet.discovery_profile !== null) {
       context.addIssue({
@@ -566,6 +680,20 @@ export const siteReadyCasePacketSchema = z.object({
     });
   }
 }) satisfies z.ZodType<SiteReadyCasePacket>;
+
+function requireMatchingPrecision(
+  value: string | null,
+  precision: TemporalPrecision,
+  context: z.RefinementCtx,
+  path: Array<string | number>,
+): void {
+  if ((value === null) === (precision === null)) return;
+  context.addIssue({
+    code: z.ZodIssueCode.custom,
+    path,
+    message: "timestamp precision must be null exactly when its value is null",
+  });
+}
 
 export function validateSiteReadyCasePacket(input: unknown): SiteReadyCasePacket {
   return siteReadyCasePacketSchema.parse(input);

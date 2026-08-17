@@ -487,7 +487,7 @@ export function getRunNotice(
     return {
       tone: "loading",
       title: "Building a bounded investigation map",
-      message: "The displayed packet stays intact until a new validated response is available.",
+      message: "The displayed packet stays intact until a new schema-checked response is available.",
     };
   }
   if (error) {
@@ -526,14 +526,14 @@ export function getRunNotice(
     return {
       tone: "partial",
       title: "Partial live investigation",
-      message: `Validated candidates are shown with warnings and remain review-only.${cooldownMessage}`,
+      message: `Bounded review candidates are shown with warnings and remain review-only.${cooldownMessage}`,
     };
   }
   if (packet.mode === "live") {
     return {
       tone: "live",
       title: "Bounded live investigation",
-      message: `The server returned one validated review packet. Browsing it does not change the prepared record.${cooldownMessage}`,
+      message: `The server returned one schema-checked review packet. Browsing it does not change the prepared record.${cooldownMessage}`,
     };
   }
   if (cooldownRemainingSeconds > 0) {

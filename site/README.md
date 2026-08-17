@@ -81,7 +81,7 @@ provider response or unbounded source text.
 
 The adapter uses the current OpenAI JavaScript SDK with:
 
-- `responses.parse(...)` and `zodTextFormat(...)` for runtime-validated
+- `responses.parse(...)` and `zodTextFormat(...)` for runtime schema-checked
   Structured Outputs;
 - the built-in `{ type: "web_search" }` tool for bounded source discovery;
 - `include: ["web_search_call.action.sources"]` plus URL-citation annotations
@@ -163,11 +163,19 @@ summary hash records only that weaker model-generated artifact.
 This implementation does not fetch pages, follow redirects, crawl links, or
 accept user-supplied fetch URLs. Each partial record is extracted independently
 with no tools before any candidate is serialized. Candidate support spans are
-validated only for containment inside that model-generated summary; they are
+checked only for containment inside that model-generated summary; they are
 not represented as source-page quotations or independently verified evidence.
 Actor-claim and action candidates carry the actor identified by the bounded
 record, or explicit `null` when the actor is unavailable or ambiguous. The
-source publisher is never substituted as claimant or action actor.
+source publisher is never substituted as claimant or action actor. A separate
+Unicode-aware lexical containment check requires a proposed actor to occur as
+a complete token sequence, but it does not independently prove grammatical
+performer or claimant role; those semantic-review fields remain model-produced.
+Actor-claim and action text with a narrow, high-confidence unfinished tail
+(currently a dangling terminal `and`/`or`, exposed terminal hyphen/slash, or
+unclosed delimiter) is skipped rather than completed or repaired. The source
+snapshot and model-generated candidate summary remain available, and the run
+records only a bounded count-based limitation without copying the rejected text.
 Every displayed live candidate includes a direct clickable URL citation or web-
 search source reference mapped to its source and snapshot IDs. Cross-source
 temporal reasoning is not performed by the analysis adapter itself.
@@ -186,7 +194,7 @@ browser-public variables or `.openai/hosting.json`.
 ## Site-ready temporal claim lineage
 
 `POST /api/lineage` reuses the existing server-only analysis boundary and
-adapts deterministic fallback and live candidate runs into the same validated
+adapts deterministic fallback and live candidate runs into the same schema-checked
 `site_ready_case_packet.v1` contract. `GET /api/lineage/:caseId` serves the
 deterministic prepared packet. Focused prepared-case detail is available at:
 
@@ -218,7 +226,10 @@ supersession require inspectable actor linkage, temporal ordering, and explicit
 fixture replacement/correction support; otherwise the engine emits a weaker
 or unresolved result. Event time, actor assertion time, publication time, and
 Sisyphus retrieval time remain separate fields, and any selected display axis
-is named explicitly.
+is named explicitly. Normalized timestamps also carry explicit `day`, `instant`,
+or `null` precision: an original `YYYY-MM-DD` renders as a date only, while a
+timezone-bearing midnight remains an exact UTC instant. Precision is never
+inferred from a normalized midnight clock value.
 
 Only `actor_claim` records become live `ClaimOccurrence` records. Findings and
 actions remain in their dedicated packet lanes, while standalone event/assertion
@@ -233,6 +244,11 @@ stage does not add another OpenAI client or make a relation-classification API
 call; `model_classified_count` is deterministically zero. The initial packet
 contains no full fixture source text or raw provider response.
 
+Same-source relation candidates remain in the packet, accessible relation list,
+and focused inspector. The current desktop/mobile spatial path omits only their
+degenerate source-to-source self-loop geometry; cross-source relation rendering
+and packet relation counts remain unchanged.
+
 ## Sites management boundary
 
 Codex CLI and the IDE can edit and test this local project, but the official
@@ -244,7 +260,7 @@ is performed or represented in this implementation.
 ## Public experience and live-mode flag
 
 The first-load experience uses the deterministic cooling-center case and the
-validated `site_ready_case_packet.v1` contract. Overview, Timeline, Claim
+schema-checked `site_ready_case_packet.v1` contract. Overview, Timeline, Claim
 lineage, Sources, and Unresolved views consume that contract without rebuilding
 relation, family, provenance, or canonical-state rules in React. Focused
 prepared-case details use the stable `/api/lineage/:caseId` detail route.

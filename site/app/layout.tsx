@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: "Sisyphus Watch",
   description:
     "Search-first, source-bound investigation maps for changing public information.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

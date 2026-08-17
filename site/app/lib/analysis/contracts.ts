@@ -8,6 +8,7 @@ import type {
   DiscoveryProfile,
   SourceSelectionMetadata,
 } from "../source-profile";
+import type { TemporalPrecision } from "../temporal";
 
 export const PUBLIC_DEFAULT_SOURCE_LIMIT = 3;
 export const PUBLIC_MAX_SOURCE_LIMIT = 5;
@@ -48,6 +49,7 @@ export interface AnalysisCandidate {
     kind: "url_citation" | "web_search_source";
   };
   time_candidate: string | null;
+  time_candidate_precision: TemporalPrecision;
   confidence: CandidateConfidence;
   uncertainty: string;
   model: string;
@@ -66,6 +68,7 @@ export interface AnalysisSourceSummary {
   domain: string;
   publisher: string;
   published_at: string | null;
+  published_at_precision: TemporalPrecision;
   retrieved_at: string;
   snapshot_status: SnapshotStatus;
   retrieval_mode: "deterministic_fixture" | "openai_web_search";

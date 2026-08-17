@@ -9,11 +9,13 @@ import {
   sourceCoverageLabel,
   sourceCoverageNote,
   sourceRoleLabel,
+  timePrecision,
   timeValue,
   type TimeAxis,
 } from "../lib/experience";
 import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
 import { DISCOVERY_LANES } from "../lib/source-profile";
+import { formatReviewTimestamp } from "../lib/temporal";
 import {
   focusTriggerId,
   type FocusHandler,
@@ -122,7 +124,9 @@ function TimelineRows({
             <article>
               <div className="row-meta">
                 <span>{TIME_AXIS_LABELS[timeAxis]}</span>
-                <time dateTime={selectedTime ?? undefined}>{formatTimestamp(selectedTime)}</time>
+                <time dateTime={selectedTime ?? undefined}>
+                  {formatReviewTimestamp(selectedTime, timePrecision(row, timeAxis))}
+                </time>
                 <span className={`record-state record-${row.status}`}>
                   {recordBoundaryLabel(row.status)}
                 </span>
@@ -195,7 +199,10 @@ export function SourcesView({
                 </h4>
                 <p className="source-publisher">{source.publisher} · {source.domain}</p>
                 <dl className="source-times">
-                  <div><dt>Publication time</dt><dd>{formatTimestamp(source.published_at)}</dd></div>
+                  <div>
+                    <dt>Publication time</dt>
+                    <dd>{formatReviewTimestamp(source.published_at, source.published_at_precision)}</dd>
+                  </div>
                 </dl>
                 <div className={`provenance-note ${candidateSummary ? "provenance-partial" : ""}`}>
                   <strong>{sourceContentLabel(source)}</strong>
@@ -322,19 +329,4 @@ function Metric({ value, label }: { value: number; label: string }) {
 
 function EmptyState({ title, message }: { title: string; message: string }) {
   return <div className="empty-state"><strong>{title}</strong><p>{message}</p></div>;
-}
-
-function formatTimestamp(value: string | null): string {
-  if (!value) return "Unavailable";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-    timeZoneName: "short",
-  }).format(date);
 }

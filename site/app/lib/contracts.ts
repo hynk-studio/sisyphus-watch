@@ -1,4 +1,5 @@
 import type { SourceSelectionMetadata } from "./source-profile";
+import type { TemporalPrecision } from "./temporal";
 
 export type RecordStatus = "candidate" | "canonical";
 
@@ -28,6 +29,7 @@ interface SourceSnapshotBase {
   actor: string;
   title: string;
   published_at: string | null;
+  published_at_precision: TemporalPrecision;
   event_time: string | null;
   event_time_candidates: string[];
   asserted_at: string | null;

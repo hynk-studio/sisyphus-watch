@@ -15,6 +15,7 @@ import {
   COVERAGE_LENS_LABELS,
   deriveCoverageHighlight,
   deriveThreadTrace,
+  spatialRelationEdges,
   type CoverageLens,
   type InvestigationMap,
   type InvestigationQuestionNode,
@@ -23,6 +24,7 @@ import {
   type MapHighlightState,
 } from "../lib/investigation-map";
 import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
+import { formatReviewTimestamp } from "../lib/temporal";
 import {
   focusTriggerId,
   type FocusHandler,
@@ -284,7 +286,9 @@ export function InvestigationMapView({
           >
             {map.sources.map((source) => (
               <div key={source.nodeId} style={{ gridColumn: source.column }}>
-                <span>{source.selectedTime ? formatDate(source.selectedTime) : "Time unavailable"}</span>
+                <span>{source.selectedTime
+                  ? formatReviewTimestamp(source.selectedTime, source.selectedTimePrecision)
+                  : "Time unavailable"}</span>
                 <small>{source.selectedTimeAxisLabel}</small>
               </div>
             ))}
@@ -373,7 +377,7 @@ export function InvestigationMapView({
       />
 
       <p className="map-boundary-note">
-        Map edges come only from validated relation candidates and their claim-lineage rows.
+        Map edges come only from candidate relation records and their claim-lineage rows.
         Findings and actions remain source detail; no evidence-to-claim edge is created.
       </p>
     </div>
@@ -409,7 +413,7 @@ function SourceMapNode({
         type="button"
         data-focus-trigger={focusTriggerId(triggerSurface, selection)}
         aria-pressed={selected}
-        aria-label={`${source.sourceRole} source node: ${source.title}. ${source.selectedTimeAxisLabel}: ${source.selectedTime ? formatDate(source.selectedTime) : "Time unavailable"}. ${selected ? "Selected" : "Not selected"}.`}
+        aria-label={`${source.sourceRole} source node: ${source.title}. ${source.selectedTimeAxisLabel}: ${source.selectedTime ? formatReviewTimestamp(source.selectedTime, source.selectedTimePrecision) : "Time unavailable"}. ${selected ? "Selected" : "Not selected"}.`}
         onClick={(event) => onFocus(selection, event.currentTarget)}
         onKeyDown={(event) => {
           const trigger = event.currentTarget;
@@ -421,7 +425,9 @@ function SourceMapNode({
         <strong>{source.title}</strong>
         <span className="map-source-publisher">{source.publisher} · {source.domain}</span>
         <span className={`map-node-time${source.timeRegion === "time_unavailable" ? " time-unavailable" : ""}`}>
-          {source.selectedTimeAxisLabel}: {source.selectedTime ? formatDate(source.selectedTime) : "Time unavailable"}
+          {source.selectedTimeAxisLabel}: {source.selectedTime
+            ? formatReviewTimestamp(source.selectedTime, source.selectedTimePrecision)
+            : "Time unavailable"}
         </span>
         <span className="preview-label">{source.previewLabel}</span>
         <span className="source-preview">{source.preview}</span>
@@ -584,7 +590,7 @@ function SpatialRelationControls({
   const geometryById = new Map(geometry.relations.map((item) => [item.edgeId, item]));
   return (
     <div className="spatial-relation-controls" aria-label="Spatial candidate relation controls">
-      {map.relationEdges.map((edge) => {
+      {spatialRelationEdges(map).map((edge) => {
         const position = geometryById.get(edge.edgeId);
         if (!position) return null;
         const from = map.sources.find((source) => source.nodeId === edge.fromNodeId);
@@ -824,7 +830,7 @@ function measureSpatialConnections(
   }
 
   const occupiedLabelBoxes: SpatialNodeBox[] = [];
-  const relations = map.relationEdges.flatMap((edge) => {
+  const relations = spatialRelationEdges(map).flatMap((edge) => {
     const from = boxes.get(edge.fromNodeId);
     const to = boxes.get(edge.toNodeId);
     if (!from || !to) return [];
@@ -1191,7 +1197,7 @@ function mobileEdgesAfterSource(
   sourceId: string,
 ): InvestigationRelationEdge[] {
   const columnById = new Map(map.sources.map((source) => [source.nodeId, source.column]));
-  return map.relationEdges.filter((edge) => {
+  return spatialRelationEdges(map).filter((edge) => {
     const fromColumn = columnById.get(edge.fromNodeId) ?? Number.MAX_SAFE_INTEGER;
     const toColumn = columnById.get(edge.toNodeId) ?? Number.MAX_SAFE_INTEGER;
     const earlierId = fromColumn <= toColumn ? edge.fromNodeId : edge.toNodeId;
@@ -1208,17 +1214,6 @@ function mapNodeLabel(map: InvestigationMap, nodeId: string): string {
   return map.sources.find((source) => source.nodeId === nodeId)?.title
     ?? map.questions.find((question) => question.nodeId === nodeId)?.question
     ?? nodeId;
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(date);
 }
 
 function activateWithKeyboard(

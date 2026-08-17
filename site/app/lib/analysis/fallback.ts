@@ -31,6 +31,7 @@ export async function buildFallbackPacket(input: {
       : "deterministic.fixture",
     publisher: source.publisher,
     published_at: source.published_at,
+    published_at_precision: source.published_at_precision,
     retrieved_at: source.retrieved_at,
     snapshot_status: source.snapshot_status,
     retrieval_mode: source.retrieval_mode,

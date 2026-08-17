@@ -8,6 +8,7 @@ import type {
   InformationProximity,
   SourceContext,
 } from "./source-profile";
+import type { TemporalPrecision } from "./temporal";
 
 export const EXPERIENCE_VIEWS = [
   "map",
@@ -161,6 +162,18 @@ export function sourceSnapshotLabel(
 
 export function timeValue(row: SiteTimelineRow, axis: TimeAxis): string | null {
   return row[axis];
+}
+
+export function timePrecision(
+  row: SiteTimelineRow,
+  axis: TimeAxis,
+): TemporalPrecision {
+  if (axis === "event_time") return row.event_time_precision;
+  if (axis === "actor_assertion_time") {
+    return row.actor_assertion_time_precision;
+  }
+  if (axis === "publication_time") return row.publication_time_precision;
+  return row.retrieval_time_precision;
 }
 
 export function orderTimelineRows(

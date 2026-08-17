@@ -8,6 +8,8 @@ import { getPreparedCase } from "../read-model";
 import {
   buildPreparedFixtureCoverageSummary,
 } from "../source-profile";
+import { boundedReviewerText } from "../reviewer-text";
+import { normalizeTimestampWithPrecision } from "../temporal";
 import {
   applyFamilyReferences,
   buildBoundedRelations,
@@ -125,6 +127,8 @@ export function buildPreparedSiteReadyCasePacket(
       claim_text: claim.claim_text,
       source_ids: claim.source_ids,
       assertion_time_candidate: claim.asserted_at,
+      assertion_time_candidate_precision:
+        normalizeTimestampWithPrecision(claim.asserted_at).precision,
       confidence: claim.record_status === "canonical" ? "high" : "medium",
       uncertainty: claim.status.replaceAll("_", " "),
       status: claim.record_status,
@@ -136,6 +140,8 @@ export function buildPreparedSiteReadyCasePacket(
       action_text: action.action_text,
       source_ids: action.source_ids,
       event_time_candidate: action.occurred_at,
+      event_time_candidate_precision:
+        normalizeTimestampWithPrecision(action.occurred_at).precision,
       confidence: "high",
       uncertainty: "Accepted only within the deterministic fixture record.",
       status: "canonical" as const,
@@ -242,6 +248,7 @@ export function buildSiteReadyCasePacketFromAnalysis(
       text: candidate.text,
       source_ids: [candidate.source_id],
       time_candidate: candidate.time_candidate,
+      time_candidate_precision: candidate.time_candidate_precision,
       confidence: candidate.confidence,
       uncertainty: candidate.uncertainty,
       status: "candidate" as const,
@@ -276,6 +283,8 @@ function preparedOccurrences(
     claim.source_ids.map((sourceId) => {
       const source = requiredSource(sourceById, sourceId);
       const originalSource = preparedCase.sources.find((item) => item.source_id === sourceId);
+      const assertionTime = normalizeTimestampWithPrecision(claim.asserted_at);
+      const eventTime = normalizeTimestampWithPrecision(originalSource?.event_time ?? null);
       return {
         occurrence_id: stableLineageId(
           "occurrence_fixture_",
@@ -303,9 +312,13 @@ function preparedOccurrences(
           proves: "captured_fixture_support" as const,
         },
         assertion_time_candidate: claim.asserted_at,
+        assertion_time_candidate_precision: assertionTime.precision,
         event_time_candidate: originalSource?.event_time ?? null,
+        event_time_candidate_precision: eventTime.precision,
         source_publication_time: source.published_at,
+        source_publication_time_precision: source.published_at_precision,
         source_retrieval_time: source.retrieved_at,
+        source_retrieval_time_precision: "instant" as const,
         confidence: claim.record_status === "canonical" ? "high" as const : "medium" as const,
         uncertainty: claim.status.replaceAll("_", " "),
         validation_status: "validated" as const,
@@ -342,15 +355,19 @@ function liveOccurrence(
       support_kind: "model_generated_web_search_summary_span",
       source_id: candidate.source_id,
       snapshot_id: candidate.snapshot_id,
-      bounded_excerpt: bounded(candidate.supporting_summary_span),
+      bounded_excerpt: candidate.supporting_summary_span,
       evidence_reference: candidate.evidence_reference,
       citation_url: candidate.source_reference.url,
       proves: "model_summary_containment_only",
     },
     assertion_time_candidate: candidate.time_candidate,
+    assertion_time_candidate_precision: candidate.time_candidate_precision,
     event_time_candidate: null,
+    event_time_candidate_precision: null,
     source_publication_time: source.published_at,
+    source_publication_time_precision: source.published_at_precision,
     source_retrieval_time: source.retrieved_at,
+    source_retrieval_time_precision: "instant",
     confidence: candidate.confidence,
     uncertainty: candidate.uncertainty,
     validation_status: "validated",
@@ -376,6 +393,7 @@ function preparedSourceToAnalysisSummary(source: SourceSnapshotSummary): Analysi
       : "deterministic.fixture",
     publisher: source.publisher,
     published_at: source.published_at,
+    published_at_precision: source.published_at_precision,
     retrieved_at: source.retrieved_at,
     snapshot_status: source.snapshot_status,
     retrieval_mode: source.retrieval_mode,
@@ -413,6 +431,7 @@ function candidateToClaim(
     claim_text: candidate.text,
     source_ids: [candidate.source_id],
     assertion_time_candidate: candidate.time_candidate,
+    assertion_time_candidate_precision: candidate.time_candidate_precision,
     confidence: candidate.confidence,
     uncertainty: candidate.uncertainty,
     status: "candidate",
@@ -429,6 +448,7 @@ function candidateToAction(
     action_text: candidate.text,
     source_ids: [candidate.source_id],
     event_time_candidate: candidate.time_candidate,
+    event_time_candidate_precision: candidate.time_candidate_precision,
     confidence: candidate.confidence,
     uncertainty: candidate.uncertainty,
     status: "candidate",
@@ -456,11 +476,17 @@ function buildTimelineRows(occurrences: ClaimOccurrence[]): SiteTimelineRow[] {
         occurrence_ids: [occurrence.occurrence_id],
         summary: occurrence.original_claim_text,
         event_time: occurrence.event_time_candidate,
+        event_time_precision: occurrence.event_time_candidate_precision,
         actor_assertion_time: occurrence.assertion_time_candidate,
+        actor_assertion_time_precision:
+          occurrence.assertion_time_candidate_precision,
         publication_time: occurrence.source_publication_time,
+        publication_time_precision: occurrence.source_publication_time_precision,
         retrieval_time: occurrence.source_retrieval_time,
+        retrieval_time_precision: occurrence.source_retrieval_time_precision,
         display_time_axis: display.axis,
         display_time: display.time,
+        display_time_precision: display.precision,
         time_inference: "none" as const,
         status: occurrence.status,
       };
@@ -499,17 +525,40 @@ function buildLineageRows(
 function selectDisplayTime(occurrence: ClaimOccurrence): {
   axis: SiteTimelineRow["display_time_axis"];
   time: string;
+  precision: SiteTimelineRow["display_time_precision"];
 } {
-  if (occurrence.event_time_candidate) {
-    return { axis: "event_time", time: occurrence.event_time_candidate };
+  if (occurrence.event_time_candidate && occurrence.event_time_candidate_precision) {
+    return {
+      axis: "event_time",
+      time: occurrence.event_time_candidate,
+      precision: occurrence.event_time_candidate_precision,
+    };
   }
-  if (occurrence.assertion_time_candidate) {
-    return { axis: "actor_assertion_time", time: occurrence.assertion_time_candidate };
+  if (
+    occurrence.assertion_time_candidate
+    && occurrence.assertion_time_candidate_precision
+  ) {
+    return {
+      axis: "actor_assertion_time",
+      time: occurrence.assertion_time_candidate,
+      precision: occurrence.assertion_time_candidate_precision,
+    };
   }
-  if (occurrence.source_publication_time) {
-    return { axis: "publication_time", time: occurrence.source_publication_time };
+  if (
+    occurrence.source_publication_time
+    && occurrence.source_publication_time_precision
+  ) {
+    return {
+      axis: "publication_time",
+      time: occurrence.source_publication_time,
+      precision: occurrence.source_publication_time_precision,
+    };
   }
-  return { axis: "retrieval_time", time: occurrence.source_retrieval_time };
+  return {
+    axis: "retrieval_time",
+    time: occurrence.source_retrieval_time,
+    precision: occurrence.source_retrieval_time_precision,
+  };
 }
 
 function buildLiveSynthesis(run: AnalysisRunPacket): string[] {
@@ -523,7 +572,7 @@ function buildLiveSynthesis(run: AnalysisRunPacket): string[] {
     .map((candidate) => `${candidate.candidate_type}: ${candidate.text}`);
   return items.length > 0
     ? items
-    : ["No validated source-local finding, actor-claim, or action candidate was available for synthesis."];
+    : ["No bounded source-local finding, actor-claim, or action candidate was available for synthesis."];
 }
 
 function canonicalBoundary(): SiteReadyCasePacket["candidate_canonical_boundary"] {
@@ -572,13 +621,10 @@ function requiredSource(
   sourceId: string,
 ): AnalysisSourceSummary {
   const source = sourceById.get(sourceId);
-  if (!source) throw new Error(`Validated candidate references missing source ${sourceId}`);
+  if (!source) throw new Error(`Schema-checked candidate references missing source ${sourceId}`);
   return source;
 }
 
 function bounded(value: string): string {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  return normalized.length <= MAX_BOUNDED_EXCERPT_LENGTH
-    ? normalized
-    : `${normalized.slice(0, MAX_BOUNDED_EXCERPT_LENGTH - 1)}…`;
+  return boundedReviewerText(value, MAX_BOUNDED_EXCERPT_LENGTH);
 }
