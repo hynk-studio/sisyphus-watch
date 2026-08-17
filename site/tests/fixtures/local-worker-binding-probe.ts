@@ -1,4 +1,5 @@
 import {
+  getServerEnvironmentValue,
   LIVE_MODE_ENVIRONMENT_FLAG,
   OPENAI_KEY_ENVIRONMENT_NAME,
 } from "../../app/lib/live-mode";
@@ -37,13 +38,22 @@ export default {
     }
     await productionResponse.arrayBuffer();
 
+    const accessorOpenAIKey = await getServerEnvironmentValue(
+      OPENAI_KEY_ENVIRONMENT_NAME,
+    );
+    const accessorLiveMode = await getServerEnvironmentValue(
+      LIVE_MODE_ENVIRONMENT_FLAG,
+    );
+
     return Response.json({
-      openai_api_key_present: isPresent(
+      openai_api_key_handler_present: isPresent(
         environment[OPENAI_KEY_ENVIRONMENT_NAME],
       ),
-      sisyphus_live_enabled_present: isPresent(
+      openai_api_key_accessor_present: isPresent(accessorOpenAIKey),
+      sisyphus_live_enabled_handler_present: isPresent(
         environment[LIVE_MODE_ENVIRONMENT_FLAG],
       ),
+      sisyphus_live_enabled_accessor_present: isPresent(accessorLiveMode),
     });
   },
 };

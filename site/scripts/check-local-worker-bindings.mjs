@@ -44,13 +44,17 @@ const child = spawn(
 try {
   const body = await waitForProbe();
   assert.deepEqual(Object.keys(body).sort(), [
-    "openai_api_key_present",
-    "sisyphus_live_enabled_present",
+    "openai_api_key_accessor_present",
+    "openai_api_key_handler_present",
+    "sisyphus_live_enabled_accessor_present",
+    "sisyphus_live_enabled_handler_present",
   ]);
-  assert.equal(body.openai_api_key_present, true);
-  assert.equal(body.sisyphus_live_enabled_present, true);
+  assert.equal(body.openai_api_key_handler_present, true);
+  assert.equal(body.openai_api_key_accessor_present, true);
+  assert.equal(body.sisyphus_live_enabled_handler_present, true);
+  assert.equal(body.sisyphus_live_enabled_accessor_present, true);
   console.log(
-    `PASS Worker binding presence openai_api_key_present=${body.openai_api_key_present} sisyphus_live_enabled_present=${body.sisyphus_live_enabled_present}`,
+    `PASS Worker binding presence openai_api_key_handler_present=${body.openai_api_key_handler_present} openai_api_key_accessor_present=${body.openai_api_key_accessor_present} sisyphus_live_enabled_handler_present=${body.sisyphus_live_enabled_handler_present} sisyphus_live_enabled_accessor_present=${body.sisyphus_live_enabled_accessor_present}`,
   );
 } finally {
   await stopChild();
