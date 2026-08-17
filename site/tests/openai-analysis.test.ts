@@ -364,6 +364,18 @@ test("reviewer-facing bounds prefer safe boundaries and remain deterministic", (
   assert.equal(unbroken, `${"x".repeat(39)}…`);
   assert.equal((unbroken.match(/…/gu) ?? []).length, 1);
 
+  const astralUnbroken = boundedReviewerText("😀".repeat(500), 40);
+  assert.equal(Array.from(astralUnbroken).length, 40);
+  assert.equal(astralUnbroken, `${"😀".repeat(39)}…`);
+  assert.equal((astralUnbroken.match(/…/gu) ?? []).length, 1);
+  assert.equal(
+    Array.from(astralUnbroken).some((codePoint) => {
+      const codeUnit = codePoint.charCodeAt(0);
+      return codePoint.length === 1 && codeUnit >= 0xd800 && codeUnit <= 0xdfff;
+    }),
+    false,
+  );
+
   assert.equal(containsLexicalTokenSequence("housing access changed", "US"), false);
   assert.equal(
     containsLexicalTokenSequence("NEW YORK—CITY opened centers", "New York City"),

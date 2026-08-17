@@ -4,22 +4,28 @@ export function normalizeReviewerWhitespace(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
 }
 
+/**
+ * Bounds reviewer-facing text by Unicode code points, including the ellipsis.
+ * This avoids emitting a lone UTF-16 surrogate when an unbroken astral token
+ * reaches the hard fallback while keeping the configured character maximum.
+ */
 export function boundedReviewerText(value: string, maximumLength: number): string {
   if (!Number.isInteger(maximumLength) || maximumLength < 1) {
     throw new RangeError("maximumLength must be a positive integer");
   }
 
   const normalized = normalizeReviewerWhitespace(value);
-  if (normalized.length <= maximumLength) return normalized;
+  const normalizedCodePoints = Array.from(normalized);
+  if (normalizedCodePoints.length <= maximumLength) return normalized;
   if (maximumLength === 1) return "…";
 
   const available = maximumLength - 1;
-  const prefix = normalized.slice(0, available);
+  const prefix = normalizedCodePoints.slice(0, available).join("");
   const boundary = preferredBoundary(prefix);
   const visible = prefix
     .slice(0, boundary)
     .replace(/[\s…]+$/gu, "");
-  return `${visible || prefix.slice(0, available)}…`;
+  return `${visible || prefix}…`;
 }
 
 export function containsLexicalTokenSequence(
