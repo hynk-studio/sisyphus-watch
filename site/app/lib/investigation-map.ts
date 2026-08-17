@@ -1,6 +1,10 @@
 import type { DiscoveryLane, DiscoveryProfile } from "./source-profile";
 import { boundedReviewerText } from "./reviewer-text";
-import type { TemporalPrecision } from "./temporal";
+import {
+  groupReviewTimestampItems,
+  type ReviewTimestampGroupPrecision,
+  type TemporalPrecision,
+} from "./temporal";
 import {
   TIME_AXIS_LABELS,
   discoveryLaneLabel,
@@ -15,6 +19,10 @@ import type {
   RelationType,
   SiteReadyCasePacket,
 } from "./lineage/contracts";
+import {
+  relationEndpointOrderingBasis,
+  type RelationEndpointOrderingBasis,
+} from "./lineage/engine";
 
 export const COVERAGE_LENSES = [
   "all",
@@ -63,6 +71,8 @@ export interface InvestigationSourceNode {
   selectedTimeAxisLabel: string;
   selectedTime: string | null;
   selectedTimePrecision: TemporalPrecision;
+  timeGroupId: string | null;
+  timeGroupPrecision: ReviewTimestampGroupPrecision | null;
   timeRegion: "dated" | "time_unavailable";
   column: number;
   preview: string;
@@ -111,6 +121,7 @@ export interface InvestigationRelationEdge {
   pairKey: string;
   parallelIndex: number;
   parallelCount: number;
+  endpointOrdering: RelationEndpointOrderingBasis;
 }
 
 export interface InvestigationQuestionEdge {
@@ -123,6 +134,15 @@ export interface InvestigationQuestionEdge {
   resolution: ResolvedQuestionReference["resolution"] | "no_reference";
 }
 
+export interface InvestigationTimeGroup {
+  groupId: string;
+  calendarDate: string;
+  precision: ReviewTimestampGroupPrecision;
+  sourceNodeIds: string[];
+  startColumn: number;
+  endColumn: number;
+}
+
 export interface InvestigationMap {
   contractVersion: "investigation_map.v1";
   packetRunId: string;
@@ -131,6 +151,7 @@ export interface InvestigationMap {
   timeSelectionRule: string;
   topic: InvestigationTopicNode;
   sources: InvestigationSourceNode[];
+  timeGroups: InvestigationTimeGroup[];
   questions: InvestigationQuestionNode[];
   relationEdges: InvestigationRelationEdge[];
   questionEdges: InvestigationQuestionEdge[];
@@ -178,26 +199,39 @@ export function deriveInvestigationMap(
       explicitSourceTimes(packet, source.source_id),
     ]),
   );
-  const sortedSources = [...packet.source_snapshot_summaries].sort((left, right) => {
-    const leftTime = firstTime(
-      sourceTimes.get(left.source_id)?.[selectedTimeAxis] ?? [],
-    )?.value;
-    const rightTime = firstTime(
-      sourceTimes.get(right.source_id)?.[selectedTimeAxis] ?? [],
-    )?.value;
-    if (leftTime && rightTime) {
-      return leftTime.localeCompare(rightTime) || left.source_id.localeCompare(right.source_id);
-    }
-    if (leftTime) return -1;
-    if (rightTime) return 1;
-    return left.source_id.localeCompare(right.source_id);
-  });
+  const selectedSourceTimes = new Map(
+    [...sourceTimes].map(([sourceId, times]) => [
+      sourceId,
+      firstTime(times[selectedTimeAxis]),
+    ]),
+  );
+  const datedSources = packet.source_snapshot_summaries.filter(
+    (source) => (selectedSourceTimes.get(source.source_id) ?? null) !== null,
+  );
+  const selectedTimeGroups = groupReviewTimestampItems(
+    datedSources,
+    (source) => selectedSourceTimes.get(source.source_id) as ExplicitTimeValue,
+    (left, right) => left.source_id.localeCompare(right.source_id),
+  );
+  const undatedSources = packet.source_snapshot_summaries
+    .filter((source) => (selectedSourceTimes.get(source.source_id) ?? null) === null)
+    .sort((left, right) => left.source_id.localeCompare(right.source_id));
+  const sortedSources = [
+    ...selectedTimeGroups.flatMap((group) => group.items),
+    ...undatedSources,
+  ];
+  const groupBySourceId = new Map(
+    selectedTimeGroups.flatMap((group) =>
+      group.items.map((source) => [source.source_id, group] as const),
+    ),
+  );
 
   const sources: InvestigationSourceNode[] = sortedSources.map((source, index) => {
     const selectedTimeValue = firstTime(
       sourceTimes.get(source.source_id)?.[selectedTimeAxis] ?? [],
     );
     const selectedTime = selectedTimeValue?.value ?? null;
+    const timeGroup = groupBySourceId.get(source.source_id) ?? null;
     const preview = sourcePreview(packet, source.source_id);
     return {
       kind: "source",
@@ -215,6 +249,10 @@ export function deriveInvestigationMap(
       selectedTimeAxisLabel: TIME_AXIS_LABELS[selectedTimeAxis],
       selectedTime,
       selectedTimePrecision: selectedTimeValue?.precision ?? null,
+      timeGroupId: timeGroup
+        ? `time_group:${selectedTimeAxis}:${timeGroup.calendarDate}`
+        : null,
+      timeGroupPrecision: timeGroup?.precision ?? null,
       timeRegion: selectedTime ? "dated" : "time_unavailable",
       column: index + 1,
       preview: preview.text,
@@ -231,6 +269,20 @@ export function deriveInvestigationMap(
       actionCount: packet.actions.filter((action) =>
         action.source_ids.includes(source.source_id),
       ).length,
+    };
+  });
+
+  let nextTimeGroupColumn = 1;
+  const timeGroups: InvestigationTimeGroup[] = selectedTimeGroups.map((group) => {
+    const startColumn = nextTimeGroupColumn;
+    nextTimeGroupColumn += group.items.length;
+    return {
+      groupId: `time_group:${selectedTimeAxis}:${group.calendarDate}`,
+      calendarDate: group.calendarDate,
+      precision: group.precision,
+      sourceNodeIds: group.items.map((source) => source.source_id),
+      startColumn,
+      endColumn: nextTimeGroupColumn - 1,
     };
   });
 
@@ -281,7 +333,7 @@ export function deriveInvestigationMap(
     selectedTimeAxis,
     selectedTimeAxisLabel: TIME_AXIS_LABELS[selectedTimeAxis],
     timeSelectionRule:
-      `Sources are ordered by the earliest explicit ${TIME_AXIS_LABELS[selectedTimeAxis].toLowerCase()} value attached to that source. Missing values are not substituted.`,
+      `Calendar dates are ordered by explicit ${TIME_AXIS_LABELS[selectedTimeAxis].toLowerCase()} values. Within a mixed-precision same-day group, exact instants retain clock order and day-level records have no implied within-day position. Missing values are not substituted.`,
     topic: {
       kind: "topic",
       nodeId: topicNodeId,
@@ -291,6 +343,7 @@ export function deriveInvestigationMap(
       status: packet.status,
     },
     sources,
+    timeGroups,
     questions,
     relationEdges,
     questionEdges,
@@ -519,6 +572,12 @@ function deriveRelationEdges(packet: SiteReadyCasePacket): InvestigationRelation
     pairCounts.set(pairKey, (pairCounts.get(pairKey) ?? 0) + 1);
   }
   const pairIndexes = new Map<string, number>();
+  const occurrenceById = new Map(
+    packet.claim_occurrences.map((occurrence) => [
+      occurrence.occurrence_id,
+      occurrence,
+    ]),
+  );
   return [...packet.relation_candidates]
     .sort((left, right) =>
       left.left_source_id.localeCompare(right.left_source_id) ||
@@ -529,6 +588,8 @@ function deriveRelationEdges(packet: SiteReadyCasePacket): InvestigationRelation
       const pairKey = stablePairKey(relation.left_source_id, relation.right_source_id);
       const parallelIndex = pairIndexes.get(pairKey) ?? 0;
       pairIndexes.set(pairKey, parallelIndex + 1);
+      const leftOccurrence = occurrenceById.get(relation.left_occurrence_id);
+      const rightOccurrence = occurrenceById.get(relation.right_occurrence_id);
       return {
         kind: "relation" as const,
         edgeId: relation.relation_id,
@@ -549,6 +610,9 @@ function deriveRelationEdges(packet: SiteReadyCasePacket): InvestigationRelation
         pairKey,
         parallelIndex,
         parallelCount: pairCounts.get(pairKey) ?? 1,
+        endpointOrdering: leftOccurrence && rightOccurrence
+          ? relationEndpointOrderingBasis(leftOccurrence, rightOccurrence)
+          : "record_order",
       };
     });
 }
@@ -644,7 +708,18 @@ export function spatialRelationEdges(
 }
 
 function firstTime(values: ExplicitTimeValue[]): ExplicitTimeValue | null {
-  return values[0] ?? null;
+  if (values.length === 0) return null;
+  const earliestCalendarDate = values
+    .map((value) => value.value.slice(0, 10))
+    .sort()[0];
+  const sameDateValues = values.filter(
+    (value) => value.value.slice(0, 10) === earliestCalendarDate,
+  );
+  return sameDateValues.find((value) => value.precision === "day")
+    ?? sameDateValues
+      .filter((value) => value.precision === "instant")
+      .sort((left, right) => left.value.localeCompare(right.value))[0]
+    ?? null;
 }
 
 function boundedPreview(value: string): string {
@@ -674,10 +749,12 @@ function uniqueTimes(
     if (!value) continue;
     byIdentity.set(`${value.value}:${value.precision}`, value);
   }
-  return [...byIdentity.values()].sort((left, right) =>
-    left.value.localeCompare(right.value)
-    || left.precision.localeCompare(right.precision),
-  );
+  const uniqueValues = [...byIdentity.values()];
+  return groupReviewTimestampItems(
+    uniqueValues,
+    (value) => value,
+    (left, right) => left.precision.localeCompare(right.precision),
+  ).flatMap((group) => group.items);
 }
 
 function unique<T>(values: T[]): T[] {

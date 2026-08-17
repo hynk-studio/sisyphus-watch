@@ -33,7 +33,7 @@ test("renders a truthful prepared-first shell when live discovery is disabled", 
   assert.match(html, /<title>Sisyphus Watch \| Build an investigation map<\/title>/i);
   assert.match(html, /Explore how public information changes/);
   assert.match(html, /Explore the prepared investigation/);
-  assert.match(html, /Arbitrary topic investigations are not enabled/);
+  assert.match(html, /Public live investigations are unavailable right now/);
   assert.match(html, /does not start external source discovery or an OpenAI provider request/i);
   assert.doesNotMatch(html, /<textarea/);
   assert.doesNotMatch(html, /Build investigation map/);

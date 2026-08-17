@@ -71,7 +71,7 @@ test("live-disabled landing makes the prepared investigation the primary usable 
   assert.match(html, /Explore how public information changes/);
   assert.match(html, /class="prepared-primary-button"/);
   assert.match(html, /Explore the prepared investigation/);
-  assert.match(html, /Arbitrary topic investigations are not enabled in this release/);
+  assert.match(html, /Public live investigations are unavailable right now/);
   assert.match(html, /available working path/);
   assert.match(html, /How live investigations work/);
   assert.doesNotMatch(html, /<textarea/);
@@ -274,17 +274,21 @@ test("prepared focused detail is immediate and same-key source supplements are c
   assert.equal(failedRequestCount, 1);
 });
 
-test("timeline, source cards, and focused detail preserve day versus exact-midnight display", () => {
+test("timeline, map, and detail expose mixed day/instant groups without losing exact order", () => {
   const packet = structuredClone(buildPreparedSiteReadyCasePacket());
   const normalizedMidnight = "2025-07-15T00:00:00.000Z";
   packet.source_snapshot_summaries[0].published_at = normalizedMidnight;
   packet.source_snapshot_summaries[0].published_at_precision = "day";
   packet.source_snapshot_summaries[1].published_at = normalizedMidnight;
   packet.source_snapshot_summaries[1].published_at_precision = "instant";
+  packet.source_snapshot_summaries[2].published_at = "2025-07-15T08:00:00.000Z";
+  packet.source_snapshot_summaries[2].published_at_precision = "instant";
   packet.event_timeline_rows[0].publication_time = normalizedMidnight;
   packet.event_timeline_rows[0].publication_time_precision = "day";
   packet.event_timeline_rows[1].publication_time = normalizedMidnight;
   packet.event_timeline_rows[1].publication_time_precision = "instant";
+  packet.event_timeline_rows[2].publication_time = "2025-07-15T08:00:00.000Z";
+  packet.event_timeline_rows[2].publication_time_precision = "instant";
 
   const timeline = renderToStaticMarkup(createElement(TimelineView, {
     packet,
@@ -294,6 +298,10 @@ test("timeline, source cards, and focused detail preserve day versus exact-midni
   }));
   assert.match(timeline, /Jul 15, 2025/);
   assert.match(timeline, /Jul 15, 2025[^<]*00:00 UTC/);
+  assert.match(timeline, /Same-day mixed precision group/);
+  assert.match(timeline, /Exact instants · clock order/);
+  assert.match(timeline, /Day-level records · no within-day position/);
+  assert.ok(timeline.indexOf("00:00 UTC") < timeline.indexOf("08:00 UTC"));
 
   const sources = renderToStaticMarkup(createElement(SourcesView, {
     packet,
@@ -315,7 +323,45 @@ test("timeline, source cards, and focused detail preserve day versus exact-midni
     }));
     assert.match(detail, expected);
   }
-  assert.doesNotMatch(`${timeline}${sources}`, /Jul 14|Jul 16/);
+  const relation = packet.relation_candidates[0];
+  const leftOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === relation.left_occurrence_id,
+  );
+  const rightOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === relation.right_occurrence_id,
+  );
+  assert.ok(leftOccurrence);
+  assert.ok(rightOccurrence);
+  leftOccurrence.event_time_candidate = normalizedMidnight;
+  leftOccurrence.event_time_candidate_precision = "day";
+  rightOccurrence.event_time_candidate = "2025-07-15T08:00:00.000Z";
+  rightOccurrence.event_time_candidate_precision = "instant";
+  const map = deriveInvestigationMap(packet, "publication_time");
+  const mapHtml = renderToStaticMarkup(createElement(InvestigationMapView, {
+    packet,
+    map,
+    timeAxis: "publication_time",
+    coverageLens: "all",
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    threadTraceActive: false,
+    liveEnabled: false,
+    runBlocked: false,
+    runStatusLabel: null,
+    onTimeAxisChange: noop,
+    onCoverageLensChange: noop,
+    onFocus: noop,
+    onTraceThread: noop,
+    onShowFullMap: noop,
+    onExpandCoverage: noop,
+  }));
+  assert.match(mapHtml, /day-level positions are not chronological/);
+  assert.match(mapHtml, /endpoint order is not chronological/);
+  assert.match(
+    mapHtml,
+    /data-endpoint-ordering="non_chronological_mixed_precision"/,
+  );
+  assert.doesNotMatch(`${timeline}${sources}${mapHtml}`, /Jul 14/);
 });
 
 test("inspector uses responsive desktop-nonmodal and mobile-modal semantics with Escape and stable trigger identity", () => {
@@ -522,7 +568,7 @@ test("map is the primary result model with four top-level views and visible ques
     "Method",
   ]);
   assert.match(html, /Structured investigation map/);
-  assert.match(html, /Time moves left to right/);
+  assert.match(html, /Calendar dates move left to right/);
   assert.match(html, /Topic root/);
   assert.match(html, /spatial-map-stage/);
   assert.match(html, /spatial-connection-layer/);

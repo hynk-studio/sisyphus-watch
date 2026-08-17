@@ -8,7 +8,11 @@ import type {
   InformationProximity,
   SourceContext,
 } from "./source-profile";
-import type { TemporalPrecision } from "./temporal";
+import {
+  groupReviewTimestampItems,
+  type ReviewTimestampGroup,
+  type TemporalPrecision,
+} from "./temporal";
 
 export const EXPERIENCE_VIEWS = [
   "map",
@@ -180,14 +184,32 @@ export function orderTimelineRows(
   rows: SiteTimelineRow[],
   axis: TimeAxis,
 ): SiteTimelineRow[] {
-  return [...rows].sort((left, right) => {
-    const leftValue = timeValue(left, axis);
-    const rightValue = timeValue(right, axis);
-    if (!leftValue && !rightValue) return left.timeline_row_id.localeCompare(right.timeline_row_id);
-    if (!leftValue) return 1;
-    if (!rightValue) return -1;
-    return leftValue.localeCompare(rightValue);
-  });
+  const unavailable = rows
+    .filter((row) => !timeValue(row, axis))
+    .sort((left, right) =>
+      left.timeline_row_id.localeCompare(right.timeline_row_id),
+    );
+  return [
+    ...groupTimelineRowsByPrecision(rows, axis).flatMap((group) => group.items),
+    ...unavailable,
+  ];
+}
+
+export function groupTimelineRowsByPrecision(
+  rows: SiteTimelineRow[],
+  axis: TimeAxis,
+): ReviewTimestampGroup<SiteTimelineRow>[] {
+  const available = rows.filter(
+    (row) => timeValue(row, axis) && timePrecision(row, axis),
+  );
+  return groupReviewTimestampItems(
+    available,
+    (row) => ({
+      value: timeValue(row, axis) as string,
+      precision: timePrecision(row, axis) as Exclude<TemporalPrecision, null>,
+    }),
+    (left, right) => left.timeline_row_id.localeCompare(right.timeline_row_id),
+  );
 }
 
 export function relatedRecordLabel(

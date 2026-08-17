@@ -44,17 +44,35 @@ const child = spawn(
 try {
   const body = await waitForProbe();
   assert.deepEqual(Object.keys(body).sort(), [
+    "admission_aggregate_only_schema",
+    "admission_atomic_concurrent_ceiling",
+    "admission_daily_budget",
+    "admission_db_accessor_present",
+    "admission_db_handler_present",
+    "admission_double_settlement_noop",
+    "admission_hourly_budget",
+    "admission_ready",
+    "admission_stale_lease_reconciled",
     "openai_api_key_accessor_present",
     "openai_api_key_handler_present",
     "sisyphus_live_enabled_accessor_present",
     "sisyphus_live_enabled_handler_present",
   ]);
+  assert.equal(body.admission_db_handler_present, true);
+  assert.equal(body.admission_db_accessor_present, true);
+  assert.equal(body.admission_ready, true);
+  assert.equal(body.admission_atomic_concurrent_ceiling, true);
+  assert.equal(body.admission_double_settlement_noop, true);
+  assert.equal(body.admission_hourly_budget, true);
+  assert.equal(body.admission_daily_budget, true);
+  assert.equal(body.admission_stale_lease_reconciled, true);
+  assert.equal(body.admission_aggregate_only_schema, true);
   assert.equal(body.openai_api_key_handler_present, true);
   assert.equal(body.openai_api_key_accessor_present, true);
   assert.equal(body.sisyphus_live_enabled_handler_present, true);
   assert.equal(body.sisyphus_live_enabled_accessor_present, true);
   console.log(
-    `PASS Worker binding presence openai_api_key_handler_present=${body.openai_api_key_handler_present} openai_api_key_accessor_present=${body.openai_api_key_accessor_present} sisyphus_live_enabled_handler_present=${body.sisyphus_live_enabled_handler_present} sisyphus_live_enabled_accessor_present=${body.sisyphus_live_enabled_accessor_present}`,
+    `PASS Worker binding presence admission_db_handler_present=${body.admission_db_handler_present} admission_db_accessor_present=${body.admission_db_accessor_present} admission_ready=${body.admission_ready} admission_atomic_concurrent_ceiling=${body.admission_atomic_concurrent_ceiling} admission_hourly_budget=${body.admission_hourly_budget} admission_daily_budget=${body.admission_daily_budget} admission_stale_lease_reconciled=${body.admission_stale_lease_reconciled} admission_double_settlement_noop=${body.admission_double_settlement_noop} admission_aggregate_only_schema=${body.admission_aggregate_only_schema} openai_api_key_handler_present=${body.openai_api_key_handler_present} openai_api_key_accessor_present=${body.openai_api_key_accessor_present} sisyphus_live_enabled_handler_present=${body.sisyphus_live_enabled_handler_present} sisyphus_live_enabled_accessor_present=${body.sisyphus_live_enabled_accessor_present}`,
   );
 } finally {
   await stopChild();

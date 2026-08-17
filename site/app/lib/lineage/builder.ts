@@ -9,7 +9,10 @@ import {
   buildPreparedFixtureCoverageSummary,
 } from "../source-profile";
 import { boundedReviewerText } from "../reviewer-text";
-import { normalizeTimestampWithPrecision } from "../temporal";
+import {
+  groupReviewTimestampItems,
+  normalizeTimestampWithPrecision,
+} from "../temporal";
 import {
   applyFamilyReferences,
   buildBoundedRelations,
@@ -468,8 +471,7 @@ function candidateToQuestion(candidate: AnalysisCandidate): PacketUnresolvedQues
 }
 
 function buildTimelineRows(occurrences: ClaimOccurrence[]): SiteTimelineRow[] {
-  return occurrences
-    .map((occurrence) => {
+  const rows = occurrences.map((occurrence) => {
       const display = selectDisplayTime(occurrence);
       return {
         timeline_row_id: stableLineageId("timeline_row_", occurrence.occurrence_id),
@@ -490,11 +492,15 @@ function buildTimelineRows(occurrences: ClaimOccurrence[]): SiteTimelineRow[] {
         time_inference: "none" as const,
         status: occurrence.status,
       };
-    })
-    .sort((left, right) =>
-      left.display_time.localeCompare(right.display_time) ||
-      left.timeline_row_id.localeCompare(right.timeline_row_id),
-    );
+    });
+  return groupReviewTimestampItems(
+    rows,
+    (row) => ({
+      value: row.display_time,
+      precision: row.display_time_precision,
+    }),
+    (left, right) => left.timeline_row_id.localeCompare(right.timeline_row_id),
+  ).flatMap((group) => group.items);
 }
 
 function buildLineageRows(

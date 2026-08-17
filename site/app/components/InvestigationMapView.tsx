@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -168,8 +169,9 @@ export function InvestigationMapView({
           <p className="eyebrow">Structured investigation map</p>
           <h3>Follow sources, candidate changes, and open questions</h3>
           <p>
-            Time moves left to right. Source-role lanes stay fixed. Selection and
-            coverage lenses only change emphasis.
+            Calendar dates move left to right. Within a same-day mixed-precision
+            group, exact instants keep clock order and day-level records have no
+            implied within-day position. Source-role lanes stay fixed.
           </p>
         </div>
         <label className="axis-control" htmlFor="map-time-axis">
@@ -280,6 +282,30 @@ export function InvestigationMapView({
           </article>
 
           <div
+            className="map-time-group-strip"
+            style={{ "--map-columns": map.columnCount } as CSSProperties}
+            aria-label={`${map.selectedTimeAxisLabel} date and precision groups`}
+          >
+            {map.timeGroups.map((group) => (
+              <div
+                className={group.precision === "mixed" ? "is-mixed" : ""}
+                key={group.groupId}
+                style={{ gridColumn: `${group.startColumn} / ${group.endColumn + 1}` }}
+              >
+                <strong>{formatReviewTimestamp(
+                  `${group.calendarDate}T00:00:00.000Z`,
+                  "day",
+                )}</strong>
+                <small>{group.precision === "mixed"
+                  ? "Same-day mixed precision · day-level positions are not chronological"
+                  : group.precision === "day"
+                    ? "Day precision"
+                    : "Exact instants"}</small>
+              </div>
+            ))}
+          </div>
+
+          <div
             className="map-time-scale"
             style={{ "--map-columns": map.columnCount } as CSSProperties}
             aria-label={`${map.selectedTimeAxisLabel} ordering`}
@@ -289,7 +315,11 @@ export function InvestigationMapView({
                 <span>{source.selectedTime
                   ? formatReviewTimestamp(source.selectedTime, source.selectedTimePrecision)
                   : "Time unavailable"}</span>
-                <small>{source.selectedTimeAxisLabel}</small>
+                <small>{source.timeGroupPrecision === "mixed"
+                  ? source.selectedTimePrecision === "day"
+                    ? `${source.selectedTimeAxisLabel} · day level, no within-day position`
+                    : `${source.selectedTimeAxisLabel} · exact instant in mixed group`
+                  : source.selectedTimeAxisLabel}</small>
               </div>
             ))}
           </div>
@@ -429,6 +459,13 @@ function SourceMapNode({
             ? formatReviewTimestamp(source.selectedTime, source.selectedTimePrecision)
             : "Time unavailable"}
         </span>
+        {source.timeGroupPrecision === "mixed" ? (
+          <span className="mixed-time-node-note">
+            {source.selectedTimePrecision === "day"
+              ? "Same-day mixed precision · no within-day position"
+              : "Same-day mixed precision · exact clock position retained"}
+          </span>
+        ) : null}
         <span className="preview-label">{source.previewLabel}</span>
         <span className="source-preview">{source.preview}</span>
         <span className="node-counts">
@@ -565,7 +602,10 @@ function SpatialConnectionLayer({
             data-relation-id={edge.relationId}
             data-left-source-id={edge.leftSourceId}
             data-right-source-id={edge.rightSourceId}
-            markerEnd="url(#candidate-relation-arrow)"
+            markerEnd={edge.endpointOrdering === "non_chronological_mixed_precision"
+              ? undefined
+              : "url(#candidate-relation-arrow)"}
+            data-endpoint-ordering={edge.endpointOrdering}
             vectorEffect="non-scaling-stroke"
           />
         );
@@ -607,13 +647,14 @@ function SpatialRelationControls({
             className={`${selected ? "is-selected " : ""}${relationIsDimmed(edge.edgeId) ? "is-dimmed" : ""}`}
             type="button"
             aria-pressed={selected}
-            aria-label={`${edge.label} from ${from?.title ?? edge.leftSourceId} to ${to?.title ?? edge.rightSourceId}. Needs review. Inspect support from both sides.`}
+            aria-label={relationControlLabel(edge, from?.title, to?.title)}
             data-focus-trigger={focusTriggerId("spatial-relation", selection)}
             data-relation-id={edge.relationId}
             data-left-occurrence-id={edge.leftOccurrenceId}
             data-right-occurrence-id={edge.rightOccurrenceId}
             data-left-source-id={edge.leftSourceId}
             data-right-source-id={edge.rightSourceId}
+            data-endpoint-ordering={edge.endpointOrdering}
             style={{ left: position.label.x, top: position.label.y }}
             onClick={(event) => onFocus(selection, event.currentTarget)}
             onKeyDown={(event) => {
@@ -626,6 +667,9 @@ function SpatialRelationControls({
               Needs review
               {edge.parallelCount > 1
                 ? ` · ${edge.parallelIndex + 1} of ${edge.parallelCount}`
+                : ""}
+              {edge.endpointOrdering === "non_chronological_mixed_precision"
+                ? " · endpoint order is not chronological"
                 : ""}
             </small>
           </button>
@@ -677,7 +721,8 @@ function RelationLedger({
                   <button
                     type="button"
                     aria-pressed={selected}
-                    aria-label={`${edge.label} from ${from?.title ?? edge.leftSourceId} to ${to?.title ?? edge.rightSourceId}. Needs review. Inspect support from both sides.`}
+                    aria-label={relationControlLabel(edge, from?.title, to?.title)}
+                    data-endpoint-ordering={edge.endpointOrdering}
                     data-focus-trigger={focusTriggerId("relation-list", selection)}
                     onClick={(event) => onFocus(selection, event.currentTarget)}
                     onKeyDown={(event) => {
@@ -690,6 +735,9 @@ function RelationLedger({
                       Needs review
                       {edge.parallelCount > 1
                         ? ` · relation ${edge.parallelIndex + 1} of ${edge.parallelCount} for this source pair`
+                        : ""}
+                      {edge.endpointOrdering === "non_chronological_mixed_precision"
+                        ? " · same-day mixed precision; endpoint order is not chronological"
                         : ""}
                     </small>
                     <strong>Inspect support from both sides</strong>
@@ -729,7 +777,7 @@ function MobileInvestigationPath({
     <section className="mobile-investigation-path" aria-labelledby="mobile-path-title">
       <div className="lane-heading">
         <h4 id="mobile-path-title">Investigation path</h4>
-        <span>{map.selectedTimeAxisLabel} · top to bottom</span>
+        <span>{map.selectedTimeAxisLabel} · date groups top to bottom</span>
       </div>
       <article className="mobile-topic-node">
         <span>Topic root</span>
@@ -738,16 +786,32 @@ function MobileInvestigationPath({
       <ol>
         {map.sources.map((source) => {
           const outgoing = mobileEdgesAfterSource(map, source.nodeId);
+          const timeGroup = map.timeGroups.find((group) =>
+            group.sourceNodeIds.includes(source.nodeId),
+          );
+          const startsGroup = timeGroup?.sourceNodeIds[0] === source.nodeId;
           return (
-            <li key={source.nodeId}>
-              <SourceMapNode
-                source={source}
-                selected={selectedNodeId === source.nodeId}
-                dimmed={nodeIsDimmed(source.nodeId)}
-                triggerSurface="mobile-map"
-                onFocus={onFocus}
-              />
-              {outgoing.map((edge) => {
+            <Fragment key={source.nodeId}>
+              {startsGroup && timeGroup ? (
+                <li className={`mobile-time-group${timeGroup.precision === "mixed" ? " is-mixed" : ""}`}>
+                  <strong>{formatReviewTimestamp(
+                    `${timeGroup.calendarDate}T00:00:00.000Z`,
+                    "day",
+                  )}</strong>
+                  <small>{timeGroup.precision === "mixed"
+                    ? "Same-day mixed precision · day-level records have no within-day position"
+                    : timeGroup.precision === "day" ? "Day precision" : "Exact instants"}</small>
+                </li>
+              ) : null}
+              <li>
+                <SourceMapNode
+                  source={source}
+                  selected={selectedNodeId === source.nodeId}
+                  dimmed={nodeIsDimmed(source.nodeId)}
+                  triggerSurface="mobile-map"
+                  onFocus={onFocus}
+                />
+                {outgoing.map((edge) => {
                 const otherId = edge.fromNodeId === source.nodeId
                   ? edge.toNodeId
                   : edge.fromNodeId;
@@ -763,7 +827,9 @@ function MobileInvestigationPath({
                     className={`mobile-relation-label${selectedEdgeId === edge.edgeId ? " is-selected" : ""}${relationIsDimmed(edge.edgeId) ? " is-dimmed" : ""}`}
                     type="button"
                     aria-pressed={selectedEdgeId === edge.edgeId}
-                    aria-label={`${edge.label} from ${source.title} to ${other?.title ?? otherId}. Needs review. Inspect support from both sides.`}
+                    aria-label={edge.endpointOrdering === "non_chronological_mixed_precision"
+                      ? `${edge.label} between ${source.title} and ${other?.title ?? otherId}. Same-day mixed precision; endpoint order is not chronological. Needs review. Inspect support from both sides.`
+                      : `${edge.label} from ${source.title} to ${other?.title ?? otherId}. Needs review. Inspect support from both sides.`}
                     data-focus-trigger={focusTriggerId("mobile-relation", selection)}
                     onClick={(event) => onFocus(selection, event.currentTarget)}
                     onKeyDown={(event) => {
@@ -772,12 +838,15 @@ function MobileInvestigationPath({
                     }}
                   >
                     <span>{edge.label}</span>
-                    <small>To {other?.title ?? otherId} · Needs review</small>
+                    <small>{edge.endpointOrdering === "non_chronological_mixed_precision"
+                      ? `Connected with ${other?.title ?? otherId} · endpoint order is not chronological`
+                      : `To ${other?.title ?? otherId} · Needs review`}</small>
                     <strong>Inspect support from both sides</strong>
                   </button>
                 );
-              })}
-            </li>
+                })}
+              </li>
+            </Fragment>
           );
         })}
       </ol>
@@ -1214,6 +1283,18 @@ function mapNodeLabel(map: InvestigationMap, nodeId: string): string {
   return map.sources.find((source) => source.nodeId === nodeId)?.title
     ?? map.questions.find((question) => question.nodeId === nodeId)?.question
     ?? nodeId;
+}
+
+function relationControlLabel(
+  edge: InvestigationRelationEdge,
+  fromTitle: string | undefined,
+  toTitle: string | undefined,
+): string {
+  const from = fromTitle ?? edge.leftSourceId;
+  const to = toTitle ?? edge.rightSourceId;
+  return edge.endpointOrdering === "non_chronological_mixed_precision"
+    ? `${edge.label} between ${from} and ${to}. Same-day mixed precision; endpoint order is not chronological. Needs review. Inspect support from both sides.`
+    : `${edge.label} from ${from} to ${to}. Needs review. Inspect support from both sides.`;
 }
 
 function activateWithKeyboard(

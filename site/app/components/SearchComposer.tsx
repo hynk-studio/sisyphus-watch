@@ -74,12 +74,18 @@ export function SearchComposer({
             Source inclusion is not endorsement or truth verification. A live map
             can take time because several bounded discovery and source-local
             extraction operations may be required. The 20-second timeout applies
-            to each provider request, not necessarily the whole workflow.
+            to each provider request, and the whole investigation has a
+            110-second deadline.
           </p>
           <p>
             The 30-second in-memory cooldown reduces accidental repeats in this
             page session. It is a usability guard, not strong abuse prevention,
             and resets naturally in a new page session.
+          </p>
+          <p>
+            Server-side aggregate capacity limits bound concurrent, hourly, and
+            daily work. They do not store visitor identity and therefore do not
+            guarantee fairness between signed-out visitors.
           </p>
         </details>
         <div className="composer-options">
@@ -161,7 +167,7 @@ export function SearchComposer({
               ? "The displayed investigation stays intact until one schema-checked response is available."
               : cooldownRemainingSeconds > 0
                 ? "The prepared investigation and New investigation remain usable during this accidental-repeat guard."
-                : "Results can be live, partial, or a clearly labeled prepared fallback. Every inferred record remains review-only."}
+                : "Results can be live, partial, or a clearly labeled prepared fallback. A capacity denial leaves the displayed investigation intact; the prepared example remains a separate choice. Every inferred record remains review-only."}
           </span>
         </div>
         {routeError ? <p className="form-error" role="alert">{routeError}</p> : null}
@@ -183,7 +189,7 @@ export function SearchComposer({
             Explore the prepared investigation
           </button>
           <div className="availability-note" role="status">
-            <strong>Arbitrary topic investigations are not enabled in this release.</strong>
+            <strong>Public live investigations are unavailable right now.</strong>
             <span>
               The prepared investigation is the available working path and does
               not start external source discovery or an OpenAI provider request.
@@ -194,7 +200,8 @@ export function SearchComposer({
             <p>
               When enabled, the live workflow accepts a public-interest question,
               a Standard review or Expand source coverage approach, and a bounded
-              source limit before building a review-only map.
+              source limit only when the server-side admission boundary has
+              available aggregate capacity.
             </p>
           </details>
         </div>

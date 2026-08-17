@@ -318,6 +318,66 @@ test("each selected time axis is explicit and missing values enter Time unavaila
   assert.ok(retrievalMap.sources.every((source) => source.selectedTimeAxisLabel === "Sisyphus retrieval time"));
 });
 
+test("map groups mixed precision, preserves exact order, and marks relation endpoints non-chronological", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const [daySource, laterSource, earlierSource, nextDaySource] =
+    packet.source_snapshot_summaries;
+  daySource.published_at = "2025-07-15T00:00:00.000Z";
+  daySource.published_at_precision = "day";
+  laterSource.published_at = "2025-07-15T09:00:00.000Z";
+  laterSource.published_at_precision = "instant";
+  earlierSource.published_at = "2025-07-15T08:00:00.000Z";
+  earlierSource.published_at_precision = "instant";
+  nextDaySource.published_at = "2025-07-16T00:00:00.000Z";
+  nextDaySource.published_at_precision = "instant";
+
+  const relation = packet.relation_candidates[0];
+  const leftOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === relation.left_occurrence_id,
+  );
+  const rightOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === relation.right_occurrence_id,
+  );
+  assert.ok(leftOccurrence);
+  assert.ok(rightOccurrence);
+  leftOccurrence.event_time_candidate = "2025-07-15T00:00:00.000Z";
+  leftOccurrence.event_time_candidate_precision = "day";
+  rightOccurrence.event_time_candidate = "2025-07-15T08:00:00.000Z";
+  rightOccurrence.event_time_candidate_precision = "instant";
+
+  const map = deriveInvestigationMap(packet, "publication_time");
+  assert.deepEqual(
+    map.sources.map((source) => source.sourceId),
+    [
+      earlierSource.source_id,
+      laterSource.source_id,
+      daySource.source_id,
+      nextDaySource.source_id,
+    ],
+  );
+  assert.deepEqual(map.timeGroups[0], {
+    groupId: "time_group:publication_time:2025-07-15",
+    calendarDate: "2025-07-15",
+    precision: "mixed",
+    sourceNodeIds: [
+      earlierSource.source_id,
+      laterSource.source_id,
+      daySource.source_id,
+    ],
+    startColumn: 1,
+    endColumn: 3,
+  });
+  assert.equal(map.sources.find((source) =>
+    source.sourceId === daySource.source_id
+  )?.timeGroupPrecision, "mixed");
+  assert.match(map.timeSelectionRule, /day-level records have no implied within-day position/);
+  assert.equal(
+    map.relationEdges.find((edge) => edge.relationId === relation.relation_id)
+      ?.endpointOrdering,
+    "non_chronological_mixed_precision",
+  );
+});
+
 test("the vertical list model contains the visual map's material source, relation, and question information", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const map = deriveInvestigationMap(packet, "publication_time");

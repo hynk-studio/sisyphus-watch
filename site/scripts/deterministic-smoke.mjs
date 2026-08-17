@@ -24,7 +24,7 @@ async function readCases() {
   return response.json();
 }
 
-async function requestNoKeyAnalysis(runtimeEnv, expectedStatus) {
+async function requestDisabledPublicAnalysis(runtimeEnv, expectedStatus) {
   const response = await worker.fetch(
     new Request("http://localhost/api/analysis", {
       method: "POST",
@@ -74,37 +74,27 @@ try {
   assert.equal(first.cases[0].network_used, false);
   assert.equal(JSON.stringify(first).includes('"source_text":'), false);
 
-  const disabledAnalysis = await requestNoKeyAnalysis(env, 503);
+  const disabledAnalysis = await requestDisabledPublicAnalysis(env, 404);
   const disabledLineage = await requestNoKeyLineage(env, 503);
-  assert.equal(disabledAnalysis.error.code, "live_analysis_disabled");
+  assert.equal(disabledAnalysis.error.code, "public_analysis_route_disabled");
   assert.equal(disabledLineage.error.code, "live_analysis_disabled");
   assert.equal(disabledAnalysis.canonical_mutation, "none");
   assert.equal(disabledLineage.canonical_mutation, "none");
   assert.equal(outboundRequests, 0);
 
   process.env.SISYPHUS_LIVE_ENABLED = "true";
-  const fallback = await requestNoKeyAnalysis(env, 200);
-  assert.equal(fallback.mode, "fallback");
-  assert.equal(fallback.status, "fallback");
-  assert.equal(fallback.requested_source_limit, 3);
-  assert.equal(fallback.canonical_mutation, "none");
-  assert.deepEqual(fallback.candidate_ids, []);
-  assert.match(fallback.warnings[0], /^missing_api_key:/);
-  assert.equal(JSON.stringify(fallback).includes('"source_text":'), false);
-  assert.equal(outboundRequests, 0);
-
-  const lineage = await requestNoKeyLineage(env, 200);
-  assert.equal(lineage.contract_version, "site_ready_case_packet.v1");
-  assert.equal(lineage.mode, "fallback");
-  assert.equal(lineage.status, "fallback");
-  assert.ok(lineage.claim_occurrences.length >= 3);
-  assert.ok(lineage.relation_candidates.length >= 3);
-  assert.equal(lineage.bounded_work_summary.model_classified_count, 0);
-  assert.equal(lineage.candidate_canonical_boundary.canonical_mutation, "none");
-  assert.equal(JSON.stringify(lineage).includes('"source_text":'), false);
+  const unavailableLineage = await requestNoKeyLineage(env, 503);
+  assert.equal(unavailableLineage.status, "error");
+  assert.equal(unavailableLineage.mode, "unavailable");
+  assert.equal(
+    unavailableLineage.error.code,
+    "service_admission_unavailable",
+  );
+  assert.equal(unavailableLineage.canonical_mutation, "none");
+  assert.equal(JSON.stringify(unavailableLineage).includes('"source_text":'), false);
   assert.equal(outboundRequests, 0);
   console.log(
-    `PASS deterministic case=${first.cases[0].case_id} disabled_status=${disabledAnalysis.status} analysis_status=${fallback.status} lineage_status=${lineage.status} relations=${lineage.relation_candidates.length} sources=${first.cases[0].sources.length} outbound_requests=${outboundRequests}`,
+    `PASS deterministic case=${first.cases[0].case_id} public_analysis_status=${disabledAnalysis.status} disabled_lineage_status=${disabledLineage.status} unavailable_lineage_status=${unavailableLineage.status} sources=${first.cases[0].sources.length} outbound_requests=${outboundRequests}`,
   );
 } finally {
   if (originalLiveFlag === undefined) delete process.env.SISYPHUS_LIVE_ENABLED;

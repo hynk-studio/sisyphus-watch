@@ -13,11 +13,13 @@ export class RequestValidationError extends Error {
   }
 }
 
-export function parseAnalysisRequest(value: unknown): {
+export interface NormalizedAnalysisRequest {
   question: string;
   sourceLimit: number;
   discoveryProfile: "standard" | "coverage_expansion";
-} {
+}
+
+export function parseAnalysisRequest(value: unknown): NormalizedAnalysisRequest {
   const request = PublicAnalysisRequestSchema.safeParse(value);
   if (!request.success) {
     const sourceLimitIssue = request.error.issues.some(

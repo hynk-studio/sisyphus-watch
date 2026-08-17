@@ -18,6 +18,11 @@ import {
   COVERAGE_EXPANSION_DISCOVERY_INSTRUCTIONS,
   DISCOVERY_INSTRUCTIONS,
   EXTRACTION_INSTRUCTIONS,
+  OPENAI_DISCOVERY_MAX_OUTPUT_TOKENS,
+  OPENAI_DISCOVERY_MAX_TOOL_CALLS,
+  OPENAI_EXTRACTION_CONCURRENCY,
+  OPENAI_EXTRACTION_MAX_OUTPUT_TOKENS,
+  OPENAI_REQUEST_TIMEOUT_MS,
   normalizePublicSourceURL,
   runOpenAIAnalysis,
   type ProviderResponse,
@@ -52,14 +57,19 @@ const NOT_APPLICABLE_SEMANTIC_REVIEW = {
 
 class FakeResponsesPort implements ResponsesPort {
   readonly calls: Record<string, unknown>[] = [];
+  readonly options: Array<{ signal?: AbortSignal; timeout?: number } | undefined> = [];
   readonly queue: Array<ProviderResponse | Error | Record<string, unknown>>;
 
   constructor(queue: Array<ProviderResponse | Error | Record<string, unknown>>) {
     this.queue = [...queue];
   }
 
-  async parse(body: Record<string, unknown>): Promise<ProviderResponse> {
+  async parse(
+    body: Record<string, unknown>,
+    options?: { signal?: AbortSignal; timeout?: number },
+  ): Promise<ProviderResponse> {
     this.calls.push(body);
+    this.options.push(options);
     const next = this.queue.shift();
     if (!next) throw new Error("unexpected fake provider call");
     if (next instanceof Error || "throwMarker" in next) throw next;
@@ -473,6 +483,17 @@ test("builds a compact live packet from API-provenanced partial snapshots", asyn
   assert.equal(packet.candidate_counts.finding, 2);
   assert.equal(packet.candidate_counts.unresolved_question, 2);
   assert.equal(port.calls.length, 3);
+  assert.equal(port.calls[0].max_tool_calls, OPENAI_DISCOVERY_MAX_TOOL_CALLS);
+  assert.equal(port.calls[0].max_output_tokens, OPENAI_DISCOVERY_MAX_OUTPUT_TOKENS);
+  for (const call of port.calls.slice(1)) {
+    assert.equal(call.max_tool_calls, undefined);
+    assert.equal(call.max_output_tokens, OPENAI_EXTRACTION_MAX_OUTPUT_TOKENS);
+  }
+  for (const options of port.options) {
+    assert.ok(options?.signal instanceof AbortSignal);
+    assert.ok((options?.timeout ?? 0) > 0);
+    assert.ok((options?.timeout ?? Infinity) <= OPENAI_REQUEST_TIMEOUT_MS);
+  }
 
   for (const item of packet.source_snapshot_summaries) {
     assert.equal(item.snapshot_status, "partial");
@@ -499,6 +520,89 @@ test("builds a compact live packet from API-provenanced partial snapshots", asyn
     serialized,
     /"source_text":|output_parsed|raw_response_id/,
   );
+});
+
+test("source-local extraction uses the configured deterministic concurrency pool", async () => {
+  const sources = Array.from({ length: 5 }, (_, index) => source(index + 1));
+  let callCount = 0;
+  let activeExtractions = 0;
+  let maxActiveExtractions = 0;
+  const port: ResponsesPort = {
+    async parse(body): Promise<ProviderResponse> {
+      callCount += 1;
+      if (callCount === 1) return discoveryResponse(sources);
+      activeExtractions += 1;
+      maxActiveExtractions = Math.max(maxActiveExtractions, activeExtractions);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        const record = JSON.parse(String(body.input)) as {
+          source_id: string;
+          web_search_grounded_candidate_summary: string;
+        };
+        return {
+          output_parsed: {
+            candidates: [{
+              candidate_type: "finding",
+              actor: null,
+              text: `Bounded finding for ${record.source_id}.`,
+              supporting_summary_span:
+                record.web_search_grounded_candidate_summary,
+              time_candidate: null,
+              confidence: "medium",
+              uncertainty: "One-source extraction only.",
+              semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
+            }],
+            limitations: [],
+          },
+          output: [],
+        };
+      } finally {
+        activeExtractions -= 1;
+      }
+    },
+  };
+
+  const packet = await runOpenAIAnalysis({
+    question: "How is public access changing for residents?",
+    sourceLimit: 5,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+  assert.equal(packet.actual_source_count, 5);
+  assert.equal(callCount, 6);
+  assert.equal(maxActiveExtractions, OPENAI_EXTRACTION_CONCURRENCY);
+  assert.ok(maxActiveExtractions <= OPENAI_EXTRACTION_CONCURRENCY);
+});
+
+test("the whole-workflow deadline aborts provider work without an automatic retry", async () => {
+  let calls = 0;
+  const port: ResponsesPort = {
+    async parse(_body, options): Promise<ProviderResponse> {
+      calls += 1;
+      return new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => {
+          const error = new Error("test-only abort detail");
+          error.name = "APIUserAbortError";
+          reject(error);
+        }, { once: true });
+      });
+    },
+  };
+
+  await assert.rejects(
+    runOpenAIAnalysis({
+      question: "How is public access changing for residents?",
+      sourceLimit: 1,
+      generatedAt: GENERATED_AT,
+      responses: port,
+      workflowDeadlineMs: 50,
+      workflowMinimumStartBudgetMs: 10,
+    }),
+    (error) =>
+      error instanceof AnalysisFailure
+      && error.code === "workflow_deadline_exceeded",
+  );
+  assert.equal(calls, 1);
 });
 
 test("coarse provider dates remain text while exact machine fields stay null", async () => {
@@ -1576,6 +1680,84 @@ test("allows one source extraction failure while others succeed", async () => {
   assert.match(packet.warnings.join(" "), /source_extraction_failed/);
 });
 
+test("an exact spend-limit extraction failure is terminal rather than partial live output", async () => {
+  const sources = [source(1), source(2)];
+  const port = new FakeResponsesPort([
+    discoveryResponse(sources),
+    extractionResponse(1),
+    {
+      status: 429,
+      error: { code: "project_spend_limit_exceeded" },
+      throwMarker: true,
+    },
+  ]);
+  await assert.rejects(
+    runOpenAIAnalysis({
+      question: "How is public access changing for residents?",
+      sourceLimit: 2,
+      generatedAt: GENERATED_AT,
+      responses: port,
+    }),
+    (error) =>
+      error instanceof AnalysisFailure
+      && error.code === "service_spend_limit_reached",
+  );
+});
+
+test("a first-wave spend limit stops later extraction work and preserves the spend cause", async () => {
+  const sources = Array.from({ length: 5 }, (_, index) => source(index + 1));
+  const extractionStarts: string[] = [];
+  const extractionSignals: AbortSignal[] = [];
+  let releaseFirstWave: (() => void) | null = null;
+  const firstWaveStarted = new Promise<void>((resolve) => {
+    releaseFirstWave = resolve;
+  });
+  let calls = 0;
+  const port: ResponsesPort = {
+    async parse(body, options): Promise<ProviderResponse> {
+      calls += 1;
+      if (calls === 1) return discoveryResponse(sources);
+      const record = JSON.parse(String(body.input)) as { source_id: string };
+      extractionStarts.push(record.source_id);
+      const isFirstExtraction = extractionStarts.length === 1;
+      if (options?.signal) extractionSignals.push(options.signal);
+      if (extractionStarts.length === OPENAI_EXTRACTION_CONCURRENCY) {
+        releaseFirstWave?.();
+      }
+      if (isFirstExtraction) {
+        await firstWaveStarted;
+        throw {
+          status: 429,
+          error: { code: "project_spend_limit_exceeded" },
+        };
+      }
+      return new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => {
+          const error = new Error("test-only peer abort");
+          error.name = "APIUserAbortError";
+          reject(error);
+        }, { once: true });
+      });
+    },
+  };
+
+  await assert.rejects(
+    runOpenAIAnalysis({
+      question: "How is public access changing for residents?",
+      sourceLimit: 5,
+      generatedAt: GENERATED_AT,
+      responses: port,
+    }),
+    (error) =>
+      error instanceof AnalysisFailure
+      && error.code === "service_spend_limit_reached",
+  );
+  assert.equal(extractionStarts.length, OPENAI_EXTRACTION_CONCURRENCY);
+  assert.equal(new Set(extractionStarts).size, OPENAI_EXTRACTION_CONCURRENCY);
+  assert.equal(calls, 1 + OPENAI_EXTRACTION_CONCURRENCY);
+  assert.ok(extractionSignals.every((signal) => signal.aborted));
+});
+
 test("rejects empty, unprovenanced, and private source candidates", async () => {
   const emptyPort = new FakeResponsesPort([{ output_parsed: { sources: [] }, output: [] }]);
   await assert.rejects(
@@ -1696,6 +1878,17 @@ test("classifies authentication, timeout, rate, and search failures without raw 
   assert.equal(classifyProviderError({ name: "APIConnectionTimeoutError" }).code, "api_timeout");
   assert.equal(classifyProviderError({ code: "web_search_failed" }).code, "web_search_failed");
   assert.equal(classifyProviderError({ code: "insufficient_quota" }).code, "provider_failure");
+  for (const code of [
+    "credit_balance_exhausted",
+    "organization_spend_limit_exceeded",
+    "project_spend_limit_exceeded",
+    "organization_usage_limit_exceeded",
+  ]) {
+    assert.equal(
+      classifyProviderError({ status: 429, error: { code } }).code,
+      "service_spend_limit_reached",
+    );
+  }
 });
 
 test("missing key and known provider failures return deterministic fallback packets", async () => {

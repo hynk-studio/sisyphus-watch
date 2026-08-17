@@ -5,6 +5,11 @@ import type {
   RelationCandidate,
   RelationType,
 } from "./contracts";
+import {
+  compareReviewTimestamps,
+  isMixedPrecisionSameCalendarDay,
+  type ReviewTimestampValue,
+} from "../temporal";
 
 export const MAX_RELATION_PAIR_WORKLOAD = 64;
 export const MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR = 2;
@@ -56,6 +61,11 @@ interface RankedPair {
   right: ClaimOccurrence;
   signals: PairSignals;
 }
+
+export type RelationEndpointOrderingBasis =
+  | "time_ordered"
+  | "non_chronological_mixed_precision"
+  | "record_order";
 
 export function normalizeClaimText(value: string): string {
   return value
@@ -268,7 +278,11 @@ function inspectPair(
       (rule.left_claim_id === right.claim_id && rule.right_claim_id === left.claim_id),
   ) ?? null;
   const sharedActor = sameKnownActor(left.actor, right.actor);
-  const nearbyDates = datesWithinDays(pairTime(left), pairTime(right), 45);
+  const nearbyDates = datesWithinDays(
+    pairTime(left)?.value ?? null,
+    pairTime(right)?.value ?? null,
+    45,
+  );
   const compatibleClaimTypes = left.claim_kind === right.claim_kind ||
     left.claim_kind === "prepared_actor_claim" ||
     right.claim_kind === "prepared_actor_claim";
@@ -316,7 +330,8 @@ function inspectPair(
 function classifyPair(pair: RankedPair): RelationCandidate {
   const { left, right, signals } = pair;
   const rule = signals.explicit_fixture_rule;
-  const ordered = orderByTime(left, right);
+  const endpointOrder = orderByTime(left, right);
+  const ordered = endpointOrder.occurrences;
   let relationType: RelationType = "unresolved";
   let reason =
     "Deterministic signals make this pair reviewable, but they are insufficient to adjudicate truth or a stronger temporal relation.";
@@ -335,6 +350,9 @@ function classifyPair(pair: RankedPair): RelationCandidate {
     reason =
       "These sources were selected for bounded comparison around a coverage gap, and the claims share a normalized topic token. The bounded hint admission makes the pair reviewable but does not imply corroboration, contradiction, correction, supersession, truth, or falsity.";
     confidenceScore = Math.min(0.35, 0.2 + signals.token_overlap * 0.2);
+  }
+  if (endpointOrder.basis === "non_chronological_mixed_precision") {
+    reason = `${reason} The same-day day/instant endpoints use stable record order only; their left/right placement is not chronological.`;
   }
 
   return {
@@ -373,7 +391,13 @@ function enforceConservativeReplacementRule(
     return rule.relation_type;
   }
   const linkedActor = sameKnownActor(left.actor, right.actor);
-  const ordered = Boolean(pairTime(left) && pairTime(right) && pairTime(left) !== pairTime(right));
+  const leftTime = pairTime(left);
+  const rightTime = pairTime(right);
+  const ordered = Boolean(
+    leftTime
+    && rightTime
+    && compareReviewTimestamps(leftTime, rightTime) !== 0,
+  );
   const inspectableBasis =
     rule.evidence_basis === "explicit_replacement_language" ||
     rule.evidence_basis === "deterministic_fixture";
@@ -401,10 +425,32 @@ function tokenSet(value: string): Set<string> {
   );
 }
 
-function pairTime(occurrence: ClaimOccurrence): string | null {
-  return occurrence.event_time_candidate ??
-    occurrence.assertion_time_candidate ??
-    occurrence.source_publication_time;
+function pairTime(occurrence: ClaimOccurrence): ReviewTimestampValue | null {
+  if (occurrence.event_time_candidate && occurrence.event_time_candidate_precision) {
+    return {
+      value: occurrence.event_time_candidate,
+      precision: occurrence.event_time_candidate_precision,
+    };
+  }
+  if (
+    occurrence.assertion_time_candidate
+    && occurrence.assertion_time_candidate_precision
+  ) {
+    return {
+      value: occurrence.assertion_time_candidate,
+      precision: occurrence.assertion_time_candidate_precision,
+    };
+  }
+  if (
+    occurrence.source_publication_time
+    && occurrence.source_publication_time_precision
+  ) {
+    return {
+      value: occurrence.source_publication_time,
+      precision: occurrence.source_publication_time_precision,
+    };
+  }
+  return null;
 }
 
 function datesWithinDays(left: string | null, right: string | null, days: number): boolean {
@@ -415,16 +461,50 @@ function datesWithinDays(left: string | null, right: string | null, days: number
   return Math.abs(leftTime - rightTime) <= days * 86_400_000;
 }
 
+export function relationEndpointOrderingBasis(
+  left: ClaimOccurrence,
+  right: ClaimOccurrence,
+): RelationEndpointOrderingBasis {
+  const leftTime = pairTime(left) ?? {
+    value: left.source_retrieval_time,
+    precision: left.source_retrieval_time_precision,
+  };
+  const rightTime = pairTime(right) ?? {
+    value: right.source_retrieval_time,
+    precision: right.source_retrieval_time_precision,
+  };
+  if (isMixedPrecisionSameCalendarDay(leftTime, rightTime)) {
+    return "non_chronological_mixed_precision";
+  }
+  return compareReviewTimestamps(leftTime, rightTime) === 0
+    ? "record_order"
+    : "time_ordered";
+}
+
 function orderByTime(
   left: ClaimOccurrence,
   right: ClaimOccurrence,
-): [ClaimOccurrence, ClaimOccurrence] {
-  const leftTime = pairTime(left) ?? left.source_retrieval_time;
-  const rightTime = pairTime(right) ?? right.source_retrieval_time;
-  return leftTime < rightTime ||
-    (leftTime === rightTime && left.occurrence_id < right.occurrence_id)
-    ? [left, right]
-    : [right, left];
+): {
+  occurrences: [ClaimOccurrence, ClaimOccurrence];
+  basis: RelationEndpointOrderingBasis;
+} {
+  const leftTime = pairTime(left) ?? {
+    value: left.source_retrieval_time,
+    precision: left.source_retrieval_time_precision,
+  };
+  const rightTime = pairTime(right) ?? {
+    value: right.source_retrieval_time,
+    precision: right.source_retrieval_time_precision,
+  };
+  const comparison = compareReviewTimestamps(leftTime, rightTime);
+  const occurrences = comparison < 0
+    || (comparison === 0 && left.occurrence_id < right.occurrence_id)
+    ? [left, right] as [ClaimOccurrence, ClaimOccurrence]
+    : [right, left] as [ClaimOccurrence, ClaimOccurrence];
+  return {
+    occurrences,
+    basis: relationEndpointOrderingBasis(left, right),
+  };
 }
 
 function pairKey(pair: RankedPair): string {
