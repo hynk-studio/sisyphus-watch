@@ -24,7 +24,10 @@ import {
   focusedDetailKey,
   needsPreparedDetailSupplement,
 } from "../app/lib/focused-detail";
-import { deriveInvestigationMap } from "../app/lib/investigation-map";
+import {
+  deriveInvestigationMap,
+  spatialRelationEdges,
+} from "../app/lib/investigation-map";
 import {
   isLiveAnalysisEnabled,
   liveAnalysisDisabledResponse,
@@ -45,8 +48,17 @@ import {
   PublicLiveRunGuard,
   publicRerunSourceLimit,
 } from "../app/lib/public-live";
+import { buildSameSourceRelationFixture } from "./fixtures/map-density";
 
 const noop = () => undefined;
+
+test("Site metadata declares a repository-contained icon", () => {
+  const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const icon = readFileSync(new URL("../app/icon.svg", import.meta.url), "utf8");
+  assert.match(layout, /icons:\s*\{[\s\S]*?icon:\s*"\/icon\.svg"/);
+  assert.match(icon, /^<svg[\s\S]*viewBox="0 0 32 32"/);
+  assert.doesNotMatch(icon, /(?:href|src)=["']https?:\/\//);
+});
 
 test("live-disabled landing makes the prepared investigation the primary usable action without false editable affordances", () => {
   const packet = buildPreparedSiteReadyCasePacket();
@@ -96,6 +108,7 @@ test("live composer exposes the existing bounded request controls without claimi
   assert.doesNotMatch(html, /8 sources/);
   assert.match(html, /Bounded live discovery is available/);
   assert.match(html, /live, partial, or a clearly labeled prepared fallback/);
+  assert.doesNotMatch(html, /\bvalidated\b/i);
   assert.doesNotMatch(html, /disabled=""/);
   assert.ok(html.indexOf("Build investigation map") < html.indexOf("Try the cooling-center example"));
 });
@@ -259,6 +272,50 @@ test("prepared focused detail is immediate and same-key source supplements are c
   await assert.rejects(failureCache.load(key, failedLoader));
   await assert.rejects(failureCache.load(key, failedLoader));
   assert.equal(failedRequestCount, 1);
+});
+
+test("timeline, source cards, and focused detail preserve day versus exact-midnight display", () => {
+  const packet = structuredClone(buildPreparedSiteReadyCasePacket());
+  const normalizedMidnight = "2025-07-15T00:00:00.000Z";
+  packet.source_snapshot_summaries[0].published_at = normalizedMidnight;
+  packet.source_snapshot_summaries[0].published_at_precision = "day";
+  packet.source_snapshot_summaries[1].published_at = normalizedMidnight;
+  packet.source_snapshot_summaries[1].published_at_precision = "instant";
+  packet.event_timeline_rows[0].publication_time = normalizedMidnight;
+  packet.event_timeline_rows[0].publication_time_precision = "day";
+  packet.event_timeline_rows[1].publication_time = normalizedMidnight;
+  packet.event_timeline_rows[1].publication_time_precision = "instant";
+
+  const timeline = renderToStaticMarkup(createElement(TimelineView, {
+    packet,
+    timeAxis: "publication_time",
+    onTimeAxisChange: noop,
+    onFocus: noop,
+  }));
+  assert.match(timeline, /Jul 15, 2025/);
+  assert.match(timeline, /Jul 15, 2025[^<]*00:00 UTC/);
+
+  const sources = renderToStaticMarkup(createElement(SourcesView, {
+    packet,
+    onFocus: noop,
+  }));
+  assert.match(sources, /Publication time<\/dt><dd>Jul 15, 2025<\/dd>/);
+  assert.match(sources, /Publication time<\/dt><dd>Jul 15, 2025[^<]*00:00 UTC<\/dd>/);
+
+  for (const [index, expected] of [[0, /Publication time<\/strong><p>Jul 15, 2025<\/p>/], [1, /Publication time<\/strong><p>Jul 15, 2025[^<]*00:00 UTC<\/p>/]] as const) {
+    const source = packet.source_snapshot_summaries[index];
+    const payload = getSiteReadyCaseDetail(packet, "source", source.source_id);
+    assert.ok(payload);
+    const detail = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+      packet,
+      selection: { kind: "source", id: source.source_id, label: source.title },
+      payload,
+      state: "idle",
+      onClose: noop,
+    }));
+    assert.match(detail, expected);
+  }
+  assert.doesNotMatch(`${timeline}${sources}`, /Jul 14|Jul 16/);
 });
 
 test("inspector uses responsive desktop-nonmodal and mobile-modal semantics with Escape and stable trigger identity", () => {
@@ -486,6 +543,58 @@ test("map is the primary result model with four top-level views and visible ques
   for (const question of packet.unresolved_questions) {
     assert.match(html, new RegExp(escapeRegex(question.question)));
   }
+});
+
+test("same-source relations stay in the accessible ledger and inspector but not spatial paths", () => {
+  const packet = buildSameSourceRelationFixture();
+  const relationId = "relation_candidate_fixture_same_source_review";
+  const map = deriveInvestigationMap(packet, "publication_time");
+  const html = renderToStaticMarkup(createElement(InvestigationMapView, {
+    packet,
+    map,
+    timeAxis: "publication_time",
+    coverageLens: "all",
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    threadTraceActive: false,
+    liveEnabled: false,
+    runBlocked: false,
+    runStatusLabel: null,
+    onTimeAxisChange: noop,
+    onCoverageLensChange: noop,
+    onFocus: noop,
+    onTraceThread: noop,
+    onShowFullMap: noop,
+    onExpandCoverage: noop,
+  }));
+
+  assert.match(html, new RegExp(`${map.relationEdges.length} candidate relations`));
+  assert.match(html, new RegExp(`relation-list:relation:${relationId}`));
+  assert.doesNotMatch(html, new RegExp(`spatial-relation:relation:${relationId}`));
+  assert.doesNotMatch(html, new RegExp(`mobile-relation:relation:${relationId}`));
+  const crossSourceRelationId = packet.relation_candidates.find(
+    (relation) => relation.left_source_id !== relation.right_source_id,
+  )?.relation_id;
+  assert.ok(crossSourceRelationId);
+  assert.ok(spatialRelationEdges(map).some(
+    (edge) => edge.relationId === crossSourceRelationId,
+  ));
+  assert.match(
+    html,
+    new RegExp(`mobile-relation:relation:${crossSourceRelationId}`),
+  );
+
+  const detail = getSiteReadyCaseDetail(packet, "relation", relationId);
+  assert.ok(detail);
+  const inspector = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: { kind: "relation", id: relationId, label: "Candidate relation" },
+    payload: detail,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.match(inspector, /Two separate claim occurrences in one source/);
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
 });
 
 test("source selection and relation inspection expose text states and exact support affordances", () => {
@@ -818,11 +927,20 @@ test("fallback, partial, loading, and error notices never mislabel the displayed
   partial.status = "live";
   partial.warnings = ["one bounded source failed"];
   assert.equal(getRunNotice(partial, false, null).title, "Partial live investigation");
-  assert.match(getRunNotice(partial, false, null).message, /review-only/);
+  assert.match(getRunNotice(partial, false, null).message, /bounded review candidates/i);
+  assert.doesNotMatch(getRunNotice(partial, false, null).message, /\bvalidated\b/i);
+
+  const live = structuredClone(prepared);
+  live.mode = "live";
+  live.status = "live";
+  live.warnings = [];
+  assert.match(getRunNotice(live, false, null).message, /schema-checked review packet/i);
+  assert.doesNotMatch(getRunNotice(live, false, null).message, /\bvalidated\b/i);
 
   const loading = getRunNotice(prepared, true, null);
   assert.equal(loading.title, "Building a bounded investigation map");
   assert.match(loading.message, /displayed packet stays intact/);
+  assert.match(loading.message, /schema-checked response/i);
 
   const error = getRunNotice(prepared, false, "The route is unavailable.");
   assert.equal(error.tone, "error");

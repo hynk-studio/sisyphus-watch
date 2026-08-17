@@ -4,6 +4,7 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AnalysisResult } from "../app/components/CaseExplorer";
+import { SourcesView } from "../app/components/InvestigationResultViews";
 import { getPreparedCase } from "../app/lib/read-model";
 import type { AnalysisRunPacket } from "../app/lib/analysis/contracts";
 import {
@@ -30,7 +31,16 @@ import {
   type PreparedFixtureCoverageSummary,
 } from "../app/lib/source-profile";
 import { PROVIDER_CALL_PLANNING_BOUNDS } from "../app/lib/public-live";
-import { normalizeExactTimestamp } from "../app/lib/temporal";
+import {
+  formatReviewTimestamp,
+  normalizeExactTimestamp,
+  normalizeTimestampWithPrecision,
+} from "../app/lib/temporal";
+import {
+  boundedReviewerText,
+  containsLexicalTokenSequence,
+  hasClearlyIncompleteTail,
+} from "../app/lib/reviewer-text";
 import { buildSiteReadyCasePacketFromAnalysis } from "../app/lib/lineage/builder";
 
 const GENERATED_AT = "2026-08-12T10:00:00.000Z";
@@ -307,6 +317,62 @@ test("exact timestamp normalization rejects coarse dates without timezone drift"
   assert.ok(normalizedByTimezone.every((value) => !/June 30|July 1/.test(value)));
 });
 
+test("temporal precision distinguishes a date-only value from a true midnight instant", () => {
+  const day = normalizeTimestampWithPrecision("2025-07-15");
+  const midnight = normalizeTimestampWithPrecision("2025-07-15T00:00:00Z");
+  assert.equal(day.value, midnight.value);
+  assert.equal(day.precision, "day");
+  assert.equal(midnight.precision, "instant");
+  assert.equal(formatReviewTimestamp(day.value, day.precision), "Jul 15, 2025");
+  assert.match(
+    formatReviewTimestamp(midnight.value, midnight.precision),
+    /Jul 15, 2025.*00:00 UTC/,
+  );
+
+  for (const value of ["2025-07", "2025", "during summer 2025"]) {
+    assert.deepEqual(normalizeTimestampWithPrecision(value), {
+      value: null,
+      precision: null,
+    });
+  }
+});
+
+test("reviewer-facing bounds prefer safe boundaries and remain deterministic", () => {
+  const ordinary = boundedReviewerText(
+    "  Reviewers   can inspect this bounded candidate summary without cutting the final visible word awkwardly.  ",
+    64,
+  );
+  assert.ok(ordinary.length <= 64);
+  assert.match(ordinary, /…$/u);
+  assert.doesNotMatch(ordinary.slice(0, -1), /\s$/u);
+  assert.equal(
+    ordinary,
+    boundedReviewerText(
+      "  Reviewers   can inspect this bounded candidate summary without cutting the final visible word awkwardly.  ",
+      64,
+    ),
+  );
+
+  const punctuation = boundedReviewerText(
+    "The first bounded point is complete. A second point continues beyond the reviewer-facing limit.",
+    52,
+  );
+  assert.equal(punctuation, "The first bounded point is complete.…");
+
+  const unbroken = boundedReviewerText("x".repeat(500), 40);
+  assert.equal(unbroken.length, 40);
+  assert.equal(unbroken, `${"x".repeat(39)}…`);
+  assert.equal((unbroken.match(/…/gu) ?? []).length, 1);
+
+  assert.equal(containsLexicalTokenSequence("housing access changed", "US"), false);
+  assert.equal(
+    containsLexicalTokenSequence("NEW YORK—CITY opened centers", "New York City"),
+    true,
+  );
+  assert.equal(hasClearlyIncompleteTail("CDC recommended distancing, hygiene, or"), true);
+  assert.equal(hasClearlyIncompleteTail("CDC recommends layered precautions"), false);
+});
+
 test("public route defaults to 3, accepts 3 and 5, and rejects 6 and 8 before provider work", async () => {
   const acceptedLimits: number[] = [];
   for (const sourceLimit of [undefined, 3, 5]) {
@@ -467,16 +533,64 @@ test("coarse provider dates remain text while exact machine fields stay null", a
     responses: port,
   });
   assert.equal(run.source_snapshot_summaries[0].published_at, null);
+  assert.equal(run.source_snapshot_summaries[0].published_at_precision, null);
   assert.equal(run.candidates[0].time_candidate, null);
+  assert.equal(run.candidates[0].time_candidate_precision, null);
   assert.match(run.candidates[0].text, /July 2025/);
   assert.match(run.candidates[0].supporting_summary_span, /July 2025/);
   assert.equal(run.candidates[1].time_candidate, "2025-07-15T00:00:00.000Z");
+  assert.equal(run.candidates[1].time_candidate_precision, "day");
 
   const packet = buildSiteReadyCasePacketFromAnalysis(run);
   assert.equal(packet.source_snapshot_summaries[0].published_at, null);
+  assert.equal(packet.source_snapshot_summaries[0].published_at_precision, null);
   assert.equal(packet.time_candidates[0].time_candidate, null);
+  assert.equal(packet.time_candidates[0].time_candidate_precision, null);
   assert.equal(packet.time_candidates[1].time_candidate, "2025-07-15T00:00:00.000Z");
+  assert.equal(packet.time_candidates[1].time_candidate_precision, "day");
   assert.doesNotMatch(JSON.stringify(packet), /2025-06-30|2025-07-01/);
+});
+
+test("date-only and exact-midnight publication precision survives the live packet and UI", async () => {
+  const summary = "Agency Alpha reported a bounded public update.";
+  const port = new FakeResponsesPort([
+    discoveryResponse([
+      source(1, summary, { published_at: "2025-07-15" }),
+      source(2, summary, { published_at: "2025-07-15T00:00:00Z" }),
+    ]),
+    extractionResponse(1, summary),
+    extractionResponse(2, summary),
+  ]);
+
+  const run = await runOpenAIAnalysis({
+    question: "How did the bounded public update change?",
+    sourceLimit: 2,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+  assert.deepEqual(
+    run.source_snapshot_summaries.map((item) => [
+      item.published_at,
+      item.published_at_precision,
+    ]),
+    [
+      ["2025-07-15T00:00:00.000Z", "day"],
+      ["2025-07-15T00:00:00.000Z", "instant"],
+    ],
+  );
+
+  const packet = buildSiteReadyCasePacketFromAnalysis(run);
+  assert.deepEqual(
+    packet.source_snapshot_summaries.map((item) => item.published_at_precision),
+    ["day", "instant"],
+  );
+  const html = renderToStaticMarkup(createElement(SourcesView, {
+    packet,
+    onFocus: () => undefined,
+  }));
+  assert.match(html, /Publication time<\/dt><dd>Jul 15, 2025<\/dd>/);
+  assert.match(html, /Publication time<\/dt><dd>Jul 15, 2025[^<]*00:00 UTC<\/dd>/);
+  assert.doesNotMatch(html, /Jul 14|Jul 16/);
 });
 
 test("maps every candidate to a direct clickable source reference", async () => {
@@ -589,6 +703,98 @@ test("preserves source-local claim and action actors without defaulting to publi
   );
   assert.ok(packet.candidates.every((candidate) => candidate.actor !== "Publisher 1"));
   assert.match(String(port.calls[1].instructions), /never substitute the source publisher/i);
+});
+
+test("actor containment uses complete Unicode lexical sequences without claiming role proof", async () => {
+  const summary = [
+    "Housing access remained limited.",
+    "NEW YORK—CITY opened additional cooling centers.",
+    "AGENCY ALPHA, said hours would expand.",
+    "Cooling access remained under review.",
+  ].join(" ");
+  const port = new FakeResponsesPort([
+    discoveryResponse([source(1, summary, { publisher: "Publisher 1" })]),
+    {
+      output_parsed: {
+        candidates: [
+          {
+            candidate_type: "actor_claim",
+            actor: "US",
+            text: "Housing access remained limited.",
+            supporting_summary_span: "Housing access remained limited.",
+            time_candidate: null,
+            confidence: "low",
+            uncertainty: "The proposed actor is only a substring collision.",
+            semantic_review: {
+              actor_role: "speaker_or_claimant",
+              statement_semantics: "claim_or_guidance",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "New York City",
+            text: "Opened additional cooling centers.",
+            supporting_summary_span:
+              "NEW YORK—CITY opened additional cooling centers.",
+            time_candidate: null,
+            confidence: "high",
+            uncertainty: "Lexical occurrence in the bounded summary.",
+            semantic_review: {
+              actor_role: "performer_or_responsible_actor",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "actor_claim",
+            actor: "agency alpha",
+            text: "Hours would expand.",
+            supporting_summary_span: "AGENCY ALPHA, said hours would expand.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Case and punctuation differ.",
+            semantic_review: {
+              actor_role: "speaker_or_claimant",
+              statement_semantics: "claim_or_guidance",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "actor_claim",
+            actor: "Publisher 1",
+            text: "Cooling access remained under review.",
+            supporting_summary_span: "Cooling access remained under review.",
+            time_candidate: null,
+            confidence: "low",
+            uncertainty: "Publisher identity is not source-local actor support.",
+            semantic_review: {
+              actor_role: "speaker_or_claimant",
+              statement_semantics: "claim_or_guidance",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+        ],
+        limitations: ["Lexical containment does not prove grammatical role."],
+      },
+      output: [],
+    },
+  ]);
+
+  const packet = await runOpenAIAnalysis({
+    question: "Which actors made or performed the bounded statements?",
+    sourceLimit: 1,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.deepEqual(
+    packet.candidates.map((candidate) => candidate.actor),
+    [null, "New York City", "agency alpha", null],
+  );
+  assert.equal(packet.candidates[0].text, "Housing access remained limited.");
+  assert.notEqual(packet.candidates[3].actor, packet.source_snapshot_summaries[0].publisher);
+  assert.match(packet.limitations.join(" "), /does not prove grammatical role/i);
 });
 
 test("structured semantic review separates performers, claimants, and advised populations", async () => {
@@ -847,6 +1053,98 @@ test("recipient classification independently disqualifies inconsistent concrete 
     packet.candidates[0].uncertainty,
     /Responsible performer was not specifically identifiable/,
   );
+});
+
+test("clearly incomplete actor-claim and action text is skipped without repairing evidence", async () => {
+  const summary = [
+    "CDC recommended distancing, hygiene, or vaccination when appropriate.",
+    "The agency announced a vaccination campaign.",
+    "CDC recommends layered precautions.",
+  ].join(" ");
+  const preservedSupport = "  CDC   recommends layered precautions.  ";
+  const port = new FakeResponsesPort([
+    discoveryResponse([source(1, summary)]),
+    {
+      output_parsed: {
+        candidates: [
+          {
+            candidate_type: "actor_claim",
+            actor: "CDC",
+            text: "CDC recommended distancing, hygiene, or",
+            supporting_summary_span:
+              "CDC recommended distancing, hygiene, or vaccination when appropriate.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "The structured candidate ends in an unfinished list.",
+            semantic_review: {
+              actor_role: "speaker_or_claimant",
+              statement_semantics: "claim_or_guidance",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "The agency",
+            text: "The agency announced a vaccina-",
+            supporting_summary_span:
+              "The agency announced a vaccination campaign.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "The structured candidate exposes a cut token.",
+            semantic_review: {
+              actor_role: "performer_or_responsible_actor",
+              statement_semantics: "concrete_performed_or_announced_action",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "actor_claim",
+            actor: "CDC",
+            text: "CDC recommends layered precautions",
+            supporting_summary_span: preservedSupport,
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Concise punctuation-free candidate.",
+            semantic_review: {
+              actor_role: "speaker_or_claimant",
+              statement_semantics: "claim_or_guidance",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+        ],
+        limitations: ["One-source extraction only."],
+      },
+      output: [],
+    },
+  ]);
+
+  const run = await runOpenAIAnalysis({
+    question: "How did the public-health guidance change?",
+    sourceLimit: 1,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+  assert.equal(run.candidates.length, 1);
+  assert.equal(run.candidates[0].text, "CDC recommends layered precautions");
+  assert.equal(run.candidates[0].supporting_summary_span, preservedSupport);
+  assert.match(
+    run.limitations.join(" "),
+    /clearly_incomplete_structured_candidates_skipped:2/,
+  );
+  assert.doesNotMatch(run.limitations.join(" "), /distancing|vaccina/i);
+  assert.equal(run.source_snapshot_summaries.length, 1);
+  assert.equal(
+    run.source_snapshot_summaries[0].web_search_grounded_candidate_summary,
+    summary,
+  );
+
+  const packet = buildSiteReadyCasePacketFromAnalysis(run);
+  assert.equal(packet.actor_claims.length, 1);
+  assert.equal(packet.actions.length, 0);
+  assert.equal(packet.claim_occurrences.length, 1);
+  assert.equal(packet.claim_occurrences[0].support_reference.bounded_excerpt, preservedSupport);
+  assert.equal(packet.source_snapshot_summaries.length, 1);
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
 });
 
 test("candidate IDs stay in a non-canonical namespace", async () => {

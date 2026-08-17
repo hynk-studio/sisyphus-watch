@@ -6,6 +6,7 @@ import {
   deriveInvestigationMap,
   deriveQuestionInspectionOrigins,
   deriveThreadTrace,
+  spatialRelationEdges,
 } from "../app/lib/investigation-map";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
 import type {
@@ -13,7 +14,11 @@ import type {
   SiteReadyCasePacket,
 } from "../app/lib/lineage/contracts";
 import { validateSiteReadyCasePacket } from "../app/lib/lineage/contracts";
-import { buildMapDensityFixture } from "./fixtures/map-density";
+import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
+import {
+  buildMapDensityFixture,
+  buildSameSourceRelationFixture,
+} from "./fixtures/map-density";
 
 test("map derivation is deterministic, presentation-only, and preserves source roles and provenance labels", () => {
   const packet = buildPreparedSiteReadyCasePacket();
@@ -137,6 +142,38 @@ test("multiple claim relations between the same two sources remain separate and 
   assert.ok(pairEdges.every((edge) => edge.parallelCount === 2));
   assert.ok(pairEdges.some((edge) => edge.relationId === original.relation_id));
   assert.ok(pairEdges.some((edge) => edge.relationId === duplicate.relation_id));
+});
+
+test("same-source relations remain packet data while spatial rendering omits the self-loop", () => {
+  const packet = buildSameSourceRelationFixture();
+  const relation = packet.relation_candidates.find(
+    (item) => item.relation_id === "relation_candidate_fixture_same_source_review",
+  );
+  assert.ok(relation);
+  assert.equal(relation.left_source_id, relation.right_source_id);
+
+  const before = JSON.stringify(packet);
+  const map = deriveInvestigationMap(packet, "publication_time");
+  assert.equal(map.relationEdges.length, packet.relation_candidates.length);
+  assert.ok(map.relationEdges.some((edge) => edge.relationId === relation.relation_id));
+  assert.ok(
+    spatialRelationEdges(map).every(
+      (edge) => edge.leftSourceId !== edge.rightSourceId,
+    ),
+  );
+  assert.equal(
+    spatialRelationEdges(map).some((edge) => edge.relationId === relation.relation_id),
+    false,
+  );
+  assert.ok(spatialRelationEdges(map).some(
+    (edge) => edge.leftSourceId !== edge.rightSourceId,
+  ));
+  assert.ok(getSiteReadyCaseDetail(packet, "relation", relation.relation_id));
+  assert.ok(packet.focused_detail_lookup_keys.some(
+    (key) => key.kind === "relation" && key.id === relation.relation_id,
+  ));
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
+  assert.equal(JSON.stringify(packet), before);
 });
 
 test("unresolved questions resolve source, claim, action, and occurrence IDs conservatively while unknown IDs attach only to topic", () => {

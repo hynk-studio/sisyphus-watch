@@ -1,4 +1,6 @@
 import type { DiscoveryLane, DiscoveryProfile } from "./source-profile";
+import { boundedReviewerText } from "./reviewer-text";
+import type { TemporalPrecision } from "./temporal";
 import {
   TIME_AXIS_LABELS,
   discoveryLaneLabel,
@@ -60,6 +62,7 @@ export interface InvestigationSourceNode {
   selectedTimeAxis: TimeAxis;
   selectedTimeAxisLabel: string;
   selectedTime: string | null;
+  selectedTimePrecision: TemporalPrecision;
   timeRegion: "dated" | "time_unavailable";
   column: number;
   preview: string;
@@ -151,6 +154,11 @@ export interface MapHighlightState {
   questionEdgeIds: string[];
 }
 
+interface ExplicitTimeValue {
+  value: string;
+  precision: Exclude<TemporalPrecision, null>;
+}
+
 const LANE_ORDER: DiscoveryLane[] = [
   "baseline_authority",
   "primary_or_origin",
@@ -171,8 +179,12 @@ export function deriveInvestigationMap(
     ]),
   );
   const sortedSources = [...packet.source_snapshot_summaries].sort((left, right) => {
-    const leftTime = firstTime(sourceTimes.get(left.source_id)?.[selectedTimeAxis] ?? []);
-    const rightTime = firstTime(sourceTimes.get(right.source_id)?.[selectedTimeAxis] ?? []);
+    const leftTime = firstTime(
+      sourceTimes.get(left.source_id)?.[selectedTimeAxis] ?? [],
+    )?.value;
+    const rightTime = firstTime(
+      sourceTimes.get(right.source_id)?.[selectedTimeAxis] ?? [],
+    )?.value;
     if (leftTime && rightTime) {
       return leftTime.localeCompare(rightTime) || left.source_id.localeCompare(right.source_id);
     }
@@ -182,9 +194,10 @@ export function deriveInvestigationMap(
   });
 
   const sources: InvestigationSourceNode[] = sortedSources.map((source, index) => {
-    const selectedTime = firstTime(
+    const selectedTimeValue = firstTime(
       sourceTimes.get(source.source_id)?.[selectedTimeAxis] ?? [],
     );
+    const selectedTime = selectedTimeValue?.value ?? null;
     const preview = sourcePreview(packet, source.source_id);
     return {
       kind: "source",
@@ -201,6 +214,7 @@ export function deriveInvestigationMap(
       selectedTimeAxis,
       selectedTimeAxisLabel: TIME_AXIS_LABELS[selectedTimeAxis],
       selectedTime,
+      selectedTimePrecision: selectedTimeValue?.precision ?? null,
       timeRegion: selectedTime ? "dated" : "time_unavailable",
       column: index + 1,
       preview: preview.text,
@@ -418,7 +432,7 @@ export function buildLineageRequest(input: {
 function explicitSourceTimes(
   packet: SiteReadyCasePacket,
   sourceId: string,
-): Record<TimeAxis, string[]> {
+): Record<TimeAxis, ExplicitTimeValue[]> {
   const source = packet.source_snapshot_summaries.find(
     (item) => item.source_id === sourceId,
   );
@@ -430,24 +444,46 @@ function explicitSourceTimes(
     candidate.source_ids.includes(sourceId),
   );
   return {
-    event_time: unique([
-      ...occurrences.map((occurrence) => occurrence.event_time_candidate),
-      ...actions.map((action) => action.event_time_candidate),
+    event_time: uniqueTimes([
+      ...occurrences.map((occurrence) => explicitTime(
+        occurrence.event_time_candidate,
+        occurrence.event_time_candidate_precision,
+      )),
+      ...actions.map((action) => explicitTime(
+        action.event_time_candidate,
+        action.event_time_candidate_precision,
+      )),
       ...candidates
         .filter((candidate) => candidate.candidate_type === "event_time_candidate")
-        .map((candidate) => candidate.time_candidate),
-    ].filter(isString)).sort(),
-    actor_assertion_time: unique([
-      ...occurrences.map((occurrence) => occurrence.assertion_time_candidate),
+        .map((candidate) => explicitTime(
+          candidate.time_candidate,
+          candidate.time_candidate_precision,
+        )),
+    ]),
+    actor_assertion_time: uniqueTimes([
+      ...occurrences.map((occurrence) => explicitTime(
+        occurrence.assertion_time_candidate,
+        occurrence.assertion_time_candidate_precision,
+      )),
       ...packet.actor_claims
         .filter((claim) => claim.source_ids.includes(sourceId))
-        .map((claim) => claim.assertion_time_candidate),
+        .map((claim) => explicitTime(
+          claim.assertion_time_candidate,
+          claim.assertion_time_candidate_precision,
+        )),
       ...candidates
         .filter((candidate) => candidate.candidate_type === "assertion_time_candidate")
-        .map((candidate) => candidate.time_candidate),
-    ].filter(isString)).sort(),
-    publication_time: source?.published_at ? [source.published_at] : [],
-    retrieval_time: source?.retrieved_at ? [source.retrieved_at] : [],
+        .map((candidate) => explicitTime(
+          candidate.time_candidate,
+          candidate.time_candidate_precision,
+        )),
+    ]),
+    publication_time: source
+      ? compactTime(source.published_at, source.published_at_precision)
+      : [],
+    retrieval_time: source?.retrieved_at
+      ? [{ value: source.retrieved_at, precision: "instant" }]
+      : [],
   };
 }
 
@@ -599,19 +635,51 @@ function stablePairKey(leftSourceId: string, rightSourceId: string): string {
   return [leftSourceId, rightSourceId].sort().join("::");
 }
 
-function firstTime(values: string[]): string | null {
+export function spatialRelationEdges(
+  map: InvestigationMap,
+): InvestigationRelationEdge[] {
+  return map.relationEdges.filter(
+    (edge) => edge.leftSourceId !== edge.rightSourceId,
+  );
+}
+
+function firstTime(values: ExplicitTimeValue[]): ExplicitTimeValue | null {
   return values[0] ?? null;
 }
 
 function boundedPreview(value: string): string {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  return normalized.length <= 220 ? normalized : `${normalized.slice(0, 219)}…`;
+  return boundedReviewerText(value, 220);
+}
+
+function explicitTime(
+  value: string | null,
+  precision: TemporalPrecision,
+): ExplicitTimeValue | null {
+  return value && precision ? { value, precision } : null;
+}
+
+function compactTime(
+  value: string | null,
+  precision: TemporalPrecision,
+): ExplicitTimeValue[] {
+  const time = explicitTime(value, precision);
+  return time ? [time] : [];
+}
+
+function uniqueTimes(
+  values: Array<ExplicitTimeValue | null>,
+): ExplicitTimeValue[] {
+  const byIdentity = new Map<string, ExplicitTimeValue>();
+  for (const value of values) {
+    if (!value) continue;
+    byIdentity.set(`${value.value}:${value.precision}`, value);
+  }
+  return [...byIdentity.values()].sort((left, right) =>
+    left.value.localeCompare(right.value)
+    || left.precision.localeCompare(right.precision),
+  );
 }
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
-}
-
-function isString(value: string | null): value is string {
-  return typeof value === "string";
 }

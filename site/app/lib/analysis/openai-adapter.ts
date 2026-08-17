@@ -24,7 +24,12 @@ import {
 } from "./contracts";
 import { AnalysisFailure, classifyProviderError } from "./errors";
 import { normalizeForId, shortStableHash } from "./ids";
-import { normalizeExactTimestamp } from "../temporal";
+import { normalizeTimestampWithPrecision } from "../temporal";
+import {
+  boundedReviewerText,
+  containsLexicalTokenSequence,
+  hasClearlyIncompleteTail,
+} from "../reviewer-text";
 import {
   DiscoveryOutputSchema,
   SourceExtractionOutputSchema,
@@ -485,6 +490,9 @@ async function buildPartialSnapshot(
   const publisher = discovered.proposal.publisher?.trim() || discovered.url.hostname;
   const candidateSummary =
     discovered.proposal.web_search_grounded_candidate_summary.trim();
+  const publishedAt = normalizeTimestampWithPrecision(
+    discovered.proposal.published_at,
+  );
 
   return {
     snapshot_id: `snapshot_candidate_live_${urlHash}_partial`,
@@ -494,7 +502,8 @@ async function buildPartialSnapshot(
     publisher,
     actor: publisher,
     title: discovered.proposal.title.trim(),
-    published_at: normalizeExactTimestamp(discovered.proposal.published_at),
+    published_at: publishedAt.value,
+    published_at_precision: publishedAt.precision,
     event_time: null,
     event_time_candidates: [],
     asserted_at: null,
@@ -596,7 +605,12 @@ async function extractOneSource(
     throw new AnalysisFailure("structured_output_invalid");
   }
 
-  const reviewedProposals = summaryContainedProposals
+  const completeProposals = summaryContainedProposals.filter(
+    (proposal) => !isClearlyIncompleteStructuredCandidate(proposal),
+  );
+  const incompleteCandidateCount =
+    summaryContainedProposals.length - completeProposals.length;
+  const reviewedProposals = completeProposals
     .map(enforceCandidateSemantics)
     .filter((proposal): proposal is CandidateProposal => proposal !== null);
   const candidates = await Promise.all(
@@ -605,7 +619,18 @@ async function extractOneSource(
       .map((proposal) => buildCandidate(proposal, source, input.generatedAt)),
   );
 
-  return { source, candidates, limitations: parsed.data.limitations };
+  return {
+    source,
+    candidates,
+    limitations: [
+      ...parsed.data.limitations,
+      ...(incompleteCandidateCount > 0
+        ? [
+            `clearly_incomplete_structured_candidates_skipped:${incompleteCandidateCount}; source snapshot and candidate summary preserved`,
+          ]
+        : []),
+    ],
+  };
 }
 
 async function buildCandidate(
@@ -617,6 +642,7 @@ async function buildCandidate(
     `${source.source_id}|${proposal.candidate_type}|${normalizeActor(proposal)}|${normalizeForId(proposal.text)}`,
     14,
   );
+  const timeCandidate = normalizeTimestampWithPrecision(proposal.time_candidate);
 
   return {
     candidate_id: `candidate_live_${proposal.candidate_type}_${candidateHash}`,
@@ -627,7 +653,7 @@ async function buildCandidate(
     text: proposal.text.trim(),
     evidence_reference: source.canonical_url,
     support_kind: "model_generated_web_search_summary_span",
-    supporting_summary_span: proposal.supporting_summary_span.trim(),
+    supporting_summary_span: proposal.supporting_summary_span,
     source_reference: {
       source_id: source.source_id,
       snapshot_id: source.snapshot_id,
@@ -637,7 +663,8 @@ async function buildCandidate(
         ? "url_citation"
         : "web_search_source",
     },
-    time_candidate: normalizeExactTimestamp(proposal.time_candidate),
+    time_candidate: timeCandidate.value,
+    time_candidate_precision: timeCandidate.precision,
     confidence: proposal.confidence,
     uncertainty: proposal.uncertainty.trim(),
     model: OPENAI_ANALYSIS_MODEL,
@@ -712,16 +739,28 @@ function validatedActor(
   ) {
     return null;
   }
-  return normalizeSummarySpan(proposal.supporting_summary_span).includes(
-    normalizeSummarySpan(actor),
-  )
+  // This only hardens lexical containment. The structured semantic-review
+  // fields remain model-produced and are not independent grammatical-role proof.
+  return containsLexicalTokenSequence(proposal.supporting_summary_span, actor)
     ? actor
     : null;
 }
 
 function prependBoundedUncertainty(value: string, note: string): string {
   const existing = value.trim();
-  return `${note}${existing ? ` ${existing}` : ""}`.slice(0, 240);
+  return boundedReviewerText(
+    `${note}${existing ? ` ${existing}` : ""}`,
+    240,
+  );
+}
+
+function isClearlyIncompleteStructuredCandidate(
+  proposal: CandidateProposal,
+): boolean {
+  return (
+    proposal.candidate_type === "actor_claim"
+    || proposal.candidate_type === "action"
+  ) && hasClearlyIncompleteTail(proposal.text);
 }
 
 function collectProviderURLProvenance(output: unknown): Map<string, ProviderURLProvenance> {
@@ -854,6 +893,7 @@ function toBrowserSourceSummary(source: SourceSnapshot): AnalysisSourceSummary {
     domain: url ? new URL(url).hostname : "unknown",
     publisher: source.publisher,
     published_at: source.published_at,
+    published_at_precision: source.published_at_precision,
     retrieved_at: source.retrieved_at,
     snapshot_status: source.snapshot_status,
     retrieval_mode: source.retrieval_mode,

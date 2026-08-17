@@ -158,7 +158,7 @@ export function SearchComposer({
           </strong>
           <span>
             {isLoading
-              ? "The displayed investigation stays intact until one validated response is available."
+              ? "The displayed investigation stays intact until one schema-checked response is available."
               : cooldownRemainingSeconds > 0
                 ? "The prepared investigation and New investigation remain usable during this accidental-repeat guard."
                 : "Results can be live, partial, or a clearly labeled prepared fallback. Every inferred record remains review-only."}

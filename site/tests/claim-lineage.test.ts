@@ -34,6 +34,15 @@ function occurrence(
 ): ClaimOccurrence {
   const sourceId = overrides.source_id ?? `src_fixture_${id}`;
   const snapshotId = overrides.snapshot_id ?? `snapshot_fixture_${id}`;
+  const assertionTime = overrides.assertion_time_candidate === undefined
+    ? "2026-06-10T10:00:00Z"
+    : overrides.assertion_time_candidate;
+  const eventTime = overrides.event_time_candidate === undefined
+    ? "2026-06-10T09:00:00Z"
+    : overrides.event_time_candidate;
+  const publicationTime = overrides.source_publication_time === undefined
+    ? "2026-06-10T11:00:00Z"
+    : overrides.source_publication_time;
   return {
     occurrence_id: `occurrence_fixture_${id}`,
     source_id: sourceId,
@@ -55,10 +64,17 @@ function occurrence(
       citation_url: null,
       proves: "captured_fixture_support",
     },
-    assertion_time_candidate: "2026-06-10T10:00:00Z",
-    event_time_candidate: "2026-06-10T09:00:00Z",
-    source_publication_time: "2026-06-10T11:00:00Z",
+    assertion_time_candidate: assertionTime,
+    assertion_time_candidate_precision:
+      overrides.assertion_time_candidate_precision ?? (assertionTime ? "instant" : null),
+    event_time_candidate: eventTime,
+    event_time_candidate_precision:
+      overrides.event_time_candidate_precision ?? (eventTime ? "instant" : null),
+    source_publication_time: publicationTime,
+    source_publication_time_precision:
+      overrides.source_publication_time_precision ?? (publicationTime ? "instant" : null),
     source_retrieval_time: "2026-06-15T12:00:00Z",
+    source_retrieval_time_precision: "instant",
     confidence: "high",
     uncertainty: "Deterministic fixture only.",
     validation_status: "validated",
@@ -93,6 +109,7 @@ function liveSource(index: number): AnalysisSourceSummary {
     domain: `news${index}.example.org`,
     publisher: "Public publisher",
     published_at: `2026-08-${String(index).padStart(2, "0")}T10:00:00Z`,
+    published_at_precision: "instant",
     retrieved_at: GENERATED_AT,
     snapshot_status: "partial",
     retrieval_mode: "openai_web_search",
@@ -132,6 +149,7 @@ function liveCandidate(
   overrides: Partial<AnalysisCandidate> = {},
 ): AnalysisCandidate {
   const candidateType = overrides.candidate_type ?? "finding";
+  const timeCandidate = overrides.time_candidate ?? null;
   return {
     candidate_id: `candidate_live_${candidateType}_${index}`,
     source_id: source.source_id,
@@ -149,7 +167,9 @@ function liveCandidate(
       title: source.title,
       kind: "url_citation",
     },
-    time_candidate: null,
+    time_candidate: timeCandidate,
+    time_candidate_precision:
+      overrides.time_candidate_precision ?? (timeCandidate ? "instant" : null),
     confidence: "medium",
     uncertainty: "Only a model-generated web-search summary is available.",
     model: "gpt-5-mini",
@@ -704,7 +724,16 @@ test("candidate relation generation leaves canonical prepared state byte-equival
 test("site-ready validation accepts exact dates and rejects coarse timestamp text", () => {
   const exactDatePacket = structuredClone(buildPreparedSiteReadyCasePacket());
   exactDatePacket.source_snapshot_summaries[0].published_at = "2025-07-15";
+  exactDatePacket.source_snapshot_summaries[0].published_at_precision = "day";
   assert.equal(siteReadyCasePacketSchema.safeParse(exactDatePacket).success, true);
+
+  const missingPrecision = structuredClone(buildPreparedSiteReadyCasePacket());
+  missingPrecision.source_snapshot_summaries[0].published_at_precision = null;
+  assert.equal(siteReadyCasePacketSchema.safeParse(missingPrecision).success, false);
+
+  const falsePrecision = structuredClone(buildPreparedSiteReadyCasePacket());
+  falsePrecision.source_snapshot_summaries[0].published_at = null;
+  assert.equal(siteReadyCasePacketSchema.safeParse(falsePrecision).success, false);
 
   for (const coarseValue of ["July 2025", "2025-07", "2025"] as const) {
     const coarsePacket = structuredClone(buildPreparedSiteReadyCasePacket());

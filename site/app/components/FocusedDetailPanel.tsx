@@ -22,6 +22,10 @@ import type {
   SiteReadyCaseDetail,
   SiteReadyCasePacket,
 } from "../lib/lineage/contracts";
+import {
+  formatReviewTimestamp,
+  type TemporalPrecision,
+} from "../lib/temporal";
 import type { FocusSelection } from "./investigation-types";
 
 export const INSPECTOR_ACCESSIBILITY_MODELS = {
@@ -272,10 +276,10 @@ function DetailBody({
   if (kind === "timeline_row") {
     return (
       <div className="detail-body">
-        <DetailField label="Event time" value={formatTimestamp(asNullableString(item.event_time))} />
-        <DetailField label="Actor assertion time" value={formatTimestamp(asNullableString(item.actor_assertion_time))} />
-        <DetailField label="Publication time" value={formatTimestamp(asNullableString(item.publication_time))} />
-        <DetailField label="Sisyphus retrieval time" value={formatTimestamp(asNullableString(item.retrieval_time))} />
+        <DetailField label="Event time" value={formatReviewTimestamp(asNullableString(item.event_time), asTemporalPrecision(item.event_time_precision))} />
+        <DetailField label="Actor assertion time" value={formatReviewTimestamp(asNullableString(item.actor_assertion_time), asTemporalPrecision(item.actor_assertion_time_precision))} />
+        <DetailField label="Publication time" value={formatReviewTimestamp(asNullableString(item.publication_time), asTemporalPrecision(item.publication_time_precision))} />
+        <DetailField label="Sisyphus retrieval time" value={formatReviewTimestamp(asNullableString(item.retrieval_time), asTemporalPrecision(item.retrieval_time_precision))} />
         <p className="detail-note">No time axis was inferred or substituted.</p>
       </div>
     );
@@ -363,7 +367,12 @@ function SourceDetail({
       />
       <DetailField
         label="Publication time"
-        value={formatTimestamp(asNullableString(item.published_at))}
+        value={formatReviewTimestamp(
+          asNullableString(item.published_at),
+          asTemporalPrecision(item.published_at_precision)
+            ?? sourceSummary?.published_at_precision
+            ?? null,
+        )}
       />
       <DetailField label="Why this source matters" value={selectionMetadata.why_included} />
       {sourceText ? (
@@ -434,7 +443,7 @@ function SourceDetail({
           <DetailField label="Retrieval method" value={humanize(item.retrieval_mode)} />
           <DetailField
             label="Retrieved by Sisyphus"
-            value={formatTimestamp(asNullableString(item.retrieved_at))}
+            value={formatReviewTimestamp(asNullableString(item.retrieved_at), "instant")}
           />
           <p className="detail-note">
             Inclusion widens the review record. It does not establish reliability,
@@ -625,21 +634,6 @@ function DetailField({ label, value }: { label: string; value: unknown }) {
   return <div className="detail-field"><strong>{label}</strong><p>{stringValue(value)}</p></div>;
 }
 
-function formatTimestamp(value: string | null): string {
-  if (!value) return "Unavailable";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-    timeZoneName: "short",
-  }).format(date);
-}
-
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null
     ? value as Record<string, unknown>
@@ -648,6 +642,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asNullableString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function asTemporalPrecision(value: unknown): TemporalPrecision {
+  return value === "day" || value === "instant" ? value : null;
 }
 
 function arrayValue(value: unknown): string[] {
