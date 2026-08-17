@@ -1,6 +1,7 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
+import { buildLocalWorkerRuntimeBindings } from "./build/local-worker-bindings";
 import { sites } from "./build/sites-vite-plugin";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
@@ -8,10 +9,6 @@ const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
 
 const { d1, r2 } = hostingConfig;
 const liveModeValue = process.env.SISYPHUS_LIVE_ENABLED;
-const localRuntimeVariables: Record<string, string> = {};
-if (liveModeValue) {
-  localRuntimeVariables.SISYPHUS_LIVE_ENABLED = liveModeValue;
-}
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
@@ -36,7 +33,7 @@ const localBindingConfig = {
         },
       ]
     : [],
-  vars: localRuntimeVariables,
+  ...buildLocalWorkerRuntimeBindings(liveModeValue),
 };
 
 export default defineConfig(async () => {
