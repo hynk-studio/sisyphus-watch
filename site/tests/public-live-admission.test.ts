@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 import { POST as postPublicAnalysis } from "../app/api/analysis/route";
@@ -181,9 +181,27 @@ test("public work units are deterministic and conservatively include tool-call c
   assert.equal(PUBLIC_WORKFLOW_DEADLINE_MS, 110_000);
 });
 
+test("hosting targets the D1-capable replacement Site without adding configuration", () => {
+  const hosting = JSON.parse(readFileSync(
+    new URL("../.openai/hosting.json", import.meta.url),
+    "utf8",
+  ));
+  assert.deepEqual(hosting, {
+    project_id: "appgprj_6a8355cc7e7c8191b95309dffd1be294",
+    d1: "DB",
+    r2: null,
+  });
+});
+
 test("the packaged D1 migration matches the aggregate-only runtime schema", () => {
+  const migrationDirectoryUrl = new URL("../drizzle/", import.meta.url);
+  const migrationFiles = readdirSync(migrationDirectoryUrl)
+    .filter((fileName) => fileName.endsWith(".sql"))
+    .sort();
+  assert.deepEqual(migrationFiles, ["0001_public_live_admission.sql"]);
+
   const migration = readFileSync(
-    new URL("../drizzle/0000_public_live_admission.sql", import.meta.url),
+    new URL(migrationFiles[0], migrationDirectoryUrl),
     "utf8",
   );
   const normalizedMigration = migration.replace(/\s+/g, " ").trim();
@@ -193,9 +211,35 @@ test("the packaged D1 migration matches the aggregate-only runtime schema", () =
       new RegExp(escapeRegex(statement.replace(/\s+/g, " ").trim())),
     );
   }
+  assert.deepEqual(
+    [...normalizedMigration.matchAll(/CREATE TABLE(?: IF NOT EXISTS)? ([a-z_]+)/gi)]
+      .map((match) => match[1]),
+    ["public_live_reservations"],
+  );
+  const tableDefinition = normalizedMigration.match(
+    /CREATE TABLE IF NOT EXISTS public_live_reservations \((.*?)\);/i,
+  );
+  assert.ok(tableDefinition);
+  const tableColumns = tableDefinition[1].trim();
+  assert.deepEqual(
+    [...tableColumns.matchAll(/(?:^|, )([a-z_]+) (?:TEXT|INTEGER)\b/gi)]
+      .map((match) => match[1]),
+    [
+      "reservation_id",
+      "work_units",
+      "hour_window_start",
+      "day_window_start",
+      "status",
+      "created_at",
+      "expires_at",
+      "settled_at",
+    ],
+  );
+  assert.doesNotMatch(normalizedMigration, /\b(?:DROP|ALTER)\b/i);
+  assert.doesNotMatch(normalizedMigration, /\bprobe_counter\b/i);
   assert.doesNotMatch(
     normalizedMigration,
-    /question|result_packet|source_content|discovered_url|ip_address|user_agent|cookie|fingerprint|account_id/i,
+    /visitor|question|result(?:_packet)?|source_content|discovered_url|ip(?:_address)?|user_(?:id|identity|agent)|cookie|fingerprint|account_id/i,
   );
 });
 
