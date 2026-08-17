@@ -36,9 +36,15 @@ import {
   type CandidateProposal,
   type DiscoverySource,
 } from "./schemas";
+import { PUBLIC_WORKFLOW_DEADLINE_MS } from "../public-admission";
 
 export const OPENAI_ANALYSIS_MODEL = "gpt-5.6-luna";
 export const OPENAI_REQUEST_TIMEOUT_MS = 20_000;
+export const OPENAI_DISCOVERY_MAX_TOOL_CALLS = 2;
+export const OPENAI_DISCOVERY_MAX_OUTPUT_TOKENS = 6_000;
+export const OPENAI_EXTRACTION_MAX_OUTPUT_TOKENS = 4_000;
+export const OPENAI_EXTRACTION_CONCURRENCY = 2;
+export const MINIMUM_PROVIDER_START_BUDGET_MS = 2_000;
 
 export const BASELINE_DISCOVERY_INSTRUCTIONS = [
   "Find a compact conventional baseline of directly relevant public web sources for the question.",
@@ -93,7 +99,10 @@ export interface ProviderResponse {
 }
 
 export interface ResponsesPort {
-  parse(body: Record<string, unknown>): Promise<ProviderResponse>;
+  parse(
+    body: Record<string, unknown>,
+    options?: { signal?: AbortSignal; timeout?: number },
+  ): Promise<ProviderResponse>;
 }
 
 export interface RunOpenAIAnalysisInput {
@@ -102,6 +111,18 @@ export interface RunOpenAIAnalysisInput {
   discoveryProfile?: DiscoveryProfile;
   generatedAt: string;
   responses: ResponsesPort;
+  workflowDeadlineMs?: number;
+  workflowMinimumStartBudgetMs?: number;
+}
+
+interface WorkflowBound {
+  readonly controller: AbortController;
+  readonly deadlineAtMs: number;
+  readonly minimumStartBudgetMs: number;
+}
+
+interface BoundedRunOpenAIAnalysisInput extends RunOpenAIAnalysisInput {
+  workflow: WorkflowBound;
 }
 
 interface ProviderURLProvenance {
@@ -145,8 +166,11 @@ export function createOpenAIResponsesPort(apiKey: string): ResponsesPort {
   });
 
   return {
-    async parse(body) {
-      return (await client.responses.parse(body as never)) as unknown as ProviderResponse;
+    async parse(body, options) {
+      return (await client.responses.parse(
+        body as never,
+        options,
+      )) as unknown as ProviderResponse;
     },
   };
 }
@@ -175,19 +199,46 @@ export async function runOpenAIAnalysis(
     throw new AnalysisFailure("malformed_source_set");
   }
 
+  const workflowDeadlineMs = input.workflowDeadlineMs ?? PUBLIC_WORKFLOW_DEADLINE_MS;
+  const minimumStartBudgetMs = input.workflowMinimumStartBudgetMs
+    ?? MINIMUM_PROVIDER_START_BUDGET_MS;
+  if (!Number.isFinite(workflowDeadlineMs) || workflowDeadlineMs <= 0) {
+    throw new AnalysisFailure("workflow_deadline_exceeded");
+  }
+  if (!Number.isFinite(minimumStartBudgetMs) || minimumStartBudgetMs < 0) {
+    throw new AnalysisFailure("workflow_deadline_exceeded");
+  }
+  const controller = new AbortController();
+  const workflow: WorkflowBound = {
+    controller,
+    deadlineAtMs: Date.now() + workflowDeadlineMs,
+    minimumStartBudgetMs,
+  };
+  const deadlineTimer = setTimeout(() => controller.abort(), workflowDeadlineMs);
+
+  try {
+    return await runWithinWorkflow({ ...input, workflow });
+  } finally {
+    clearTimeout(deadlineTimer);
+  }
+}
+
+async function runWithinWorkflow(
+  input: BoundedRunOpenAIAnalysisInput,
+): Promise<AnalysisRunPacket> {
   const discoveryProfile = input.discoveryProfile ?? "standard";
   const discovery = await discoverSources(input, discoveryProfile);
-  const extractionResults = await Promise.all(
-    discovery.sources.map(async (source) => {
+  const extractionResults = await mapWithConcurrency(
+    discovery.sources,
+    OPENAI_EXTRACTION_CONCURRENCY,
+    async (source) => {
       try {
+        assertWorkflowCanStart(input.workflow);
         return await extractOneSource(input, source);
       } catch (error) {
-        return {
-          source,
-          failure: classifyExtractionError(error),
-        };
+        return { source, failure: classifyExtractionError(error) };
       }
-    }),
+    },
   );
 
   const successful: ExtractedSourceResult[] = [];
@@ -203,6 +254,13 @@ export async function runOpenAIAnalysis(
     }
     successful.push(result);
   }
+
+  const terminalExtractionFailure = extractionFailures.find(
+    (failure) =>
+      failure.code === "workflow_deadline_exceeded"
+      || failure.code === "service_spend_limit_reached",
+  );
+  if (terminalExtractionFailure) throw terminalExtractionFailure;
 
   if (successful.length === 0) {
     throw extractionFailures[0] ?? new AnalysisFailure("structured_output_invalid");
@@ -265,7 +323,7 @@ export async function runOpenAIAnalysis(
 }
 
 async function discoverSources(
-  input: RunOpenAIAnalysisInput,
+  input: BoundedRunOpenAIAnalysisInput,
   discoveryProfile: DiscoveryProfile,
 ): Promise<DiscoveryResult> {
   if (discoveryProfile === "standard") {
@@ -328,6 +386,12 @@ async function discoverSources(
     };
   } catch (error) {
     const failure = classifyProviderError(error);
+    if (
+      failure.code === "workflow_deadline_exceeded"
+      || failure.code === "service_spend_limit_reached"
+    ) {
+      throw failure;
+    }
     return {
       ...baseline,
       warnings: [
@@ -343,7 +407,7 @@ async function discoverSources(
 }
 
 async function discoverPass(options: {
-  input: RunOpenAIAnalysisInput;
+  input: BoundedRunOpenAIAnalysisInput;
   discoveryPass: DiscoveryPass;
   sourceLimit: number;
   alreadySelected: WebSearchPartialSourceSnapshot[];
@@ -352,10 +416,12 @@ async function discoverPass(options: {
   const { input, discoveryPass, sourceLimit, alreadySelected, allowEmpty } = options;
   let response: ProviderResponse;
   try {
-    response = await input.responses.parse({
+    response = await parseWithinWorkflow(input, {
       model: OPENAI_ANALYSIS_MODEL,
       store: false,
       reasoning: { effort: "low" },
+      max_tool_calls: OPENAI_DISCOVERY_MAX_TOOL_CALLS,
+      max_output_tokens: OPENAI_DISCOVERY_MAX_OUTPUT_TOKENS,
       instructions:
         discoveryPass === "baseline"
           ? BASELINE_DISCOVERY_INSTRUCTIONS
@@ -557,15 +623,16 @@ async function buildPartialSnapshot(
 }
 
 async function extractOneSource(
-  input: RunOpenAIAnalysisInput,
+  input: BoundedRunOpenAIAnalysisInput,
   source: WebSearchPartialSourceSnapshot,
 ): Promise<ExtractedSourceResult> {
   let response: ProviderResponse;
   try {
-    response = await input.responses.parse({
+    response = await parseWithinWorkflow(input, {
       model: OPENAI_ANALYSIS_MODEL,
       store: false,
       reasoning: { effort: "low" },
+      max_output_tokens: OPENAI_EXTRACTION_MAX_OUTPUT_TOKENS,
       instructions: EXTRACTION_INSTRUCTIONS,
       input: JSON.stringify({
         source_record_boundary: "BEGIN_UNTRUSTED_MODEL_GENERATED_SEARCH_SUMMARY",
@@ -924,6 +991,66 @@ function classifyExtractionError(error: unknown): AnalysisFailure {
   return failure.code === "provider_failure"
     ? new AnalysisFailure("structured_output_invalid")
     : failure;
+}
+
+async function parseWithinWorkflow(
+  input: BoundedRunOpenAIAnalysisInput,
+  body: Record<string, unknown>,
+): Promise<ProviderResponse> {
+  assertWorkflowCanStart(input.workflow);
+  const remainingMs = input.workflow.deadlineAtMs - Date.now();
+  try {
+    const response = await input.responses.parse(body, {
+      signal: input.workflow.controller.signal,
+      timeout: Math.min(OPENAI_REQUEST_TIMEOUT_MS, remainingMs),
+    });
+    if (
+      input.workflow.controller.signal.aborted
+      || Date.now() >= input.workflow.deadlineAtMs
+    ) {
+      throw new AnalysisFailure("workflow_deadline_exceeded");
+    }
+    return response;
+  } catch (error) {
+    if (
+      input.workflow.controller.signal.aborted
+      || Date.now() >= input.workflow.deadlineAtMs
+    ) {
+      throw new AnalysisFailure("workflow_deadline_exceeded");
+    }
+    throw error;
+  }
+}
+
+function assertWorkflowCanStart(workflow: WorkflowBound): void {
+  if (
+    workflow.controller.signal.aborted
+    || workflow.deadlineAtMs - Date.now() < workflow.minimumStartBudgetMs
+  ) {
+    workflow.controller.abort();
+    throw new AnalysisFailure("workflow_deadline_exceeded");
+  }
+}
+
+async function mapWithConcurrency<Input, Output>(
+  values: readonly Input[],
+  concurrency: number,
+  mapper: (value: Input, index: number) => Promise<Output>,
+): Promise<Output[]> {
+  const results = new Array<Output>(values.length);
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, values.length) },
+    async () => {
+      while (nextIndex < values.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await mapper(values[index], index);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return results;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -97,6 +97,42 @@ export function formatReviewTimestamp(
   }).format(date);
 }
 
+export function compareReviewTimestamps(
+  left: { value: string; precision: Exclude<TemporalPrecision, null> },
+  right: { value: string; precision: Exclude<TemporalPrecision, null> },
+  datesWithDayPrecision: ReadonlySet<string> = new Set(),
+): number {
+  const leftDate = left.value.slice(0, 10);
+  const rightDate = right.value.slice(0, 10);
+  if (leftDate !== rightDate) return left.value.localeCompare(right.value);
+  if (
+    datesWithDayPrecision.has(leftDate)
+    || (
+      left.precision !== right.precision
+      && (left.precision === "day" || right.precision === "day")
+    )
+  ) {
+    // A date-only value uses midnight internally for representation, not as an
+    // asserted clock time. Mixed precision on the same UTC calendar date is a
+    // stable peer group and must not fabricate strict intra-day chronology.
+    return 0;
+  }
+  return left.value.localeCompare(right.value);
+}
+
+export function datesContainingDayPrecision(
+  values: ReadonlyArray<{
+    value: string;
+    precision: Exclude<TemporalPrecision, null>;
+  }>,
+): Set<string> {
+  return new Set(
+    values
+      .filter((value) => value.precision === "day")
+      .map((value) => value.value.slice(0, 10)),
+  );
+}
+
 function isValidCalendarDate(
   yearText: string,
   monthText: string,

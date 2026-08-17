@@ -7,24 +7,30 @@ or an unsupported Python backend.
 
 ## Official basis and selected shape
 
-Reviewed on 2026-08-13:
+Reviewed on 2026-08-17:
 
 - [ChatGPT Sites developer guide](https://learn.chatgpt.com/docs/sites)
 - [Responses API migration guide](https://developers.openai.com/api/docs/guides/migrate-to-responses)
 - [Web search tool guide](https://developers.openai.com/api/docs/guides/tools-web-search)
 - [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [Production best practices](https://developers.openai.com/api/docs/guides/production-best-practices)
+- [OpenAI API error codes](https://developers.openai.com/api/docs/guides/error-codes)
+- [Cloudflare D1 Worker API](https://developers.cloudflare.com/d1/worker-api/)
+- [Cloudflare Worker limits](https://developers.cloudflare.com/workers/platform/limits/)
 - the current bundled Sites `vinext-starter`, initialized by the OpenAI Sites
   workflow
 
 The selected shape uses vinext's App Router compatibility layer, Vite, React,
 and a Cloudflare Worker-compatible ESM entry point. It keeps the starter's
-`sites()` Vite plugin and worker boundary. This supports server-rendered UI and
-route handlers without adding storage or authentication.
+`sites()` Vite plugin and worker boundary. This supports server-rendered UI,
+route handlers, and a Site-managed D1 binding. No authentication or visitor
+identity store is added.
 
-`.openai/hosting.json` came from the supported starter and declares both `d1`
-and `r2` as `null`. It contains no secret or invented `project_id`. A real
-project linkage may update that file only through ChatGPT Sites.
+`.openai/hosting.json` came from the supported starter and now declares the
+logical D1 binding `DB`; `r2` remains `null`. The linked project ID is unchanged,
+and the file contains no secret. The migration in `drizzle/` is packaged for a
+later owner-controlled Sites version. This repository change does not create or
+modify a hosted database or production binding.
 
 ## Commands
 
@@ -45,6 +51,9 @@ npm run check:secrets
 npm run check:client-secrets
 npm run smoke:openai:live
 ```
+
+`smoke:openai:live` is opt-in and potentially billable. Do not run it without
+separate owner authorization.
 
 The default development URL is printed by vinext (normally
 `http://localhost:3000`).
@@ -67,16 +76,17 @@ Only a single bounded fixture record is returned through that detail path.
 Source text is rendered through React or serialized as JSON; it is never
 executed as HTML or instructions.
 
-## Optional server-side OpenAI analysis
+## Bounded server-side OpenAI analysis
 
-`POST /api/analysis` is the source-local browser-to-analysis boundary. The route
-accepts only a normalized public-interest question, an optional source limit
+`POST /api/lineage` is the sole public billable boundary. The browser-facing
+`POST /api/analysis` route is disabled and cannot invoke provider work. The
+lineage route accepts only a normalized public-interest question, an optional source limit
 (public default 3, public maximum 5), and an optional discovery profile. The
 profile defaults to `standard`. Requests above 5 are rejected before adapter or
 provider work. The analysis adapter retains a separate internal hard maximum of
-8 for direct unit/stress use; 8 is not a public browser-route option. The route
-then reads `OPENAI_API_KEY` only from the
-server process. The client never imports the OpenAI adapter and receives no raw
+8 for direct unit/stress use; 8 is not a public browser-route option. Only after
+validation and admission does the route use `OPENAI_API_KEY` from the server
+runtime. The client never imports the OpenAI adapter and receives no raw
 provider response or unbounded source text.
 
 The adapter uses the current OpenAI JavaScript SDK with:
@@ -86,7 +96,17 @@ The adapter uses the current OpenAI JavaScript SDK with:
 - the built-in `{ type: "web_search" }` tool for bounded source discovery;
 - `include: ["web_search_call.action.sources"]` plus URL-citation annotations
   for available search provenance;
-- `store: false`, a 20-second request timeout, and zero automatic retries.
+- `store: false`, a 20-second per-request timeout, a 110-second whole-workflow
+  deadline, and zero automatic retries;
+- `max_tool_calls: 2` and `max_output_tokens: 6000` on discovery requests;
+- `max_output_tokens: 4000` on source-local extraction requests; and
+- a deterministic extraction pool with concurrency 2.
+
+The installed `openai@7.4.0` request types were inspected before selecting
+these parameters. `max_tool_calls` bounds total built-in tool calls within one
+response, so two permits one bounded refinement while preventing open-ended
+search use. These defaults have deterministic request-object coverage but still
+require a later separately authorized provider-quality acceptance test.
 
 ### Discovery profiles
 
@@ -131,17 +151,57 @@ or at most two discovery requests for coverage expansion, followed by one
 source-local extraction request per returned source. Absent partial failure,
 the public planning shape is:
 
-| Public source limit | Discovery profile | Discovery requests | Extraction requests | Approximate total |
-| --- | --- | ---: | ---: | ---: |
-| 3 | Standard review | 1 | 3 | 4 |
-| 3 | Expand source coverage | up to 2 | 3 | 5 |
-| 5 | Standard review | 1 | 5 | 6 |
-| 5 | Expand source coverage | up to 2 | 5 | 7 |
+| Public source limit | Discovery profile | Discovery requests | Extraction requests | Approximate total | Reserved work units |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 3 | Standard review | 1 | 3 | 4 | 6 |
+| 3 | Expand source coverage | up to 2 | 3 | 5 | 9 |
+| 5 | Standard review | 1 | 5 | 6 | 8 |
+| 5 | Expand source coverage | up to 2 | 5 | 7 | 11 |
 
 These are planning bounds for rate/cost preparation, not a promise that every
-run completes every request. Each provider request retains the 20-second
-timeout; that is not a 20-second total-workflow promise. There are no automatic
-provider retries, streaming responses, or background jobs.
+run completes every request. Work units conservatively reserve one unit per
+provider request plus the two-call web-search ceiling for each discovery pass;
+they are inspectable capacity units, not exact token or currency estimates.
+There are no automatic provider retries, streaming responses, or background
+jobs. Once less than two seconds remains in the 110-second workflow budget, no
+new provider operation starts, and the shared abort signal is propagated to
+in-flight SDK requests. The deadline covers the maximum public shape of two
+sequential 20-second discovery requests plus three two-at-a-time extraction
+waves (up to 60 seconds), with 10 seconds for bounded orchestration and packet
+assembly. Cloudflare documents no hard HTTP Worker wall-time limit while the
+client stays connected.
+
+### Atomic anonymous admission
+
+Every public request is validated before runtime resolution, storage mutation,
+or provider work. A valid request computes the deterministic work shape above
+and attempts one aggregate reservation in D1. Admission is bounded to two
+concurrent investigations, 60 work units per UTC hour, and 240 work units per
+UTC day. Active leases expire after 150 seconds; stale active rows are marked
+expired before a later reservation, and old completed rows are pruned after
+their budget relevance ends.
+
+The reservation is not a Worker-local counter and does not use a naive
+read/check/write sequence. D1 executes stale reconciliation, retention, and the
+conditional `INSERT ... SELECT ... WHERE` as one transactional `batch()`. The
+conditional insert checks active, hourly, and daily capacity inside the write
+transaction. Settlement updates only an `active` reservation, making duplicate
+settlement a no-op; no decrementing counter can become negative. Consumed work
+units remain conservatively charged within their windows on success, provider
+failure, deadline, or unexpected failure.
+
+The table stores only a random reservation ID, work units, UTC window keys,
+status, and lease/settlement timestamps. It does not store the visitor question,
+result packet, source content, discovered URLs, IP address, headers, user agent,
+cookies, device fingerprint, or account identity. Aggregate admission limits
+total capacity but cannot guarantee fairness between anonymous visitors and are
+not claimed as strong identity-based abuse prevention.
+
+Capacity denial returns a typed HTTP 429 with a deterministic `Retry-After`
+derived from the limiting window or lease. It never substitutes the unrelated
+prepared cooling-center packet: an existing packet remains intact, and the
+prepared example stays a separate explicit action. An unavailable admission
+backend returns a bounded 503 before provider work.
 
 Every source carries selection metadata for discovery pass/lane, source
 context, information proximity, and a concise inclusion reason. Prepared
@@ -180,9 +240,11 @@ Every displayed live candidate includes a direct clickable URL citation or web-
 search source reference mapped to its source and snapshot IDs. Cross-source
 temporal reasoning is not performed by the analysis adapter itself.
 
-If the key is missing or a known live-provider failure occurs, the route returns
-the deterministic prepared case with explicit `fallback` status and no
-canonical mutation. Set `RUN_OPENAI_LIVE_SMOKE=1` only when intentionally
+Ordinary known live-provider failures may still return the deterministic
+prepared case with explicit `fallback` status and no canonical mutation. A
+workflow deadline instead returns a typed bounded timeout, and exact observable
+project/organization spend-limit codes return a typed service-budget boundary;
+neither is mislabeled as a successful live run. Set `RUN_OPENAI_LIVE_SMOKE=1` only when intentionally
 authorizing the opt-in, potentially billable smoke; the default command prints
 a skip result and makes no OpenAI request.
 
@@ -193,7 +255,7 @@ browser-public variables or `.openai/hosting.json`.
 
 ## Site-ready temporal claim lineage
 
-`POST /api/lineage` reuses the existing server-only analysis boundary and
+`POST /api/lineage` owns the shared public admission/execution boundary and
 adapts deterministic fallback and live candidate runs into the same schema-checked
 `site_ready_case_packet.v1` contract. `GET /api/lineage/:caseId` serves the
 deterministic prepared packet. Focused prepared-case detail is available at:
@@ -229,7 +291,11 @@ Sisyphus retrieval time remain separate fields, and any selected display axis
 is named explicitly. Normalized timestamps also carry explicit `day`, `instant`,
 or `null` precision: an original `YYYY-MM-DD` renders as a date only, while a
 timezone-bearing midnight remains an exact UTC instant. Precision is never
-inferred from a normalized midnight clock value.
+inferred from a normalized midnight clock value. If a UTC calendar date contains
+a day-precision value, all values on that date form one stable display-order
+group; an exact instant on the same date is not placed strictly after the
+date-only value merely because the latter uses a midnight surrogate. Different
+dates continue to order normally.
 
 Only `actor_claim` records become live `ClaimOccurrence` records. Findings and
 actions remain in their dedicated packet lanes, while standalone event/assertion
@@ -266,17 +332,18 @@ relation, family, provenance, or canonical-state rules in React. Focused
 prepared-case details use the stable `/api/lineage/:caseId` detail route.
 
 Live analysis is closed by default. Set the non-secret server flag below only
-when a reviewed environment should expose the existing bounded live route:
+when a reviewed environment should expose the bounded live route:
 
 ```text
 SISYPHUS_LIVE_ENABLED=true
 ```
 
-The flag is evaluated server-side and only the boolean enabled state reaches
-the rendered interface. `OPENAI_API_KEY` remains a server-only secret and must
-be configured separately in the server or future ChatGPT Sites environment
-settings. A missing key or known provider failure returns an explicitly labeled
-prepared fallback; it is never represented as a successful live run.
+The rendered interface advertises self-service live work only when the flag is
+true, the server API key is present, and the D1 admission table passes a safe
+readiness query. Only that composite boolean reaches browser code. No secret
+name/value, binding detail, counter, or spend information is serialized.
+`OPENAI_API_KEY` remains a server-only secret and must be configured separately
+in a later owner-controlled Sites environment step.
 
 The public route retains the 12–500 normalized-question bound, 4 KB request-body
 bound, public five-source maximum, internal eight-source hard maximum, 64-pair
@@ -285,12 +352,14 @@ arbitrary URL input, no recursive crawling, and no visitor/result persistence.
 The browser uses a synchronous one-in-flight request identity guard and a
 30-second in-memory cooldown after success or failure. The cooldown prevents
 accidental repeats in one page session; it is not strong abuse prevention and
-uses no local storage, session storage, cookie, D1, or R2 state.
+uses no local storage, session storage, cookie, or R2 state. D1 holds only the
+aggregate admission leases described above; it is not a visitor state store.
 
-The installed OpenAI SDK exposes a generic rate-limit/provider error surface,
-not a stable separately typed usage- or spend-limit classification used here.
-Until an explicitly documented or observed code is reviewed, those failures use
-the bounded generic provider-unavailable copy rather than invented public error
-detail. Source content cannot change the discovery profile, authorize tools,
+The installed SDK exposes structured provider error codes. Exact
+`credit_balance_exhausted`, `organization_spend_limit_exceeded`,
+`project_spend_limit_exceeded`, and `organization_usage_limit_exceeded` values
+map to one bounded public service-budget error before the broader HTTP 429
+rate-limit classification. Ambiguous quota failures remain generic rather than
+inventing project/account detail. Source content cannot change the discovery profile, authorize tools,
 request secrets, or mutate canonical state. Disabling live mode does not affect
 the prepared case.

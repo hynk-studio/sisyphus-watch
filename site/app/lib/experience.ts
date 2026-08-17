@@ -8,7 +8,11 @@ import type {
   InformationProximity,
   SourceContext,
 } from "./source-profile";
-import type { TemporalPrecision } from "./temporal";
+import {
+  compareReviewTimestamps,
+  datesContainingDayPrecision,
+  type TemporalPrecision,
+} from "./temporal";
 
 export const EXPERIENCE_VIEWS = [
   "map",
@@ -180,13 +184,24 @@ export function orderTimelineRows(
   rows: SiteTimelineRow[],
   axis: TimeAxis,
 ): SiteTimelineRow[] {
+  const dayPrecisionDates = datesContainingDayPrecision(
+    rows.flatMap((row) => {
+      const value = timeValue(row, axis);
+      const precision = timePrecision(row, axis);
+      return value && precision ? [{ value, precision }] : [];
+    }),
+  );
   return [...rows].sort((left, right) => {
     const leftValue = timeValue(left, axis);
     const rightValue = timeValue(right, axis);
     if (!leftValue && !rightValue) return left.timeline_row_id.localeCompare(right.timeline_row_id);
     if (!leftValue) return 1;
     if (!rightValue) return -1;
-    return leftValue.localeCompare(rightValue);
+    return compareReviewTimestamps(
+      { value: leftValue, precision: timePrecision(left, axis) ?? "instant" },
+      { value: rightValue, precision: timePrecision(right, axis) ?? "instant" },
+      dayPrecisionDates,
+    ) || left.timeline_row_id.localeCompare(right.timeline_row_id);
   });
 }
 

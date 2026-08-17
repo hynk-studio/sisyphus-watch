@@ -2,7 +2,11 @@ import type { AnalysisErrorPacket, AnalysisRunPacket } from "./contracts";
 import { AnalysisFailure } from "./errors";
 import { buildFallbackPacket } from "./fallback";
 import { runOpenAIAnalysisWithKey } from "./openai-adapter";
-import { parseAnalysisRequest, RequestValidationError } from "./request";
+import {
+  parseAnalysisRequest,
+  RequestValidationError,
+  type NormalizedAnalysisRequest,
+} from "./request";
 
 const MAX_REQUEST_BYTES = 4_096;
 
@@ -16,20 +20,20 @@ export async function handleAnalysisRequest(
   request: Request,
   dependencies: AnalysisHandlerDependencies,
 ): Promise<Response> {
-  let normalized: {
-    question: string;
-    sourceLimit: number;
-    discoveryProfile: "standard" | "coverage_expansion";
-  };
+  let normalized: NormalizedAnalysisRequest;
   try {
-    normalized = parseAnalysisRequest(await readBoundedJSON(request));
+    normalized = await parseBoundedAnalysisRequest(request);
   } catch (error) {
-    if (error instanceof RequestValidationError) {
-      return jsonError(400, error.code, error.message);
-    }
-    return jsonError(400, "invalid_json", "Request body must be valid bounded JSON.");
+    return invalidAnalysisRequestResponse(error);
   }
 
+  return executeAnalysisRequest(normalized, dependencies);
+}
+
+export async function executeAnalysisRequest(
+  normalized: NormalizedAnalysisRequest,
+  dependencies: AnalysisHandlerDependencies,
+): Promise<Response> {
   const generatedAt = (dependencies.now ?? (() => new Date().toISOString()))();
   const apiKey = dependencies.apiKey?.trim();
   if (!apiKey) {
@@ -53,6 +57,12 @@ export async function handleAnalysisRequest(
     return Response.json(packet satisfies AnalysisRunPacket);
   } catch (error) {
     if (error instanceof AnalysisFailure) {
+      if (error.code === "workflow_deadline_exceeded") {
+        return jsonError(504, error.code, error.safeMessage);
+      }
+      if (error.code === "service_spend_limit_reached") {
+        return jsonError(429, error.code, error.safeMessage);
+      }
       return Response.json(
         await buildFallbackPacket({
           ...normalized,
@@ -68,6 +78,19 @@ export async function handleAnalysisRequest(
       "The analysis route failed without changing the accepted record.",
     );
   }
+}
+
+export async function parseBoundedAnalysisRequest(
+  request: Request,
+): Promise<NormalizedAnalysisRequest> {
+  return parseAnalysisRequest(await readBoundedJSON(request));
+}
+
+export function invalidAnalysisRequestResponse(error: unknown): Response {
+  if (error instanceof RequestValidationError) {
+    return jsonError(400, error.code, error.message);
+  }
+  return jsonError(400, "invalid_json", "Request body must be valid bounded JSON.");
 }
 
 async function readBoundedJSON(request: Request): Promise<unknown> {
@@ -88,12 +111,17 @@ async function readBoundedJSON(request: Request): Promise<unknown> {
   return JSON.parse(text);
 }
 
-function jsonError(status: number, code: string, message: string): Response {
+export function jsonError(
+  status: number,
+  code: string,
+  message: string,
+  headers?: HeadersInit,
+): Response {
   const body: AnalysisErrorPacket = {
-    mode: "fallback",
+    mode: "unavailable",
     status: "error",
     error: { code, message },
     canonical_mutation: "none",
   };
-  return Response.json(body, { status });
+  return Response.json(body, { status, headers });
 }

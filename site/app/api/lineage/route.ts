@@ -1,18 +1,10 @@
-import { handleLineageRequest } from "../../lib/lineage/handler";
-import {
-  getServerEnvironmentValue,
-  isLiveAnalysisEnabledOnServer,
-  liveAnalysisDisabledResponse,
-  OPENAI_KEY_ENVIRONMENT_NAME,
-} from "../../lib/live-mode";
+import { getPublicLiveRuntime } from "../../lib/live-mode";
+import { handlePublicLiveLineageRequest } from "../../lib/public-live-handler";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<Response> {
-  if (!(await isLiveAnalysisEnabledOnServer())) {
-    return liveAnalysisDisabledResponse();
-  }
-  return handleLineageRequest(request, {
-    apiKey: await getServerEnvironmentValue(OPENAI_KEY_ENVIRONMENT_NAME),
+  return handlePublicLiveLineageRequest(request, {
+    getRuntime: getPublicLiveRuntime,
   });
 }

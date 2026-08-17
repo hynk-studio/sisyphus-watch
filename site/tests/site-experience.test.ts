@@ -71,7 +71,7 @@ test("live-disabled landing makes the prepared investigation the primary usable 
   assert.match(html, /Explore how public information changes/);
   assert.match(html, /class="prepared-primary-button"/);
   assert.match(html, /Explore the prepared investigation/);
-  assert.match(html, /Arbitrary topic investigations are not enabled in this release/);
+  assert.match(html, /Public live investigations are unavailable right now/);
   assert.match(html, /available working path/);
   assert.match(html, /How live investigations work/);
   assert.doesNotMatch(html, /<textarea/);

@@ -10,6 +10,12 @@ export async function handleLineageRequest(
   dependencies: AnalysisHandlerDependencies,
 ): Promise<Response> {
   const analysisResponse = await handleAnalysisRequest(request, dependencies);
+  return buildLineageResponseFromAnalysis(analysisResponse);
+}
+
+export async function buildLineageResponseFromAnalysis(
+  analysisResponse: Response,
+): Promise<Response> {
   const payload = (await analysisResponse.json()) as AnalysisRoutePayload;
   if (payload.status === "error") {
     return Response.json(payload, { status: analysisResponse.status });
@@ -22,7 +28,7 @@ export async function handleLineageRequest(
   } catch {
     return Response.json(
       {
-        mode: "fallback",
+        mode: "unavailable",
         status: "error",
         error: {
           code: "lineage_packet_validation_failed",

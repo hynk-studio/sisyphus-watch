@@ -318,6 +318,27 @@ test("each selected time axis is explicit and missing values enter Time unavaila
   assert.ok(retrievalMap.sources.every((source) => source.selectedTimeAxisLabel === "Sisyphus retrieval time"));
 });
 
+test("map publication ordering groups same-day mixed precision without using midnight as chronology", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  packet.source_snapshot_summaries.forEach((source, index) => {
+    source.published_at = index === 0
+      ? "2025-07-15T00:00:00.000Z"
+      : `2025-07-15T${String(7 + index).padStart(2, "0")}:00:00.000Z`;
+    source.published_at_precision = index === 0 ? "day" : "instant";
+  });
+  const expectedStableGroup = packet.source_snapshot_summaries
+    .map((source) => source.source_id)
+    .sort();
+  const map = deriveInvestigationMap(packet, "publication_time");
+  assert.deepEqual(
+    map.sources.map((source) => source.sourceId),
+    expectedStableGroup,
+  );
+  assert.equal(map.sources.find((source) =>
+    source.sourceId === packet.source_snapshot_summaries[0].source_id
+  )?.selectedTimePrecision, "day");
+});
+
 test("the vertical list model contains the visual map's material source, relation, and question information", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const map = deriveInvestigationMap(packet, "publication_time");

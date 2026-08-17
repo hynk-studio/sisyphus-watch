@@ -1,6 +1,10 @@
 import type { DiscoveryLane, DiscoveryProfile } from "./source-profile";
 import { boundedReviewerText } from "./reviewer-text";
-import type { TemporalPrecision } from "./temporal";
+import {
+  compareReviewTimestamps,
+  datesContainingDayPrecision,
+  type TemporalPrecision,
+} from "./temporal";
 import {
   TIME_AXIS_LABELS,
   discoveryLaneLabel,
@@ -178,15 +182,27 @@ export function deriveInvestigationMap(
       explicitSourceTimes(packet, source.source_id),
     ]),
   );
+  const selectedSourceTimes = new Map(
+    [...sourceTimes].map(([sourceId, times]) => [
+      sourceId,
+      firstTime(times[selectedTimeAxis]),
+    ]),
+  );
+  const selectedDayPrecisionDates = datesContainingDayPrecision(
+    [...selectedSourceTimes.values()].filter(
+      (value): value is ExplicitTimeValue => value !== null,
+    ),
+  );
   const sortedSources = [...packet.source_snapshot_summaries].sort((left, right) => {
-    const leftTime = firstTime(
-      sourceTimes.get(left.source_id)?.[selectedTimeAxis] ?? [],
-    )?.value;
-    const rightTime = firstTime(
-      sourceTimes.get(right.source_id)?.[selectedTimeAxis] ?? [],
-    )?.value;
+    const leftTime = selectedSourceTimes.get(left.source_id) ?? null;
+    const rightTime = selectedSourceTimes.get(right.source_id) ?? null;
     if (leftTime && rightTime) {
-      return leftTime.localeCompare(rightTime) || left.source_id.localeCompare(right.source_id);
+      return compareReviewTimestamps(
+        leftTime,
+        rightTime,
+        selectedDayPrecisionDates,
+      )
+        || left.source_id.localeCompare(right.source_id);
     }
     if (leftTime) return -1;
     if (rightTime) return 1;
@@ -674,8 +690,10 @@ function uniqueTimes(
     if (!value) continue;
     byIdentity.set(`${value.value}:${value.precision}`, value);
   }
-  return [...byIdentity.values()].sort((left, right) =>
-    left.value.localeCompare(right.value)
+  const uniqueValues = [...byIdentity.values()];
+  const dayPrecisionDates = datesContainingDayPrecision(uniqueValues);
+  return uniqueValues.sort((left, right) =>
+    compareReviewTimestamps(left, right, dayPrecisionDates)
     || left.precision.localeCompare(right.precision),
   );
 }

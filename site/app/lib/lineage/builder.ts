@@ -9,7 +9,11 @@ import {
   buildPreparedFixtureCoverageSummary,
 } from "../source-profile";
 import { boundedReviewerText } from "../reviewer-text";
-import { normalizeTimestampWithPrecision } from "../temporal";
+import {
+  compareReviewTimestamps,
+  datesContainingDayPrecision,
+  normalizeTimestampWithPrecision,
+} from "../temporal";
 import {
   applyFamilyReferences,
   buildBoundedRelations,
@@ -468,8 +472,7 @@ function candidateToQuestion(candidate: AnalysisCandidate): PacketUnresolvedQues
 }
 
 function buildTimelineRows(occurrences: ClaimOccurrence[]): SiteTimelineRow[] {
-  return occurrences
-    .map((occurrence) => {
+  const rows = occurrences.map((occurrence) => {
       const display = selectDisplayTime(occurrence);
       return {
         timeline_row_id: stableLineageId("timeline_row_", occurrence.occurrence_id),
@@ -490,9 +493,19 @@ function buildTimelineRows(occurrences: ClaimOccurrence[]): SiteTimelineRow[] {
         time_inference: "none" as const,
         status: occurrence.status,
       };
-    })
-    .sort((left, right) =>
-      left.display_time.localeCompare(right.display_time) ||
+    });
+  const dayPrecisionDates = datesContainingDayPrecision(
+    rows.map((row) => ({
+      value: row.display_time,
+      precision: row.display_time_precision,
+    })),
+  );
+  return rows.sort((left, right) =>
+      compareReviewTimestamps(
+        { value: left.display_time, precision: left.display_time_precision },
+        { value: right.display_time, precision: right.display_time_precision },
+        dayPrecisionDates,
+      ) ||
       left.timeline_row_id.localeCompare(right.timeline_row_id),
     );
 }

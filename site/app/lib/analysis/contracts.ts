@@ -107,7 +107,7 @@ export interface AnalysisRunPacket {
 }
 
 export interface AnalysisErrorPacket {
-  mode: "fallback";
+  mode: "unavailable";
   status: "error";
   error: {
     code: string;

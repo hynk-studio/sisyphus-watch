@@ -39,9 +39,9 @@ import { getSiteReadyCaseDetail } from "../lib/lineage/details";
 import type { DiscoveryProfile } from "../lib/source-profile";
 import {
   PublicLiveRunGuard,
+  decidePublicRunResponse,
   fallbackFailureCode,
   publicRerunSourceLimit,
-  safePublicFailureMessage,
 } from "../lib/public-live";
 import { FocusedDetailPanel } from "./FocusedDetailPanel";
 import { InvestigationMapView } from "./InvestigationMapView";
@@ -151,6 +151,7 @@ export function CaseExplorer({
     if (requestId === null) return;
     const hadDisplayedInvestigation = investigationStarted;
     let outcome: "success" | "failure" = "failure";
+    let serverRetryAfterSeconds = 0;
     setRouteError(null);
     setIsLoading(true);
     try {
@@ -163,30 +164,35 @@ export function CaseExplorer({
         | SiteReadyCasePacket
         | Extract<AnalysisRoutePayload, { status: "error" }>;
       if (!runGuard.current.acceptsResponse(requestId)) return;
-      if (payload.status === "error") {
-        setRouteError(payload.error.message);
+      serverRetryAfterSeconds = parseRetryAfterSeconds(
+        response.headers.get("Retry-After"),
+      );
+      const decision = decidePublicRunResponse(payload, {
+        responseOk: response.ok,
+        hadDisplayedInvestigation,
+        retryAfterSeconds: serverRetryAfterSeconds,
+      });
+      if (decision.kind === "preserve") {
+        setRouteError(decision.message);
         return;
       }
-      if (!response.ok) {
-        setRouteError("The bounded investigation request did not complete.");
-        return;
-      }
-      if (payload.mode === "fallback" && hadDisplayedInvestigation) {
-        setRouteError(safePublicFailureMessage(payload));
-        return;
-      }
-      setPacket(payload);
+      const nextPacket = decision.packet;
+      setPacket(nextPacket);
       setInvestigationStarted(true);
       setActiveView("map");
       setCoverageLens("all");
       clearDetail();
-      outcome = payload.mode === "live" ? "success" : "failure";
+      outcome = nextPacket.mode === "live" ? "success" : "failure";
     } catch {
       if (runGuard.current.acceptsResponse(requestId)) {
         setRouteError("The same-Site investigation route is unavailable.");
       }
     } finally {
-      if (runGuard.current.complete(requestId, outcome)) {
+      if (runGuard.current.complete(
+        requestId,
+        outcome,
+        serverRetryAfterSeconds,
+      )) {
         const state = runGuard.current.state();
         setIsLoading(false);
         setCooldownUntilMs(state.cooldownUntilMs);
@@ -462,6 +468,12 @@ export function CaseExplorer({
       </footer>
     </main>
   );
+}
+
+function parseRetryAfterSeconds(value: string | null): number {
+  if (!value || !/^\d+$/.test(value)) return 0;
+  const seconds = Number(value);
+  return Number.isSafeInteger(seconds) ? Math.min(seconds, 86_400) : 0;
 }
 
 export function getRunNotice(
