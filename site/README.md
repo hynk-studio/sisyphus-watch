@@ -171,6 +171,11 @@ waves (up to 60 seconds), with 10 seconds for bounded orchestration and packet
 assembly. Cloudflare documents no hard HTTP Worker wall-time limit while the
 client stays connected.
 
+An exact hard-spend or workflow-deadline signal sets one shared terminal cause
+for the extraction pool. No later source extraction starts, cleanly abortable
+in-flight work receives the same signal, and a spend-triggered abort is not
+reclassified as a deadline. There is still no retry orchestration.
+
 ### Atomic anonymous admission
 
 Every public request is validated before runtime resolution, storage mutation,
@@ -291,11 +296,13 @@ Sisyphus retrieval time remain separate fields, and any selected display axis
 is named explicitly. Normalized timestamps also carry explicit `day`, `instant`,
 or `null` precision: an original `YYYY-MM-DD` renders as a date only, while a
 timezone-bearing midnight remains an exact UTC instant. Precision is never
-inferred from a normalized midnight clock value. If a UTC calendar date contains
-a day-precision value, all values on that date form one stable display-order
-group; an exact instant on the same date is not placed strictly after the
-date-only value merely because the latter uses a midnight surrogate. Different
-dates continue to order normally.
+inferred from a normalized midnight clock value. A UTC date containing day and
+instant precision becomes an explicit mixed-precision presentation group. Exact
+instants retain their known clock order within that group; day-level records are
+shown separately with no implied before/after position. Relation endpoints use
+stable non-chronological record order for such pairs, and correction/supersession
+rules cannot use the midnight surrogate as ordering evidence. Different dates
+continue to order normally.
 
 Only `actor_claim` records become live `ClaimOccurrence` records. Findings and
 actions remain in their dedicated packet lanes, while standalone event/assertion

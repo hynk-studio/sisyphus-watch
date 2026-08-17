@@ -1704,6 +1704,60 @@ test("an exact spend-limit extraction failure is terminal rather than partial li
   );
 });
 
+test("a first-wave spend limit stops later extraction work and preserves the spend cause", async () => {
+  const sources = Array.from({ length: 5 }, (_, index) => source(index + 1));
+  const extractionStarts: string[] = [];
+  const extractionSignals: AbortSignal[] = [];
+  let releaseFirstWave: (() => void) | null = null;
+  const firstWaveStarted = new Promise<void>((resolve) => {
+    releaseFirstWave = resolve;
+  });
+  let calls = 0;
+  const port: ResponsesPort = {
+    async parse(body, options): Promise<ProviderResponse> {
+      calls += 1;
+      if (calls === 1) return discoveryResponse(sources);
+      const record = JSON.parse(String(body.input)) as { source_id: string };
+      extractionStarts.push(record.source_id);
+      const isFirstExtraction = extractionStarts.length === 1;
+      if (options?.signal) extractionSignals.push(options.signal);
+      if (extractionStarts.length === OPENAI_EXTRACTION_CONCURRENCY) {
+        releaseFirstWave?.();
+      }
+      if (isFirstExtraction) {
+        await firstWaveStarted;
+        throw {
+          status: 429,
+          error: { code: "project_spend_limit_exceeded" },
+        };
+      }
+      return new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => {
+          const error = new Error("test-only peer abort");
+          error.name = "APIUserAbortError";
+          reject(error);
+        }, { once: true });
+      });
+    },
+  };
+
+  await assert.rejects(
+    runOpenAIAnalysis({
+      question: "How is public access changing for residents?",
+      sourceLimit: 5,
+      generatedAt: GENERATED_AT,
+      responses: port,
+    }),
+    (error) =>
+      error instanceof AnalysisFailure
+      && error.code === "service_spend_limit_reached",
+  );
+  assert.equal(extractionStarts.length, OPENAI_EXTRACTION_CONCURRENCY);
+  assert.equal(new Set(extractionStarts).size, OPENAI_EXTRACTION_CONCURRENCY);
+  assert.equal(calls, 1 + OPENAI_EXTRACTION_CONCURRENCY);
+  assert.ok(extractionSignals.every((signal) => signal.aborted));
+});
+
 test("rejects empty, unprovenanced, and private source candidates", async () => {
   const emptyPort = new FakeResponsesPort([{ output_parsed: { sources: [] }, output: [] }]);
   await assert.rejects(

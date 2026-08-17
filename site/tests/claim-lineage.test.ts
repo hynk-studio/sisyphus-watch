@@ -18,6 +18,7 @@ import {
   MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR,
   MAX_RELATION_PAIR_WORKLOAD,
   normalizeClaimText,
+  relationEndpointOrderingBasis,
   type FixtureRelationRule,
 } from "../app/lib/lineage/engine";
 import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
@@ -557,6 +558,32 @@ test("requires linked actor, ordering, and inspectable basis for correction or s
   );
   assert.equal(result.relations[0].relation_type, "unresolved");
   assert.equal(result.relations[0].insufficient_evidence, true);
+});
+
+test("same-day day and instant precision cannot orient a replacement relation", () => {
+  const day = occurrence("mixed_precision_day", "The center is at 10 Main Street.", {
+    event_time_candidate: "2025-07-15T00:00:00.000Z",
+    event_time_candidate_precision: "day",
+  });
+  const instant = occurrence(
+    "mixed_precision_instant",
+    "Correction: the center is at 12 Main Street.",
+    {
+      event_time_candidate: "2025-07-15T08:00:00.000Z",
+      event_time_candidate_precision: "instant",
+    },
+  );
+  const result = buildBoundedRelations(
+    [day, instant],
+    [rule(day, instant, "correction", "explicit_replacement_language")],
+  );
+  assert.equal(
+    relationEndpointOrderingBasis(day, instant),
+    "non_chronological_mixed_precision",
+  );
+  assert.equal(result.relations[0].relation_type, "unresolved");
+  assert.equal(result.relations[0].insufficient_evidence, true);
+  assert.match(result.relations[0].reason, /left\/right placement is not chronological/);
 });
 
 test("stops deterministically at the hard pair-work bound and reports deferrals", () => {

@@ -9,8 +9,8 @@ import type {
   SourceContext,
 } from "./source-profile";
 import {
-  compareReviewTimestamps,
-  datesContainingDayPrecision,
+  groupReviewTimestampItems,
+  type ReviewTimestampGroup,
   type TemporalPrecision,
 } from "./temporal";
 
@@ -184,25 +184,32 @@ export function orderTimelineRows(
   rows: SiteTimelineRow[],
   axis: TimeAxis,
 ): SiteTimelineRow[] {
-  const dayPrecisionDates = datesContainingDayPrecision(
-    rows.flatMap((row) => {
-      const value = timeValue(row, axis);
-      const precision = timePrecision(row, axis);
-      return value && precision ? [{ value, precision }] : [];
-    }),
+  const unavailable = rows
+    .filter((row) => !timeValue(row, axis))
+    .sort((left, right) =>
+      left.timeline_row_id.localeCompare(right.timeline_row_id),
+    );
+  return [
+    ...groupTimelineRowsByPrecision(rows, axis).flatMap((group) => group.items),
+    ...unavailable,
+  ];
+}
+
+export function groupTimelineRowsByPrecision(
+  rows: SiteTimelineRow[],
+  axis: TimeAxis,
+): ReviewTimestampGroup<SiteTimelineRow>[] {
+  const available = rows.filter(
+    (row) => timeValue(row, axis) && timePrecision(row, axis),
   );
-  return [...rows].sort((left, right) => {
-    const leftValue = timeValue(left, axis);
-    const rightValue = timeValue(right, axis);
-    if (!leftValue && !rightValue) return left.timeline_row_id.localeCompare(right.timeline_row_id);
-    if (!leftValue) return 1;
-    if (!rightValue) return -1;
-    return compareReviewTimestamps(
-      { value: leftValue, precision: timePrecision(left, axis) ?? "instant" },
-      { value: rightValue, precision: timePrecision(right, axis) ?? "instant" },
-      dayPrecisionDates,
-    ) || left.timeline_row_id.localeCompare(right.timeline_row_id);
-  });
+  return groupReviewTimestampItems(
+    available,
+    (row) => ({
+      value: timeValue(row, axis) as string,
+      precision: timePrecision(row, axis) as Exclude<TemporalPrecision, null>,
+    }),
+    (left, right) => left.timeline_row_id.localeCompare(right.timeline_row_id),
+  );
 }
 
 export function relatedRecordLabel(

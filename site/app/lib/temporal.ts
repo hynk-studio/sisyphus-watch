@@ -9,6 +9,19 @@ export interface NormalizedTimestamp {
   precision: TemporalPrecision;
 }
 
+export interface ReviewTimestampValue {
+  value: string;
+  precision: Exclude<TemporalPrecision, null>;
+}
+
+export type ReviewTimestampGroupPrecision = "day" | "instant" | "mixed";
+
+export interface ReviewTimestampGroup<Item> {
+  calendarDate: string;
+  precision: ReviewTimestampGroupPrecision;
+  items: Item[];
+}
+
 export function normalizeTimestampWithPrecision(
   value: string | null,
 ): NormalizedTimestamp {
@@ -98,39 +111,77 @@ export function formatReviewTimestamp(
 }
 
 export function compareReviewTimestamps(
-  left: { value: string; precision: Exclude<TemporalPrecision, null> },
-  right: { value: string; precision: Exclude<TemporalPrecision, null> },
-  datesWithDayPrecision: ReadonlySet<string> = new Set(),
+  left: ReviewTimestampValue,
+  right: ReviewTimestampValue,
 ): number {
   const leftDate = left.value.slice(0, 10);
   const rightDate = right.value.slice(0, 10);
   if (leftDate !== rightDate) return left.value.localeCompare(right.value);
-  if (
-    datesWithDayPrecision.has(leftDate)
-    || (
-      left.precision !== right.precision
-      && (left.precision === "day" || right.precision === "day")
-    )
-  ) {
+  if (left.precision !== right.precision) {
     // A date-only value uses midnight internally for representation, not as an
-    // asserted clock time. Mixed precision on the same UTC calendar date is a
-    // stable peer group and must not fabricate strict intra-day chronology.
+    // asserted clock time. A mixed-precision pair on the same UTC calendar date
+    // has no defensible strict order.
     return 0;
   }
+  if (left.precision === "day") return 0;
   return left.value.localeCompare(right.value);
 }
 
-export function datesContainingDayPrecision(
-  values: ReadonlyArray<{
-    value: string;
-    precision: Exclude<TemporalPrecision, null>;
-  }>,
-): Set<string> {
-  return new Set(
-    values
-      .filter((value) => value.precision === "day")
-      .map((value) => value.value.slice(0, 10)),
-  );
+export function isMixedPrecisionSameCalendarDay(
+  left: ReviewTimestampValue,
+  right: ReviewTimestampValue,
+): boolean {
+  return left.value.slice(0, 10) === right.value.slice(0, 10)
+    && left.precision !== right.precision;
+}
+
+export function groupReviewTimestampItems<Item>(
+  items: readonly Item[],
+  timestampFor: (item: Item) => ReviewTimestampValue,
+  tieBreak: (left: Item, right: Item) => number,
+): ReviewTimestampGroup<Item>[] {
+  const byCalendarDate = new Map<string, Item[]>();
+  for (const item of items) {
+    const calendarDate = timestampFor(item).value.slice(0, 10);
+    const group = byCalendarDate.get(calendarDate) ?? [];
+    group.push(item);
+    byCalendarDate.set(calendarDate, group);
+  }
+
+  return [...byCalendarDate]
+    .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+    .map(([calendarDate, groupItems]) => {
+      const hasDay = groupItems.some(
+        (item) => timestampFor(item).precision === "day",
+      );
+      const hasInstant = groupItems.some(
+        (item) => timestampFor(item).precision === "instant",
+      );
+      const precision: ReviewTimestampGroupPrecision = hasDay && hasInstant
+        ? "mixed"
+        : hasDay
+          ? "day"
+          : "instant";
+      const ordered = [...groupItems].sort((left, right) => {
+        const leftTimestamp = timestampFor(left);
+        const rightTimestamp = timestampFor(right);
+        if (
+          leftTimestamp.precision === "instant"
+          && rightTimestamp.precision === "instant"
+        ) {
+          return leftTimestamp.value.localeCompare(rightTimestamp.value)
+            || tieBreak(left, right);
+        }
+        if (leftTimestamp.precision === rightTimestamp.precision) {
+          return tieBreak(left, right);
+        }
+        // Mixed groups are explicitly labeled as non-chronological. Exact
+        // instants stay clock-ordered together; day-level peers are placed in a
+        // separate trailing subgroup rather than interleaved by surrogate time.
+        return leftTimestamp.precision === "instant" ? -1 : 1;
+      });
+      return { calendarDate, precision, items: ordered };
+    });
 }
 
 function isValidCalendarDate(

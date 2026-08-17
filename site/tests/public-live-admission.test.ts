@@ -35,7 +35,7 @@ import {
 } from "../app/lib/public-live";
 import {
   compareReviewTimestamps,
-  datesContainingDayPrecision,
+  groupReviewTimestampItems,
 } from "../app/lib/temporal";
 
 const NOW_MS = Date.UTC(2026, 7, 17, 12, 0, 0);
@@ -464,23 +464,47 @@ test("capacity never substitutes the prepared example and prior packets stay int
 test("mixed day and instant precision is grouped without fabricated intra-day ordering", () => {
   const day = { value: "2025-07-15T00:00:00.000Z", precision: "day" as const };
   const morning = { value: "2025-07-15T08:00:00.000Z", precision: "instant" as const };
-  const later = { value: "2025-07-16T00:00:00.000Z", precision: "instant" as const };
-  const dayGroups = datesContainingDayPrecision([day, morning, later]);
-  assert.equal(compareReviewTimestamps(day, morning, dayGroups), 0);
-  assert.equal(compareReviewTimestamps(morning, day, dayGroups), 0);
-  assert.ok(compareReviewTimestamps(day, later, dayGroups) < 0);
+  const laterInstant = { value: "2025-07-15T09:00:00.000Z", precision: "instant" as const };
+  const nextDay = { value: "2025-07-16T00:00:00.000Z", precision: "instant" as const };
+  assert.equal(compareReviewTimestamps(day, morning), 0);
+  assert.equal(compareReviewTimestamps(morning, day), 0);
+  assert.ok(compareReviewTimestamps(morning, laterInstant) < 0);
+  assert.ok(compareReviewTimestamps(day, nextDay) < 0);
+
+  const grouped = groupReviewTimestampItems(
+    [
+      { id: "day", timestamp: day },
+      { id: "later", timestamp: laterInstant },
+      { id: "morning", timestamp: morning },
+    ],
+    (item) => item.timestamp,
+    (left, right) => left.id.localeCompare(right.id),
+  );
+  assert.equal(grouped[0].precision, "mixed");
+  assert.deepEqual(grouped[0].items.map((item) => item.id), [
+    "morning",
+    "later",
+    "day",
+  ]);
 
   const packet = buildPreparedSiteReadyCasePacket();
-  const rows = structuredClone(packet.event_timeline_rows.slice(0, 2));
+  const rows = structuredClone(packet.event_timeline_rows.slice(0, 3));
   rows[0].timeline_row_id = "timeline_z_day";
   rows[0].publication_time = day.value;
   rows[0].publication_time_precision = day.precision;
-  rows[1].timeline_row_id = "timeline_a_instant";
-  rows[1].publication_time = morning.value;
-  rows[1].publication_time_precision = morning.precision;
+  rows[1].timeline_row_id = "timeline_z_later_instant";
+  rows[1].publication_time = laterInstant.value;
+  rows[1].publication_time_precision = laterInstant.precision;
+  rows[2].timeline_row_id = "timeline_a_morning_instant";
+  rows[2].publication_time = morning.value;
+  rows[2].publication_time_precision = morning.precision;
   assert.deepEqual(
     orderTimelineRows(rows, "publication_time").map((row) => row.timeline_row_id),
-    ["timeline_a_instant", "timeline_z_day"],
+    [
+      "timeline_a_morning_instant",
+      "timeline_z_later_instant",
+      "timeline_z_day",
+    ],
   );
 });
 

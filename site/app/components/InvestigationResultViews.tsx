@@ -3,6 +3,7 @@ import {
   TIME_AXIS_LABELS,
   actorLabel,
   discoveryLaneLabel,
+  groupTimelineRowsByPrecision,
   orderTimelineRows,
   recordBoundaryLabel,
   sourceContentLabel,
@@ -35,6 +36,7 @@ export function TimelineView({
   const rows = orderTimelineRows(packet.event_timeline_rows, timeAxis);
   const availableRows = rows.filter((row) => timeValue(row, timeAxis));
   const unavailableRows = rows.filter((row) => !timeValue(row, timeAxis));
+  const availableGroups = groupTimelineRowsByPrecision(availableRows, timeAxis);
   return (
     <div className="view-stack">
       <div className="view-intro">
@@ -43,7 +45,9 @@ export function TimelineView({
           <h3>Claims found in sources over time</h3>
           <p>
             Choose one explicit axis. Missing values remain in a labeled Time
-            unavailable region; no other axis is substituted.
+            unavailable region; no other axis is substituted. Same-day mixed
+            precision is grouped: exact instants keep clock order, while
+            day-level records have no implied within-day position.
           </p>
         </div>
         <label className="axis-control" htmlFor="time-axis">
@@ -61,9 +65,9 @@ export function TimelineView({
       </div>
       {rows.length ? (
         <>
-          <TimelineRows
+          <TimelinePrecisionGroups
             packet={packet}
-            rows={availableRows}
+            groups={availableGroups}
             timeAxis={timeAxis}
             onFocus={onFocus}
           />
@@ -91,6 +95,73 @@ export function TimelineView({
       )}
     </div>
   );
+}
+
+function TimelinePrecisionGroups({
+  packet,
+  groups,
+  timeAxis,
+  onFocus,
+}: {
+  packet: SiteReadyCasePacket;
+  groups: ReturnType<typeof groupTimelineRowsByPrecision>;
+  timeAxis: TimeAxis;
+  onFocus: FocusHandler;
+}) {
+  return groups.map((group) => {
+    if (group.precision !== "mixed") {
+      return (
+        <TimelineRows
+          key={group.calendarDate}
+          packet={packet}
+          rows={group.items}
+          timeAxis={timeAxis}
+          onFocus={onFocus}
+        />
+      );
+    }
+    const exactRows = group.items.filter(
+      (row) => timePrecision(row, timeAxis) === "instant",
+    );
+    const dayRows = group.items.filter(
+      (row) => timePrecision(row, timeAxis) === "day",
+    );
+    return (
+      <section
+        className="mixed-precision-time-group"
+        aria-label={`${group.calendarDate} same-day mixed precision group`}
+        key={group.calendarDate}
+      >
+        <p className="eyebrow">Same-day mixed precision group</p>
+        <h4>{formatReviewTimestamp(
+          `${group.calendarDate}T00:00:00.000Z`,
+          "day",
+        )}</h4>
+        <p>
+          Exact instants are clock-ordered within this date. Day-level records
+          are review peers and are not positioned before or after them.
+        </p>
+        <div className="mixed-precision-subgroup">
+          <h5>Exact instants · clock order</h5>
+          <TimelineRows
+            packet={packet}
+            rows={exactRows}
+            timeAxis={timeAxis}
+            onFocus={onFocus}
+          />
+        </div>
+        <div className="mixed-precision-subgroup day-level-subgroup">
+          <h5>Day-level records · no within-day position</h5>
+          <TimelineRows
+            packet={packet}
+            rows={dayRows}
+            timeAxis={timeAxis}
+            onFocus={onFocus}
+          />
+        </div>
+      </section>
+    );
+  });
 }
 
 function TimelineRows({

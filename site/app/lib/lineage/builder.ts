@@ -10,8 +10,7 @@ import {
 } from "../source-profile";
 import { boundedReviewerText } from "../reviewer-text";
 import {
-  compareReviewTimestamps,
-  datesContainingDayPrecision,
+  groupReviewTimestampItems,
   normalizeTimestampWithPrecision,
 } from "../temporal";
 import {
@@ -494,20 +493,14 @@ function buildTimelineRows(occurrences: ClaimOccurrence[]): SiteTimelineRow[] {
         status: occurrence.status,
       };
     });
-  const dayPrecisionDates = datesContainingDayPrecision(
-    rows.map((row) => ({
+  return groupReviewTimestampItems(
+    rows,
+    (row) => ({
       value: row.display_time,
       precision: row.display_time_precision,
-    })),
-  );
-  return rows.sort((left, right) =>
-      compareReviewTimestamps(
-        { value: left.display_time, precision: left.display_time_precision },
-        { value: right.display_time, precision: right.display_time_precision },
-        dayPrecisionDates,
-      ) ||
-      left.timeline_row_id.localeCompare(right.timeline_row_id),
-    );
+    }),
+    (left, right) => left.timeline_row_id.localeCompare(right.timeline_row_id),
+  ).flatMap((group) => group.items);
 }
 
 function buildLineageRows(

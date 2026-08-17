@@ -119,6 +119,7 @@ interface WorkflowBound {
   readonly controller: AbortController;
   readonly deadlineAtMs: number;
   readonly minimumStartBudgetMs: number;
+  terminalFailure: AnalysisFailure | null;
 }
 
 interface BoundedRunOpenAIAnalysisInput extends RunOpenAIAnalysisInput {
@@ -213,8 +214,12 @@ export async function runOpenAIAnalysis(
     controller,
     deadlineAtMs: Date.now() + workflowDeadlineMs,
     minimumStartBudgetMs,
+    terminalFailure: null,
   };
-  const deadlineTimer = setTimeout(() => controller.abort(), workflowDeadlineMs);
+  const deadlineTimer = setTimeout(
+    () => stopWorkflow(inputWorkflowFailure(workflow), workflow),
+    workflowDeadlineMs,
+  );
 
   try {
     return await runWithinWorkflow({ ...input, workflow });
@@ -236,7 +241,11 @@ async function runWithinWorkflow(
         assertWorkflowCanStart(input.workflow);
         return await extractOneSource(input, source);
       } catch (error) {
-        return { source, failure: classifyExtractionError(error) };
+        const failure = classifyExtractionError(error);
+        if (isTerminalWorkflowFailure(failure)) {
+          stopWorkflow(failure, input.workflow);
+        }
+        return { source, failure };
       }
     },
   );
@@ -255,11 +264,8 @@ async function runWithinWorkflow(
     successful.push(result);
   }
 
-  const terminalExtractionFailure = extractionFailures.find(
-    (failure) =>
-      failure.code === "workflow_deadline_exceeded"
-      || failure.code === "service_spend_limit_reached",
-  );
+  const terminalExtractionFailure = input.workflow.terminalFailure
+    ?? extractionFailures.find(isTerminalWorkflowFailure);
   if (terminalExtractionFailure) throw terminalExtractionFailure;
 
   if (successful.length === 0) {
@@ -438,7 +444,11 @@ async function discoverPass(options: {
       },
     });
   } catch (error) {
-    throw classifyProviderError(error);
+    const failure = classifyProviderError(error);
+    if (isTerminalWorkflowFailure(failure)) {
+      stopWorkflow(failure, input.workflow);
+    }
+    throw failure;
   }
 
   const parsed = DiscoveryOutputSchema.safeParse(response.output_parsed);
@@ -1004,32 +1014,55 @@ async function parseWithinWorkflow(
       signal: input.workflow.controller.signal,
       timeout: Math.min(OPENAI_REQUEST_TIMEOUT_MS, remainingMs),
     });
-    if (
-      input.workflow.controller.signal.aborted
-      || Date.now() >= input.workflow.deadlineAtMs
-    ) {
-      throw new AnalysisFailure("workflow_deadline_exceeded");
+    if (input.workflow.terminalFailure) throw input.workflow.terminalFailure;
+    if (Date.now() >= input.workflow.deadlineAtMs) {
+      const failure = inputWorkflowFailure(input.workflow);
+      stopWorkflow(failure, input.workflow);
+      throw failure;
     }
     return response;
   } catch (error) {
+    if (input.workflow.terminalFailure) throw input.workflow.terminalFailure;
     if (
       input.workflow.controller.signal.aborted
       || Date.now() >= input.workflow.deadlineAtMs
     ) {
-      throw new AnalysisFailure("workflow_deadline_exceeded");
+      const failure = inputWorkflowFailure(input.workflow);
+      stopWorkflow(failure, input.workflow);
+      throw failure;
     }
     throw error;
   }
 }
 
 function assertWorkflowCanStart(workflow: WorkflowBound): void {
+  if (workflow.terminalFailure) throw workflow.terminalFailure;
   if (
     workflow.controller.signal.aborted
     || workflow.deadlineAtMs - Date.now() < workflow.minimumStartBudgetMs
   ) {
-    workflow.controller.abort();
-    throw new AnalysisFailure("workflow_deadline_exceeded");
+    const failure = inputWorkflowFailure(workflow);
+    stopWorkflow(failure, workflow);
+    throw failure;
   }
+}
+
+function isTerminalWorkflowFailure(failure: AnalysisFailure): boolean {
+  return failure.code === "workflow_deadline_exceeded"
+    || failure.code === "service_spend_limit_reached";
+}
+
+function inputWorkflowFailure(workflow: WorkflowBound): AnalysisFailure {
+  return workflow.terminalFailure
+    ?? new AnalysisFailure("workflow_deadline_exceeded");
+}
+
+function stopWorkflow(
+  failure: AnalysisFailure,
+  workflow: WorkflowBound,
+): void {
+  if (!workflow.terminalFailure) workflow.terminalFailure = failure;
+  workflow.controller.abort();
 }
 
 async function mapWithConcurrency<Input, Output>(

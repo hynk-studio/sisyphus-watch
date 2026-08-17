@@ -531,6 +531,7 @@ p, li, blockquote { text-wrap: pretty; }
 .spatial-relation-path.is-dimmed,
 .spatial-question-path.is-dimmed { opacity: .2; }
 .spatial-map-stage > .topic-node,
+.map-time-group-strip,
 .map-time-scale,
 .map-lane > .lane-heading,
 .map-source-node,
@@ -577,12 +578,18 @@ p, li, blockquote { text-wrap: pretty; }
 }
 .topic-node h4 { margin-bottom: 7px; font-size: 1.03rem; line-height: 1.4; }
 .topic-node p { margin: 0; color: var(--muted); font-size: .76rem; }
+.map-time-group-strip,
 .map-time-scale,
 .lane-grid {
   display: grid;
   grid-template-columns: repeat(var(--map-columns), minmax(0, 1fr));
   gap: 9px;
 }
+.map-time-group-strip { padding: 7px 0 0; }
+.map-time-group-strip > div { display: grid; min-width: 0; gap: 2px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: #f8faf7; }
+.map-time-group-strip > div.is-mixed { border-color: #d4b77f; background: #fff8eb; }
+.map-time-group-strip strong { color: var(--ink); font-size: .75rem; }
+.map-time-group-strip small { color: var(--muted); font-size: .68rem; line-height: 1.35; }
 .map-time-scale { padding: 0 0 7px; border-bottom: 1px solid var(--line); }
 .map-time-scale > div { min-width: 0; padding: 0 5px; }
 .map-time-scale span { display: block; color: var(--ink); font-family: var(--font-geist-mono), monospace; font-size: .75rem; font-weight: 720; }
@@ -638,6 +645,7 @@ p, li, blockquote { text-wrap: pretty; }
 .map-source-publisher { overflow-wrap: anywhere; color: var(--muted); font-size: .75rem; line-height: 1.35; }
 .map-node-time { color: #44534b; font-family: var(--font-geist-mono), monospace; font-size: .72rem; line-height: 1.35; }
 .map-node-time.time-unavailable { width: fit-content; padding: 3px 5px; background: var(--amber-soft); color: var(--amber); }
+.mixed-time-node-note { color: var(--amber); font-size: .69rem; font-weight: 700; line-height: 1.4; }
 .preview-label { color: var(--muted); text-transform: uppercase; }
 .source-preview { color: #35443d; font-size: .78rem; line-height: 1.46; }
 .node-counts { color: var(--muted); }
@@ -761,6 +769,12 @@ p, li, blockquote { text-wrap: pretty; }
 .limitations-card ul { display: grid; gap: 8px; margin: 0; padding-left: 18px; color: var(--muted); font-size: .79rem; line-height: 1.48; }
 
 .temporal-list, .source-grid { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.mixed-precision-time-group { display: grid; gap: 10px; padding: 18px; border: 1px solid #d4b77f; border-radius: 10px; background: #fffaf0; }
+.mixed-precision-time-group > h4 { margin: 0; font-size: 1rem; }
+.mixed-precision-time-group > p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: .79rem; line-height: 1.5; }
+.mixed-precision-subgroup { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid #e3d4b8; }
+.mixed-precision-subgroup > h5 { margin: 0; color: var(--green-dark); font-size: .76rem; }
+.day-level-subgroup > h5 { color: var(--amber); }
 .temporal-row { display: grid; grid-template-columns: 48px minmax(0, 1fr); }
 .time-rail { position: relative; display: flex; justify-content: center; }
 .time-rail::after { position: absolute; top: 26px; bottom: -15px; width: 1px; background: var(--line); content: ""; }
@@ -904,6 +918,10 @@ dialog.detail-panel::backdrop { background: rgba(20, 37, 30, .48); }
   .mobile-topic-node strong { font-size: .9rem; line-height: 1.42; }
   .mobile-investigation-path > ol { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
   .mobile-investigation-path > ol > li { display: grid; gap: 8px; }
+  .mobile-investigation-path > ol > .mobile-time-group { gap: 3px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: #f8faf7; }
+  .mobile-investigation-path > ol > .mobile-time-group.is-mixed { border-color: #d4b77f; background: #fff8eb; }
+  .mobile-time-group strong { font-size: .78rem; }
+  .mobile-time-group small { color: var(--muted); font-size: .7rem; line-height: 1.4; }
   .map-source-node { width: 100%; }
   .map-source-node button { gap: 8px; padding: 16px; }
   .map-source-node button > strong { font-size: .92rem; }
