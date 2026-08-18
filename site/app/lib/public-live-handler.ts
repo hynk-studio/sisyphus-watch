@@ -9,17 +9,27 @@ import {
 } from "./analysis/handler";
 import type { NormalizedAnalysisRequest } from "./analysis/request";
 import { buildLineageResponseFromAnalysis } from "./lineage/handler";
-import { liveAnalysisDisabledResponse, type PublicLiveRuntime } from "./live-mode";
+import {
+  liveAnalysisDisabledResponse,
+  reportPublicLiveRuntimePrerequisiteFailure,
+  type PublicLiveRuntime,
+} from "./live-mode";
 import {
   calculatePublicWorkUnits,
   type AdmissionSettlement,
 } from "./public-admission";
+import {
+  noopPublicLiveDiagnosticSink,
+  reportPublicLiveDiagnostic,
+  type PublicLiveDiagnosticSink,
+} from "./public-live-diagnostics";
 
 export interface PublicLiveHandlerDependencies {
   getRuntime: () => Promise<PublicLiveRuntime>;
   nowMs?: () => number;
   nowISO?: () => string;
   runLive?: AnalysisHandlerDependencies["runLive"];
+  diagnostics?: PublicLiveDiagnosticSink;
 }
 
 export async function handlePublicLiveLineageRequest(
@@ -34,27 +44,46 @@ export async function handlePublicLiveLineageRequest(
   }
 
   let runtime: PublicLiveRuntime;
+  let diagnostics =
+    dependencies.diagnostics ?? noopPublicLiveDiagnosticSink;
   try {
     runtime = await dependencies.getRuntime();
-  } catch {
+  } catch (error) {
+    reportPublicLiveDiagnostic(
+      diagnostics,
+      "runtime_resolution_failed",
+      { error },
+    );
     return admissionUnavailableResponse();
   }
-  if (!runtime.liveEnabled) return liveAnalysisDisabledResponse();
+  diagnostics = dependencies.diagnostics
+    ?? runtime.diagnostics?.sink
+    ?? noopPublicLiveDiagnosticSink;
+  if (!runtime.liveEnabled) {
+    reportPublicLiveRuntimePrerequisiteFailure(runtime, diagnostics);
+    return liveAnalysisDisabledResponse();
+  }
   const apiKey = runtime.apiKey?.trim();
   if (!apiKey || !runtime.admission) {
+    reportPublicLiveRuntimePrerequisiteFailure(runtime, diagnostics);
     return admissionUnavailableResponse();
   }
 
   const nowMs = dependencies.nowMs ?? Date.now;
   let decision;
+  reportPublicLiveDiagnostic(diagnostics, "reserve_entered");
   try {
     decision = await runtime.admission.reserve({
       workUnits: calculatePublicWorkUnits(normalized),
       nowMs: nowMs(),
     });
-  } catch {
+  } catch (error) {
+    reportPublicLiveDiagnostic(diagnostics, "reserve_failed", { error });
     return admissionUnavailableResponse();
   }
+  reportPublicLiveDiagnostic(diagnostics, "reserve_succeeded", {
+    reservationAdmitted: decision.admitted,
+  });
 
   if (!decision.admitted) {
     return jsonError(
@@ -93,8 +122,12 @@ export async function handlePublicLiveLineageRequest(
       outcome,
       nowMs: nowMs(),
     });
-    if (!settled) return admissionUnavailableResponse();
-  } catch {
+    if (!settled) {
+      reportPublicLiveDiagnostic(diagnostics, "settlement_failed");
+      return admissionUnavailableResponse();
+    }
+  } catch (error) {
+    reportPublicLiveDiagnostic(diagnostics, "settlement_failed", { error });
     return admissionUnavailableResponse();
   }
 
