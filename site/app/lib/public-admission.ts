@@ -74,6 +74,13 @@ export interface PublicAdmissionStore {
   }): Promise<boolean>;
 }
 
+export interface D1DatabaseBindingShape {
+  bindingPresent: boolean;
+  prepareCallable: boolean;
+  batchCallable: boolean;
+  database: D1Database | null;
+}
+
 interface AdmissionStateRow {
   active_count: number;
   hour_units: number;
@@ -252,11 +259,41 @@ export class D1PublicAdmissionStore implements PublicAdmissionStore {
 }
 
 export function asD1Database(value: unknown): D1Database | null {
-  if (!value || typeof value !== "object") return null;
-  const candidate = value as Partial<D1Database>;
-  return typeof candidate.prepare === "function" && typeof candidate.batch === "function"
-    ? (value as D1Database)
-    : null;
+  return inspectD1DatabaseBinding(value).database;
+}
+
+export function inspectD1DatabaseBinding(
+  value: unknown,
+): D1DatabaseBindingShape {
+  const bindingPresent = value !== undefined && value !== null;
+  if (!bindingPresent || typeof value !== "object") {
+    return {
+      bindingPresent,
+      prepareCallable: false,
+      batchCallable: false,
+      database: null,
+    };
+  }
+
+  let prepareCallable = false;
+  let batchCallable = false;
+  try {
+    prepareCallable = typeof (value as Partial<D1Database>).prepare === "function";
+  } catch {
+    // Binding-shape diagnostics fail closed without inspecting other fields.
+  }
+  try {
+    batchCallable = typeof (value as Partial<D1Database>).batch === "function";
+  } catch {
+    // Binding-shape diagnostics fail closed without inspecting other fields.
+  }
+
+  return {
+    bindingPresent,
+    prepareCallable,
+    batchCallable,
+    database: prepareCallable && batchCallable ? (value as D1Database) : null,
+  };
 }
 
 function startOfUtcHour(nowMs: number): number {
