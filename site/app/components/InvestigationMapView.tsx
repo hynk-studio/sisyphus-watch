@@ -268,10 +268,25 @@ export function InvestigationMapView({
         <ThreadTraceSummary map={map} trace={trace} selectedNodeId={selectedNodeId ?? ""} />
       ) : null}
 
-      <div
-        className="desktop-map"
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- The named scroll region needs focus so keyboard users can move across the analytical canvas. */}
+      <div className="desktop-map" role="region" tabIndex={0}
         aria-label="Investigation map ordered by source role and selected time axis"
+        aria-describedby="map-canvas-scroll-hint"
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          const scrollStep = Math.max(180, Math.round(event.currentTarget.clientWidth * 0.7));
+          if (event.key === "ArrowLeft") event.currentTarget.scrollLeft -= scrollStep;
+          else if (event.key === "ArrowRight") event.currentTarget.scrollLeft += scrollStep;
+          else if (event.key === "Home") event.currentTarget.scrollLeft = 0;
+          else if (event.key === "End") event.currentTarget.scrollLeft = event.currentTarget.scrollWidth;
+          else return;
+          event.preventDefault();
+        }}
       >
+        <p id="map-canvas-scroll-hint" className="map-canvas-scroll-hint">
+          Use the Left and Right Arrow keys or scroll horizontally to read every source column.
+          The page itself stays fixed.
+        </p>
         <div className="spatial-map-stage" ref={spatialStageRef}>
           <SpatialConnectionLayer
             map={map}
