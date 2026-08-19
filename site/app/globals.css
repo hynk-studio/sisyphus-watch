@@ -376,6 +376,38 @@ p, li, blockquote { text-wrap: pretty; }
 .run-notice-loading, .run-notice-cooldown, .run-notice-partial { background: var(--blue-soft); }
 .run-notice-fallback, .run-notice-rate-limited, .run-notice-timeout { background: var(--amber-soft); }
 .run-notice-error { background: var(--red-soft); }
+.export-investigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px clamp(24px, 4vw, 42px);
+  border-bottom: 1px solid var(--line);
+  background: #f8faf7;
+}
+.export-investigation > div:first-child { display: grid; gap: 3px; }
+.export-investigation strong { font-size: .8rem; }
+.export-investigation span { color: var(--muted); font-size: .72rem; line-height: 1.45; }
+.export-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.export-actions button {
+  min-height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: white;
+  color: var(--green-dark);
+  cursor: pointer;
+  font-size: .72rem;
+  font-weight: 690;
+}
+.export-status {
+  width: 100%;
+  min-height: 1em;
+  margin: 0;
+  color: var(--green-dark);
+  font-size: .7rem;
+}
 .view-nav {
   position: sticky;
   top: 0;
