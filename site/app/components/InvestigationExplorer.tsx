@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   type FormEvent,
@@ -19,7 +20,6 @@ import {
   hasFocusedDetailKey,
   modeLabel,
   type ExperienceView,
-  type TimeAxis,
 } from "../lib/experience";
 import {
   FocusedDetailSupplementCache,
@@ -28,7 +28,9 @@ import {
 } from "../lib/focused-detail";
 import {
   buildLineageRequest,
+  chooseInitialTimeAxis,
   deriveInvestigationMap,
+  investigationTimeAxisReducer,
   type CoverageLens,
 } from "../lib/investigation-map";
 import type {
@@ -67,7 +69,11 @@ export function CaseExplorer({
   const [packet, setPacket] = useState(preparedCase);
   const [investigationStarted, setInvestigationStarted] = useState(false);
   const [activeView, setActiveView] = useState<ExperienceView>("map");
-  const [timeAxis, setTimeAxis] = useState<TimeAxis>("event_time");
+  const [timeAxis, dispatchTimeAxis] = useReducer(
+    investigationTimeAxisReducer,
+    preparedCase,
+    chooseInitialTimeAxis,
+  );
   const [question, setQuestion] = useState("");
   const [sourceLimit, setSourceLimit] = useState(PUBLIC_DEFAULT_SOURCE_LIMIT);
   const [discoveryProfile, setDiscoveryProfile] =
@@ -178,6 +184,7 @@ export function CaseExplorer({
       }
       const nextPacket = decision.packet;
       setPacket(nextPacket);
+      dispatchTimeAxis({ type: "display_packet", packet: nextPacket });
       setInvestigationStarted(true);
       setActiveView("map");
       setCoverageLens("all");
@@ -211,7 +218,7 @@ export function CaseExplorer({
     setPacket(preparedCase);
     setInvestigationStarted(true);
     setActiveView("map");
-    setTimeAxis("event_time");
+    dispatchTimeAxis({ type: "display_packet", packet: preparedCase });
     setCoverageLens("all");
     setRouteError(null);
     clearDetail();
@@ -418,7 +425,9 @@ export function CaseExplorer({
                     : cooldownRemainingSeconds > 0
                       ? `Try again in ${cooldownRemainingSeconds}s`
                       : null}
-                  onTimeAxisChange={setTimeAxis}
+                  onTimeAxisChange={(axis) =>
+                    dispatchTimeAxis({ type: "select_axis", axis })
+                  }
                   onCoverageLensChange={setCoverageLens}
                   onFocus={openDetail}
                   onTraceThread={showThreadTrace}
@@ -434,7 +443,9 @@ export function CaseExplorer({
                 <TimelineView
                   packet={packet}
                   timeAxis={timeAxis}
-                  onTimeAxisChange={setTimeAxis}
+                  onTimeAxisChange={(axis) =>
+                    dispatchTimeAxis({ type: "select_axis", axis })
+                  }
                   onFocus={openDetail}
                 />
               ) : null}
@@ -545,7 +556,7 @@ export function getRunNotice(
     return {
       tone: "live",
       title: "Bounded live investigation",
-      message: `The server returned one schema-checked review packet. Browsing it does not change the prepared record.${cooldownMessage}`,
+      message: `This live result is a review draft. Exploring it does not accept or change any candidate record.${cooldownMessage}`,
     };
   }
   if (cooldownRemainingSeconds > 0) {

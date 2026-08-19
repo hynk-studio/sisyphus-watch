@@ -292,7 +292,7 @@ function DetailBody({
       <div className="detail-body">
         <DetailField
           label="Actor"
-          value={typeof item.actor === "string" ? item.actor : "Unknown actor"}
+          value={actorLabel(typeof item.actor === "string" ? item.actor : null)}
         />
         <DetailField label="Claim" value={item.original_claim_text} />
         <DetailField label="Support kind" value={item.support_kind} />

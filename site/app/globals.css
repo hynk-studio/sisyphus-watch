@@ -449,6 +449,8 @@ p, li, blockquote { text-wrap: pretty; }
 }
 .map-toolbar { display: grid; gap: 12px; padding: 18px 20px; background: #f8faf7; }
 .map-toolbar h4 { margin-bottom: 0; font-size: .95rem; }
+.map-orientation-mobile { display: none; }
+.timeline-axis-note { color: var(--ink); font-weight: 650; }
 .lens-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .lens-list button,
 .focus-toolbar button {
@@ -877,6 +879,8 @@ dialog.detail-panel::backdrop { background: rgba(20, 37, 30, .48); }
 }
 
 @media (max-width: 720px) {
+  .map-orientation-desktop { display: none; }
+  .map-orientation-mobile { display: inline; }
   .site-shell { width: min(100% - 22px, 1260px); }
   .masthead { min-height: 60px; }
   .header-note { display: none; }

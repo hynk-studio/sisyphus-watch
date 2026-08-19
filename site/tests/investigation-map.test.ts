@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildLineageRequest,
+  chooseInitialTimeAxis,
   deriveCoverageHighlight,
   deriveInvestigationMap,
   deriveQuestionInspectionOrigins,
   deriveThreadTrace,
+  investigationTimeAxisReducer,
   spatialRelationEdges,
 } from "../app/lib/investigation-map";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
@@ -56,6 +58,50 @@ test("map derivation is deterministic, presentation-only, and preserves source r
     assert.equal(source.discoveryPass, packetSource.source_selection.discovery_pass);
     assert.equal(source.snapshotId, packetSource.snapshot_id);
   }
+});
+
+test("initial time axis prefers explicit event time, then publication time, and never retrieval time", () => {
+  const eventPacket = buildPreparedSiteReadyCasePacket();
+  assert.equal(chooseInitialTimeAxis(eventPacket), "event_time");
+
+  const publicationPacket = withoutEventTimes(eventPacket);
+  assert.equal(chooseInitialTimeAxis(publicationPacket), "publication_time");
+  assert.ok(
+    deriveInvestigationMap(publicationPacket, "publication_time").sources.some(
+      (source) => source.selectedTime !== null,
+    ),
+  );
+  assert.ok(
+    deriveInvestigationMap(publicationPacket, "event_time").sources.every(
+      (source) => source.selectedTime === null && source.timeRegion === "time_unavailable",
+    ),
+  );
+
+  const retrievalOnlyPacket = structuredClone(publicationPacket);
+  for (const source of retrievalOnlyPacket.source_snapshot_summaries) {
+    source.published_at = null;
+    source.published_at_precision = null;
+  }
+  assert.ok(retrievalOnlyPacket.source_snapshot_summaries.every((source) => source.retrieved_at));
+  assert.equal(chooseInitialTimeAxis(retrievalOnlyPacket), "event_time");
+});
+
+test("shared time-axis reducer preserves a manual selection until a new packet is displayed", () => {
+  const currentPacket = buildPreparedSiteReadyCasePacket();
+  let axis = chooseInitialTimeAxis(currentPacket);
+  axis = investigationTimeAxisReducer(axis, {
+    type: "select_axis",
+    axis: "retrieval_time",
+  });
+  assert.equal(axis, "retrieval_time");
+
+  const nextPacket = withoutEventTimes(currentPacket);
+  nextPacket.run_id = `${currentPacket.run_id}_publication_only`;
+  axis = investigationTimeAxisReducer(axis, {
+    type: "display_packet",
+    packet: nextPacket,
+  });
+  assert.equal(axis, "publication_time");
 });
 
 test("prepared, mocked standard live, expanded live, partial expansion, and fallback packets use one map contract", () => {
@@ -517,6 +563,22 @@ function question(questionId: string, relatedId: string): PacketUnresolvedQuesti
     record_status: "candidate",
     origin: "live_api",
   };
+}
+
+function withoutEventTimes(packet: SiteReadyCasePacket): SiteReadyCasePacket {
+  const result = structuredClone(packet);
+  for (const occurrence of result.claim_occurrences) {
+    occurrence.event_time_candidate = null;
+    occurrence.event_time_candidate_precision = null;
+  }
+  for (const action of result.actions) {
+    action.event_time_candidate = null;
+    action.event_time_candidate_precision = null;
+  }
+  result.time_candidates = result.time_candidates.filter(
+    (candidate) => candidate.candidate_type !== "event_time_candidate",
+  );
+  return result;
 }
 
 function asLivePacket(

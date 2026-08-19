@@ -169,7 +169,13 @@ export function InvestigationMapView({
           <p className="eyebrow">Structured investigation map</p>
           <h3>Follow sources, candidate changes, and open questions</h3>
           <p>
-            Calendar dates move left to right. Within a same-day mixed-precision
+            <span className="map-orientation-copy map-orientation-desktop">
+              Calendar dates move left to right.
+            </span>
+            <span className="map-orientation-copy map-orientation-mobile">
+              Calendar dates run top to bottom on this screen.
+            </span>{" "}
+            Within a same-day mixed-precision
             group, exact instants keep clock order and day-level records have no
             implied within-day position. Source-role lanes stay fixed.
           </p>
