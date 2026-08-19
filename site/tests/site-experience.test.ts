@@ -468,6 +468,34 @@ test("timeline, map, and detail expose mixed day/instant groups without losing e
   assert.doesNotMatch(`${timeline}${sources}${mapHtml}`, /Jul 14/);
 });
 
+test("timeline renders same-date day-precision records as unordered peers", () => {
+  const packet = structuredClone(buildPreparedSiteReadyCasePacket());
+  const normalizedMidnight = "2025-07-15T00:00:00.000Z";
+  packet.event_timeline_rows = packet.event_timeline_rows.slice(0, 2);
+  for (const row of packet.event_timeline_rows) {
+    row.publication_time = normalizedMidnight;
+    row.publication_time_precision = "day";
+  }
+
+  const html = renderToStaticMarkup(createElement(TimelineView, {
+    packet,
+    timeAxis: "publication_time",
+    onTimeAxisChange: noop,
+    onFocus: noop,
+  }));
+
+  assert.match(html, /<ul class="temporal-list temporal-peer-list">/);
+  assert.doesNotMatch(html, /<ol class="temporal-list"/);
+  assert.equal(
+    html.match(
+      /<time dateTime="2025-07-15T00:00:00.000Z">Jul 15, 2025<\/time>/g,
+    )?.length,
+    2,
+  );
+  assert.doesNotMatch(html, /Jul 15, 2025[^<]*UTC/);
+  assert.doesNotMatch(html, /class="timeline-record-marker">\s*\d/);
+});
+
 test("inspector uses responsive desktop-nonmodal and mobile-modal semantics with Escape and stable trigger identity", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const before = JSON.stringify(packet);

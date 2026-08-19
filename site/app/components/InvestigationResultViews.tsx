@@ -119,6 +119,7 @@ function TimelinePrecisionGroups({
           rows={group.items}
           timeAxis={timeAxis}
           onFocus={onFocus}
+          ordered={group.precision === "instant"}
         />
       );
     }
