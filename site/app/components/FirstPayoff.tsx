@@ -46,6 +46,9 @@ export function FirstPayoff({
     label: payoff.source.title,
   };
   const synthetic = packet.mode === "deterministic";
+  const modelGeneratedLiveSummary = packet.mode === "live"
+    && payoff.source.content_kind === "model_generated_web_search_summary"
+    && !payoff.source.source_text_captured;
 
   return (
     <section className="first-payoff" aria-labelledby="first-payoff-title">
@@ -54,10 +57,10 @@ export function FirstPayoff({
         <strong id="first-payoff-title">
           {synthetic
             ? "Synthetic fixture · prepared example"
-            : "Candidate evidence · review only"}
+            : "Candidate finding · review only"}
         </strong>
       </div>
-      <blockquote>{payoff.finding.text}</blockquote>
+      <p className="first-payoff-finding">{payoff.finding.text}</p>
       <p className="first-payoff-source">
         Source: {" "}
         <button
@@ -68,6 +71,11 @@ export function FirstPayoff({
           {payoff.source.title}
         </button>
       </p>
+      {modelGeneratedLiveSummary ? (
+        <p className="first-payoff-provenance">
+          Based on a model-generated web-search summary · not captured page text
+        </p>
+      ) : null}
       <p className="first-payoff-boundary">
         Source inclusion is not endorsement or truth verification. Browsing does
         not change the record.

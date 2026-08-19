@@ -136,6 +136,8 @@ test("first payoff resolves one existing source-bound finding without fabricatin
   assert.match(html, /Start here/);
   assert.match(html, /Synthetic fixture · prepared example/);
   assert.match(html, /One existing source-bound finding/);
+  assert.match(html, /<p class="first-payoff-finding">One existing source-bound finding\.<\/p>/);
+  assert.doesNotMatch(html, /<blockquote/);
   assert.match(html, new RegExp(escapeRegex(intendedSource.title)));
   assert.doesNotMatch(html, new RegExp(escapeRegex(otherSource.title)));
   assert.match(html, /Source inclusion is not endorsement or truth verification/);
@@ -150,11 +152,19 @@ test("first payoff resolves one existing source-bound finding without fabricatin
   const live = structuredClone(packet);
   live.mode = "live";
   live.status = "live";
+  live.source_snapshot_summaries[1].content_kind = "model_generated_web_search_summary";
+  live.source_snapshot_summaries[1].source_text_captured = false;
   const liveHtml = renderToStaticMarkup(createElement(FirstPayoff, {
     packet: live,
     onFocus: noop,
   }));
-  assert.match(liveHtml, /Candidate evidence · review only/);
+  assert.match(liveHtml, /Candidate finding · review only/);
+  assert.match(
+    liveHtml,
+    /Based on a model-generated web-search summary · not captured page text/,
+  );
+  assert.match(liveHtml, /<p class="first-payoff-finding">/);
+  assert.doesNotMatch(liveHtml, /<blockquote/);
   assert.doesNotMatch(liveHtml, /Synthetic fixture/);
 
   const fallback = structuredClone(packet);

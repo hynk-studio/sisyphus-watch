@@ -442,8 +442,9 @@ p, li, blockquote { text-wrap: pretty; }
 .first-payoff-heading { grid-row: span 2; }
 .first-payoff-heading .eyebrow { margin-bottom: 5px; }
 .first-payoff-heading strong { color: var(--green-dark); font-size: .78rem; line-height: 1.4; }
-.first-payoff blockquote { margin: 0; color: #314039; font-size: .9rem; line-height: 1.48; }
-.first-payoff-source, .first-payoff-boundary { margin: 0; color: var(--muted); font-size: .71rem; line-height: 1.45; }
+.first-payoff-finding { margin: 0; color: #314039; font-size: .9rem; line-height: 1.48; }
+.first-payoff-source, .first-payoff-provenance, .first-payoff-boundary { margin: 0; color: var(--muted); font-size: .71rem; line-height: 1.45; }
+.first-payoff-provenance { grid-column: 2; }
 .first-payoff-source button { padding: 0; border: 0; background: none; color: var(--green-dark); cursor: pointer; font: inherit; font-weight: 720; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
 .view-nav {
   position: sticky;
@@ -1027,6 +1028,7 @@ dialog.detail-panel::backdrop { background: rgba(20, 37, 30, .48); }
   .focus-toolbar button { min-height: 42px; }
   .first-payoff { grid-template-columns: 1fr; }
   .first-payoff-heading { grid-row: auto; }
+  .first-payoff-provenance { grid-column: 1; }
   .metric-grid,
   .method-grid,
   .limitations-card { grid-template-columns: 1fr; }
