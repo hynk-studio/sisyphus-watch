@@ -46,6 +46,24 @@ export const TIME_AXIS_LABELS: Record<TimeAxis, string> = {
   retrieval_time: "Sisyphus retrieval time",
 };
 
+const TIME_AXIS_SEMANTIC_NOTES: Record<TimeAxis, string> = {
+  event_time:
+    "Ordered by event time where explicitly available. Missing event times remain unavailable; no other date is substituted.",
+  publication_time:
+    "Ordered by publication time. Publication time is not necessarily when the described event occurred or when a claim was first made.",
+  actor_assertion_time:
+    "Ordered by actor assertion time. This is when the actor's statement is dated, not necessarily when the described event occurred.",
+  retrieval_time:
+    "Ordered by Sisyphus retrieval time. Retrieval time is when Sisyphus saw the source, not when the event occurred or the claim was made.",
+};
+
+const TECHNICAL_RECORD_ID =
+  /\b(?:src|snapshot|candidate|run|case|occurrence|relation|lineage|question|action|finding)_[a-z0-9][a-z0-9_-]*\b[:;]?\s*/gi;
+
+export function timeAxisSemanticNote(axis: TimeAxis): string {
+  return TIME_AXIS_SEMANTIC_NOTES[axis];
+}
+
 const DISCOVERY_LANE_LABELS: Record<DiscoveryLane, string> = {
   baseline_authority: "Official & established",
   primary_or_origin: "Original records",
@@ -89,7 +107,74 @@ export function sourceRoleLabel(
 }
 
 export function actorLabel(actor: string | null): string {
-  return actor ?? "Unknown actor";
+  return actor ?? "Actor not separately identified";
+}
+
+export function publicMethodLimitations(packet: SiteReadyCasePacket): string[] {
+  const publicBoundaries = [
+    "Source coverage is bounded and nonexhaustive.",
+    "Source inclusion is not endorsement or truth verification.",
+    "Candidate relationships organize review; they do not establish truth or causation.",
+    "Missing dates remain unavailable; Sisyphus does not substitute another date type.",
+    "Browsing and focus controls cannot accept or canonically change candidate records.",
+  ];
+  const packetSpecific = packet.limitations
+    .map(humanizeMethodLimitation)
+    .filter((limitation): limitation is string => Boolean(limitation));
+
+  return deduplicateLimitations([...publicBoundaries, ...packetSpecific]);
+}
+
+function humanizeMethodLimitation(limitation: string): string | null {
+  const normalized = limitation.trim();
+  if (!normalized) return null;
+
+  if (
+    /time_candidate|event_time|actor_assertion_time|asserted_at|publication_time|retrieval_time|yyyy-mm-dd|timezone-qualified|iso date[- ]?time/i
+      .test(normalized)
+  ) {
+    return "Some source summaries did not contain a precise date, so event and assertion time remain unavailable.";
+  }
+  if (/clearly_incomplete_structured_candidates_skipped|incomplete structured candidate/i.test(normalized)) {
+    return "Some incomplete extraction candidates were left out; the available source summary remains review material.";
+  }
+  if (/missing_coverage_lanes/i.test(normalized)) {
+    return "Some intended source roles were not represented in the bounded discovery results.";
+  }
+  if (/source text was not captured|not captured source text|not captured page text|model-generated web-search-grounded candidate summar/i.test(normalized)) {
+    return "Live source pages were not captured; model-generated web-search summaries remain partial review material.";
+  }
+  if (/compact read model|focused detail returns/i.test(normalized)) {
+    return "The default view omits full source text; source details remain bounded to the available record.";
+  }
+  if (/relation candidates? .*review|do not adjudicate truth|candidate\/review-only/i.test(normalized)) {
+    return null;
+  }
+  if (/cannot mutate|canonical mutation|replace deterministic prepared-case state/i.test(normalized)) {
+    return null;
+  }
+  if (/deterministic relation stage used no model-assisted classification/i.test(normalized)) {
+    return null;
+  }
+  if (/schema|zod|structured_output|hard pair|prefilter|model-classified|theoretical pair/i.test(normalized)) {
+    return null;
+  }
+
+  const withoutRecordIds = normalized.replace(TECHNICAL_RECORD_ID, "").trim();
+  if (/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/i.test(withoutRecordIds)) {
+    return null;
+  }
+  return withoutRecordIds || null;
+}
+
+function deduplicateLimitations(limitations: string[]): string[] {
+  const seen = new Set<string>();
+  return limitations.filter((limitation) => {
+    const key = limitation.toLowerCase().replace(/\s+/g, " ").trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function recordBoundaryLabel(status: "candidate" | "canonical"): string {

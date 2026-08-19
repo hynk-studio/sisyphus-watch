@@ -175,6 +175,10 @@ export interface MapHighlightState {
   questionEdgeIds: string[];
 }
 
+export type InvestigationTimeAxisAction =
+  | { type: "select_axis"; axis: TimeAxis }
+  | { type: "display_packet"; packet: SiteReadyCasePacket };
+
 interface ExplicitTimeValue {
   value: string;
   precision: Exclude<TemporalPrecision, null>;
@@ -350,6 +354,28 @@ export function deriveInvestigationMap(
     laneOrder: [...LANE_ORDER],
     columnCount: Math.max(sources.length, 1),
   };
+}
+
+export function chooseInitialTimeAxis(packet: SiteReadyCasePacket): TimeAxis {
+  const eventMap = deriveInvestigationMap(packet, "event_time");
+  if (eventMap.sources.some((source) => source.selectedTime !== null)) {
+    return "event_time";
+  }
+
+  const publicationMap = deriveInvestigationMap(packet, "publication_time");
+  if (publicationMap.sources.some((source) => source.selectedTime !== null)) {
+    return "publication_time";
+  }
+
+  return "event_time";
+}
+
+export function investigationTimeAxisReducer(
+  currentAxis: TimeAxis,
+  action: InvestigationTimeAxisAction,
+): TimeAxis {
+  if (action.type === "select_axis") return action.axis;
+  return chooseInitialTimeAxis(action.packet);
 }
 
 export function deriveQuestionInspectionOrigins(

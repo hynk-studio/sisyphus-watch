@@ -5,12 +5,14 @@ import {
   discoveryLaneLabel,
   groupTimelineRowsByPrecision,
   orderTimelineRows,
+  publicMethodLimitations,
   recordBoundaryLabel,
   sourceContentLabel,
   sourceCoverageLabel,
   sourceCoverageNote,
   sourceRoleLabel,
   timePrecision,
+  timeAxisSemanticNote,
   timeValue,
   type TimeAxis,
 } from "../lib/experience";
@@ -43,11 +45,10 @@ export function TimelineView({
         <div>
           <p className="eyebrow">Temporal view</p>
           <h3>Claims found in sources over time</h3>
+          <p className="timeline-axis-note">{timeAxisSemanticNote(timeAxis)}</p>
           <p>
-            Choose one explicit axis. Missing values remain in a labeled Time
-            unavailable region; no other axis is substituted. Same-day mixed
-            precision is grouped: exact instants keep clock order, while
-            day-level records have no implied within-day position.
+            Same-day mixed precision is grouped: exact instants keep clock
+            order, while day-level records have no implied within-day position.
           </p>
         </div>
         <label className="axis-control" htmlFor="time-axis">
@@ -303,6 +304,7 @@ export function SourcesView({
 }
 
 export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
+  const limitations = publicMethodLimitations(packet);
   return (
     <div className="view-stack">
       <div className="view-intro">
@@ -355,7 +357,6 @@ export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
             <div><dt>Source-bound findings</dt><dd>{packet.source_bound_findings.length}</dd></div>
             <div><dt>Actor claims</dt><dd>{packet.actor_claims.length}</dd></div>
             <div><dt>Actions</dt><dd>{packet.actions.length}</dd></div>
-            <div><dt>Standalone time candidates</dt><dd>{packet.time_candidates.length}</dd></div>
           </dl>
           <p className="card-note">
             Only statements attributed to an actor become claim records. Findings
@@ -364,28 +365,23 @@ export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
           </p>
         </section>
         <section className="standard-card">
-          <p className="eyebrow">Bounded work</p>
-          <h3>Deterministic and reviewable</h3>
-          <dl className="lane-list">
-            <div><dt>Theoretical pairs</dt><dd>{packet.bounded_work_summary.theoretical_pair_count}</dd></div>
-            <div><dt>Prefilter candidates</dt><dd>{packet.bounded_work_summary.prefilter_candidate_count}</dd></div>
-            <div><dt>Hard pair limit</dt><dd>{packet.bounded_work_summary.configured_maximum_pair_count}</dd></div>
-            <div><dt>Model-classified pairs</dt><dd>{packet.bounded_work_summary.model_classified_count}</dd></div>
-          </dl>
+          <p className="eyebrow">Review boundaries</p>
+          <h3>How relationships are treated</h3>
           <p className="card-note">
-            Public runs accept at most 5 sources. Internal analysis retains an
-            8-source hard maximum and 64 relation-pair workload. Browser focus
-            and coverage lenses cannot mutate the packet.
+            Candidate relationships organize possible connections between
+            source-local claims. Each relationship still needs review; it does
+            not establish truth, causation, or source endorsement. Browsing and
+            coverage controls cannot accept or change candidate records.
           </p>
         </section>
       </div>
       <section className="limitations-card" aria-labelledby="limitations-title">
         <div>
           <p className="eyebrow">Limits</p>
-          <h3 id="limitations-title">What this packet does not establish</h3>
+          <h3 id="limitations-title">What this investigation cannot establish</h3>
         </div>
         <ul>
-          {packet.limitations.map((limitation, index) => (
+          {limitations.map((limitation, index) => (
             <li key={`${index}-${limitation}`}>{limitation}</li>
           ))}
         </ul>

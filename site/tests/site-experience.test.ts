@@ -16,8 +16,11 @@ import {
 import {
   EXPERIENCE_VIEWS,
   VIEW_LABELS,
+  actorLabel,
+  publicMethodLimitations,
   recordBoundaryLabel,
   sourceContentLabel,
+  timeAxisSemanticNote,
 } from "../app/lib/experience";
 import {
   FocusedDetailSupplementCache,
@@ -744,8 +747,43 @@ test("timeline keeps all four axes explicit and isolates missing selected-axis t
   }));
   assert.match(html, /Selected time axis/);
   assert.match(html, /Time unavailable/);
-  assert.match(html, /no other axis is substituted/i);
+  assert.match(html, /no other date is substituted/i);
   assert.match(html, /View all four timestamps/);
+});
+
+test("timeline explains the selected chronology without collapsing date semantics", () => {
+  assert.match(
+    timeAxisSemanticNote("publication_time"),
+    /not necessarily when the described event occurred or when a claim was first made/i,
+  );
+  assert.match(
+    timeAxisSemanticNote("event_time"),
+    /missing event times remain unavailable; no other date is substituted/i,
+  );
+  assert.match(
+    timeAxisSemanticNote("actor_assertion_time"),
+    /actor's statement is dated, not necessarily when the described event occurred/i,
+  );
+  assert.match(
+    timeAxisSemanticNote("retrieval_time"),
+    /when Sisyphus saw the source, not when the event occurred or the claim was made/i,
+  );
+
+  const packet = buildPreparedSiteReadyCasePacket();
+  const html = renderToStaticMarkup(createElement(TimelineView, {
+    packet,
+    timeAxis: "publication_time",
+    onTimeAxisChange: noop,
+    onFocus: noop,
+  }));
+  assert.match(html, /Ordered by publication time/);
+  assert.doesNotMatch(html, /Ordered by event time where explicitly available/);
+});
+
+test("null actor language describes the unfilled structured field without inferring from text", () => {
+  assert.equal(actorLabel(null), "Actor not separately identified");
+  assert.equal(actorLabel("CDC"), "CDC");
+  assert.doesNotMatch(actorLabel(null), /Unknown actor/);
 });
 
 test("sources and method preserve provenance labels, coverage, and plain-language record separation", () => {
@@ -782,9 +820,41 @@ test("sources and method preserve provenance labels, coverage, and plain-languag
   assert.match(methodHtml, /Findings, actions, and claims stay separate/);
   assert.match(methodHtml, /Only statements attributed to an actor become claim records/);
   assert.doesNotMatch(methodHtml, /#43/);
-  assert.match(methodHtml, /Public runs accept at most 5 sources/);
-  assert.match(methodHtml, /Internal analysis retains an 8-source hard maximum and 64 relation-pair workload/);
+  assert.match(methodHtml, /How relationships are treated/);
+  assert.match(methodHtml, /Source inclusion is not endorsement or truth verification/);
+  assert.match(methodHtml, /Browsing and focus controls cannot accept or canonically change candidate records/);
+  assert.doesNotMatch(methodHtml, /Standalone time candidates|Theoretical pairs|Prefilter candidates|Hard pair limit|Model-classified pairs/);
   assert.match(methodHtml, /Prepared fixture coverage/);
+});
+
+test("Method derives truthful public limitations without raw record IDs or schema vocabulary", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  packet.limitations = [
+    "src_candidate_live_6a9ed123: No exact YYYY-MM-DD or timezone-qualified ISO date-time was explicit, so time_candidate is null.",
+    "src_candidate_live_other: No exact YYYY-MM-DD was explicit, so time_candidate is null.",
+    "candidate_id validation_path did not match the structured field.",
+    "Each extraction used exactly one source. Cross-source temporal relation analysis is not performed.",
+  ];
+  const limitations = publicMethodLimitations(packet);
+  const text = limitations.join(" ");
+  assert.match(
+    text,
+    /Some source summaries did not contain a precise date, so event and assertion time remain unavailable/,
+  );
+  assert.equal(
+    limitations.filter((limitation) => /precise date/i.test(limitation)).length,
+    1,
+  );
+  assert.match(text, /Cross-source temporal relation analysis is not performed/);
+  assert.match(text, /Source coverage is bounded and nonexhaustive/i);
+  assert.match(text, /Source inclusion is not endorsement or truth verification/);
+  assert.match(text, /Candidate relationships organize review/);
+  assert.match(text, /cannot accept or canonically change candidate records/);
+  assert.doesNotMatch(text, /src_candidate_live_|time_candidate|candidate_id|validation_path|YYYY-MM-DD|timezone-qualified/);
+
+  const html = renderToStaticMarkup(createElement(MethodView, { packet }));
+  assert.doesNotMatch(html, /src_candidate_live_|time_candidate|candidate_id|validation_path|YYYY-MM-DD|timezone-qualified/);
+  assert.match(html, /What this investigation cannot establish/);
 });
 
 test("inspection actions have distinguishable accessible names on every repeated surface", () => {
@@ -980,7 +1050,9 @@ test("fallback, partial, loading, and error notices never mislabel the displayed
   live.mode = "live";
   live.status = "live";
   live.warnings = [];
-  assert.match(getRunNotice(live, false, null).message, /schema-checked review packet/i);
+  assert.match(getRunNotice(live, false, null).message, /live result is a review draft/i);
+  assert.match(getRunNotice(live, false, null).message, /does not accept or change any candidate record/i);
+  assert.doesNotMatch(getRunNotice(live, false, null).message, /schema-checked review packet|prepared record|\bserver\b/i);
   assert.doesNotMatch(getRunNotice(live, false, null).message, /\bvalidated\b/i);
 
   const loading = getRunNotice(prepared, true, null);
@@ -1042,12 +1114,42 @@ test("mobile CSS switches to a vertical path with usable controls and no page-wi
   const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
   assert.match(mobileRules, /\.desktop-map \{ display: none; \}/);
   assert.match(mobileRules, /\.mobile-investigation-path \{ display: grid/);
+  assert.match(mobileRules, /\.map-orientation-desktop \{ display: none; \}/);
+  assert.match(mobileRules, /\.map-orientation-mobile \{ display: inline; \}/);
   assert.match(mobileRules, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
   assert.match(mobileRules, /\.mobile-relation-label \{/);
   assert.match(mobileRules, /min-height: 42px/);
   assert.match(mobileRules, /\.focus-toolbar \{ min-height: 150px/);
   assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto; height: calc\(100dvh - 16px\)/);
   assert.doesNotMatch(mobileRules, /width:\s*100vw/);
+});
+
+test("Map ships distinct desktop and mobile orientation copy with CSS-only visibility", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const html = renderToStaticMarkup(createElement(InvestigationMapView, {
+    packet,
+    map: deriveInvestigationMap(packet, "event_time"),
+    timeAxis: "event_time",
+    coverageLens: "all",
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    threadTraceActive: false,
+    liveEnabled: false,
+    runBlocked: false,
+    runStatusLabel: null,
+    onTimeAxisChange: noop,
+    onCoverageLensChange: noop,
+    onFocus: noop,
+    onTraceThread: noop,
+    onShowFullMap: noop,
+    onExpandCoverage: noop,
+  }));
+  assert.match(html, /map-orientation-desktop[^>]*>\s*Calendar dates move left to right/);
+  assert.match(html, /map-orientation-mobile[^>]*>\s*Calendar dates run top to bottom on this screen/);
+
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const defaultRules = css.slice(0, css.indexOf("@media (max-width: 720px)"));
+  assert.match(defaultRules, /\.map-orientation-mobile \{ display: none; \}/);
 });
 
 test("desktop map renders anchored connection layers with a public metadata floor", () => {
