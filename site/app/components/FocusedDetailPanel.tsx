@@ -43,6 +43,15 @@ const INSPECTOR_FOCUSABLE_SELECTOR = [
   "summary",
   '[tabindex]:not([tabindex="-1"])',
 ].join(",");
+const INSPECTOR_RECORD_KIND_LABELS: Record<SiteDetailKind, string> = {
+  source: "Source record",
+  claim_occurrence: "Claim occurrence",
+  claim_family: "Claim family",
+  relation: "Candidate relation",
+  timeline_row: "Timeline record",
+  lineage_row: "Lineage record",
+  unresolved_question: "Open question",
+};
 
 type InspectorAccessibilityModel =
   (typeof INSPECTOR_ACCESSIBILITY_MODELS)[keyof typeof INSPECTOR_ACCESSIBILITY_MODELS];
@@ -78,6 +87,7 @@ export function FocusedDetailPanel({
   const visibleMapViewActions = model === INSPECTOR_ACCESSIBILITY_MODELS.desktop
     ? mapViewActions
     : undefined;
+  const headerMetadata = focusedInspectorMetadata(packet, selection, payload);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -110,6 +120,16 @@ export function FocusedDetailPanel({
       <div className="detail-header">
         <div className="detail-header-copy">
           <p className="eyebrow">Focused inspector</p>
+          <div
+            className="detail-record-meta"
+            role="group"
+            aria-label="Focused record type and status"
+          >
+            <span className="detail-record-kind">{headerMetadata.kind}</span>
+            {headerMetadata.status ? (
+              <span className="detail-record-status">{headerMetadata.status}</span>
+            ) : null}
+          </div>
           <h3 id="detail-panel-title">{selection.label}</h3>
           {visibleMapViewActions ? (
             <div
@@ -203,6 +223,36 @@ export function FocusedDetailPanel({
       {contents}
     </aside>
   );
+}
+
+function focusedInspectorMetadata(
+  packet: SiteReadyCasePacket | undefined,
+  selection: FocusSelection,
+  payload: SiteReadyCaseDetail | null,
+): { kind: string; status: string | null } {
+  const item = asRecord(payload?.detail);
+  if (selection.kind === "relation") {
+    return {
+      kind: INSPECTOR_RECORD_KIND_LABELS[selection.kind],
+      status: "Needs review",
+    };
+  }
+
+  const sourceStatus = selection.kind === "source"
+    ? packet?.source_snapshot_summaries.find(
+        (source) => source.source_id === selection.id,
+      )?.record_status
+    : undefined;
+  const status = item.record_status
+    ?? sourceStatus
+    ?? item.status
+    ?? item.review_status;
+  return {
+    kind: INSPECTOR_RECORD_KIND_LABELS[selection.kind],
+    status: status === undefined || status === null
+      ? null
+      : focusedRecordStatusLabel(status),
+  };
 }
 
 function containMobileInspectorFocus(event: ReactKeyboardEvent<HTMLDialogElement>) {
