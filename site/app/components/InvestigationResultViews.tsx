@@ -40,7 +40,7 @@ export function TimelineView({
   const unavailableRows = rows.filter((row) => !timeValue(row, timeAxis));
   const availableGroups = groupTimelineRowsByPrecision(availableRows, timeAxis);
   return (
-    <div className="view-stack">
+    <div className="timeline-view view-stack">
       <div className="view-intro">
         <div>
           <p className="eyebrow">Temporal view</p>
@@ -237,7 +237,7 @@ export function SourcesView({
   onFocus: FocusHandler;
 }) {
   return (
-    <div className="view-stack">
+    <div className="sources-view view-stack">
       <div className="view-intro">
         <div>
           <p className="eyebrow">Provenance</p>
@@ -263,44 +263,48 @@ export function SourcesView({
                 {String(index + 1).padStart(2, "0")}
               </div>
               <div className="source-card-body">
-                <div className="source-status-row">
-                  <span className="source-role-badge">{sourceRoleLabel(source)}</span>
-                  <span className={`record-state record-${source.record_status}`}>
-                    {recordBoundaryLabel(source.record_status)}
-                  </span>
-                </div>
-                <h4>
-                  {source.url ? (
-                    <a href={source.url} target="_blank" rel="noopener noreferrer">
-                      {source.title} <span className="external-mark" aria-label="opens in a new tab">↗</span>
-                    </a>
-                  ) : source.title}
-                </h4>
-                <p className="source-publisher">{source.publisher} · {source.domain}</p>
-                <dl className="source-times">
-                  <div>
-                    <dt>Publication time</dt>
-                    <dd>{formatReviewTimestamp(source.published_at, source.published_at_precision)}</dd>
+                <div className="source-identity">
+                  <div className="source-status-row">
+                    <span className="source-role-badge">{sourceRoleLabel(source)}</span>
+                    <span className={`record-state record-${source.record_status}`}>
+                      {recordBoundaryLabel(source.record_status)}
+                    </span>
                   </div>
-                </dl>
-                <div className={`provenance-note ${candidateSummary ? "provenance-partial" : ""}`}>
-                  <strong>{sourceContentLabel(source)}</strong>
-                  <p>{evidence ?? "No bounded evidence or candidate summary is available."}</p>
+                  <h4>
+                    {source.url ? (
+                      <a href={source.url} target="_blank" rel="noopener noreferrer">
+                        {source.title} <span className="external-mark" aria-label="opens in a new tab">↗</span>
+                      </a>
+                    ) : source.title}
+                  </h4>
+                  <p className="source-publisher">{source.publisher} · {source.domain}</p>
+                  <dl className="source-times">
+                    <div>
+                      <dt>Publication time</dt>
+                      <dd>{formatReviewTimestamp(source.published_at, source.published_at_precision)}</dd>
+                    </div>
+                  </dl>
                 </div>
-                <div className="source-why">
-                  <strong>Why this source matters</strong>
-                  <p>{source.source_selection.why_included}</p>
+                <div className="source-evidence">
+                  <div className={`provenance-note ${candidateSummary ? "provenance-partial" : ""}`}>
+                    <strong>{sourceContentLabel(source)}</strong>
+                    <p>{evidence ?? "No bounded evidence or candidate summary is available."}</p>
+                  </div>
+                  <div className="source-why">
+                    <strong>Why this source matters</strong>
+                    <p>{source.source_selection.why_included}</p>
+                  </div>
+                  <button
+                    className="detail-button"
+                    type="button"
+                    aria-label={`${source.source_text_captured ? "Inspect source evidence" : "View source details"}: ${source.title}`}
+                    data-focus-trigger={focusTriggerId("sources-card", selection)}
+                    onClick={(event) => onFocus(selection, event.currentTarget)}
+                  >
+                    {source.source_text_captured ? "Inspect source evidence" : "View source details"}
+                    {" "}<span aria-hidden="true">→</span>
+                  </button>
                 </div>
-                <button
-                  className="detail-button"
-                  type="button"
-                  aria-label={`${source.source_text_captured ? "Inspect source evidence" : "View source details"}: ${source.title}`}
-                  data-focus-trigger={focusTriggerId("sources-card", selection)}
-                  onClick={(event) => onFocus(selection, event.currentTarget)}
-                >
-                  {source.source_text_captured ? "Inspect source evidence" : "View source details"}
-                  {" "}<span aria-hidden="true">→</span>
-                </button>
               </div>
             </li>
           );
@@ -313,7 +317,7 @@ export function SourcesView({
 export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
   const limitations = publicMethodLimitations(packet);
   return (
-    <div className="view-stack">
+    <div className="method-view view-stack">
       <div className="view-intro">
         <div>
           <p className="eyebrow">Method and coverage</p>

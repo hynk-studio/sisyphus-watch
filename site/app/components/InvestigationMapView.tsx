@@ -66,6 +66,15 @@ const EMPTY_SPATIAL_GEOMETRY: SpatialConnectionGeometry = {
   questions: [],
 };
 
+const HORIZONTAL_OVERFLOW_TOLERANCE_PX = 1;
+
+export function mapCanvasHasHorizontalOverflow(
+  scrollWidth: number,
+  clientWidth: number,
+): boolean {
+  return scrollWidth - clientWidth > HORIZONTAL_OVERFLOW_TOLERANCE_PX;
+}
+
 export function InvestigationMapView({
   packet,
   map,
@@ -108,8 +117,10 @@ export function InvestigationMapView({
   const selectedQuestion = map.questions.find((question) => question.nodeId === selectedNodeId);
   const trace = selectedNodeId ? deriveThreadTrace(map, selectedNodeId) : null;
   const preparedComparison = packet.coverage_summary.coverage_basis === "prepared_fixture";
+  const desktopMapRef = useRef<HTMLDivElement>(null);
   const spatialStageRef = useRef<HTMLDivElement>(null);
   const spatialNodeRefs = useRef(new Map<string, HTMLElement>());
+  const [desktopMapOverflowing, setDesktopMapOverflowing] = useState(false);
   const [spatialGeometry, setSpatialGeometry] = useState<SpatialConnectionGeometry>(
     EMPTY_SPATIAL_GEOMETRY,
   );
@@ -120,16 +131,25 @@ export function InvestigationMapView({
   }
 
   useEffect(() => {
+    const scrollContainer = desktopMapRef.current;
     const stage = spatialStageRef.current;
-    if (!stage) return;
+    if (!scrollContainer || !stage) return;
     let frame = 0;
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         setSpatialGeometry(measureSpatialConnections(stage, spatialNodeRefs.current, map));
+        const nextOverflowing = mapCanvasHasHorizontalOverflow(
+          scrollContainer.scrollWidth,
+          scrollContainer.clientWidth,
+        );
+        setDesktopMapOverflowing((current) => (
+          current === nextOverflowing ? current : nextOverflowing
+        ));
       });
     };
     const observer = new ResizeObserver(measure);
+    observer.observe(scrollContainer);
     observer.observe(stage);
     measure();
     return () => {
@@ -270,8 +290,35 @@ export function InvestigationMapView({
 
       <div
         className="desktop-map"
-        aria-label="Investigation map ordered by source role and selected time axis"
+        ref={desktopMapRef}
+        role={desktopMapOverflowing ? "region" : undefined}
+        tabIndex={desktopMapOverflowing ? 0 : undefined}
+        aria-label={desktopMapOverflowing
+          ? "Investigation map ordered by source role and selected time axis"
+          : undefined}
+        aria-describedby={desktopMapOverflowing ? "map-canvas-scroll-hint" : undefined}
+        onKeyDown={desktopMapOverflowing ? ((event: KeyboardEvent<HTMLDivElement>) => {
+          if (event.target !== event.currentTarget) return;
+          if (!mapCanvasHasHorizontalOverflow(
+            event.currentTarget.scrollWidth,
+            event.currentTarget.clientWidth,
+          )) return;
+          const maxScrollLeft = event.currentTarget.scrollWidth - event.currentTarget.clientWidth;
+          const scrollStep = Math.max(180, Math.round(event.currentTarget.clientWidth * 0.7));
+          if (event.key === "ArrowLeft") event.currentTarget.scrollLeft -= scrollStep;
+          else if (event.key === "ArrowRight") event.currentTarget.scrollLeft += scrollStep;
+          else if (event.key === "Home") event.currentTarget.scrollLeft = 0;
+          else if (event.key === "End") event.currentTarget.scrollLeft = maxScrollLeft;
+          else return;
+          event.preventDefault();
+        }) : undefined}
       >
+        {desktopMapOverflowing ? (
+          <p id="map-canvas-scroll-hint" className="map-canvas-scroll-hint">
+            Use the Left and Right Arrow keys or scroll horizontally to read every source column.
+            The page itself stays fixed.
+          </p>
+        ) : null}
         <div className="spatial-map-stage" ref={spatialStageRef}>
           <SpatialConnectionLayer
             map={map}

@@ -47,6 +47,7 @@ import {
   MOBILE_INSPECTOR_MEDIA_QUERY,
   focusedRecordStatusLabel,
 } from "../app/components/FocusedDetailPanel";
+import { mapCanvasHasHorizontalOverflow } from "../app/components/InvestigationMapView";
 import { focusTriggerId } from "../app/components/investigation-types";
 import {
   PUBLIC_LIVE_COOLDOWN_MS,
@@ -1369,27 +1370,50 @@ test("Map ships distinct desktop and mobile orientation copy with CSS-only visib
   }));
   assert.match(html, /map-orientation-desktop[^>]*>\s*Calendar dates move left to right/);
   assert.match(html, /map-orientation-mobile[^>]*>\s*Calendar dates run top to bottom on this screen/);
+  assert.doesNotMatch(html, /class="desktop-map"[^>]*(?:role="region"|tabindex="0")/);
+  assert.doesNotMatch(html, /aria-describedby="map-canvas-scroll-hint"/);
+  assert.doesNotMatch(html, /id="map-canvas-scroll-hint"/);
 
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const defaultRules = css.slice(0, css.indexOf("@media (max-width: 920px)"));
   assert.match(defaultRules, /\.map-orientation-mobile \{ display: none; \}/);
 });
 
-test("desktop map renders anchored connection layers with a public metadata floor", () => {
+test("desktop map activates keyboard scrolling only for measured horizontal overflow", () => {
+  assert.equal(mapCanvasHasHorizontalOverflow(1150, 1150), false);
+  assert.equal(mapCanvasHasHorizontalOverflow(1151, 1150), false);
+  assert.equal(mapCanvasHasHorizontalOverflow(1152, 1150), true);
+  assert.equal(mapCanvasHasHorizontalOverflow(1112, 773), true);
+
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const desktopRules = css.slice(
     css.indexOf(".desktop-map"),
     css.indexOf(".mobile-investigation-path { display: none; }") + 46,
   );
   assert.match(desktopRules, /\.spatial-connection-layer \{/);
+  assert.match(desktopRules, /\.desktop-map \{[\s\S]*?overflow-x: auto/);
+  assert.match(desktopRules, /\.spatial-map-stage \{[\s\S]*?min-width: 1080px/);
   assert.match(desktopRules, /\.spatial-relation-path \{[\s\S]*?stroke-width: 2\.4/);
   assert.match(desktopRules, /\.spatial-question-path \{[\s\S]*?stroke-dasharray: 7 6/);
-  assert.match(desktopRules, /\.spatial-relation-controls button span,[\s\S]*?font-size: \.72rem/);
-  assert.match(desktopRules, /\.map-time-scale small \{[\s\S]*?font-size: \.72rem/);
-  assert.match(desktopRules, /\.node-state-text,[\s\S]*?font-size: \.72rem/);
-  assert.match(desktopRules, /\.map-source-publisher \{[\s\S]*?font-size: \.75rem/);
-  assert.match(desktopRules, /\.map-node-time \{[\s\S]*?font-size: \.72rem/);
-  assert.match(desktopRules, /\.question-connector \{[\s\S]*?font-size: \.72rem/);
+  assert.match(desktopRules, /\.spatial-relation-controls button span,[\s\S]*?font-size: \.8rem/);
+  assert.match(desktopRules, /\.map-time-scale small \{[\s\S]*?font-size: \.78rem/);
+  assert.match(desktopRules, /\.node-state-text,[\s\S]*?font-size: \.78rem/);
+  assert.match(desktopRules, /\.map-source-publisher \{[\s\S]*?font-size: \.84rem/);
+  assert.match(desktopRules, /\.map-node-time \{[\s\S]*?font-size: \.8rem/);
+  assert.match(desktopRules, /\.question-connector \{[\s\S]*?font-size: \.78rem/);
+  const mapSource = readFileSync(
+    new URL("../app/components/InvestigationMapView.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(mapSource, /observer\.observe\(scrollContainer\)/);
+  assert.match(mapSource, /role=\{desktopMapOverflowing \? "region" : undefined\}/);
+  assert.match(mapSource, /tabIndex=\{desktopMapOverflowing \? 0 : undefined\}/);
+  assert.match(mapSource, /aria-describedby=\{desktopMapOverflowing \? "map-canvas-scroll-hint" : undefined\}/);
+  assert.match(mapSource, /onKeyDown=\{desktopMapOverflowing \? \(\(event/);
+  assert.match(mapSource, /if \(!mapCanvasHasHorizontalOverflow\([\s\S]*?\)\) return;/);
+  assert.match(mapSource, /event\.currentTarget\.scrollLeft \+= scrollStep/);
+  assert.match(mapSource, /event\.currentTarget\.scrollLeft = maxScrollLeft/);
+  assert.match(mapSource, /desktopMapOverflowing \? \([\s\S]*?id="map-canvas-scroll-hint"/);
 });
 
 function escapeRegex(value: string): string {
