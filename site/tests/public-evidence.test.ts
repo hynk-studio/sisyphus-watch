@@ -516,11 +516,11 @@ test("known provider failure still runs once and public response is no-result", 
 test("export UI is available for selected prepared/live evidence and absent for fallback", () => {
   const prepared = buildPreparedSiteReadyCasePacket();
   const html = renderToStaticMarkup(createElement(ExportInvestigation, { packet: prepared }));
+  assert.match(html, /^<div class="export-investigation">/);
+  assert.match(html, /<button[^>]*aria-expanded="false"[^>]*aria-controls="export-investigation-panel"/);
   assert.match(html, /Export investigation/);
-  assert.match(html, /Copy shareable brief/);
-  assert.match(html, /Download Markdown/);
-  assert.match(html, /Download JSON/);
-  assert.match(html, /no new investigation, provider work, persistence, or detail fetch/i);
+  assert.doesNotMatch(html, /Copy shareable brief/);
+  assert.doesNotMatch(html, /id="export-investigation-panel"/);
 
   const fallback = structuredClone(prepared);
   fallback.mode = "fallback";
@@ -534,6 +534,11 @@ test("export UI is available for selected prepared/live evidence and absent for 
     "utf8",
   );
   assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|\/api\//);
+  assert.match(source, /Copy shareable brief/);
+  assert.match(source, /Download Markdown/);
+  assert.match(source, /Download JSON/);
+  assert.match(source, /no new investigation, provider work,[\s\S]*persistence, or detail fetch/i);
+  assert.match(source, /event\.key !== "Escape"/);
   assert.match(source, /URL\.createObjectURL/);
   assert.match(source, /navigator\.clipboard/);
 });

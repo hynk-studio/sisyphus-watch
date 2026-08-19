@@ -5,12 +5,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   CaseExplorer,
+  FirstPayoff,
   FocusedDetailPanel,
   InvestigationMapView,
   MethodView,
   SearchComposer,
   SourcesView,
   TimelineView,
+  firstPayoffForPacket,
   getRunNotice,
 } from "../app/components/CaseExplorer";
 import {
@@ -114,6 +116,76 @@ test("live composer exposes the existing bounded request controls without claimi
   assert.doesNotMatch(html, /\bvalidated\b/i);
   assert.doesNotMatch(html, /disabled=""/);
   assert.ok(html.indexOf("Build investigation map") < html.indexOf("Try the cooling-center example"));
+});
+
+test("first payoff resolves one existing source-bound finding without fabricating fallback evidence", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const intendedSource = packet.source_snapshot_summaries[1];
+  const otherSource = packet.source_snapshot_summaries[0];
+  packet.source_bound_findings[0].text = "One existing source-bound finding.";
+  packet.source_bound_findings[0].source_ids = [intendedSource.source_id];
+
+  const payoff = firstPayoffForPacket(packet);
+  assert.equal(payoff?.source.source_id, intendedSource.source_id);
+  assert.equal(payoff?.finding.text, "One existing source-bound finding.");
+
+  const html = renderToStaticMarkup(createElement(FirstPayoff, {
+    packet,
+    onFocus: noop,
+  }));
+  assert.match(html, /Start here/);
+  assert.match(html, /Synthetic fixture · prepared example/);
+  assert.match(html, /One existing source-bound finding/);
+  assert.match(html, /<p class="first-payoff-finding">One existing source-bound finding\.<\/p>/);
+  assert.doesNotMatch(html, /<blockquote/);
+  assert.match(html, new RegExp(escapeRegex(intendedSource.title)));
+  assert.doesNotMatch(html, new RegExp(escapeRegex(otherSource.title)));
+  assert.match(html, /Source inclusion is not endorsement or truth verification/);
+  assert.match(
+    html,
+    new RegExp(escapeRegex(focusTriggerId("first-payoff", {
+      kind: "source",
+      id: intendedSource.source_id,
+    }))),
+  );
+
+  const live = structuredClone(packet);
+  live.mode = "live";
+  live.status = "live";
+  live.source_snapshot_summaries[1].content_kind = "model_generated_web_search_summary";
+  live.source_snapshot_summaries[1].source_text_captured = false;
+  const liveHtml = renderToStaticMarkup(createElement(FirstPayoff, {
+    packet: live,
+    onFocus: noop,
+  }));
+  assert.match(liveHtml, /Candidate finding · review only/);
+  assert.match(
+    liveHtml,
+    /Based on a model-generated web-search summary · not captured page text/,
+  );
+  assert.match(liveHtml, /<p class="first-payoff-finding">/);
+  assert.doesNotMatch(liveHtml, /<blockquote/);
+  assert.doesNotMatch(liveHtml, /Synthetic fixture/);
+
+  const fallback = structuredClone(packet);
+  fallback.mode = "fallback";
+  fallback.status = "fallback";
+  assert.equal(firstPayoffForPacket(fallback), null);
+  assert.equal(renderToStaticMarkup(createElement(FirstPayoff, {
+    packet: fallback,
+    onFocus: noop,
+  })), "");
+
+  const unsupported = structuredClone(packet);
+  unsupported.source_bound_findings[0].source_ids = ["src_missing"];
+  unsupported.source_bound_findings = [unsupported.source_bound_findings[0]];
+  assert.equal(firstPayoffForPacket(unsupported), null);
+
+  const source = readFileSync(
+    new URL("../app/components/FirstPayoff.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|\/api\//);
 });
 
 test("live composer presents concise privacy, review, persistence, and cost-density limits", () => {
@@ -1163,15 +1235,23 @@ test("server-only live flag defaults closed and the disabled route returns a bou
   }
 });
 
-test("mobile CSS switches to a vertical path with usable controls and no page-width overflow rule", () => {
+test("measured tablet CSS switches at 920px to the existing vertical investigation path", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const tabletStart = css.indexOf("@media (max-width: 920px)");
+  const mobileStart = css.indexOf("@media (max-width: 720px)");
+  assert.ok(tabletStart > 0);
+  assert.ok(mobileStart > tabletStart);
+  const tabletRules = css.slice(tabletStart, mobileStart);
+  assert.match(tabletRules, /\.desktop-map \{ display: none; \}/);
+  assert.match(tabletRules, /\.mobile-investigation-path \{ display: grid/);
+  assert.match(tabletRules, /\.map-orientation-desktop \{ display: none; \}/);
+  assert.match(tabletRules, /\.map-orientation-mobile \{ display: inline; \}/);
+  assert.match(tabletRules, /\.mobile-relation-label \{/);
+  assert.match(tabletRules, /\.mobile-open-questions \{/);
+  assert.match(tabletRules, /\.map-source-node \{ width: 100%; \}/);
+
   const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
-  assert.match(mobileRules, /\.desktop-map \{ display: none; \}/);
-  assert.match(mobileRules, /\.mobile-investigation-path \{ display: grid/);
-  assert.match(mobileRules, /\.map-orientation-desktop \{ display: none; \}/);
-  assert.match(mobileRules, /\.map-orientation-mobile \{ display: inline; \}/);
   assert.match(mobileRules, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(mobileRules, /\.mobile-relation-label \{/);
   assert.match(mobileRules, /min-height: 42px/);
   assert.match(mobileRules, /\.focus-toolbar \{ min-height: 150px/);
   assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto; height: calc\(100dvh - 16px\)/);
@@ -1202,7 +1282,7 @@ test("Map ships distinct desktop and mobile orientation copy with CSS-only visib
   assert.match(html, /map-orientation-mobile[^>]*>\s*Calendar dates run top to bottom on this screen/);
 
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  const defaultRules = css.slice(0, css.indexOf("@media (max-width: 720px)"));
+  const defaultRules = css.slice(0, css.indexOf("@media (max-width: 920px)"));
   assert.match(defaultRules, /\.map-orientation-mobile \{ display: none; \}/);
 });
 
