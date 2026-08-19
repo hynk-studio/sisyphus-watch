@@ -10,7 +10,7 @@
 
 This document proposes an information-display grammar for the Sisyphus Watch Map. It does not authorize or implement a production Map redesign, packet/schema/API changes, provider work, hosted work, a Sites Version, deployment, or D1 mutation.
 
-The recommendation is a **Temporal Claim-Lineage Matrix**: selected time on the horizontal axis, candidate claim threads on the vertical axis, source-local claim occurrences as the primary nodes, candidate occurrence-to-occurrence relations as edges, source provenance attached to each occurrence, context-only sources as annotations, and a visibly non-chronological Unresolved rail as the endpoint.
+The recommendation is a **Temporal Claim-Lineage Matrix with Adaptive Relation-Summary Mode**: selected time on the horizontal axis, explicit claim-row types on the vertical axis, source-local claim occurrences as the primary nodes, candidate occurrence-to-occurrence relations as edges or synchronized ports, source provenance attached to each occurrence, non-claim source records as annotations, and a visibly non-chronological Unresolved rail as the endpoint.
 
 The change in emphasis is deliberate:
 
@@ -45,7 +45,7 @@ The current prepared packet contains exactly:
 | Source-bound findings | 3 |
 | Actions | 2 |
 | Initial selected Map axis | Event time |
-| Context-only sources | 1 editorial/opinion source with no claim occurrence |
+| Non-claim source records | 1 editorial/opinion source with no claim occurrence; presented as Context / interpretation |
 
 The source-role coverage record is: Official & established `1`; Original records `0`; Local & firsthand `1`; Specialist context `1`; Challenges & corrections `1`. The absent Original records role is real coverage information, not a rendering error.
 
@@ -59,15 +59,15 @@ The proposal and wireframes use these packet records without substituting or inv
 | Community practical access | “Several listed cooling centers were not practically accessible.” | Jun 12 12:00 / Jun 12 18:30 / Jun 12 18:30 | Community report — “Volunteer network reports practical access issues at listed cooling centers” |
 | Later city corrected/update | “The updated guidance corrected listing errors and improved access.” | Jun 14 14:15 / Jun 14 14:15 / Jun 14 14:15 | Official update — “Fictional city updates cooling center list and adds transport support” |
 
-The fourth source is the candidate specialist/context record “Opinion note on emergency communication and street-level access.” It has no claim occurrence and no event time. Its publication time is Jun 15 08:00 and its retrieval time is Jun 15 12:00; it must remain Event time unavailable when Event time is selected.
+The fourth source, “Opinion note on emergency communication and street-level access,” is a **non-claim source record** because it has no claim occurrence. Its available packet metadata supports the presentation subtype **Context / interpretation**. It has no event time; its publication time is Jun 15 08:00 and retrieval time is Jun 15 12:00. When Event time is selected it must appear as **Unplaced on Event time**, while the other timestamps remain inspectable.
 
 The three current candidate relations are:
 
-1. `supersedes`: initial city occurrence → later city update occurrence.
-2. `contradicts`: initial city occurrence ↔ community access occurrence.
-3. `follow_up`: community access occurrence → later city update occurrence.
+1. `supersedes`: left endpoint initial city occurrence; right endpoint later city update occurrence.
+2. `contradicts`: endpoints initial city occurrence and community access occurrence; non-directional in v1.
+3. `follow_up`: left endpoint community access occurrence; right endpoint later city update occurrence.
 
-All three are `pending_review` candidate records. The exact current unresolved questions are:
+The engine produced those left/right endpoints through its time/record ordering chain; the packet has no separately reviewed semantic-direction field. R1/R3 arrowheads therefore remain conditional on the composite selected-axis rule, not on this listing. All three are `pending_review` candidate records. The exact current unresolved questions are:
 
 1. “How representative were the observed access gaps across all listed centers?” — related to the community actor claim.
 2. “Did the correction and transport support reach vulnerable residents in time?” — related to the Jun 14 transport-support action.
@@ -95,7 +95,7 @@ Every alternative and the recommendation preserve these invariants:
 
 The current Map is strong at source accountability. It makes all source snapshots visible, carries source role, title, publisher/domain, selected-axis time, record boundary, a bounded preview, and a citation/fixture affordance into the primary canvas. A reviewer can see that the packet includes official, community, correction, and specialist/context material instead of assuming one homogeneous evidence pool.
 
-The time treatment is also disciplined. The Map exposes all four axes, chooses event time initially when at least one explicit event value exists, keeps missing values in a Time unavailable region, groups same-calendar-day mixed precision, and removes the relation arrowhead when its current endpoint-order basis is non-chronological mixed precision. The shared Timeline applies the same no-substitution principle.
+The time treatment is also disciplined. The Map exposes all four axes, keeps missing values separate, groups same-calendar-day mixed precision, and removes a relation arrowhead when its current endpoint-order basis is non-chronological mixed precision. The shared Timeline applies the same no-substitution principle. The current **source-node** initial-axis derivation can treat occurrence, action, or time-candidate values as evidence that a source has Event time; the occurrence-primary proposal intentionally changes that presentation rule so only primary claim occurrences decide the initial axis.
 
 The current relation layer preserves each candidate relation and its exact occurrence IDs, source IDs, type, review state, reason, support references, parallel-relation identity, and lineage-row link. The accessible relation ledger prevents the SVG from being the only representation. Same-source relations remain in packet/detail/ledger even though their degenerate source-card self-loop is omitted spatially.
 
@@ -113,7 +113,7 @@ The vertical coordinate answers a provenance question while the edges answer a c
 
 - The two city occurrences belong to the same candidate family, but their sources sit in different lanes: Official & established and Challenges & corrections.
 - The community occurrence belongs to a separate unresolved one-occurrence family, but its challenge and follow-up relations cross between that row and both city source rows.
-- The editorial/context source has no claim occurrence and no event time, yet still occupies a source card, a specialist lane, and a time column.
+- The editorial Context / interpretation record has no claim occurrence and no event time, yet still occupies a source card, a specialist lane, and a time column.
 - A blank role lane consumes vertical space even though it contains no claim path.
 
 The result is that a user must first understand source categories, then infer which text inside each source card is the relevant claim, then follow edges that actually originate in claim occurrences but visually terminate on whole source records. The user question “What exactly am I supposed to follow?” has no single answer: source cards, time columns, role lanes, edge labels, topic root, and question cards all compete as the apparent path.
@@ -154,7 +154,9 @@ As a persistent spatial row, however, the lane wastes height and suggests that s
 
 No. They are the correct primary node type for Sources, and a useful inspector target from Map, but not the correct Map node for the stated product question.
 
-The card’s preview can be an actor claim, finding, action, or source summary depending on what the source contains. Its semantic type therefore changes from card to card. A source may contain multiple claims, one claim may appear in multiple sources as separate occurrences, and two claim occurrences may exist in one source. Projecting occurrence-level relations onto a source card obscures all three cases. The existing same-source relation test makes this concrete: the relation remains valid packet data, but the spatial source-card self-loop cannot express it.
+The card’s preview can be an actor claim, finding, action, interpretation, or source summary depending on what the source contains. Its semantic type therefore changes from card to card. A source may contain multiple claims, one claim may appear in multiple sources as separate occurrences, and two claim occurrences may exist in one source. Projecting occurrence-level relations onto a source card obscures all three cases. The existing same-source relation test makes this concrete: the relation remains valid packet data, but the spatial source-card self-loop cannot express it.
+
+Likewise, “no claim occurrence” does not mean “context.” Such a source may carry findings, actions, interpretation, source evidence/summary without a structured claim, or a mixture. The prepared editorial source is a Context / interpretation example; it must not define the generic no-occurrence category.
 
 The primary Map node should be the **claim occurrence**: a source-local instance of an actor claim with its own selected-axis times, status, support reference, source ID, and candidate-family membership.
 
@@ -168,7 +170,7 @@ The current wording correctly says they are visible endpoints and not conclusion
 
 The Map scan level should contain only what is needed to follow claim change:
 
-- candidate thread identity and uncertainty;
+- exact row type—Candidate thread, Standalone claim occurrence, or Ungrouped claim occurrence—and its uncertainty;
 - actor;
 - concise claim text;
 - selected-axis time and precision state;
@@ -176,6 +178,7 @@ The Map scan level should contain only what is needed to follow claim change:
 - a compact source role + source title/publisher attachment;
 - short candidate relation label and visible review state;
 - unresolved question text and its conservative origin type;
+- a compact subtype label for each non-claim source record;
 - a compact, complete source-role coverage strip.
 
 The inspector, Sources, or Method should carry:
@@ -193,204 +196,254 @@ The inspector, Sources, or Method should carry:
 
 ### Alternative 1 — Temporal Claim-Lineage Matrix
 
-This is the recommended design.
+This is the recommended low-density grammar and the default presentation mode.
 
 - **Primary user question:** How did source-local public claims change, interact, get challenged, get replaced, or remain unresolved over the selected time axis?
-- **X axis:** The explicitly selected event, actor assertion, publication, or Sisyphus retrieval time. A separate terminal region holds Time unavailable; no substitution is allowed.
-- **Y organization:** Candidate claim-family rows. Each row is visibly provisional. Occurrences without a reliable, internally consistent family assignment receive separate ungrouped rows.
+- **X axis:** The explicitly selected Event, Actor assertion, Publication, or Sisyphus retrieval time. Initial selection uses Event time only when at least one primary claim occurrence has an explicit Event value; otherwise it uses Publication time. No time substitution is allowed.
+- **Y organization:** Three explicit row types: an internally consistent multi-occurrence family is **Candidate thread · N occurrences · needs review**; a one-occurrence unresolved family is **Standalone claim occurrence · grouping unresolved**; missing or inconsistent membership is **Ungrouped claim occurrence**. Only the first is called a thread.
 - **Primary node type:** Claim occurrence.
 - **Source provenance:** A compact provenance attachment inside the occurrence card: source role, short source title/publisher, and source record boundary when it differs from the occurrence boundary. It opens the source inspector.
-- **Relation representation:** Direct occurrence-to-occurrence candidate connectors. Intra-thread connectors stay in-row; cross-thread connectors use shallow routed curves. Type is expressed by short text plus a restrained line/arrow family, never color alone.
-- **Open-question representation:** One right-side Unresolved rail outside the chronological grid. Questions are single endpoint cards with conservative origin tethers/chips; multi-origin questions are not duplicated.
-- **Context-only source representation:** A Context annotations strip below claim rows and above the Unresolved rail/ledger. A context source aligns to the selected axis only when that exact source-level axis value exists; otherwise it appears in Context · Time unavailable.
-- **Time-unavailable behavior:** A visually separated, non-chronological terminal column. Cards there show the selected axis and “Time unavailable”; the column has no directional arrow relation to dated columns.
+- **Relation representation:** In **Matrix mode**, readable intra-thread and cross-row candidate relations may draw directly between occurrence anchors. In adaptive **Relation-summary mode**, useful intra-thread and selected relations may remain spatial while cross-row relations use numbered ports. Both modes use the same complete canonical relation ledger and remove no relation record.
+- **Open-question representation:** One right-side Unresolved rail outside the chronological grid. One question card may contain multiple typed origins: occurrence, actor claim, action, source, or topic/unknown. Only occurrence and matching-claim origins draw occurrence tethers by default.
+- **Non-claim source-record representation:** A named section outside claim rows contains sources with no occurrence. Derived presentation subtypes are Context / interpretation, Action-bearing source, Finding-bearing evidence source, Source-only record, and Mixed non-claim source. The prepared editorial source is Context / interpretation.
+- **Time-unavailable behavior:** Missing selected-axis values appear in a non-chronological band below the dated matrix, labeled **Unplaced on Event time**, **Unplaced on Publication time**, and so on. It is not a later column; other timestamps remain inspectable; no arrow direction may be inferred through it.
 - **Mixed/day precision behavior:** One date band. Exact instants receive ordered subcolumns. Day-level records occupy a peer sub-band with no left/right order. Relations involving a day-level peer and an exact instant on that date do not receive a temporal arrowhead.
-- **Claim-family uncertainty:** Row headers say Candidate thread and Needs review. `unresolved: true` says Grouping unresolved. A one-occurrence family says Single occurrence · no change sequence. Family IDs are never parsed into public labels.
-- **Selected/focused behavior:** Selection highlights the occurrence, its candidate row, direct relation endpoints, and related unresolved endpoints while retaining other material in a dimmed state. The occurrence inspector opens; source provenance remains a distinct target.
-- **Coverage lens behavior:** A compact coverage strip preserves every role and zero count. Lenses highlight matching provenance attachments, occurrences, context annotations, and related endpoints; they do not filter, delete, merge, or accept records.
-- **Relation ledger role:** Complete accessible fallback and density control. It includes every relation, including same-source, parallel, unresolved, and unrelated candidates, using occurrence endpoints rather than source-card endpoints.
-- **Desktop composition:** Sticky row headers, scroll-contained time matrix, aligned Unresolved rail, Context strip, then relation ledger.
-- **Tablet composition:** Sticky narrower row headers and local horizontal analytical scrolling. The Unresolved rail moves below the matrix but remains a bordered, named endpoint region with origin chips.
-- **Mobile composition:** Thread-grouped vertical sections. Occurrences run top to bottom inside each thread; intra-thread relations sit between cards; cross-thread relations become numbered chips backed by the complete ledger. Context annotations and the Unresolved rail remain distinct terminal sections.
-- **Screen-reader/keyboard representation:** Semantic thread sections and occurrence buttons appear in DOM order; SVG paths are decorative. A complete ordered relation list names both occurrence endpoints, type, selected-axis ordering basis, and Needs review. Skip links reach Unresolved and Relations. Focus/scroll restore on inspector close.
-- **Strengths:** Directly answers the product question; makes current occurrence and family records useful; preserves provenance without letting it dominate; supports same-source relations; keeps questions outside chronology; retains coverage transparently.
-- **Weaknesses:** Candidate families are sparse and unlabeled; cross-thread edges can still cross; the matrix needs a robust ungrouped path; tablet requires contained horizontal scrolling.
-- **Failure modes:** Treating a candidate family as accepted taxonomy; inventing family names from IDs; drawing directional arrows when selected-axis order is unavailable; allowing dense cross-thread labels to become cards; attaching action-linked questions to claim bodies as if the action were a claim.
-- **Expected complexity with the current code/data:** Medium-high presentation refactor. The packet is sufficient for neutral rows, occurrence nodes, provenance, relations, current questions, context annotations, time axes, and coverage. No public schema/API change is required.
+- **Claim-family uncertainty:** Multi-occurrence internally consistent rows say Candidate thread and Needs review. The prepared one-occurrence community family is a Standalone claim occurrence with Grouping unresolved, not a thread or demonstrated sequence. Family IDs are never parsed into public labels.
+- **Selected/focused behavior:** Selection highlights the occurrence, its typed row, direct relation endpoints, and related unresolved endpoints while retaining other material in a dimmed state. The occurrence inspector opens; source provenance remains a distinct target.
+- **Coverage lens behavior:** A compact coverage strip preserves every role and zero count. Lenses highlight matching provenance attachments, occurrences, non-claim source records, and related endpoints; they do not filter, delete, merge, or accept records.
+- **Relation ledger role:** Exactly one canonical semantic entry per `relation_id`, complete in both density modes. It includes same-source, parallel, ambiguous-order, unresolved, and unrelated candidates. A visual edge or numbered port is only a synchronized shortcut to that entry.
+- **Desktop composition:** Sticky typed row headers, scroll-contained dated matrix, non-chronological Unplaced band below it, aligned Unresolved rail, Non-claim source records section, then relation ledger.
+- **Tablet composition:** Sticky narrower row headers and local horizontal analytical scrolling. The Unresolved rail moves below the matrix but remains a bordered, named endpoint region with typed origin chips; the Unplaced and non-claim sections remain distinct.
+- **Mobile composition:** Typed vertical chapters: Candidate thread, Standalone claim occurrence, or Ungrouped claim occurrence. Occurrences run top to bottom inside their chapter; intra-thread relations may sit between cards; cross-row relations use numbered shortcuts backed by the complete ledger. Non-claim source records and Unresolved remain distinct sections.
+- **Screen-reader/keyboard representation:** Semantic sections use the exact row type in their names. SVG paths are decorative. Every relation is reachable through its one canonical ledger entry; any focusable edge/port shortcut names the same relation and its ledger/detail target. Skip links reach Unresolved and Candidate relations. Inspector close restores focus and scroll.
+- **Strengths:** Directly answers the product question; makes current occurrence and family records useful without overstating one-occurrence groupings; preserves provenance without letting it dominate; supports same-source relations; adapts to dense relations without loss; keeps questions outside chronology; retains coverage transparently.
+- **Weaknesses:** Candidate families are sparse and unlabeled; cross-row edges can still cross in Matrix mode; the matrix needs a robust ungrouped path; tablet requires contained horizontal scrolling; relation-summary ports reduce at-a-glance network shape.
+- **Failure modes:** Treating a candidate family as accepted taxonomy; calling a one-occurrence family a thread; inventing family names from IDs; inferring semantic direction from left/right IDs or position; silently simplifying edges; allowing relation labels to become cards; attaching action/source-linked questions to arbitrary claim bodies; forcing a non-claim source into a context label it does not support.
+- **Expected complexity with the current code/data:** Medium-high presentation refactor. The packet is sufficient for typed rows, occurrence nodes, provenance, relations, current questions, derived non-claim records, time axes, coverage, and both relation-density modes. No public schema/API change is required.
 
-#### Prepared cooling-center case in the matrix
+#### Prepared cooling-center case in low-density Matrix mode
 
-The explanatory row names below are neutral UI numbering. “T01/T02” are not packet fields and do not claim accepted topic taxonomy.
+`T01` below is neutral presentation numbering, not a parsed family ID or a reviewed topic label. The prepared community family is deliberately not assigned a `T02` thread label.
 
 ```text
 MAP · selected axis: EVENT TIME
-Rule: explicit event time only; no publication/assertion/retrieval substitution
+Initial-axis basis: at least one primary claim occurrence has explicit Event time
+Rule: explicit Event values only; no publication/assertion/retrieval substitution
+
+CANDIDATE RELATIONS · spatial labels name relation types requiring review,
+NOT accepted facts.  MODE: Matrix · 3 of 3 relations in canonical ledger.
 
 COVERAGE  Official & established 1  |  Original records 0 MISSING
           Local & firsthand 1       |  Specialist context 1
           Challenges & corrections 1
 
-TIME  ─────────── Jun 10, 09:00 ───────── Jun 12, 12:00 ───────── Jun 14, 14:15 ───┬─ TIME UNAVAILABLE ─┬─ UNRESOLVED RAIL
-                                                                                  │                    │
-T01  CANDIDATE THREAD · 2 occurrences · grouping needs review                    │                    │
-     ┌──────────────────────────────┐                      ┌──────────────────────────────┐             │
-     │ Fictional City EMO           │                      │ Fictional City EMO           │             │
-     │ Residents could find safe,   │──── replaces [R1] ──▶│ Updated guidance corrected  │             │
-     │ air-conditioned spaces       │                      │ listing errors and improved │             │
-     │ across the city.             │                      │ access.                     │             │
-     │ Event: Jun 10 · exact        │                      │ Event: Jun 14 · exact       │             │
-     │ Needs: Prepared case record  │                      │ Needs review                │             │
-     │ Source: Official notice      │                      │ Source: Official update     │             │
-     │ “Fictional city announces…”  │                      │ “Fictional city updates…”   │             │
-     └──────────────┬───────────────┘                      └──────────────▲───────────────┘             │
-                    │ challenges [R2]                                      │ responds [R3]             │
-                    │                                                      │                           │ Q2  Did correction and
-T02  CANDIDATE THREAD · 1 occurrence · GROUPING UNRESOLVED                 │                           │     transport support reach
-     │                         ┌──────────────────────────────┐              │                           │     vulnerable residents in time?
-     └────────────────────────▶│ Fictional Neighborhood      │──────────────┘                           │     Origin: Jun 14 source action
-                               │ Volunteer Network            │                                          │
-                               │ Several listed cooling       │                                          │ Q3  Durable future update process?
-                               │ centers were not practically │                                          │     Origin: Jun 14 source action
-                               │ accessible.                  │                                          │
-                               │ Event: Jun 12 · exact        │                                          │ Q1  How representative were the
-                               │ Prepared case record         │                                          │     observed access gaps?
-                               │ Source: Community report     │                                          │     Origin: Jun 12 actor claim
-                               │ “Volunteer network reports…” │                                          │
-                               └──────────────────────────────┘                                          │
+TIME →                         Jun 10, 09:00       Jun 12, 12:00       Jun 14, 14:15       UNRESOLVED RAIL
+                                                                                           Evidence questions
+Candidate thread T01                                                                       Not conclusions
+2 occurrences · needs review                                                              Not chronological
+                              ┌──────────────────┐                      ┌──────────────────┐
+                              │ City EMO         │  Replaces [R1]      │ City EMO         │
+                              │ Safe, air-       │────────────────────▶│ Corrected listing│
+                              │ conditioned      │                      │ errors; improved │
+                              │ spaces citywide  │                      │ access           │
+                              │ Event Jun 10     │                      │ Event Jun 14     │
+                              │ Occurrence:      │                      │ Occurrence:      │
+                              │ canonical record │                      │ candidate /      │
+                              │ Official notice │                      │ needs review     │
+                              │ source: canonical│                      │ Official update  │
+                              │                  │                      │ source: canonical│
+                              └────────┬─────────┘                      └────────▲─────────┘
+                                       ╲ Challenges [R2] — NO ARROW             ╱ Responds [R3]
+                                        ╲                                      ╱
+Standalone claim occurrence              ╲        ┌──────────────────┐         ╱
+grouping unresolved                       └───────┤ Volunteer Network├────────▶
+                                                     │ Not practically │
+                                                     │ accessible      │·········· Q1
+                                                     │ Event Jun 12    │           How representative?
+                                                     │ Occurrence:     │           Via actor claim →
+                                                     │ canonical record│           matching occurrence
+                                                     │ Community report│
+                                                     │ source: canonical│
+                                                     └──────────────────┘
 
-CONTEXT ANNOTATIONS · not claim nodes
-                                                                                  ┌────────────────────┐
-                                                                                  │ Opinion /          │
-                                                                                  │ interpretation     │
-                                                                                  │ “Opinion note on   │
-                                                                                  │ emergency…”        │
-                                                                                  │ Event time         │
-                                                                                  │ unavailable        │
-                                                                                  └────────────────────┘
+                                                                                           Q2  Did transport support
+                                                                                               reach residents in time?
+                                                                                               Via action record:
+                                                                                               “Added free shuttle support”
+                                                                                               Source: Official update
 
-RELATIONS  R1 Replaces earlier guidance · candidate / needs review
-           R2 Challenges earlier claim · candidate / needs review
-           R3 Responds to earlier report · candidate / needs review
+                                                                                           Q3  Durable update process?
+                                                                                               Via action record:
+                                                                                               “Published updated list and
+                                                                                               clarified opening hours”
+                                                                                               Source: Official update
+
+NON-CLAIM SOURCE RECORDS · outside claim rows · never claim-relation endpoints
+Context / interpretation
+
+UNPLACED ON EVENT TIME · NON-CHRONOLOGICAL BAND · not after Jun 14
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│ Opinion note on emergency communication and street-level access                         │
+│ Source role: Specialist context · Event time absent                                     │
+│ Publication Jun 15 08:00 and Retrieval Jun 15 12:00 remain inspectable                  │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+
+CANONICAL RELATION LEDGER
+R1 Replaces · candidate / needs review · arrow shown only after composite rule passes
+R2 Challenges · candidate / needs review · non-directional; no arrow
+R3 Responds · candidate / needs review · arrow shown only after composite rule passes
 ```
 
-The two action-linked questions attach to the Jun 14 **source provenance anchor**, not to the Jun 14 claim body. That preserves actions ≠ claims. Q1 may attach directly to the community occurrence because its related actor claim resolves to that occurrence. The editorial source remains visible without pretending it is a claim occurrence or inventing an event time.
+For this selected axis, R1 and R3 are eligible for arrowheads only because their types are in documented directional families, both endpoint Event values are explicit, those values have strict chronological order, and that earlier-to-later order agrees with the relation record’s left/right endpoint order. R2 is a contradiction/challenge relation and therefore remains non-directional. If any eligibility condition changes on another selected axis, the same line and label remain but the arrowhead disappears and the ledger says **Direction not asserted on the selected axis**.
 
-### Alternative 2 — Thread small multiples + provenance/relation ledger
+Q1’s actor-claim origin resolves to the matching community occurrence, so an occurrence tether may be drawn. Q2 and Q3 have action origins; each uses a **Via action record** chip containing concise action and source identity, with no tether to the Jun 14 claim body or its provenance attachment. The editorial source remains visible as a Context / interpretation subtype without pretending it is a claim occurrence or inventing an Event time.
+
+The `canonical record` labels in the wireframe state packet record boundaries only. They do not verify truth, endorse the source, or promote any candidate family/relation.
+
+#### Compact Relation-summary mode example
+
+The current three-relation fixture should normally stay in Matrix mode. This forced compact transformation shows the same topology so reviewers can evaluate the adaptive grammar; a real switch is based only on validated presentation density/collisions/available width.
+
+```text
+Spatial overview simplified · all 3 candidate relations remain listed below
+
+Candidate thread T01 · 2 occurrences · needs review
+[City Jun 10 · Official] ── Replaces [R1] ──▶ [City Jun 14 · Official update]
+        port [R2]                              port [R3]
+
+Standalone claim occurrence · grouping unresolved
+[Community Jun 12 · Community report]  ports [R2] [R3]
+
+Canonical relation ledger — no relation removed
+[R1] City Jun 10 — Replaces → City Jun 14       Candidate · needs review
+[R2] City Jun 10 — Challenges — Community Jun 12 Candidate · no direction asserted
+[R3] Community Jun 12 — Responds → City Jun 14   Candidate · needs review
+```
+
+### Alternative 2 — Typed claim-row small multiples + provenance/relation ledger
 
 This alternative removes cross-row line routing from the primary canvas. It is a hybrid lineage + ledger grammar, not a cosmetic matrix variant.
 
-- **Primary user question:** What changed within each candidate claim thread, and which reviewed connections exist between threads?
-- **X axis:** Selected time, independently but consistently scaled across every small-multiple row.
-- **Y organization:** Candidate claim-family small multiples, one compact timeline per row.
+- **Primary user question:** What changed within each candidate claim grouping, and which candidate connections require review across rows?
+- **X axis:** Selected time, independently but consistently scaled across every small-multiple row. Initial Event/Publication selection is decided only from primary claim occurrences.
+- **Y organization:** Typed small multiples: multi-occurrence Candidate thread rows, one-occurrence Standalone claim occurrence rows, and individual Ungrouped claim occurrence rows.
 - **Primary node type:** Claim occurrence.
 - **Source provenance:** The same compact role/title/publisher attachment as Alternative 1, with a source-detail target.
-- **Relation representation:** Intra-thread relations draw directly between occurrences. Cross-thread relations appear as matching numbered ports on their two occurrence cards and as full entries in an adjacent relation ledger. No cross-row curve is drawn.
-- **Open-question representation:** A small unresolved endpoint well at the end of the relevant row when the origin is an occurrence; source/action/multi-origin questions remain in a global Unresolved panel with origin ports.
-- **Context-only source representation:** A provenance/context ledger below the rows, time-aligned when possible and explicitly unavailable otherwise.
-- **Time-unavailable behavior:** A shared terminal Time unavailable band on every row and the context ledger.
+- **Relation representation:** Intra-thread relations draw directly between occurrences. Cross-row relations appear as matching numbered ports on their two occurrence cards and as full entries in an adjacent relation ledger. No cross-row curve is drawn.
+- **Open-question representation:** A small unresolved endpoint well at the end of a row only for occurrence or matching actor-claim origins. Action, source, topic/unknown, and multi-origin questions remain one card each in a global Unresolved panel with typed origin chips.
+- **Non-claim source-record representation:** A ledger below the claim rows, grouped by Context / interpretation, Action-bearing source, Finding-bearing evidence source, Source-only record, or Mixed non-claim source. These records are never relation ports without an occurrence.
+- **Time-unavailable behavior:** A shared non-chronological **Unplaced on [selected axis]** band below the dated small multiples; other timestamps stay in inspector. It is not a later column and no arrow is inferred through it.
 - **Mixed/day precision behavior:** Same date-band rules as Alternative 1; each row uses peer clusters for day-level occurrences.
-- **Claim-family uncertainty:** Same candidate/unresolved row labels. A single-occurrence row is a valid review row but never styled as a completed history.
+- **Claim-family uncertainty:** Multi-occurrence consistent rows say Candidate thread · N occurrences · needs review. A one-occurrence unresolved family says Standalone claim occurrence · grouping unresolved. Missing/inconsistent membership says Ungrouped claim occurrence. No family ID becomes a label.
 - **Selected/focused behavior:** Selecting an occurrence highlights its row and every numbered relation port. Selecting a ledger relation highlights both endpoint cards, even across rows.
-- **Coverage lens behavior:** Coverage strip and non-destructive highlight. The provenance ledger also highlights matching source records.
-- **Relation ledger role:** Primary for cross-thread relations and complete for all relations. Each entry is numbered, short at scan level, and opens the full relation inspector.
-- **Desktop composition:** Small multiples occupy the main column; a 300–360px sticky relation/unresolved ledger occupies the right column.
-- **Tablet composition:** Full-width small multiples followed by relation and unresolved ledgers. No cross-row SVG is lost because it never existed.
-- **Mobile composition:** Each small multiple becomes a thread chapter. Relation port buttons open or jump to the matching ledger entry. The ledger is expanded by default.
-- **Screen-reader/keyboard representation:** Particularly strong: row sections, occurrence buttons, and an ordered relation list require no spatial-edge interpretation. Port accessible names include the relation number and other endpoint.
+- **Coverage lens behavior:** Coverage strip and non-destructive highlight. The provenance ledger also highlights matching occurrence attachments and non-claim source records.
+- **Relation ledger role:** Primary for cross-row relations and complete for all relations. Each entry is numbered, short at scan level, and opens the full relation inspector.
+- **Desktop composition:** Typed small multiples occupy the main column; a 300–360px sticky relation/Unresolved ledger occupies the right column; the non-claim and Unplaced sections sit below the dated rows.
+- **Tablet composition:** Full-width typed small multiples followed by non-claim, Unplaced, relation, and Unresolved regions. No cross-row SVG is lost because it never existed.
+- **Mobile composition:** Each row becomes a chapter named Candidate thread, Standalone claim occurrence, or Ungrouped claim occurrence. Relation port buttons open or jump to the matching canonical ledger entry. The ledger is expanded by default.
+- **Screen-reader/keyboard representation:** Particularly strong: typed row sections, occurrence buttons, and one canonical ordered relation ledger require no spatial-edge interpretation. Any port accessible name includes the relation number, relation type, other endpoint, review state, and ledger target.
 - **Strengths:** Almost eliminates crossing/label collisions; scales better to 18+ relations; naturally represents same-source occurrences; robust on mobile; keeps the complete relation set inspectable.
-- **Weaknesses:** The user cannot see the whole interaction network at a glance. Cross-thread challenge/response requires matching a port to a ledger entry. The Map risks feeling like several mini Timelines unless relation ports and thread framing are strong.
-- **Failure modes:** Letting the ledger become a second Sources view; hiding cross-thread relations behind unexplained numbers; implying each family is authoritative; presenting per-row time scales that are not actually shared.
+- **Weaknesses:** The user cannot see the whole interaction network at a glance. Cross-row challenge/response requires matching a port to a ledger entry. The Map risks feeling like several mini Timelines unless relation ports and typed-row framing are strong.
+- **Failure modes:** Letting the ledger become a second Sources view; hiding cross-row relations behind unexplained numbers; presenting visual ports as separate records; implying each family is authoritative; calling one occurrence a thread; presenting per-row time scales that are not actually shared.
 - **Expected complexity with the current code/data:** Medium. It needs occurrence/family derivation and new rendering, but less geometry than Alternative 1. No public packet change is required.
 
 #### Prepared cooling-center case in small multiples
 
 ```text
 THREAD SMALL MULTIPLES · EVENT TIME (one shared scale)
+CANDIDATE RELATIONS · types requiring review, not accepted facts
               Jun 10                     Jun 12                     Jun 14       Unresolved endpoint well
 
-T01 Candidate thread · 2 occurrences
+T01 Candidate thread · 2 occurrences · needs review
      [City: safe spaces across city]
        Official notice · Jun 10
        ports: R2
-             └────────── R1 replaces ──────────────────────────────▶
+             └────────── R1 Replaces ──────────────────────────────▶  (arrow only if composite rule passes)
                                                                   [City: corrected errors / access]
                                                                     Official update · Jun 14
                                                                     ports: R3
-                                                                                Q2 via source action
-                                                                                Q3 via source action
+                                                                                Q2 Via action record chip
+                                                                                Q3 Via action record chip
 
-T02 Candidate thread · grouping unresolved · 1 occurrence
+Standalone claim occurrence · grouping unresolved
                                          [Community: not practically accessible]
                                            Community report · Jun 12
                                            ports: R2, R3
-                                                                                Q1 via actor claim
+                                                                                Q1 via actor claim → this occurrence
 
-CROSS-THREAD RELATION LEDGER
-R2  Jun 10 City occurrence  — challenges —  Jun 12 Community occurrence   [Needs review]
-R3  Jun 12 Community occurrence — responds — Jun 14 City occurrence       [Needs review]
+CANONICAL RELATION LEDGER · all 3 candidate relations
+R1  Jun 10 City occurrence — Replaces → Jun 14 City occurrence [arrow only if composite rule passes]
+R2  Jun 10 City occurrence — Challenges — Jun 12 Community occurrence [Needs review · no direction]
+R3  Jun 12 Community occurrence — Responds → Jun 14 City occurrence [arrow only if composite rule passes]
 
-CONTEXT / PROVENANCE LEDGER
-[Time unavailable on Event time] Opinion / interpretation —
-“Opinion note on emergency communication and street-level access”
+NON-CLAIM SOURCE RECORDS
+Context / interpretation — “Opinion note on emergency communication and street-level access”
+
+UNPLACED ON EVENT TIME · non-chronological band
+[Editorial source · Event time absent; Publication/Retrieval remain inspectable]
+
+UNRESOLVED ACTION ORIGINS
+Q2 Via action record · “Added free shuttle support” · Source: Official update
+Q3 Via action record · “Published updated list and clarified opening hours” · Source: Official update
 
 COVERAGE  Official 1 | Original 0 missing | Local/firsthand 1 | Specialist 1 | Challenge/correction 1
 ```
 
-This is the best fallback if independent review decides that a complete cross-thread edge field is too dense or too hard to make accessible. It preserves claim-thread identity but gives up the matrix’s at-a-glance interaction pattern.
+This alternative is not the default whole-Map grammar, but its strongest mechanism is adopted into v1 as **Relation-summary mode**. The adaptive mode preserves typed claim-row identity and the complete relation set while giving up some of Matrix mode’s at-a-glance interaction shape when presentation density makes that shape unreadable.
 
 ### Alternative 3 — Git-like claim history
 
-This alternative treats each candidate family as a provisional branch and occurrences as commits. It is included because it is a genuinely different lineage grammar and reveals useful tradeoffs; it is not recommended.
+This alternative treats each internally consistent multi-occurrence candidate family as a provisional branch and occurrences as commits. Standalone and ungrouped occurrences remain isolated points. It is included because it is a genuinely different lineage grammar and reveals useful tradeoffs; it is not recommended.
 
 - **Primary user question:** Along which provisional claim branches did public statements appear, diverge, and later reconnect?
-- **X axis:** Candidate claim-family branches.
-- **Y organization:** Selected time runs top to bottom. Same-date peer bands span branches.
+- **X axis:** Candidate claim-family branches only for internally consistent multi-occurrence families; standalone and ungrouped occurrences occupy isolated history columns.
+- **Y organization:** Selected time runs top to bottom. Same-date peer bands span branches. Initial Event/Publication selection uses primary claim occurrences only.
 - **Primary node type:** Claim occurrence (“history point”), not source.
 - **Source provenance:** A compact tag adjacent to each history point; full source record stays in inspector/Sources.
-- **Relation representation:** Same-family transformative relations follow the branch rail. Cross-family challenge/follow-up relations use bridge lines. Labels remain candidate and review-only.
-- **Open-question representation:** An Unresolved issues rail after the chronological history, with back-reference ports to history points or source/action anchors.
-- **Context-only source representation:** Side annotations beside the time rail, never commits/history points.
-- **Time-unavailable behavior:** A separate bottom band after a visible axis break; it is not “later than” dated records.
+- **Relation representation:** Same-family transformative relations follow the branch rail. Cross-row challenge/follow-up relations use bridge lines. Labels remain candidate and review-only. Arrowheads obey the same composite selected-axis rule; Challenges remains non-directional.
+- **Open-question representation:** An Unresolved issues rail outside chronological history. Occurrence/claim origins may back-reference history points; action, source, and topic/unknown origins use typed chips rather than borrowed claim anchors.
+- **Non-claim source-record representation:** Side annotations grouped by the five derived subtypes, never commits/history points and never claim-relation endpoints without an occurrence.
+- **Time-unavailable behavior:** A separate **Unplaced on [selected axis]** bottom band after a visible axis break; other timestamps remain inspectable and the band is not later than dated records.
 - **Mixed/day precision behavior:** Same-date day-level records share a horizontal peer band. Exact instants may be vertically ordered within the date; day-level records cannot be placed above/below exact instants as chronology.
-- **Claim-family uncertainty:** Every branch is dashed and labeled Candidate grouping. Ungrouped occurrences create isolated provisional branches; no visual merge implies acceptance.
+- **Claim-family uncertainty:** Only a multi-occurrence consistent family receives a dashed Candidate thread branch. A one-occurrence unresolved family is an isolated Standalone claim occurrence; missing/inconsistent membership is an isolated Ungrouped claim occurrence. No visual merge implies acceptance.
 - **Selected/focused behavior:** Selecting a point highlights its branch, direct bridges, and unresolved endpoints. Inspector behavior is otherwise the same.
-- **Coverage lens behavior:** Compact source-role strip plus provenance-tag highlight; branches never disappear.
-- **Relation ledger role:** Complete textual representation and the only representation for unrelated, dense parallel, or ambiguous-direction relations.
-- **Desktop composition:** Vertical time rail with horizontally arranged provisional branch columns and a right annotation/Unresolved column.
-- **Tablet composition:** Horizontally scrollable branch area with sticky time labels; annotation/Unresolved sections move below.
-- **Mobile composition:** Branches collapse into labeled thread chapters with time top to bottom. This is comprehensible, but the visual branch metaphor largely disappears.
-- **Screen-reader/keyboard representation:** A chronological list grouped by date, then by candidate branch, followed by relations and unresolved questions. SVG rails are decorative.
+- **Coverage lens behavior:** Compact source-role strip plus provenance-tag and non-claim-record highlights; branches and isolated points never disappear.
+- **Relation ledger role:** Exactly one complete canonical entry per relation; the ledger is the only representation for unrelated, dense parallel, or ambiguous-direction relations, and any bridge control is a synchronized shortcut.
+- **Desktop composition:** Vertical time rail with horizontally arranged provisional branch/isolated columns, a below-history Unplaced band and Non-claim section, and a right Unresolved column.
+- **Tablet composition:** Horizontally scrollable history area with sticky time labels; Unplaced, Non-claim, and Unresolved sections move below as separately named regions.
+- **Mobile composition:** Branches collapse into typed chapters with time top to bottom. Standalone and ungrouped occurrences retain their distinct names. This is comprehensible, but the visual branch metaphor largely disappears.
+- **Screen-reader/keyboard representation:** A chronological list grouped by date and row type, followed by the one canonical relation ledger and unresolved questions. SVG rails are decorative; any bridge control is a synchronized shortcut.
 - **Strengths:** Strong sense of version/change; same-family supersession is easy to see; vertical time is familiar on mobile.
 - **Weaknesses:** “Commit,” “branch,” and “merge” imply authoritative version control and accepted state. Cross-family contradictions do not behave like merges. The public audience may read vertical order as causal or read a branch join as adjudication. Source/provenance coverage becomes less prominent.
-- **Failure modes:** Treating candidate groupings as official branches; treating relation joins as accepted merges; implying later means truer; inventing chronological order within a day; using the source-control metaphor in public copy.
+- **Failure modes:** Treating candidate groupings as official branches; turning a standalone occurrence into a branch; treating relation joins as accepted merges; implying later means truer; inventing direction from branch geometry or within-day position; forcing every non-claim source into Context; using the source-control metaphor in public copy.
 - **Expected complexity with the current code/data:** High. It needs branch routing, semantic guardrails, date-band layout, a separate accessible structure, and substantial responsive transformation. No packet change is strictly required, but the metaphor would benefit from reviewed family names and explicit relation directionality that the packet does not currently provide.
 
 #### Prepared cooling-center case in Git-like history
 
 ```text
-EVENT TIME ↓        T01 Candidate branch                T02 Candidate branch             CONTEXT
+EVENT TIME ↓        T01 Candidate thread branch        Standalone occurrence           NON-CLAIM RECORDS
 
 Jun 10 09:00        ● City: safe spaces across city
                     │ Official notice
                     │\
-                    │ \ R2 challenges ───────────────────────┐
+                    │ \ R2 Challenges — NO ARROW ───────────┐
                     │                                         │
 Jun 12 12:00        │                                         ● Community: not practically accessible
                     │                                         │ Community report
-                    │                                R3 responds /
+                    │                R3 Responds (conditional arrow) /
                     │                                           /
-Jun 14 14:15        ● City: corrected errors / access ◀────────┘
+Jun 14 14:15        ● City: corrected errors / access ◀────────┘  (only if composite rule passes)
                     ▲ Official update
-                    └ R1 replaces earlier guidance
+                    └ R1 Replaces earlier guidance (only if composite rule passes)
 
 AXIS BREAK ───────────────────────────────────────────────────────────────────────────────
-Time unavailable                                                                    ◇ Opinion / interpretation
-                                                                                      no event time
+UNPLACED ON EVENT TIME                                                         ◇ Context / interpretation
+non-chronological band                                                          Opinion note · no Event time
 
 UNRESOLVED ISSUES RAIL
-Q1 representative access gaps  ← Community actor claim
-Q2 remediation reached residents ← Jun 14 source action
-Q3 durable update process       ← Jun 14 source action
+Q1 representative access gaps  ← actor claim → matching Community occurrence
+Q2 remediation reached residents  [Via action record · shuttle support · Official update]
+Q3 durable update process         [Via action record · list/hours update · Official update]
 ```
 
 The metaphor is visually efficient for R1 but less honest for R2/R3 and for candidate family uncertainty. That makes it inferior to the matrix for Sisyphus Watch.
@@ -400,11 +453,11 @@ The metaphor is visually efficient for R1 but less honest for R2/R3 and for cand
 | Criterion | Temporal matrix | Small multiples + ledger | Git-like history |
 | --- | --- | --- | --- |
 | Claim change at a glance | Strong | Strong within a thread; weaker across threads | Strong for same-family sequence |
-| Cross-thread interaction | Visible directly | Ledger-mediated | Visible but metaphorically ambiguous |
+| Cross-row interaction | Visible directly | Ledger-mediated | Visible but metaphorically ambiguous |
 | Dense relations | Medium; needs density policy | Strong | Weak-medium |
 | Provenance without domination | Strong | Strong | Medium |
 | Unresolved-question separation | Strong | Strong | Strong |
-| Mobile continuity | Strong with thread chapters | Strongest | Medium |
+| Mobile continuity | Strong with typed claim chapters | Strongest | Medium |
 | Risk of epistemic overclaim | Low if rows remain candidate | Low | High |
 | Current-packet fit | Strong | Strong | Medium |
 | Expected implementation complexity | Medium-high | Medium | High |
@@ -416,33 +469,34 @@ Every serious alternative above places the same packet material without inventin
 | Existing material | Matrix | Small multiples | Git-like history |
 | --- | --- | --- | --- |
 | Initial city availability claim | Jun 10 occurrence in T01 | Jun 10 occurrence in T01 | Jun 10 history point on T01 branch |
-| Community practical-access claim | Jun 12 occurrence in T02 | Jun 12 occurrence in T02 | Jun 12 history point on T02 branch |
+| Community practical-access claim | Jun 12 Standalone claim occurrence · grouping unresolved | Jun 12 standalone small multiple | Jun 12 isolated standalone history point |
 | Later city corrected/update claim | Jun 14 occurrence in T01 | Jun 14 occurrence in T01 | Jun 14 history point on T01 branch |
-| Specialist/editorial source | Context annotation; Event time unavailable | Context/provenance ledger; Event time unavailable | Side annotation; Event time unavailable |
-| Supersedes relation | Occurrence-to-occurrence solid directional R1 | Intra-thread direct R1 | Same-branch R1 |
-| Contradicts relation | Cross-thread non-directional challenge R2 | Cross-thread ledger R2 | Cross-branch bridge R2 |
-| Follow-up relation | Cross-thread directional R3 | Cross-thread ledger R3 | Cross-branch bridge R3 |
-| Representativeness question | Unresolved rail, actor-claim origin | T02 endpoint well | Unresolved rail |
-| Remediation reach question | Unresolved rail, Jun 14 source-action origin | Global unresolved panel | Unresolved rail |
-| Durable update process question | Unresolved rail, Jun 14 source-action origin | Global unresolved panel | Unresolved rail |
+| Specialist/editorial source | Non-claim source record · Context / interpretation · Unplaced on Event time | Non-claim ledger · Context / interpretation · Unplaced on Event time | Context / interpretation side annotation · Unplaced on Event time |
+| Supersedes relation | R1 solid Replaces; arrow only if composite rule passes | Intra-thread R1; conditional arrow | Same-branch R1; conditional arrow |
+| Contradicts relation | Cross-row non-directional challenge R2 | Cross-row ledger R2 | Cross-branch bridge R2 |
+| Follow-up relation | R3 Responds; arrow only if composite rule passes | Cross-row ledger R3; conditional arrow | Cross-row bridge R3; conditional arrow |
+| Representativeness question | One Unresolved card; actor-claim origin resolves to community occurrence tether | Standalone endpoint well | Unresolved rail with occurrence back-reference |
+| Remediation reach question | One Unresolved card; `Via action record` chip with shuttle action + Official update | Global unresolved panel; typed action chip | Unresolved rail; typed action chip |
+| Durable update process question | One Unresolved card; `Via action record` chip with list/hours action + Official update | Global unresolved panel; typed action chip | Unresolved rail; typed action chip |
 | Current source roles | Provenance badges + coverage strip | Provenance badges + coverage strip | Provenance tags + coverage strip |
-| Selected time semantics | Event time; no substitutions | Event time; no substitutions | Event time; no substitutions |
+| Selected time semantics | Event time because primary occurrences have explicit Event values; no substitutions | Same | Same |
 
-Changing the selector to Publication time would move the community occurrence from Jun 12 12:00 to Jun 12 18:30 and would place the editorial context annotation at Jun 15 08:00. Changing to Actor assertion time would move the community occurrence to Jun 12 18:30 while leaving the editorial annotation unavailable because the site-ready source summary has no actor-assertion field or claim occurrence for it. Retrieval time would place the three occurrences and editorial context at the explicit Jun 15 retrieval instant; equal times must not be turned into an invented order.
+Changing the selector to Publication time would move the community occurrence from Jun 12 12:00 to Jun 12 18:30 and place the editorial Context / interpretation record at Jun 15 08:00. Changing to Actor assertion time would move the community occurrence to Jun 12 18:30 while placing the editorial record in **Unplaced on Actor assertion time** because the site-ready source summary has no eligible actor-assertion field or claim occurrence for it. Retrieval time would place the three occurrences and editorial record at the explicit Jun 15 retrieval instant; equal times must not be turned into an invented order.
 
 ## D. Record-type mapping for the recommended design
 
 | Record type | Map treatment | Detail destination and boundary |
 | --- | --- | --- |
-| Source snapshot | **Secondary inline provenance attachment** on an occurrence. If it has no occurrence, **context annotation**. Never the ordinary primary node. | Source inspector and Sources carry full snapshot, content boundary, URL, hashes, retrieval, classification, inclusion reason, and limitations. |
-| Actor claim | **Not a separate map node.** Supplies actor/claim identity and supports resolving questions to its source-local occurrence(s). | Claim/occurrence inspector. Actor claim and occurrence remain distinct records. |
+| Source snapshot | **Secondary inline provenance attachment** on each linked occurrence. With no occurrence, it becomes the anchor for one derived **Non-claim source record** annotation. Never the ordinary primary node. | Source inspector and Sources carry full snapshot, content boundary, URL, hashes, retrieval, classification, inclusion reason, and limitations. |
+| Actor claim | **Secondary inline identity**, not a separate ordinary map node. It supplies actor/claim identity and typed question origins. A question targets every matching source-local occurrence; if none exists, one typed actor-claim origin chip is shown. | Claim/occurrence inspector. Actor claim and occurrence remain distinct records. |
 | Claim occurrence | **Primary map node.** One node per source-local occurrence. | Occurrence inspector shows all four time fields, uncertainty, status, support, family, and source. |
-| Candidate claim family | **Claim-thread row container/header.** It is candidate structure, not truth or accepted taxonomy. | Family inspector shows occurrence membership, reason, signals, unresolved flag, origin, and review status. |
-| Source-bound finding | **Inspector-only detail**; never a claim node and never an edge origin merely because it exists. | Source inspector; Method explains the distinction. |
-| Action | **Inspector-only detail.** It may be named as the conservative origin of an unresolved question through a source provenance anchor; it does not become a claim node. | Source/record inspector; Method explains actions ≠ claims. |
-| Candidate relation | **Occurrence-to-occurrence edge** plus a complete ledger entry. | Relation inspector contains long reason, support excerpts/references, confidence, generation basis, insufficiency, and IDs. |
+| Candidate claim family | **Derived row organization**, not a node. A consistent multi-occurrence family becomes a Candidate thread; a one-occurrence unresolved family supplies grouping metadata to a Standalone claim occurrence; inconsistent membership is not rendered as a family row. | Family inspector shows occurrence membership, reason, signals, unresolved flag, origin, and review status. |
+| Source-bound finding | **Inspector-only record detail.** On a source with no occurrence, its presence may determine the **Finding-bearing evidence source** or **Mixed non-claim source** presentation subtype, but the finding does not become a node or edge. | Source inspector; Method explains findings ≠ claims. |
+| Action | **Inspector-only record detail** and, when referenced by a question, a typed **Via action record** origin chip containing concise action identity and source identity. On a source with no occurrence, actions may determine an Action-bearing or Mixed non-claim subtype. It never becomes a claim node or relation endpoint. | Source/record inspector; Method explains actions ≠ claims. |
+| Candidate relation | **Occurrence-to-occurrence edge or synchronized numbered port** plus exactly one canonical semantic ledger entry for the same `relation_id`. | Relation inspector contains long reason, support excerpts/references, confidence, generation basis, insufficiency, exact IDs, and selected-axis direction assertion status. |
 | Unresolved question | **Endpoint card in the Unresolved rail.** It has no chronological coordinate and is not a conclusion. | Question inspector shows conservative origin resolution and exact related IDs. |
-| Context-only source | **Context annotation** outside claim rows; aligned only to an explicit selected-axis value or placed in Context · Time unavailable. | Source inspector and Sources. It is never forced into a claim family. |
+| Non-claim source record | **Annotation/anchor outside claim rows.** It is a derived presentation category for a source snapshot with no claim occurrence. Its subtype is Context / interpretation, Action-bearing source, Finding-bearing evidence source, Source-only record, or Mixed non-claim source. It can anchor a source-origin question, but cannot be a claim-relation endpoint. | Source inspector and Sources retain the source and all linked records; Method explains subtype derivation and limitations. |
+| Context / interpretation source | **Subtype annotation**, not the generic no-occurrence category. The prepared editorial record uses this subtype and appears in Unplaced on Event time. | Source inspector and Sources; interpretation remains distinct from findings and claims. |
 
 No presentation rule may promote a finding to a claim, an action to a claim, a source to an occurrence, a family to accepted taxonomy, or a candidate relation to a truth judgment.
 
@@ -454,24 +508,29 @@ The following rules define the recommended design.
 
 - The Map **MUST** name the selected axis in visible text.
 - Claim occurrences **MUST** use the matching occurrence field: `event_time_candidate`, `assertion_time_candidate`, `source_publication_time`, or `source_retrieval_time`.
-- Context annotations **MUST** use only an explicitly available source-level value for the selected axis. They **MUST NOT** borrow another axis.
-- The initial-axis rule **SHOULD** remain event time when any occurrence has explicit event time, then publication time; retrieval time **MUST NOT** become an automatic fallback merely because it exists.
+- Non-claim source records **MUST** use only an explicitly eligible source-level value for the selected axis. They **MUST NOT** borrow another axis.
+- On first display of a packet, the Map **MUST** select Event time when at least one primary claim occurrence has an explicit `event_time_candidate`; otherwise it **MUST** select Publication time.
+- Action times, source-only Event values, and packet time-candidate records **MUST NOT** force initial Event time when every primary claim occurrence would be unplaced.
+- This occurrence-primary initial-axis rule **MUST** be treated as an intentional presentation behavior change from the current source-node derivation, not as an unchanged invariant or packet mutation.
+- A user **MAY** still manually select any available axis; the absence of placed occurrences then remains explicit rather than triggering fallback.
 - A Map axis change is a viewing operation and **MUST NOT** change the packet.
 
-### 2. Claim-thread rows
+### 2. Claim-row types (thread rows only when multi-occurrence)
 
-- Each internally consistent `candidate_claim_family` **SHOULD** create one row.
-- The row header **MUST** say Candidate thread or equivalent and show occurrence count.
+- A multi-occurrence family with unique, bidirectionally consistent membership **MUST** create one row labeled **Candidate thread · N occurrences · needs review**.
+- A one-occurrence unresolved family **MUST** create a row labeled **Standalone claim occurrence · grouping unresolved**. It **MUST NOT** be called a thread or change sequence.
+- An occurrence with missing or inconsistent family membership **MUST** create an individual row labeled **Ungrouped claim occurrence**.
 - Rows **MUST NOT** be labeled by parsing `family_id`.
-- Without a reviewed display label, a row **SHOULD** use neutral numbering plus a representative claim excerpt, for example “T01 · Candidate thread · 2 occurrences.”
-- Row order **SHOULD** be deterministic: earliest explicit selected-axis date, then stable family ID. Same-day peer families **MUST NOT** imply within-day order through numbering.
+- Without a reviewed display label, a multi-occurrence Candidate thread **MAY** use neutral presentation numbering plus a representative claim excerpt, for example “T01 · Candidate thread · 2 occurrences · needs review.” Standalone and Ungrouped rows **MUST NOT** receive invented thread numbers.
+- Row order **SHOULD** be deterministic: earliest explicit selected-axis date, then stable family ID for valid families or stable occurrence ID for Ungrouped rows. Same-day peers **MUST NOT** imply within-day order through numbering.
 
 ### 3. Occurrence cards
 
 - A claim occurrence **MUST** be the ordinary primary node.
 - The card **MUST** show actor, concise original claim text, selected-axis time/precision state, occurrence record boundary, and a source provenance attachment.
 - The card **MUST NOT** replace the original claim with a finding, action, or model synthesis.
-- Long claims **MAY** be visually clamped at scan level only if the full claim is available through an accessible name and inspector action.
+- The full claim **MUST** remain in the semantic DOM. CSS **MAY** visually clamp it at scan level, and an explicit expand or inspect action **MUST** provide full visual access.
+- A separate `aria-label` **SHOULD NOT** duplicate the full claim merely because CSS clamps visible text. Accessible name and visible label **MUST NOT** conflict or cause unnecessary duplicate speech.
 - Multiple occurrences with the same `claim_id` **MUST** remain separate source-local nodes.
 
 ### 4. Source/provenance attachment
@@ -486,14 +545,21 @@ The following rules define the recommended design.
 - Only `relation_candidates` **MAY** create claim-relation edges.
 - Edges **MUST** connect occurrence IDs, never whole-source nodes.
 - Edge type **MUST** be distinguishable without color.
-- Directional arrowheads **MUST** be omitted when the selected-axis order is unavailable, equal, or non-chronological mixed precision.
+- Left/right IDs and selected-axis left/right position **MUST NOT** independently assert semantic direction. The current packet has no separately reviewed semantic-direction field.
+- An arrowhead **MAY** appear only when all four conditions hold: the relation type belongs to a documented directional family; both endpoint values on the currently selected axis are explicit; that axis supplies strict chronological order; and earlier-to-later order agrees with the relation record’s left/right endpoint order.
+- If any condition fails, the relation line and short semantic label **MUST** remain, the arrowhead **MUST** be omitted, and the ledger/accessible text **MUST** say **Direction not asserted on the selected axis**.
+- Contradiction/challenge relations **MUST** remain non-directional regardless of endpoint order.
 - Same-source relations **MUST** be representable because separate occurrence nodes remove the current source-card self-loop problem.
 - `unrelated` candidates **SHOULD** remain in the ledger and inspector rather than drawing a misleading connection in the matrix.
+- In default **Matrix mode**, all readable intra-thread and cross-row spatial relations **MAY** be drawn.
+- **Relation-summary mode** **MUST** activate when validated presentation measurements of relation count, collision, and available width make the full edge field unreadable. Useful intra-thread and selected relations **MAY** remain spatial; cross-row relations **SHOULD** use synchronized numbered ports.
+- Density mode is presentation-only. It **MUST NOT** change relation status, type, membership, confidence, or packet data, and **MUST NOT** silently hide a relation.
 
 ### 6. Relation labels
 
 - Spatial labels **MUST** be short verbs or verb phrases: Replaces, Corrects, Narrows, Responds, Challenges, Supports, Same event, or Unclear.
 - A label **MUST** read as line annotation, not an independent data card.
+- The Map **MUST** display a global boundary equivalent to **Candidate relation labels describe types requiring review, not accepted facts**.
 - “Needs review” **MUST** be available in the accessible name and selected/inspector state; it need not be repeated as a large spatial box on every line.
 - Full reason and support **MUST** stay in inspector/ledger.
 
@@ -503,18 +569,33 @@ The following rules define the recommended design.
 - The rail **MUST** sit outside the chronological plot and state “Evidence questions · not conclusions · not chronological records.”
 - A question **MUST NOT** receive a date merely because a related record has one.
 - One question with multiple related records **MUST** remain one card with multiple origins.
+- The presentation adapter **MUST** derive each origin as exactly one of: **occurrence**, **actor claim**, **action**, **source**, or **topic / unknown**. This is derived presentation state, not a new packet fact.
+- An occurrence origin **MUST** anchor to that occurrence.
+- An actor-claim origin **MUST** anchor to every matching source-local occurrence. If no occurrence exists, it **MUST** use a typed actor-claim origin chip rather than an arbitrary source or topic substitution.
+- An action origin **MUST** use a **Via action record** chip containing concise action identity and source identity. It **MUST NOT** anchor to an arbitrary occurrence body or occurrence provenance attachment.
+- A source origin **MUST** use a source-origin chip, or one unique non-claim source-record anchor when that exact source has no occurrence.
+- A topic / unknown origin **MUST** be labeled as a topic-level evidence gap and **MUST NOT** invent a record anchor.
+- Only occurrence and matching actor-claim origins **SHOULD** draw occurrence tethers by default. Action/source origin chips **MUST NOT** visually imply ownership by a claim body.
 
-### 8. Context annotations
+### 8. Non-claim source records
 
-- A source with no claim occurrence **MUST NOT** be forced into a claim-thread row.
-- It **SHOULD** appear in Context annotations with role, title/publisher, source record boundary, and selected-axis time state.
-- A context annotation **MUST NOT** become a candidate relation endpoint unless a packet relation actually references a claim occurrence from that source.
+- A source snapshot with no claim occurrence **MUST** be presented, when present in Map, as a **Non-claim source record** outside all claim rows. It **MUST NOT** be generically called context.
+- Its derived presentation subtype **MUST** be one of: **Context / interpretation**, **Action-bearing source**, **Finding-bearing evidence source**, **Source-only record**, or **Mixed non-claim source**.
+- Subtyping **SHOULD** use only existing linked actions/findings and existing source metadata. When the packet does not support a more specific subtype without textual inference, the adapter **MUST** use Source-only record. Multiple supported roles **MUST** use Mixed non-claim source.
+- Each annotation **SHOULD** show subtype, source role, concise title/publisher, source record boundary, and selected-axis placement state. Full actions, findings, evidence, summaries, and interpretation remain in inspector/Sources.
+- A non-claim source record **MAY** be the unique anchor for a source-origin unresolved question. It **MUST NOT** become a claim-relation endpoint unless that source has an actual claim occurrence referenced by the relation.
+- The prepared editorial record **MUST** appear as Context / interpretation; this example **MUST NOT** set the generic category for action-bearing, finding-bearing, source-only, or mixed records.
 
-### 9. Time unavailable
+### 9. Unplaced on the selected axis
 
-- Missing selected-axis values **MUST** appear in a separated Time unavailable region.
-- That region **MUST** be visually broken from the ordered time scale and omitted from chronological arrow assumptions.
-- Stable DOM/order sorting inside the unavailable region **MUST** be described as record order, not time order.
+Two placements were evaluated. A terminal broken-axis column preserves row alignment, but its position after the latest date can still read as “later” and competes with the right-side Unresolved rail. A non-chronological band below the dated matrix costs some vertical distance, but separates missing placement from both chronology and unresolved evidence status.
+
+- v1 **MUST** use the band below the dated matrix and label it **Unplaced on Event time**, **Unplaced on Publication time**, **Unplaced on Actor assertion time**, or **Unplaced on Sisyphus retrieval time**.
+- The band **MUST** state that it is non-chronological and not a later column. Other timestamps **MUST** remain inspectable.
+- Claim occurrences in the band **MUST** retain their Candidate thread, Standalone, or Ungrouped row identity. Non-claim source records **MUST** retain their subtype.
+- No arrow direction **MAY** be inferred into, out of, or through the Unplaced band.
+- Stable DOM/order sorting inside the band **MUST** be described as record order, not time order.
+- The Unplaced band and Unresolved rail **MUST** remain separately named: the former means missing placement on the selected axis; the latter means an unresolved evidence question with no chronological coordinate.
 
 ### 10. Day precision
 
@@ -531,10 +612,10 @@ The following rules define the recommended design.
 
 ### 12. Candidate claim families
 
-- Family rows **MUST** remain explicitly candidate/review-only even when all occurrence records come from the deterministic fixture.
+- Multi-occurrence family rows **MUST** remain explicitly candidate/review-only even when all occurrence records come from the deterministic fixture.
 - `grouping_reason` and `grouping_signals` **SHOULD** appear only in family inspector or a compact disclosure.
-- `unresolved: true` **MUST** be visible as Grouping unresolved.
-- A one-occurrence family **MUST NOT** be described as a demonstrated change sequence.
+- A one-occurrence unresolved family **MUST** render as **Standalone claim occurrence · grouping unresolved** and **MUST NOT** be described as a thread or demonstrated change sequence.
+- No implementation **MAY** parse a family ID into a public label.
 
 ### 13. Unassigned/ungrouped claims
 
@@ -548,19 +629,21 @@ The following rules define the recommended design.
 - Selecting an occurrence **MUST** open occurrence detail, not silently substitute source detail.
 - Selecting a provenance attachment **MUST** open source detail.
 - Selecting a relation **MUST** highlight both occurrence endpoints.
-- Selecting a question **MUST** highlight its conservative origin anchors.
+- Selecting a question **MUST** highlight its conservative occurrence anchors and identify action/source/topic chips without transferring highlight ownership to an arbitrary claim body.
 - Selection **MUST** preserve packet state and **MUST** restore focus and scroll when the inspector closes.
 
-### 15. Thread trace
+### 15. Row trace
 
-- Thread trace **SHOULD** highlight all occurrences in the selected candidate family, intra-family relations, direct cross-family relation endpoints, and related unresolved endpoints.
+- A multi-occurrence row trace **SHOULD** be named **Candidate thread trace** and highlight all occurrences in that candidate family, intra-family relations, direct cross-row relation endpoints, and related unresolved endpoints.
+- A one-occurrence row trace **MUST** be named **Standalone occurrence trace**; an inconsistent/missing-membership trace **MUST** be named **Ungrouped occurrence trace**. Neither **MAY** imply a demonstrated thread.
 - Other rows **SHOULD** remain visible but dimmed.
-- The trace summary **MUST** describe a viewing operation and candidate grouping; it **MUST NOT** say the thread is accepted or true.
+- Every trace summary **MUST** describe a viewing operation and candidate/grouping boundary; it **MUST NOT** say a thread, grouping, or occurrence is accepted or true.
 
 ### 16. Coverage lenses
 
 - The Map **MUST** preserve a compact count for every source role, including zero and missing target roles.
 - Coverage lenses **MAY** highlight baseline/expansion or source roles.
+- Lenses **MUST** apply to occurrence provenance attachments and non-claim source records as appropriate.
 - Lenses **MUST NOT** remove records from the accessibility tree, change relation/family membership, combine packets, or mutate canonical state.
 - Method **MUST** remain the primary place for coverage basis, missing-role interpretation, discovery counts, and nonexhaustiveness.
 
@@ -570,49 +653,62 @@ The following rules define the recommended design.
 - Occurrence detail **SHOULD** show actor, full claim, all four timestamps, uncertainty, support kind/reference, family membership, source attachment, origin, and exact boundary.
 - Relation detail **MUST** show the full reason and both support references.
 - Family detail **SHOULD** show membership, reason, signals, unresolved state, and review status as family-specific content rather than falling through to generic question detail.
+- Question detail **MUST** show each typed origin, exact related ID, and whether it resolves to an occurrence anchor, actor-claim chip, action chip, source chip/unique non-claim anchor, or topic-level gap.
+- Non-claim source detail **MUST** retain the source snapshot boundary and linked findings/actions/evidence/summary without converting those records into a claim.
 
 ### 18. Relation ledger
 
-- A complete semantic relation ledger **MUST** exist independently of SVG geometry.
+- Every `relation_id` **MUST** have exactly one canonical semantic ledger entry, independent of SVG geometry and density mode.
 - Ledger endpoints **MUST** be occurrence descriptions: actor + concise claim + selected-axis time + source role/title.
 - Same-source, parallel, ambiguous-order, unresolved, and unrelated candidates **MUST** remain present.
-- On `<=920px`, the ledger **SHOULD** be expanded by default because some cross-thread edges become port references rather than drawn curves.
+- Each entry **MUST** include relation type, review state, and whether direction is asserted on the selected axis under the composite arrow rule.
+- A visual edge or numbered port **MAY** be an additional synchronized shortcut for the same `relation_id`; multiple affordances **MUST NOT** appear as different records or expose conflicting semantics.
+- When Relation-summary mode is active, the Map **MUST** visibly announce simplification and the retained count, for example **Spatial overview simplified · all 18 candidate relations remain listed below**.
+- Mode selection **MUST** use validated presentation measurements rather than an epistemic hard-coded threshold. Implementers **MUST** validate the policy against current 3-, 5-, and 8-source density fixtures.
+- On `<=920px`, the ledger **SHOULD** be expanded by default because cross-row relations become port references rather than drawn curves.
 
 ### 19. Mobile transformation
 
-- Mobile **MUST** preserve the grammar’s entities: candidate thread, occurrence, provenance attachment, candidate relation, context annotation, and Unresolved rail.
+- Mobile **MUST** preserve the grammar’s entities: typed claim row, occurrence, provenance attachment, candidate relation, non-claim source record, and Unresolved rail.
 - It **MUST NOT** fall back to one global source-card chronology.
-- Within each thread, selected time **MUST** run top to bottom with the same unavailable/day/mixed rules.
-- Cross-thread relations **MAY** transform into numbered relation chips backed by the complete ledger.
+- A multi-occurrence family **MUST** become a Candidate thread chapter; a one-occurrence unresolved family **MUST** become a Standalone claim occurrence chapter; missing/inconsistent membership **MUST** become an Ungrouped claim occurrence chapter.
+- Within each chapter, selected time **MUST** run top to bottom with the same Unplaced/day/mixed rules.
+- Cross-row relations **MAY** transform into numbered relation shortcuts backed by the complete canonical ledger. Density mode **MUST NOT** silently hide relations.
 
 ### 20. Accessibility
 
-- The semantic DOM **MUST** contain every occurrence, thread header, context annotation, unresolved question, and relation exactly once for assistive technology.
-- SVG paths **SHOULD** be `aria-hidden`; relation meaning **MUST** be in controls/ledger.
-- Occurrence accessible names **MUST** include candidate thread, actor, claim, selected-axis time/precision or unavailable state, record boundary, and concise source provenance.
-- Relation accessible names **MUST** name both occurrence endpoints, type, review state, and any non-chronological ordering condition.
+- The semantic DOM **MUST** contain every occurrence, typed row header, non-claim source record, and unresolved question without hidden responsive duplicates.
+- SVG paths **MUST** be decorative and `aria-hidden`; every relation **MUST** be keyboard- and screen-reader-reachable through its one canonical ledger entry.
+- If a visual relation edge/port shortcut is keyboard-accessible, its accessible name **MUST** identify the same canonical relation, review state, endpoints, and ledger/detail target.
+- Occurrence accessible names **MUST** include the exact row type, actor, claim, selected-axis time/precision or Unplaced state, record boundary, and concise source provenance.
+- Visible claim text **SHOULD** supply its own accessible text even when visually clamped; an alternate accessible label **MUST NOT** conflict with it or create unnecessary duplicate speech.
+- Relation accessible names **MUST** name both occurrence endpoints, type, review state, and any non-chronological ordering condition, including **Direction not asserted on the selected axis** when applicable.
 - The Map **MUST** provide skip targets for Unresolved questions and Candidate relations.
 - Local horizontal scroll regions **MUST** be keyboard-focusable only when they actually overflow, must name their analytical content, and must not cause page-level horizontal overflow.
 - Responsive alternatives **MUST NOT** expose duplicate accessible copies of the same Map.
 
 ## F. Relation visual language
 
-The Map should use **short text + restrained geometry**. Color should encode general state—candidate, selected, dimmed—not semantic type.
+The Map should use **short text + restrained geometry**. Color should encode general state—candidate, selected, dimmed—not semantic type. A visible legend/boundary must say that all spatial relation labels are candidate types requiring review, not accepted facts.
 
 | Semantic family | Relation types | Line | Arrow | Short label | Color role |
 | --- | --- | --- | --- | --- | --- |
-| Transformative update | `supersedes`, `correction`, `narrows` | Solid | Closed arrow only when selected-axis direction is explicit | Replaces, Corrects, Narrows | Common candidate stroke; selected state changes color |
-| Responsive sequence | `follow_up` | Long dash | Open arrow only when selected-axis direction is explicit | Responds | Same candidate palette |
+| Transformative update | `supersedes`, `correction`, `narrows` | Solid | Closed arrow only when all composite-rule conditions pass | Replaces, Corrects, Narrows | Common candidate stroke; selected state changes color |
+| Responsive sequence | `follow_up` | Long dash | Open arrow only when all composite-rule conditions pass | Responds | Same candidate palette |
 | Tension | `contradicts` | Solid with opposing terminal ticks; no arrow | None | Challenges | Same candidate palette; not red-only |
 | Reinforcement/context | `corroborates`, `same_event` | Dotted/short dash | None | Supports, Same event | Same candidate palette |
 | Indeterminate | `unresolved` | Sparse dots | None | Unclear | Muted candidate palette |
 | No direct connection | `unrelated` | No spatial line by default | None | No direct change | Ledger only |
 
-For the prepared case:
+Arrow style distinguishes a documented directional semantic family only after the conservative eligibility test. It does not convert packet left/right order into a reviewed semantic direction. Line style and short label carry the relation family when the arrow is absent.
 
-- R1 uses a solid line, short **Replaces** label, and a directional arrow on Event time because both occurrence event times are explicit and ordered.
+For the prepared case on Event time:
+
+- R1 uses a solid line and short **Replaces** label. Its arrowhead is eligible because `supersedes` is documented as directional, both Event values are explicit, Event time supplies strict order, and that order agrees with the relation record endpoint order.
 - R2 uses a non-directional tension line with **Challenges**. It does not rely on red and does not turn contradiction into a truth verdict.
-- R3 uses a long-dash line, short **Responds** label, and an open arrow on Event time because the endpoints are explicitly ordered.
+- R3 uses a long-dash line and short **Responds** label. Its open arrowhead is eligible only because `follow_up` is documented as directional and the same three selected-axis/order conditions pass.
+
+Changing the axis can remove an arrow without changing the relation. If either endpoint is Unplaced, the values are equal, day/mixed precision prevents strict order, or selected-axis chronology conflicts with record endpoint order, the line and label remain and the ledger/accessible text says **Direction not asserted on the selected axis**. R2 never receives an arrow.
 
 The spatial label should be plain text on a small canvas-colored knockout, no larger than needed for the verb. “Needs review,” parallel count, endpoint-order caveat, long reason, confidence, and both support excerpts belong in the accessible name, ledger, or inspector. This prevents relation labels from competing with occurrence cards as apparent nodes.
 
@@ -629,6 +725,8 @@ Source ▸ Official update · Fictional city updates cooling center list…
 ```
 
 The top boundary is the **occurrence** boundary. The source attachment has its own boundary only when needed. In the prepared Jun 14 example, the source snapshot is a prepared canonical fixture record while the claim occurrence is candidate; the design must not collapse those two facts.
+
+The full claim remains semantic DOM text even when CSS shows a short visual clamp. An explicit Expand claim or Inspect occurrence control provides full visual access; the card should not repeat the same claim in a separate `aria-label` solely to compensate for clamping.
 
 At scan level, provenance should contain:
 
@@ -649,6 +747,8 @@ The following current Map material should move out of the card face:
 - limitations, hashes, provider identifiers, and exact IDs.
 
 This does not weaken provenance. It gives provenance a stable attachment to the exact claim occurrence and makes the full audit record one explicit interaction away in the source inspector/Sources.
+
+For a non-claim source record, the scan-level attachment becomes a standalone annotation with subtype, role, concise source identity, record boundary, and selected-axis placement state. Linked action/finding text and the full source evidence/summary remain in inspector/Sources; the annotation does not impersonate an occurrence.
 
 ## H. Open-question grammar
 
@@ -674,20 +774,22 @@ Use one named rail outside the time grid. It says:
 
 Each question appears once. Its origin is expressed conservatively:
 
-1. Related occurrence ID → occurrence anchor.
-2. Related actor claim ID → all matching source-local occurrence anchors; if none, its known source anchor(s).
-3. Related source ID → provenance anchor(s) or context annotation.
-4. Related action ID → source provenance anchor(s), explicitly labeled “via action record”; never the occurrence body.
-5. Unknown ID or no reference → topic-level evidence gap with no invented source edge.
+1. **Occurrence** → the exact occurrence anchor.
+2. **Actor claim** → every matching source-local occurrence. If no occurrence exists, a typed actor-claim origin chip names the actor and concise claim; the UI does not borrow a source anchor.
+3. **Action** → a **Via action record** chip containing concise action identity and source identity. It has no default occurrence tether and never attaches to an arbitrary claim body or provenance attachment.
+4. **Source** → a source-origin chip, or one unique non-claim source-record anchor when that exact source has no occurrence. A source with claim occurrences still does not make one arbitrary occurrence the question origin.
+5. **Topic / unknown** → a topic-level evidence gap with no invented record edge.
 
-A multi-origin question receives multiple thin dashed tethers on wide desktop or multiple origin chips on narrower layouts. Tethers use no arrowhead and the label **Evidence gap**, clearly distinct from candidate claim relations. The rail position is an endpoint convention, not a claim that the question occurs after the latest date.
+A multi-origin question remains one card and receives multiple typed origins. Occurrence and matching actor-claim origins may receive thin dashed tethers on wide desktop; other origin types remain chips by default. Tethers use no arrowhead and the label **Evidence gap**, clearly distinct from candidate claim relations. The rail position is an endpoint convention, not a claim that the question occurs after the latest date.
+
+In the prepared case, Q1 resolves its actor claim to the community occurrence and may use one occurrence tether. Q2 shows `Via action record · Added free shuttle support for vulnerable residents · Source: Official update`. Q3 shows `Via action record · Published an updated list and clarified opening hours · Source: Official update`. Neither action chip tethers to the Jun 14 claim body.
 
 ## I. Coverage role after removing source lanes
 
 Source-role information moves to four coordinated places:
 
 1. **Compact Map coverage strip:** every role and count, including zeros; missing target roles visibly marked.
-2. **Occurrence provenance badge/context annotation:** the role of the supporting source at the point of use.
+2. **Occurrence provenance badge/non-claim source annotation:** the role of the supporting source at the point of use.
 3. **Coverage lenses:** non-destructive highlights for baseline/expansion and role-oriented review.
 4. **Method and Sources:** complete coverage basis, discovery/pass metrics, missing-role explanation, why included, source context, and limitations.
 
@@ -699,7 +801,7 @@ Official & established 1 | Original records 0 — missing | Local & firsthand 1
 Specialist context 1 | Challenges & corrections 1
 ```
 
-On live packets, the strip may additionally show Standard or Coverage expansion as the basis, but must not claim exhaustive coverage. Selecting a role dims nonmatching occurrences and context annotations; it does not remove them or change candidate relations.
+On live packets, the strip may additionally show Standard or Coverage expansion as the basis, but must not claim exhaustive coverage. Selecting a role dims nonmatching occurrences and non-claim source records; it does not remove them or change candidate relations. The strip counts source roles regardless of whether a source has a claim occurrence, so moving no-occurrence sources out of claim rows does not erase diversity or gaps.
 
 ## J. Responsive transformation
 
@@ -707,40 +809,46 @@ Desktop and mobile use the same entities and boundaries. Only geometry changes.
 
 ### `>1200px` — full matrix
 
-- Three aligned regions: `220px` sticky thread headers; flexible time matrix; `280–320px` Unresolved rail.
+- Three aligned regions: `220px` sticky typed row headers; flexible dated matrix; `280–320px` Unresolved rail.
 - The prepared case should fit without horizontal scrolling at common wide widths. Dense/many-date packets may scroll **inside the time matrix only**.
-- Date headers and thread headers remain sticky within their local scroll axes.
-- All three prepared relations are drawn. Long reasons stay out of the canvas.
-- Context annotations form a strip below thread rows. Their unavailable region aligns with the matrix’s unavailable column.
+- Date headers and row headers remain sticky within their local scroll axes. Headers say Candidate thread, Standalone claim occurrence, or Ungrouped claim occurrence as derived.
+- The prepared case uses low-density Matrix mode and draws all three relations. R2 has no arrow; R1/R3 arrows appear only after the composite rule passes. Long reasons stay out of the canvas.
+- If adaptive Relation-summary mode activates, a visible retained-count announcement precedes the matrix; useful intra-thread/selected edges remain, cross-row ports replace unreadable curves, and every relation remains in the canonical ledger.
+- The **Unplaced on [selected axis]** band spans below the dated rows and retains row identity. It is visibly non-chronological rather than a terminal time column.
+- Non-claim source records form a typed section below the claim material. The prepared editorial record is Context / interpretation and sits in Unplaced on Event time.
+- Occurrence/claim question tethers may cross to the side rail. Action/source origins render as typed chips inside the question card and do not attach to claim bodies.
 - The focused inspector remains a nonmodal side panel. Selection scrolls the occurrence into view before opening, but the panel must not reset the matrix’s horizontal position.
 
 ### `921–1199px` — compact matrix with analytical scroll
 
 - The matrix remains a matrix; it does not become a global source list.
-- Thread headers narrow to approximately `168–184px` and remain sticky.
+- Typed row headers narrow to approximately `168–184px` and remain sticky.
 - The time plane uses contained horizontal scrolling with a visible, conditional hint and Left/Right/Home/End keyboard support only when measured overflow exists.
 - The Unresolved rail moves below the matrix as a full-width bordered section with a two-column card grid when space permits. Origin tethers become labeled origin chips because the rail is no longer aligned beside the rows.
-- Context annotations stay between the matrix and Unresolved section.
-- Relation lines remain visible inside the matrix. If density mode activates, cross-thread relations use numbered ports and the ledger.
+- The non-chronological Unplaced band and typed Non-claim source records section stay between the matrix and Unresolved section; their distinct headings prevent either from being read as an evidence question.
+- Relation lines remain visible inside the matrix in Matrix mode. If Relation-summary mode activates, cross-row relations use numbered shortcuts and the ledger, with the retained relation count announced.
 - Inspector remains nonmodal, fixed or docked, with selection/scroll restoration.
 
-### `<=920px` — thread chapters
+### `<=920px` — typed claim chapters
 
-- The spatial matrix transforms into one section per candidate thread, not one global time-ordered list of source cards.
-- Each thread header shows candidate state, occurrence count, and grouping uncertainty.
-- Selected time runs top to bottom inside the thread. Day/mixed/unavailable rules remain explicit.
-- Intra-thread relations render between occurrence cards. Cross-thread relations become numbered chips on both endpoints and complete entries in the relation ledger.
-- Context annotations follow all thread chapters in a distinct section.
-- The Unresolved rail follows Context as a distinct terminal section and retains the same heading and one-card-per-question rule.
+- The spatial matrix transforms into one section per typed row, not one global time-ordered list of source cards.
+- Multi-occurrence consistent families become **Candidate thread · N occurrences · needs review** chapters. One-occurrence unresolved families become **Standalone claim occurrence · grouping unresolved** chapters. Missing/inconsistent membership becomes **Ungrouped claim occurrence** chapters.
+- Selected time runs top to bottom inside each chapter. Day/mixed rules remain explicit; records without the selected value appear in a named Unplaced subsection, not at the chronological end without a break.
+- Intra-thread relations may render between occurrence cards. Cross-row relations become numbered shortcuts on endpoints and complete entries in the canonical relation ledger; the view is effectively Relation-summary mode and announces that spatial relations are simplified.
+- Typed Non-claim source records follow all claim chapters in a distinct section. Their selected-axis placed/unplaced state remains explicit.
+- The Unresolved rail follows Non-claim source records as a distinct terminal section and retains the same heading and one-card-per-question rule. Every origin becomes a typed chip; action/source chips never borrow an occurrence.
 - The relation ledger follows or precedes Unresolved through a visible jump link; it is expanded by default.
 
 ### Mobile around `390px`
 
 - One content column, no page-level horizontal scroll.
 - Occurrence card order: boundary + actor; full/expandable claim; selected-axis time; provenance attachment.
-- Relation chips are full-width or wrap safely and name the other occurrence by actor + short claim, never only an ID.
+- Chapter accessible/visible names preserve Candidate thread, Standalone claim occurrence, or Ungrouped claim occurrence; no sticky shorthand may erase that distinction.
+- Relation shortcuts are full-width or wrap safely and name relation type, review state, the other occurrence by actor + short claim, and the ledger target—never only an ID.
 - Coverage starts as `4 sources · 4 of 5 target roles represented`; an accessible disclosure reveals every role/count and the missing Original records role.
-- Thread identity remains visible at each section start; a compact sticky local heading MAY be used only if it does not obscure focus targets.
+- Source provenance remains role + concise title/publisher on-card; full source mechanics remain one explicit inspector action away.
+- Q1 shows an actor-claim-to-occurrence origin chip. Q2/Q3 show stacked **Via action record** chips with action and Official update source identity.
+- The Unplaced section says **Unplaced on Event time** in the prepared case and states that Publication/Retrieval remain inspectable.
 - The inspector uses the existing modal model, focus containment, Escape close, and focus/scroll restoration.
 
 ### Narrow mobile around `360px`
@@ -750,11 +858,13 @@ Desktop and mobile use the same entities and boundaries. Only geometry changes.
 - Source title and publisher wrap to two compact lines; no domain/ID is shown on the card face.
 - Coverage remains a disclosure rather than a horizontally scrolling chip strip.
 - Question origin chips stack beneath the question text.
+- Non-claim source subtype, source identity, and Unplaced state stack as separate lines; an action-bearing or finding-bearing record is never shortened to Context.
+- The spatial-simplification announcement and canonical relation-ledger jump remain visible before any numbered ports.
 - The modal inspector uses a small viewport inset and internal scrolling; the underlying page remains fixed.
 
 ### Horizontal scrolling policy
 
-Horizontal scrolling is an analytical tool only at matrix widths above 920px. It belongs to the time plane, must have a conditional visible/accessible hint, and must preserve sticky thread identity. Below 920px, the thread-chapter transformation removes the need for horizontal analysis. At no width may the page itself overflow horizontally.
+Horizontal scrolling is an analytical tool only at matrix widths above 920px. It belongs to the dated time plane, must have a conditional visible/accessible hint, and must preserve sticky typed-row identity. The Unplaced band and Unresolved rail do not extend the chronological scroll range. Below 920px, typed chapters remove the need for horizontal analysis. At no width may the page itself overflow horizontally.
 
 ## K. Implementation impact without implementation
 
@@ -762,27 +872,30 @@ Horizontal scrolling is an analytical tool only at matrix widths above 920px. It
 
 Likely presentation changes:
 
-- Replace source-lane/source-card rendering with thread rows and occurrence cards.
-- Add compact coverage strip, context annotations, Time unavailable region, and Unresolved rail.
+- Replace source-lane/source-card rendering with typed claim rows and occurrence cards.
+- Add compact coverage strip, derived Non-claim source records, a below-matrix Unplaced band, and Unresolved rail.
 - Change selection targets so the occurrence body opens `claim_occurrence`; provenance opens `source`; row header may open `claim_family`.
-- Keep SVG decorative and make relation controls smaller line annotations.
+- Keep SVG paths decorative and make any visual relation control a synchronized shortcut to the canonical ledger/detail record.
+- Render a visible candidate-relation boundary and a retained-count announcement whenever Relation-summary mode simplifies the spatial field.
+- Render typed question-origin chips so action/source origins do not borrow occurrence anchors.
 - Preserve conditional local scroll, focus restoration, coverage highlighting, and responsive inspector semantics.
-- Replace the current `<=920px` source chronology with thread chapters.
+- Replace the current `<=920px` source chronology with Candidate thread, Standalone claim occurrence, and Ungrouped claim occurrence chapters.
 
 ### `investigation-map` derivation
 
 A new internal derived-view model would likely need:
 
-- `InvestigationClaimThread`;
+- `InvestigationClaimRow`, a discriminated union of `candidate_thread`, `standalone_occurrence`, and `ungrouped_occurrence`;
 - `InvestigationOccurrenceNode` with selected-axis value/precision/region;
 - `InvestigationSourceAttachment`;
-- `InvestigationContextAnnotation`;
+- `InvestigationNonClaimSourceRecord` with the five presentation subtypes;
 - occurrence-to-occurrence relation endpoints;
-- `InvestigationUnresolvedEndpoint` with typed origin anchors;
+- `InvestigationUnresolvedEndpoint` with `occurrence | actor_claim | action | source | topic_unknown` presentation origins and explicit anchor/chip behavior;
 - family-membership diagnostics and ungrouped rows;
-- density/routing metadata that never changes the packet.
+- composite arrow eligibility derived from selected-axis endpoint values plus packet endpoint order;
+- `matrix | relation_summary` presentation mode, retained relation count, collision/width measurements, and routing metadata that never change the packet.
 
-The derivation should use occurrence time fields directly. It should keep a source index for provenance and context annotations. Coverage and trace functions can remain pure derived viewing operations.
+The derivation should use occurrence time fields directly. Initial axis selection should test only primary occurrences: any explicit occurrence Event value selects Event; otherwise Publication. This intentionally differs from the current source-node helper, which can acquire Event values from occurrences, actions, and time candidates. The adapter should keep source, actor-claim, action, and finding indexes for provenance, non-claim subtyping, and typed question origins. Coverage and row-trace functions can remain pure derived viewing operations.
 
 ### Contracts
 
@@ -796,24 +909,28 @@ The current `candidate_claim_families` are sufficient for **candidate row member
 - the interface does not carry a reviewed row order;
 - the schema records both family `occurrence_ids` and occurrence `candidate_claim_family_id`, but the visible contract validation does not establish a presentation guarantee of unique, bidirectionally consistent membership.
 
-Therefore v1 must use neutral row numbering, show candidate uncertainty, and fail closed to one ungrouped row per inconsistent occurrence. It must not infer a label from normalized text or stable IDs.
+Therefore v1 must use neutral presentation numbering only for multi-occurrence Candidate threads, show candidate uncertainty, render the one-occurrence prepared family as a Standalone claim occurrence, and fail closed to one Ungrouped claim occurrence row per inconsistent occurrence. It must not infer a label from normalized text or stable IDs.
+
+The five non-claim presentation subtypes and five question-origin types are internal derived-view discriminators. They do not require or justify a packet/schema/API change. If existing linked records and source metadata cannot support a subtype, the presentation fails closed to Source-only record; if a related question ID cannot resolve, it becomes topic / unknown.
 
 ### CSS/layout
 
 - Introduce a sticky-row-header + time-plane grid.
 - Use date-group columns rather than one column per source.
-- Add a non-chronological unavailable column and right/stacked Unresolved rail.
+- Add a non-chronological **Unplaced on [selected axis]** band below the dated grid and a separately named right/stacked Unresolved rail.
+- Add a typed Non-claim source records section outside claim rows.
 - Route occurrence-level edges in per-row channels; reserve cross-row channels outside card bodies.
-- Define a density mode for more than roughly 12 visible relations, repeated parallel edges, or collision failure: retain all relations in the ledger while showing selected/intra-thread edges and numbered cross-thread ports.
+- Define Matrix and Relation-summary modes. Switch only when validated relation-count, collision, and available-width measurements make the full edge field unreadable; retain useful selected/intra-thread edges and use numbered cross-row ports while every relation stays in the ledger.
 - Preserve reduced-motion behavior and measured-overflow focusability.
 
-The exact density threshold should be validated against the existing 3/5/8-source fixtures rather than treated as epistemic logic. It is a presentation threshold only.
+The document intentionally does not hard-code a relation-count threshold. The implementation policy must be validated against the existing 3-, 5-, and 8-source density fixtures. It is presentation logic only, never epistemic logic.
 
 ### Inspector
 
 - Expand occurrence detail to include all four timestamps, family membership, uncertainty, support, source attachment, and record boundaries.
 - Add a family-specific detail body.
 - Change relation endpoint summaries from source titles to occurrence actor/claim/source summaries.
+- Show typed question-origin details, including action/source identity, without navigating through an arbitrary occurrence.
 - Preserve source/action/finding separation and the model-summary-versus-captured-text boundary.
 - Preserve desktop nonmodal/mobile modal behavior and exact focus restoration.
 
@@ -821,15 +938,18 @@ The exact density threshold should be validated against the existing 3/5/8-sourc
 
 - Keep all current relation IDs/support/detail behavior.
 - Render occurrence endpoints and selected-axis order basis.
+- Produce exactly one canonical semantic entry per `relation_id`; visual edges/ports reference that entry rather than creating additional semantic records.
+- State **Direction not asserted on the selected axis** whenever the composite arrow rule fails.
 - Include same-source relations spatially where possible and always in the ledger.
 - Include `unrelated` in the ledger even when omitted from spatial geometry.
-- Make numbered port identity available for tablet/mobile/density mode.
+- Make synchronized numbered-port identity available for tablet/mobile/Relation-summary mode and announce the retained total whenever geometry is simplified.
 
 ### Mobile path
 
-- Replace `map.sources.map(...)` global order with candidate-thread sections built from occurrence nodes.
-- Keep context-only sources outside those sections.
-- Convert cross-thread relations to two endpoint ports + one ledger row.
+- Replace `map.sources.map(...)` global order with typed chapters built from occurrence nodes.
+- Keep all Non-claim source records outside those chapters and preserve their five subtypes.
+- Convert cross-row relations to synchronized endpoint ports + the one canonical ledger entry.
+- Preserve the non-chronological Unplaced subsection inside/after the relevant chapter and keep it distinct from Unresolved.
 - Keep Unresolved as a final rail, not ordinary cards mixed into a thread chronology.
 
 ### Tests
@@ -837,32 +957,39 @@ The exact density threshold should be validated against the existing 3/5/8-sourc
 Tests should prove:
 
 1. Pure deterministic derivation and no packet mutation.
-2. Every occurrence is rendered exactly once in a family or individual ungrouped row.
-3. Inconsistent/missing/duplicate family membership fails closed without auto-clustering.
-4. Relation endpoints remain exact occurrence IDs; no source projection occurs.
-5. Same-source and parallel relations remain represented.
-6. Each selected axis uses only its matching occurrence/source value.
-7. Missing, day, and mixed precision never gain artificial order or arrowheads.
-8. Context-only sources remain visible and never become claim nodes.
-9. Source/claim/action/occurrence/unknown question origins resolve conservatively; multi-origin questions appear once.
-10. Coverage strip preserves every role/count/zero and lenses do not remove or mutate material.
-11. Prepared/live/fallback packets use one presentation grammar while retaining their boundaries.
-12. 3/5/8-source density fixtures preserve all material; the existing 5-source 10-relation and 8-source 18-relation cases remain reviewable through density mode and ledger.
-13. Semantic DOM, accessible names, skip targets, keyboard scroll, inspector focus loop, Escape, and focus/scroll restoration.
-14. `>1200`, `921–1199`, `<=920`, `390`, and `360` layouts have no page-level horizontal overflow and retain the same entities.
+2. Every occurrence is rendered exactly once as Candidate thread membership, Standalone claim occurrence, or individual Ungrouped claim occurrence.
+3. Multi-occurrence consistent, one-occurrence unresolved, and missing/inconsistent memberships receive the exact distinct row labels; no family ID is parsed into a label.
+4. Inconsistent/missing/duplicate family membership fails closed without auto-clustering.
+5. Row trace and mobile chapter accessible names preserve the same three row types.
+6. Relation endpoints remain exact occurrence IDs; no source projection occurs.
+7. Same-source and parallel relations remain represented.
+8. Each selected axis uses only its matching occurrence/source value; initial Event time is chosen only from explicit primary-occurrence Event values, otherwise Publication time.
+9. Missing, day, and mixed precision never gain artificial order. Unplaced records use the selected-axis-specific label and never act as a later column.
+10. The composite arrow rule is tested condition by condition, including conflicting record order; Challenges never has an arrow.
+11. All five Non-claim source record subtypes remain outside claim rows and never become claim-relation endpoints without an occurrence.
+12. Occurrence, actor-claim, action, source, and topic/unknown question origins resolve conservatively; multi-origin questions appear once; action/source origins do not borrow claim-body tethers.
+13. Coverage strip preserves every role/count/zero and lenses do not remove or mutate occurrence or non-claim material.
+14. Matrix/Relation-summary mode changes only presentation, visibly announces simplification, and preserves every relation in exactly one canonical ledger entry across 3/5/8-source fixtures.
+15. Visual relation shortcuts share the same `relation_id`, semantics, and detail target as the ledger; decorative SVG is absent from the accessibility tree.
+16. Full claim text remains in semantic DOM when visually clamped; expand/inspect provides full visual access without duplicate speech.
+17. Prepared/live/fallback packets use one presentation grammar while retaining their boundaries.
+18. Semantic DOM, accessible names, skip targets, keyboard scroll, inspector focus loop, Escape, and focus/scroll restoration.
+19. `>1200`, `921–1199`, `<=920`, `390`, and `360` layouts have no page-level horizontal overflow and retain the same entities, row types, relation count, origin types, and time semantics.
 
 ### Can implement now using the current packet
 
 - occurrence primary nodes;
-- two prepared candidate rows and a generic ungrouped fallback;
+- one prepared multi-occurrence Candidate thread, one prepared Standalone claim occurrence, and a generic Ungrouped claim occurrence fallback;
 - all four selected axes on occurrences;
 - current three occurrence-level relations;
-- current three unresolved questions with typed conservative origins;
+- current three unresolved questions with typed conservative origins and action chips;
 - source role/title/publisher attachments;
 - current coverage counts/lenses;
-- editorial context annotation with Event time unavailable;
+- editorial Non-claim source record as Context / interpretation in Unplaced on Event time;
 - occurrence/source/relation/question inspector transitions;
-- desktop matrix, tablet contained scroll, and mobile thread chapters.
+- composite selected-axis arrow eligibility;
+- Matrix and Relation-summary modes with a complete canonical ledger;
+- desktop matrix, tablet contained scroll, and typed mobile chapters.
 
 ### Desirable later data/model improvements
 
@@ -872,8 +999,8 @@ These are optional later improvements, not prerequisites and not part of this UI
 - explicit reviewed family identity/order distinct from candidate grouping;
 - contract-level bidirectional/unique family-membership validation;
 - explicit question origin type/target IDs so action/source/occurrence resolution need not be reconstructed in presentation;
-- explicit relation semantic direction separate from chronological left/right ordering;
-- optional reviewed context-annotation classification.
+- explicit reviewed relation semantic direction separate from chronological left/right ordering;
+- optional reviewed non-claim source classification.
 
 None should be smuggled into the initial production Map redesign.
 
@@ -881,58 +1008,68 @@ None should be smuggled into the initial production Map redesign.
 
 | Risk | Failure if ignored | v1 mitigation |
 | --- | --- | --- |
-| Sparse claim-family data | Rows look empty or falsely authoritative | Neutral candidate row labels; one-occurrence state; ungrouped fallback |
-| One-claim families | A single point looks like demonstrated lineage | “Single occurrence · no change sequence”; no continuation rail beyond actual edges |
-| Overlapping relations | Labels/cards obscure claims | Short line labels, reserved channels, collision checks, density mode, complete ledger |
-| Many sources | Provenance repeats and canvas widens | Sources do not define columns; compact attachments; context strip; max-8 coverage still visible |
-| Many claims | Excessive row/card height and tab stops | Thread sections, bounded visual clamp with full accessible text/inspector, density controls; never silently drop nodes |
-| Long claim text | Cards dominate and edges route around prose | Concise clamped scan text plus explicit full-claim inspector; preserve full accessible name |
-| Relation crossings | Interaction pattern becomes unreadable | Intra-row routing first; stable cross-row channels; numbered ports/ledger above density threshold |
+| Sparse claim-family data | Rows look empty or falsely authoritative | Exact typed rows; Candidate thread only for consistent multi-occurrence families; standalone/ungrouped fallbacks |
+| One-claim families | A single point looks like demonstrated lineage | “Standalone claim occurrence · grouping unresolved”; no thread number or continuation rail |
+| Overlapping relations | Labels/cards obscure claims | Short line labels, reserved channels, collision measurement, adaptive Relation-summary mode, complete ledger |
+| Many sources | Provenance repeats and canvas widens | Sources do not define columns; compact attachments; typed Non-claim section; max-8 coverage still visible |
+| Many claims | Excessive row/card height and tab stops | Typed chapters, visual clamp with full semantic text/expand action, adaptive density controls; never silently drop nodes |
+| Long claim text | Cards dominate and accessibility repeats prose | Full claim stays in semantic DOM; CSS clamp plus Expand/Inspect; no redundant full-text `aria-label` |
+| Relation crossings | Interaction pattern becomes unreadable | Intra-row routing first; stable cross-row channels; switch to announced numbered ports when measured presentation density requires it |
 | One source with multiple claims | Source-card endpoint is ambiguous | Separate occurrence nodes sharing one provenance attachment identity |
 | One claim linked to multiple sources | Merging loses source-local support differences | Separate occurrences per source; optional exact `claim_id` sibling indicator; never merge support |
-| Context-only sources | Forced fake claim/time node | Context annotation and exact-axis unavailable state |
-| No explicit event time | Another date gets substituted | Dedicated Time unavailable region on Event time; no arrow based on placement |
-| Question linked to multiple records | Duplicate questions or false single-thread assignment | One rail card with multiple typed origin anchors/chips |
-| Action-linked question | Action is visually turned into a claim | Attach to source provenance anchor labeled “via action record” |
+| Sources with no occurrence | Everything is mislabeled Context or forced into a claim row | Neutral Non-claim source record base; five supported subtypes; Source-only fallback; never a claim-relation endpoint |
+| Action/finding-bearing no-occurrence source | Record semantics disappear under a Context label | Action-bearing, Finding-bearing evidence, or Mixed non-claim subtype; full linked records in inspector/Sources |
+| No explicit event time | Another date gets substituted or a source-only action forces Event as initial axis | Initial axis tests primary occurrences only; explicit Unplaced on Event time band; other timestamps inspectable |
+| Question linked to multiple records | Duplicate questions or false single-row assignment | One rail card with multiple typed origins; only occurrence/claim origins tether by default |
+| Action-linked question | Action is visually turned into a claim | `Via action record` chip with action + source identity; no claim-body/provenance tether |
+| Source-linked question | One arbitrary occurrence appears to own a source-level gap | Source-origin chip or one unique non-claim source anchor; no arbitrary occurrence tether |
+| Unknown question origin | UI invents a source or occurrence | Topic / unknown evidence-gap origin only |
 | Family membership inconsistency | Presentation invents grouping | Cross-check both directions; isolate each affected occurrence in ungrouped row |
 | Mixed/day precision | Layout invents within-day chronology | Exact sub-band + unordered day-peer band; suppress temporal arrowhead |
 | Equal retrieval times | Stable order is misread as chronology | Shared-time peer group; explicit equal-time/record-order copy; no arrow based on X |
-| Mobile density | Relation chips and provenance overwhelm the path | Thread chapters, full-width targets, cross-thread ledger, collapsed coverage disclosure, modal inspector |
+| Relation endpoint order | Engine record order is mistaken for reviewed semantic direction | Four-condition composite arrow rule; Challenges always non-directional; ledger states when direction is not asserted |
+| Accessible edge plus ledger | One relation sounds like two records or semantics diverge | Exactly one canonical ledger entry per `relation_id`; synchronized shortcuts; decorative SVG |
+| Mobile density | Relation shortcuts and provenance overwhelm the path | Typed chapters, full-width targets, announced Relation-summary mode, expanded ledger, collapsed coverage disclosure, modal inspector |
 | Candidate/canonical conflation | Canonical source appears to canonize candidate claim | Separate occurrence and source boundary labels; occurrence boundary is primary |
 | Model summary conflation | Summary appears to be captured source text | Keep content-kind boundary in source attachment/inspector and Sources; never quote it as source page text |
 
 ## M. Recommendation
 
-Adopt **Alternative 1, the Temporal Claim-Lineage Matrix**, for independent design approval before implementation.
+Adopt the **Temporal Claim-Lineage Matrix with Adaptive Relation-Summary Mode** for independent design approval before implementation.
 
-It is superior to the current source-role swimlane because the two coordinates and the edge semantics all answer the same primary question. X means selected time. Y means provisional claim thread. Nodes mean source-local claim occurrences. Edges mean candidate occurrence relations. The user can follow one kind of thing—claim occurrences—through change and interaction.
+It is superior to the current source-role swimlane because the coordinates, nodes, and relation grammar answer one primary question. X means explicitly selected time. Y distinguishes a reviewed-needed multi-occurrence Candidate thread from a Standalone or Ungrouped occurrence. Nodes mean source-local claim occurrences. Spatial edges and synchronized ports mean candidate relation types requiring review. The user follows claim occurrences through change and interaction without mistaking source roles for lineage.
 
-The design preserves the best parts of the current Map:
+The design preserves the useful parts of the current Map:
 
-- explicit time-axis choice and no substitution;
-- day/mixed precision honesty;
-- source roles and coverage gaps;
-- exact candidate relations and support inspection;
-- visible open questions;
-- non-mutating lenses and traces;
-- complete relation ledger;
-- focused inspector and responsive accessibility model;
-- prepared/live/fallback and candidate/canonical boundaries.
+- explicit selected Event/Actor assertion/Publication/Retrieval semantics and no missing-time substitution;
+- day/mixed precision honesty and the separately named Unplaced band;
+- candidate/review-only family and relation boundaries;
+- occurrence-primary nodes with source provenance attachments;
+- complete Sources/Method auditability and the model-summary-versus-captured-text boundary;
+- the complete source-role coverage strip, including zero/missing roles;
+- one non-chronological Unresolved rail with typed origins;
+- non-mutating lenses and typed row traces;
+- exactly one complete canonical relation ledger, including every record in both density modes;
+- focused inspector and responsive accessibility behavior;
+- mobile typed claim chapters;
+- prepared/live/fallback and candidate/canonical boundaries;
+- `canonical_mutation: none`.
 
-Information that moves out of the primary canvas includes full source-card identity, counts, long previews, URLs, domain, snapshot mechanics, coverage methodology, long relation reasoning, support excerpts, and findings/actions. Those remain in Sources, Method, ledger, and inspector.
+Information that moves out of the primary canvas includes full source-card identity, counts, long previews, URLs, domain, snapshot mechanics, coverage methodology, long relation reasoning, support excerpts, and full findings/actions. Those remain in Sources, Method, the canonical relation ledger, and inspector. Sources with no occurrence remain visible as neutral Non-claim source records with accurate presentation subtypes rather than becoming fake claim nodes.
 
-Information that becomes more prominent includes actor claim text, claim occurrence status, candidate thread membership/uncertainty, occurrence-to-occurrence relation semantics, exact selected-axis placement, and unresolved evidence endpoints.
+Information that becomes more prominent includes original actor claim text, claim occurrence status, exact row type and grouping uncertainty, occurrence-to-occurrence candidate relation semantics, selected-axis placement or named Unplaced state, and unresolved evidence questions with truthful origin types.
 
 A user should understand faster:
 
-1. There were three claim occurrences, not four equivalent source nodes.
-2. The Jun 10 and Jun 14 city claims form one candidate change thread.
-3. The Jun 12 community claim is a distinct unresolved grouping that challenges the initial claim and is followed by the update.
-4. The editorial record is context, not another claim in the lineage.
-5. The three questions remain unresolved evidence needs, not later events or conclusions.
-6. Every relation still needs review and every occurrence remains source-bound.
+1. There are three claim occurrences, not four equivalent source nodes.
+2. The Jun 10 and Jun 14 city occurrences form one Candidate thread that still needs review.
+3. The Jun 12 community occurrence is standalone with unresolved grouping—not an established thread—while R2 Challenges without direction and R3 may show selected-axis progression only when the composite rule passes.
+4. The editorial source is a Context / interpretation subtype of Non-claim source records, not the generic identity of every source lacking an occurrence.
+5. Q1 traces through its matching claim occurrence; Q2/Q3 originate via actions and do not attach to an arbitrary claim body.
+6. The three questions remain unresolved evidence needs, not later events or conclusions.
+7. Every relation remains listed and review-only even when the spatial overview is simplified.
 
-The remaining tradeoffs are real. Candidate families do not yet provide trusted public names. Cross-thread edges can become dense. A matrix above 920px needs contained horizontal scrolling for larger packets. Mobile cannot preserve every cross-row curve and must rely more heavily on relation ports and the ledger. These costs are preferable to retaining a source-role coordinate that obscures the product’s core claim-lineage purpose.
+The remaining tradeoffs are real. Candidate families do not provide trusted public names. Matrix mode can still produce cross-row crossings. The adaptive mode preserves records but reduces at-a-glance network shape. A matrix above 920px needs contained horizontal scrolling for larger packets. Mobile necessarily relies more on relation shortcuts and the ledger. Derived non-claim subtypes and question origins must fail closed when packet links are sparse. These costs are preferable to retaining a source-role coordinate that obscures the product’s core claim-lineage purpose.
 
 ## N. Independent-review gate
 
@@ -940,12 +1077,19 @@ The remaining tradeoffs are real. Candidate families do not yet provide trusted 
 
 The reviewer should specifically decide:
 
-1. Is a candidate-family row an acceptable primary Y organization when row labels remain neutral and unresolved?
-2. Does the right-side Unresolved rail clearly communicate evidence questions rather than conclusions or chronological records?
-3. Are action-linked question origins sufficiently clear when attached to source provenance rather than claim bodies?
-4. Is the proposed relation language restrained enough, especially the non-directional Challenges style and selected-axis arrow suppression?
-5. Should dense cross-thread relations switch to numbered ports at a tested threshold, or should the product prefer Alternative 2 by default?
-6. Does the mobile thread-chapter path preserve the same grammar strongly enough without spatial cross-thread curves?
-7. Is the scan-level provenance attachment sufficient for auditability while full source mechanics move to inspector/Sources?
+1. Do Candidate thread, Standalone claim occurrence, and Ungrouped claim occurrence labels prevent family data from overstating lineage?
+2. Do the five Non-claim source record subtypes preserve action/finding/context/source distinctions without adding packet semantics?
+3. Does the typed question-origin model keep Q2/Q3 action origins clear without arbitrary claim-body or provenance tethers?
+4. Is the composite arrow rule conservative enough given the absence of reviewed semantic direction, including R2’s unconditional non-directionality?
+5. Do Matrix and Relation-summary modes preserve one coherent grammar, a visible simplification boundary, and every canonical ledger relation?
+6. Does the below-matrix Unplaced band remain distinct from both chronological time and the Unresolved rail?
+7. Do mobile typed chapters and the one canonical relation ledger preserve the same conceptual and accessible grammar?
+8. Is scan-level provenance sufficient for auditability while full source mechanics stay in inspector/Sources?
 
-Requested outcome: independent design review of this proposal only. Production application code changed in this proposal: **0 files**. Provider/API/hosted/Sites/D1 state changes: **0**.
+Requested outcome: independent design review of this revised proposal only. This document remains a proposal, not implementation authority until that review approves it and separate implementation authorization is granted.
+
+- Production application files changed in this proposal: **0**.
+- Production test files changed in this proposal: **0**.
+- Provider/OpenAI calls: **0**.
+- Hosted/API/D1/Sites/deployment/access changes: **0**.
+- Merge/auto-merge: **0**.
