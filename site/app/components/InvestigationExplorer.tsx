@@ -46,6 +46,7 @@ import {
   publicRerunSourceLimit,
 } from "../lib/public-live";
 import { FocusedDetailPanel } from "./FocusedDetailPanel";
+import { ExportInvestigation } from "./ExportInvestigation";
 import { InvestigationMapView } from "./InvestigationMapView";
 import {
   MethodView,
@@ -376,6 +377,8 @@ export function CaseExplorer({
             <strong>{runNotice.title}</strong>
             <span>{runNotice.message}</span>
           </div>
+
+          <ExportInvestigation packet={packet} />
 
           <nav className="view-nav" aria-label="Investigation result views">
             <div

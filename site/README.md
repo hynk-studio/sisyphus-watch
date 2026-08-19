@@ -318,6 +318,71 @@ stage does not add another OpenAI client or make a relation-classification API
 call; `model_classified_count` is deterministically zero. The initial packet
 contains no full fixture source text or raw provider response.
 
+## Portable public evidence and agent contact
+
+`SiteReadyCasePacket` remains the internal browser/Site read model. BFG8H adds a
+separate allow-list-projected public contract:
+
+```text
+sisyphus_public_evidence_packet.v1
+```
+
+The public packet deliberately omits run IDs, search-call and raw API
+provenance, hashes, bounded-work counters, focused-detail keys, admission and
+reservation state, environment/credential state, provider request identifiers,
+and authentication/session/user identity. It retains public source identity,
+the captured-fixture versus model-generated-summary distinction, findings,
+actor claims, actions, four separate time meanings, candidate relations and
+review status, unresolved questions, limitations, and
+`canonical_mutation: "none"`.
+
+The selected prepared example is exportable only as
+`synthetic_prepared_example`. Its sources use `url: null` and `domain: null`,
+and any canonical record label is explicitly fixture-internal rather than
+real-world truth verification. A failed live attempt is different: the public
+representation is `sisyphus_public_no_result.v1`, contains no prepared fixture
+evidence, forbids automatic retry, and warns that provider work may already
+have occurred.
+
+The result workspace exposes client-only **Copy shareable brief**, **Download
+Markdown**, and **Download JSON** actions. All three start from the same public
+serializer. They use only the already-displayed packet: no new investigation,
+provider request, D1 write, server export persistence, automatic publication,
+or focused-detail request occurs. Export filenames are fixed rather than
+derived from untrusted question text. Markdown and shareable rendering escapes
+untrusted control syntax, emits no raw HTML, and creates links only for
+validated `http:` or `https:` URLs.
+
+`GET /api/lineage` is a static, nonbillable capability document. It performs no
+runtime read, D1 readiness check, admission reservation, provider call, or
+persistence write. `/openapi.json` describes the real bounded POST request and
+public response/error surface. To request the machine-readable public
+representation from the existing POST, send:
+
+```text
+Accept: application/vnd.sisyphus.public-evidence.v1+json
+```
+
+The strict JSON body remains `question`, optional `sourceLimit` (1–5, default
+3), and optional `discoveryProfile`; representation selection is not a body
+field. The accepted investigation runs at most once, then the finished internal
+packet is projected. The browser omits this vendor `Accept` value and continues
+to receive the existing Site packet.
+
+Retry semantics are intentionally conservative:
+
+- 400: provider work has not begun; do not retry until the request changes.
+- 429 `capacity_exhausted`: provider work has not begun for that denied
+  request; honor `Retry-After` when present and retry only if still needed.
+- 429 spend boundary: no automatic retry; `Retry-After` is not guaranteed.
+- HTTP 200 no-result: provider work may already have occurred; no automatic
+  retry.
+- 500, 503, 504, or network interruption: delivery/provider-work state may be
+  uncertain; do not retry blindly.
+
+The surface does not claim idempotency, persistence, authentication, CORS
+expansion, universal agent discovery, or safe blind retry.
+
 Same-source relation candidates remain in the packet, accessible relation list,
 and focused inspector. The current desktop/mobile spatial path omits only their
 degenerate source-to-source self-loop geometry; cross-source relation rendering

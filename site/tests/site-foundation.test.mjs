@@ -125,3 +125,40 @@ test("serves the validated Site-ready lineage packet and focused details", async
   const sourceDetailBody = await sourceDetail.json();
   assert.match(sourceDetailBody.detail.source_text, /^DEMO FIXTURE ONLY:/);
 });
+
+test("serves static lineage capability and OpenAPI documents without live runtime", async () => {
+  const capabilityResponse = await request("/api/lineage");
+  assert.equal(capabilityResponse.status, 200);
+  assert.match(capabilityResponse.headers.get("content-type") ?? "", /^application\/json\b/i);
+  const capability = await capabilityResponse.json();
+  assert.equal(capability.capability, "sisyphus_public_claim_lineage");
+  assert.equal(capability.invocation.method, "POST");
+  assert.equal(capability.invocation.request.fields.question.normalized_minimum_characters, 12);
+  assert.equal(capability.invocation.request.fields.question.normalized_maximum_characters, 500);
+  assert.equal(capability.invocation.request.fields.sourceLimit.maximum, 5);
+  assert.equal(capability.idempotency_supported, false);
+  assert.equal(capability.safe_blind_retry, false);
+  assert.equal(capability.provider_work_may_be_billable, true);
+  assert.equal(capability.this_get_request_effects.runtime_reads, 0);
+  assert.equal(capability.this_get_request_effects.d1_readiness_checks, 0);
+  assert.equal(capability.this_get_request_effects.admission_reservations, 0);
+  assert.equal(capability.this_get_request_effects.provider_calls, 0);
+  assert.equal(capability.this_get_request_effects.persistence_writes, 0);
+
+  const openAPIResponse = await request("/openapi.json");
+  assert.equal(openAPIResponse.status, 200);
+  assert.match(openAPIResponse.headers.get("content-type") ?? "", /^application\/json\b/i);
+  const openapi = await openAPIResponse.json();
+  assert.equal(openapi.openapi, "3.1.0");
+  assert.ok(openapi.paths["/api/lineage"].post);
+  assert.equal(openapi.components.schemas.LineageRequest.additionalProperties, false);
+  assert.equal(openapi.components.schemas.LineageRequest.properties.sourceLimit.maximum, 5);
+  assert.equal(
+    openapi.components.schemas.PublicEvidenceV1.properties.contract_version.const,
+    "sisyphus_public_evidence_packet.v1",
+  );
+  assert.equal(
+    openapi.components.schemas.PublicNoResultV1.properties.contract_version.const,
+    "sisyphus_public_no_result.v1",
+  );
+});

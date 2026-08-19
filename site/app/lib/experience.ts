@@ -122,11 +122,19 @@ export function publicMethodLimitations(packet: SiteReadyCasePacket): string[] {
     "Missing dates remain unavailable; Sisyphus does not substitute another date type.",
     "Browsing and focus controls cannot accept or canonically change candidate records.",
   ];
-  const packetSpecific = packet.limitations
-    .map(humanizeMethodLimitation)
-    .filter((limitation): limitation is string => Boolean(limitation));
+  const packetSpecific = projectPublicLimitations(packet.limitations);
 
   return deduplicateLimitations([...publicBoundaries, ...packetSpecific]);
+}
+
+export function projectPublicLimitations(
+  limitations: readonly string[],
+): string[] {
+  return deduplicateLimitations(
+    limitations
+      .map(humanizeMethodLimitation)
+      .filter((limitation): limitation is string => Boolean(limitation)),
+  );
 }
 
 function humanizeMethodLimitation(limitation: string): string | null {
@@ -161,7 +169,10 @@ function humanizeMethodLimitation(limitation: string): string | null {
   if (/deterministic relation stage used no model-assisted classification/i.test(normalized)) {
     return null;
   }
-  if (/schema|zod|structured_output|hard pair|prefilter|model-classified|theoretical pair/i.test(normalized)) {
+  if (
+    /schema|zod|structured[_ -]?output|hard[_ -]?pair|prefilter|model[_ -]?classified|theoretical[_ -]?pair|bounded[_ -]?work[_ -]?summary|work[_ -]?units?/i
+      .test(normalized)
+  ) {
     return null;
   }
 
