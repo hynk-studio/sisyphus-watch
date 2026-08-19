@@ -47,6 +47,7 @@ import {
 } from "../lib/public-live";
 import { FocusedDetailPanel } from "./FocusedDetailPanel";
 import { ExportInvestigation } from "./ExportInvestigation";
+import { FirstPayoff } from "./FirstPayoff";
 import { InvestigationMapView } from "./InvestigationMapView";
 import {
   MethodView,
@@ -245,7 +246,11 @@ export function CaseExplorer({
     });
   }
 
-  const openDetail: FocusHandler = (selection, trigger) => {
+  function openDetailSelection(
+    selection: FocusSelection,
+    trigger: HTMLElement,
+    loadSupplement: boolean,
+  ) {
     if (!hasFocusedDetailKey(packet, selection.kind, selection.id)) return;
     const key = focusedDetailKey(packet, selection.kind, selection.id);
     const scrollY = window.scrollY;
@@ -262,7 +267,11 @@ export function CaseExplorer({
       window.scrollTo({ top: scrollY, left: window.scrollX, behavior: "instant" });
     });
 
-    if (!local || !needsPreparedDetailSupplement(packet, selection.kind)) return;
+    if (
+      !loadSupplement
+      || !local
+      || !needsPreparedDetailSupplement(packet, selection.kind)
+    ) return;
     const params = new URLSearchParams({
       focus: selection.kind,
       id: selection.id,
@@ -279,6 +288,14 @@ export function CaseExplorer({
     }).catch(() => {
       // Keep the immediately available local packet detail intact.
     });
+  }
+
+  const openDetail: FocusHandler = (selection, trigger) => {
+    openDetailSelection(selection, trigger, true);
+  };
+
+  const openPayoffSource: FocusHandler = (selection, trigger) => {
+    openDetailSelection(selection, trigger, false);
   };
 
   function selectView(view: ExperienceView) {
@@ -360,13 +377,16 @@ export function CaseExplorer({
               <h2 id="case-title">{packet.normalized_public_interest_question}</h2>
               <p className="case-question">{packet.title}</p>
             </div>
-            <button
-              className="quiet-button"
-              type="button"
-              onClick={startNewInvestigation}
-            >
-              New investigation
-            </button>
+            <div className="case-actions">
+              <ExportInvestigation packet={packet} />
+              <button
+                className="quiet-button"
+                type="button"
+                onClick={startNewInvestigation}
+              >
+                New investigation
+              </button>
+            </div>
           </div>
 
           <div
@@ -378,7 +398,7 @@ export function CaseExplorer({
             <span>{runNotice.message}</span>
           </div>
 
-          <ExportInvestigation packet={packet} />
+          <FirstPayoff packet={packet} onFocus={openPayoffSource} />
 
           <nav className="view-nav" aria-label="Investigation result views">
             <div

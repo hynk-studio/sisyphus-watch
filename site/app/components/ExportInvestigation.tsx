@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
 import { buildPublicExportArtifacts } from "../lib/public-evidence";
 
@@ -11,6 +11,8 @@ export function ExportInvestigation({
 }) {
   const artifacts = useMemo(() => buildPublicExportArtifacts(packet), [packet]);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [open, setOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   if (!artifacts) return null;
 
@@ -23,44 +25,65 @@ export function ExportInvestigation({
     }
   }
 
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "Escape" || !open) return;
+    event.preventDefault();
+    setOpen(false);
+    requestAnimationFrame(() => toggleRef.current?.focus({ preventScroll: true }));
+  }
+
   return (
-    <section className="export-investigation" aria-labelledby="export-investigation-title">
-      <div>
-        <strong id="export-investigation-title">Export investigation</strong>
+    <div className="export-investigation">
+      <button
+        ref={toggleRef}
+        className="export-toggle"
+        type="button"
+        aria-expanded={open}
+        aria-controls="export-investigation-panel"
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={handleKeyDown}
+      >
+        Export investigation
+        <span aria-hidden="true">{open ? "−" : "+"}</span>
+      </button>
+      {open ? <div className="export-panel" id="export-investigation-panel">
         <span>
-          Local export only · no new investigation, provider work, persistence, or detail fetch
+          Choose a local export. No new investigation, provider work,
+          persistence, or detail fetch.
         </span>
-      </div>
-      <div className="export-actions">
-        <button type="button" onClick={() => void copyBrief()}>
-          Copy shareable brief
-        </button>
-        <button
-          type="button"
-          onClick={() => downloadText(
-            artifacts.markdownFilename,
-            artifacts.markdown,
-            "text/markdown;charset=utf-8",
-          )}
-        >
-          Download Markdown
-        </button>
-        <button
-          type="button"
-          onClick={() => downloadText(
-            artifacts.jsonFilename,
-            artifacts.json,
-            "application/json;charset=utf-8",
-          )}
-        >
-          Download JSON
-        </button>
-      </div>
-      <p className="export-status" aria-live="polite">
-        {copyState === "copied" ? "Shareable brief copied." : null}
-        {copyState === "error" ? "Copy was unavailable in this browser." : null}
-      </p>
-    </section>
+        <div className="export-actions">
+          <button type="button" onClick={() => void copyBrief()} onKeyDown={handleKeyDown}>
+            Copy shareable brief
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadText(
+              artifacts.markdownFilename,
+              artifacts.markdown,
+              "text/markdown;charset=utf-8",
+            )}
+            onKeyDown={handleKeyDown}
+          >
+            Download Markdown
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadText(
+              artifacts.jsonFilename,
+              artifacts.json,
+              "application/json;charset=utf-8",
+            )}
+            onKeyDown={handleKeyDown}
+          >
+            Download JSON
+          </button>
+        </div>
+        <p className="export-status" aria-live="polite">
+          {copyState === "copied" ? "Shareable brief copied." : null}
+          {copyState === "error" ? "Copy was unavailable in this browser." : null}
+        </p>
+      </div> : null}
+    </div>
   );
 }
 

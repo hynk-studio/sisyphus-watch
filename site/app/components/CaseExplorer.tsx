@@ -5,6 +5,10 @@ export {
   getRunNotice,
 } from "./InvestigationExplorer";
 export { FocusedDetailPanel } from "./FocusedDetailPanel";
+export {
+  FirstPayoff,
+  firstPayoffForPacket,
+} from "./FirstPayoff";
 export { InvestigationMapView } from "./InvestigationMapView";
 export {
   MethodView,
