@@ -164,100 +164,105 @@ export function InvestigationMapView({
 
   return (
     <div className="map-view view-stack">
-      <div className="view-intro map-intro">
-        <div>
-          <p className="eyebrow">Structured investigation map</p>
-          <h3>Follow sources, candidate changes, and open questions</h3>
-          <p>
-            <span className="map-orientation-copy map-orientation-desktop">
-              Calendar dates move left to right.
-            </span>
-            <span className="map-orientation-copy map-orientation-mobile">
-              Calendar dates run top to bottom on this screen.
-            </span>{" "}
-            Within a same-day mixed-precision
-            group, exact instants keep clock order and day-level records have no
-            implied within-day position. Source-role lanes stay fixed.
-          </p>
-        </div>
-        <label className="axis-control" htmlFor="map-time-axis">
-          Map time axis
-          <select
-            id="map-time-axis"
-            value={timeAxis}
-            onChange={(event) => onTimeAxisChange(event.target.value as TimeAxis)}
-          >
-            {TIME_AXES.map((axis) => (
-              <option key={axis} value={axis}>{TIME_AXIS_LABELS[axis]}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <section className="map-toolbar" aria-labelledby="coverage-lens-title">
-        <div>
-          <p className="eyebrow">Coverage lens</p>
-          <h4 id="coverage-lens-title">Highlight context without removing it</h4>
-        </div>
-        <div className="lens-list" role="group" aria-label="Map coverage lens">
-          {availableLenses.map((lens) => (
-            <button
-              key={lens}
-              type="button"
-              aria-pressed={coverageLens === lens}
-              onClick={() => onCoverageLensChange(lens)}
+      <section
+        className="map-command-deck"
+        aria-label="Map controls and focus state"
+      >
+        <div className="view-intro map-intro">
+          <div>
+            <p className="eyebrow">Structured investigation map</p>
+            <h3>Follow sources, candidate changes, and open questions</h3>
+            <p>
+              <span className="map-orientation-copy map-orientation-desktop">
+                Calendar dates move left to right.
+              </span>
+              <span className="map-orientation-copy map-orientation-mobile">
+                Calendar dates run top to bottom on this screen.
+              </span>{" "}
+              Within a same-day mixed-precision
+              group, exact instants keep clock order and day-level records have no
+              implied within-day position. Source-role lanes stay fixed.
+            </p>
+          </div>
+          <label className="axis-control" htmlFor="map-time-axis">
+            Map time axis
+            <select
+              id="map-time-axis"
+              value={timeAxis}
+              onChange={(event) => onTimeAxisChange(event.target.value as TimeAxis)}
             >
-              {preparedLensLabel(lens, preparedComparison)}
-            </button>
-          ))}
+              {TIME_AXES.map((axis) => (
+                <option key={axis} value={axis}>{TIME_AXIS_LABELS[axis]}</option>
+              ))}
+            </select>
+          </label>
         </div>
-        <p className="lens-note">
-          {preparedComparison
-            ? "Prepared comparison only: baseline versus the complete curated fixture. No new search runs, and the packet never changes."
-            : "These controls highlight the selected discovery pass or source role. They do not combine, delete, or accept records."}
-        </p>
-        {packet.mode === "live" && packet.discovery_profile === "standard" ? (
-          <button
-            className="expand-coverage-button"
-            type="button"
-            disabled={!liveEnabled || runBlocked}
-            onClick={onExpandCoverage}
-          >
-            {runStatusLabel ?? "Expand source coverage"}
-          </button>
-        ) : null}
-      </section>
 
-      {selectedNodeId || selectedEdgeId ? (
-        <div className="focus-toolbar" role="status" aria-live="polite">
+        <section className="map-toolbar" aria-labelledby="coverage-lens-title">
           <div>
-            <strong>{threadTraceActive ? "Thread trace active" : "Focused map context"}</strong>
-            <span>
-              {selectedSource?.title
-                ?? selectedQuestion?.question
-                ?? "Selected relation and both connected sources"}
-            </span>
+            <p className="eyebrow">Coverage lens</p>
+            <h4 id="coverage-lens-title">Highlight context without removing it</h4>
           </div>
-          <div className="focus-toolbar-actions" aria-hidden="true">
-            {selectedNodeId && !threadTraceActive ? (
-              <button type="button" tabIndex={-1} onClick={onTraceThread}>
-                Trace this thread
+          <div className="lens-list" role="group" aria-label="Map coverage lens">
+            {availableLenses.map((lens) => (
+              <button
+                key={lens}
+                type="button"
+                aria-pressed={coverageLens === lens}
+                onClick={() => onCoverageLensChange(lens)}
+              >
+                {preparedLensLabel(lens, preparedComparison)}
               </button>
-            ) : null}
-            <button type="button" tabIndex={-1} onClick={onShowFullMap}>
-              Show full map
+            ))}
+          </div>
+          <p className="lens-note">
+            {preparedComparison
+              ? "Prepared comparison only: baseline versus the complete curated fixture. No new search runs, and the packet never changes."
+              : "These controls highlight the selected discovery pass or source role. They do not combine, delete, or accept records."}
+          </p>
+          {packet.mode === "live" && packet.discovery_profile === "standard" ? (
+            <button
+              className="expand-coverage-button"
+              type="button"
+              disabled={!liveEnabled || runBlocked}
+              onClick={onExpandCoverage}
+            >
+              {runStatusLabel ?? "Expand source coverage"}
             </button>
+          ) : null}
+        </section>
+
+        {selectedNodeId || selectedEdgeId ? (
+          <div className="focus-toolbar" role="status" aria-live="polite">
+            <div>
+              <strong>{threadTraceActive ? "Thread trace active" : "Focused map context"}</strong>
+              <span>
+                {selectedSource?.title
+                  ?? selectedQuestion?.question
+                  ?? "Selected relation and both connected sources"}
+              </span>
+            </div>
+            <div className="focus-toolbar-actions" aria-hidden="true">
+              {selectedNodeId && !threadTraceActive ? (
+                <button type="button" tabIndex={-1} onClick={onTraceThread}>
+                  Trace this thread
+                </button>
+              ) : null}
+              <button type="button" tabIndex={-1} onClick={onShowFullMap}>
+                Show full map
+              </button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="focus-toolbar focus-toolbar-idle" aria-label="Inspector guidance">
-          <div>
-            <strong>Select a record to inspect</strong>
-            <span>Sources, candidate relations, and open questions open in the viewport inspector.</span>
+        ) : (
+          <div className="focus-toolbar focus-toolbar-idle" aria-label="Inspector guidance">
+            <div>
+              <strong>Select a record to inspect</strong>
+              <span>Sources, candidate relations, and open questions open in the viewport inspector.</span>
+            </div>
+            <small>Closing returns focus and scroll position to the selected record.</small>
           </div>
-          <small>Closing returns focus and scroll position to the selected record.</small>
-        </div>
-      )}
+        )}
+      </section>
 
       {threadTraceActive && trace ? (
         <ThreadTraceSummary map={map} trace={trace} selectedNodeId={selectedNodeId ?? ""} />

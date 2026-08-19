@@ -84,6 +84,7 @@ export function TimelineView({
                 rows={unavailableRows}
                 timeAxis={timeAxis}
                 onFocus={onFocus}
+                ordered={false}
               />
             </section>
           ) : null}
@@ -118,6 +119,7 @@ function TimelinePrecisionGroups({
           rows={group.items}
           timeAxis={timeAxis}
           onFocus={onFocus}
+          ordered={group.precision === "instant"}
         />
       );
     }
@@ -158,6 +160,7 @@ function TimelinePrecisionGroups({
             rows={dayRows}
             timeAxis={timeAxis}
             onFocus={onFocus}
+            ordered={false}
           />
         </div>
       </section>
@@ -170,15 +173,19 @@ function TimelineRows({
   rows,
   timeAxis,
   onFocus,
+  ordered = true,
 }: {
   packet: SiteReadyCasePacket;
   rows: SiteReadyCasePacket["event_timeline_rows"];
   timeAxis: TimeAxis;
   onFocus: FocusHandler;
+  ordered?: boolean;
 }) {
+  const TimelineList = ordered ? "ol" : "ul";
+
   return (
-    <ol className="temporal-list">
-      {rows.map((row, index) => {
+    <TimelineList className={`temporal-list${ordered ? "" : " temporal-peer-list"}`}>
+      {rows.map((row) => {
         const occurrence = packet.claim_occurrences.find((item) =>
           row.occurrence_ids.includes(item.occurrence_id),
         );
@@ -186,12 +193,12 @@ function TimelineRows({
         const selection = {
           kind: "timeline_row" as const,
           id: row.timeline_row_id,
-          label: `Timeline row ${index + 1}`,
+          label: `Timeline record: ${actorLabel(occurrence?.actor ?? null)}`,
         };
         return (
           <li key={row.timeline_row_id} className="temporal-row">
             <div className="time-rail" aria-hidden="true">
-              <span>{String(index + 1).padStart(2, "0")}</span>
+              <span className="timeline-record-marker" />
             </div>
             <article>
               <div className="row-meta">
@@ -204,7 +211,7 @@ function TimelineRows({
                 </span>
               </div>
               <h4>{actorLabel(occurrence?.actor ?? null)}</h4>
-              <blockquote>{row.summary}</blockquote>
+              <p className="timeline-claim-content">{row.summary}</p>
               <button
                 className="detail-button"
                 type="button"
@@ -218,7 +225,7 @@ function TimelineRows({
           </li>
         );
       })}
-    </ol>
+    </TimelineList>
   );
 }
 

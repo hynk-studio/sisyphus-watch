@@ -88,6 +88,33 @@ test("live-disabled landing makes the prepared investigation the primary usable 
   assert.equal(JSON.stringify(packet), before);
 });
 
+test("the persistent top target and visible page heading follow the active surface", () => {
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  const composerHtml = renderToStaticMarkup(createElement(SearchComposer, {
+    question: "",
+    sourceLimit: 3,
+    discoveryProfile: "standard",
+    liveEnabled: false,
+    isLoading: false,
+    cooldownRemainingSeconds: 0,
+    routeError: null,
+    investigationStarted: true,
+    onQuestionChange: noop,
+    onSourceLimitChange: noop,
+    onDiscoveryProfileChange: noop,
+    onSubmit: noop,
+    onPreparedExample: noop,
+  }));
+
+  assert.match(explorerSource, /<main className="site-shell" id="top">/);
+  assert.match(explorerSource, /<h1 id="case-title">/);
+  assert.match(composerHtml, /<h2 id="composer-title">/);
+  assert.doesNotMatch(composerHtml, /<h1/);
+});
+
 test("live composer exposes the existing bounded request controls without claiming success", () => {
   const html = renderToStaticMarkup(createElement(SearchComposer, {
     question: "How is public access changing?",
@@ -376,6 +403,8 @@ test("timeline, map, and detail expose mixed day/instant groups without losing e
   assert.match(timeline, /Same-day mixed precision group/);
   assert.match(timeline, /Exact instants · clock order/);
   assert.match(timeline, /Day-level records · no within-day position/);
+  assert.match(timeline, /<ul class="temporal-list temporal-peer-list">/);
+  assert.doesNotMatch(timeline, /class="timeline-record-marker">\d/);
   assert.ok(timeline.indexOf("00:00 UTC") < timeline.indexOf("08:00 UTC"));
 
   const sources = renderToStaticMarkup(createElement(SourcesView, {
@@ -437,6 +466,34 @@ test("timeline, map, and detail expose mixed day/instant groups without losing e
     /data-endpoint-ordering="non_chronological_mixed_precision"/,
   );
   assert.doesNotMatch(`${timeline}${sources}${mapHtml}`, /Jul 14/);
+});
+
+test("timeline renders same-date day-precision records as unordered peers", () => {
+  const packet = structuredClone(buildPreparedSiteReadyCasePacket());
+  const normalizedMidnight = "2025-07-15T00:00:00.000Z";
+  packet.event_timeline_rows = packet.event_timeline_rows.slice(0, 2);
+  for (const row of packet.event_timeline_rows) {
+    row.publication_time = normalizedMidnight;
+    row.publication_time_precision = "day";
+  }
+
+  const html = renderToStaticMarkup(createElement(TimelineView, {
+    packet,
+    timeAxis: "publication_time",
+    onTimeAxisChange: noop,
+    onFocus: noop,
+  }));
+
+  assert.match(html, /<ul class="temporal-list temporal-peer-list">/);
+  assert.doesNotMatch(html, /<ol class="temporal-list"/);
+  assert.equal(
+    html.match(
+      /<time dateTime="2025-07-15T00:00:00.000Z">Jul 15, 2025<\/time>/g,
+    )?.length,
+    2,
+  );
+  assert.doesNotMatch(html, /Jul 15, 2025[^<]*UTC/);
+  assert.doesNotMatch(html, /class="timeline-record-marker">\s*\d/);
 });
 
 test("inspector uses responsive desktop-nonmodal and mobile-modal semantics with Escape and stable trigger identity", () => {
@@ -821,6 +878,38 @@ test("timeline keeps all four axes explicit and isolates missing selected-axis t
   assert.match(html, /Time unavailable/);
   assert.match(html, /no other date is substituted/i);
   assert.match(html, /View all four timestamps/);
+});
+
+test("timeline renders a live candidate claim as claim content rather than a quotation", () => {
+  const packet = structuredClone(buildPreparedSiteReadyCasePacket());
+  const candidateClaim = "Candidate live claim from a model-generated web-search summary.";
+  const row = packet.event_timeline_rows[0];
+  const occurrence = packet.claim_occurrences.find((item) =>
+    row.occurrence_ids.includes(item.occurrence_id),
+  );
+  assert.ok(occurrence);
+
+  packet.mode = "live";
+  packet.status = "live";
+  row.status = "candidate";
+  row.summary = candidateClaim;
+  occurrence.status = "candidate";
+  occurrence.origin = "live_api";
+  occurrence.original_claim_text = candidateClaim;
+  packet.event_timeline_rows = [row];
+
+  const html = renderToStaticMarkup(createElement(TimelineView, {
+    packet,
+    timeAxis: "event_time",
+    onTimeAxisChange: noop,
+    onFocus: noop,
+  }));
+  assert.match(html, /Needs review/);
+  assert.match(
+    html,
+    new RegExp(`<p class="timeline-claim-content">${escapeRegex(candidateClaim)}</p>`),
+  );
+  assert.doesNotMatch(html, /<blockquote(?:\s|>)/);
 });
 
 test("timeline explains the selected chronology without collapsing date semantics", () => {
@@ -1253,7 +1342,7 @@ test("measured tablet CSS switches at 920px to the existing vertical investigati
   const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
   assert.match(mobileRules, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
   assert.match(mobileRules, /min-height: 42px/);
-  assert.match(mobileRules, /\.focus-toolbar \{ min-height: 150px/);
+  assert.match(mobileRules, /\.focus-toolbar \{ min-height: 0/);
   assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto; height: calc\(100dvh - 16px\)/);
   assert.doesNotMatch(mobileRules, /width:\s*100vw/);
 });
