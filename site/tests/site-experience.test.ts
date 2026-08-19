@@ -827,7 +827,61 @@ test("sources and method preserve provenance labels, coverage, and plain-languag
   assert.match(methodHtml, /Prepared fixture coverage/);
 });
 
-test("Method derives truthful public limitations without raw record IDs or schema vocabulary", () => {
+test("Method does not turn event-only missing time into an assertion-time limitation", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const occurrence = packet.claim_occurrences[0];
+  occurrence.event_time_candidate = null;
+  occurrence.event_time_candidate_precision = null;
+  assert.ok(occurrence.assertion_time_candidate);
+  packet.limitations = [
+    "src_candidate_live_event: event_time was not explicit; actor_assertion_time was explicit.",
+  ];
+
+  const text = publicMethodLimitations(packet).join(" ");
+  assert.doesNotMatch(text, /event and assertion time remain unavailable/i);
+  assert.doesNotMatch(text, /event or assertion fields/i);
+  assert.doesNotMatch(text, /src_candidate_live_|event_time|actor_assertion_time/);
+});
+
+test("Method does not turn assertion-only missing time into an event-time limitation", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const occurrence = packet.claim_occurrences[0];
+  occurrence.assertion_time_candidate = null;
+  occurrence.assertion_time_candidate_precision = null;
+  assert.ok(occurrence.event_time_candidate);
+  packet.limitations = [
+    "src_candidate_live_assertion: actor_assertion_time was not explicit; event_time was explicit.",
+  ];
+
+  const text = publicMethodLimitations(packet).join(" ");
+  assert.doesNotMatch(text, /event and assertion time remain unavailable/i);
+  assert.doesNotMatch(text, /event or assertion fields/i);
+  assert.doesNotMatch(text, /src_candidate_live_|event_time|actor_assertion_time/);
+});
+
+test("Method omits publication-only technical date wording instead of changing its axis", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  packet.limitations = [
+    "src_candidate_live_publication: publication_time failed YYYY-MM-DD validation.",
+  ];
+
+  const text = publicMethodLimitations(packet).join(" ");
+  assert.doesNotMatch(text, /event or assertion fields/i);
+  assert.doesNotMatch(text, /publication_time|YYYY-MM-DD|src_candidate_live_/);
+});
+
+test("Method omits retrieval-only technical date wording instead of changing its axis", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  packet.limitations = [
+    "src_candidate_live_retrieval: retrieval_time failed timezone-qualified ISO date-time validation.",
+  ];
+
+  const text = publicMethodLimitations(packet).join(" ");
+  assert.doesNotMatch(text, /event or assertion fields/i);
+  assert.doesNotMatch(text, /retrieval_time|timezone-qualified|ISO date-time|src_candidate_live_/);
+});
+
+test("Method narrowly humanizes known time-candidate validation without raw IDs or schema vocabulary", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   packet.limitations = [
     "src_candidate_live_6a9ed123: No exact YYYY-MM-DD or timezone-qualified ISO date-time was explicit, so time_candidate is null.",
@@ -839,7 +893,7 @@ test("Method derives truthful public limitations without raw record IDs or schem
   const text = limitations.join(" ");
   assert.match(
     text,
-    /Some source summaries did not contain a precise date, so event and assertion time remain unavailable/,
+    /Some source summaries did not contain a precise date for one or more event or assertion fields, so those times remain unavailable/,
   );
   assert.equal(
     limitations.filter((limitation) => /precise date/i.test(limitation)).length,

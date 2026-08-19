@@ -59,6 +59,10 @@ const TIME_AXIS_SEMANTIC_NOTES: Record<TimeAxis, string> = {
 
 const TECHNICAL_RECORD_ID =
   /\b(?:src|snapshot|candidate|run|case|occurrence|relation|lineage|question|action|finding)_[a-z0-9][a-z0-9_-]*\b[:;]?\s*/gi;
+const KNOWN_TIME_CANDIDATE_DATE_VALIDATION =
+  /^No exact YYYY-MM-DD(?: or timezone-qualified ISO date-time)? was explicit, so time_candidate is null\.?$/i;
+const TECHNICAL_TIME_OR_DATE_LANGUAGE =
+  /time_candidate|event_time|actor_assertion_time|asserted_at|publication_time|retrieval_time|yyyy-mm-dd|timezone-qualified|iso date[- ]?time/i;
 
 export function timeAxisSemanticNote(axis: TimeAxis): string {
   return TIME_AXIS_SEMANTIC_NOTES[axis];
@@ -128,12 +132,13 @@ export function publicMethodLimitations(packet: SiteReadyCasePacket): string[] {
 function humanizeMethodLimitation(limitation: string): string | null {
   const normalized = limitation.trim();
   if (!normalized) return null;
+  const withoutRecordIds = normalized.replace(TECHNICAL_RECORD_ID, "").trim();
 
-  if (
-    /time_candidate|event_time|actor_assertion_time|asserted_at|publication_time|retrieval_time|yyyy-mm-dd|timezone-qualified|iso date[- ]?time/i
-      .test(normalized)
-  ) {
-    return "Some source summaries did not contain a precise date, so event and assertion time remain unavailable.";
+  if (KNOWN_TIME_CANDIDATE_DATE_VALIDATION.test(withoutRecordIds)) {
+    return "Some source summaries did not contain a precise date for one or more event or assertion fields, so those times remain unavailable.";
+  }
+  if (TECHNICAL_TIME_OR_DATE_LANGUAGE.test(withoutRecordIds)) {
+    return null;
   }
   if (/clearly_incomplete_structured_candidates_skipped|incomplete structured candidate/i.test(normalized)) {
     return "Some incomplete extraction candidates were left out; the available source summary remains review material.";
@@ -160,7 +165,6 @@ function humanizeMethodLimitation(limitation: string): string | null {
     return null;
   }
 
-  const withoutRecordIds = normalized.replace(TECHNICAL_RECORD_ID, "").trim();
   if (/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/i.test(withoutRecordIds)) {
     return null;
   }
