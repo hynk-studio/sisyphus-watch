@@ -47,6 +47,7 @@ import {
   MOBILE_INSPECTOR_MEDIA_QUERY,
   focusedRecordStatusLabel,
 } from "../app/components/FocusedDetailPanel";
+import { mapCanvasHasHorizontalOverflow } from "../app/components/InvestigationMapView";
 import { focusTriggerId } from "../app/components/investigation-types";
 import {
   PUBLIC_LIVE_COOLDOWN_MS,
@@ -1369,16 +1370,21 @@ test("Map ships distinct desktop and mobile orientation copy with CSS-only visib
   }));
   assert.match(html, /map-orientation-desktop[^>]*>\s*Calendar dates move left to right/);
   assert.match(html, /map-orientation-mobile[^>]*>\s*Calendar dates run top to bottom on this screen/);
-  assert.match(html, /class="desktop-map"[^>]*role="region"[^>]*tabindex="0"/);
-  assert.match(html, /aria-describedby="map-canvas-scroll-hint"/);
-  assert.match(html, /id="map-canvas-scroll-hint"[^>]*>\s*Use the Left and Right Arrow keys/);
+  assert.doesNotMatch(html, /class="desktop-map"[^>]*(?:role="region"|tabindex="0")/);
+  assert.doesNotMatch(html, /aria-describedby="map-canvas-scroll-hint"/);
+  assert.doesNotMatch(html, /id="map-canvas-scroll-hint"/);
 
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const defaultRules = css.slice(0, css.indexOf("@media (max-width: 920px)"));
   assert.match(defaultRules, /\.map-orientation-mobile \{ display: none; \}/);
 });
 
-test("desktop map renders anchored connections on a keyboard-scrollable readable canvas", () => {
+test("desktop map activates keyboard scrolling only for measured horizontal overflow", () => {
+  assert.equal(mapCanvasHasHorizontalOverflow(1150, 1150), false);
+  assert.equal(mapCanvasHasHorizontalOverflow(1151, 1150), false);
+  assert.equal(mapCanvasHasHorizontalOverflow(1152, 1150), true);
+  assert.equal(mapCanvasHasHorizontalOverflow(1112, 773), true);
+
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const desktopRules = css.slice(
     css.indexOf(".desktop-map"),
@@ -1399,8 +1405,15 @@ test("desktop map renders anchored connections on a keyboard-scrollable readable
     new URL("../app/components/InvestigationMapView.tsx", import.meta.url),
     "utf8",
   );
+  assert.match(mapSource, /observer\.observe\(scrollContainer\)/);
+  assert.match(mapSource, /role=\{desktopMapOverflowing \? "region" : undefined\}/);
+  assert.match(mapSource, /tabIndex=\{desktopMapOverflowing \? 0 : undefined\}/);
+  assert.match(mapSource, /aria-describedby=\{desktopMapOverflowing \? "map-canvas-scroll-hint" : undefined\}/);
+  assert.match(mapSource, /onKeyDown=\{desktopMapOverflowing \? \(\(event/);
+  assert.match(mapSource, /if \(!mapCanvasHasHorizontalOverflow\([\s\S]*?\)\) return;/);
   assert.match(mapSource, /event\.currentTarget\.scrollLeft \+= scrollStep/);
-  assert.match(mapSource, /event\.currentTarget\.scrollLeft = event\.currentTarget\.scrollWidth/);
+  assert.match(mapSource, /event\.currentTarget\.scrollLeft = maxScrollLeft/);
+  assert.match(mapSource, /desktopMapOverflowing \? \([\s\S]*?id="map-canvas-scroll-hint"/);
 });
 
 function escapeRegex(value: string): string {

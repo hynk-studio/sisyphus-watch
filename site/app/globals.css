@@ -704,7 +704,19 @@ p, li, blockquote { text-wrap: pretty; }
   scrollbar-gutter: stable both-edges;
 }
 .desktop-map:focus-visible { outline-offset: -4px; }
-.map-canvas-scroll-hint { display: none; }
+.map-canvas-scroll-hint {
+  position: sticky;
+  z-index: 5;
+  left: 0;
+  width: fit-content;
+  margin: 0;
+  padding: 8px 11px;
+  border-left: 3px solid var(--gold-ink);
+  background: var(--gold-soft);
+  color: var(--ink-soft);
+  font-size: .8rem;
+  line-height: 1.4;
+}
 .spatial-map-stage {
   position: relative;
   display: grid;
@@ -1103,23 +1115,6 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
   .map-lane { grid-template-columns: 108px minmax(0, 1fr); }
   .question-node-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .source-grid { grid-template-columns: 1fr; }
-}
-
-@media (min-width: 921px) and (max-width: 1199px) {
-  .map-canvas-scroll-hint {
-    position: sticky;
-    z-index: 5;
-    left: 0;
-    display: block;
-    width: fit-content;
-    margin: 0;
-    padding: 8px 11px;
-    border-left: 3px solid var(--gold-ink);
-    background: var(--gold-soft);
-    color: var(--ink-soft);
-    font-size: .8rem;
-    line-height: 1.4;
-  }
 }
 
 @media (max-width: 920px) {
