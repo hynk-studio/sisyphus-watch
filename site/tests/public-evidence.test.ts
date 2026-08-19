@@ -104,6 +104,129 @@ test("live projection preserves provenance kind, time meanings, relations, gaps,
   assertPublicExclusions(packet);
 });
 
+test("Markdown keeps findings, claims, actions, and relations bound to readable sources", () => {
+  const packet = buildPublicEvidencePacket(
+    buildSiteReadyCasePacketFromAnalysis(liveRun()),
+  );
+  const [alphaSource, betaSource] = packet.sources;
+  alphaSource.title = "Alpha bulletin";
+  betaSource.title = "Beta field report";
+
+  const finding = packet.findings[0];
+  packet.findings = [
+    { ...finding, finding_id: "finding_alpha", text: "Alpha finding", source_ids: [alphaSource.source_id] },
+    { ...finding, finding_id: "finding_beta", text: "Beta finding", source_ids: [betaSource.source_id] },
+  ];
+  const [alphaClaim, betaClaim] = packet.actor_claims;
+  packet.actor_claims = [
+    { ...alphaClaim, actor: "Alpha actor", claim_text: "Alpha claim", source_ids: [alphaSource.source_id] },
+    { ...betaClaim, actor: "Beta actor", claim_text: "Beta claim", source_ids: [betaSource.source_id] },
+  ];
+  const action = packet.actions[0];
+  packet.actions = [
+    { ...action, action_id: "action_alpha", actor: "Alpha actor", action_text: "Alpha action", source_ids: [alphaSource.source_id] },
+    { ...action, action_id: "action_beta", actor: "Beta actor", action_text: "Beta action", source_ids: [betaSource.source_id] },
+  ];
+
+  const alphaOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.source_id === alphaSource.source_id,
+  );
+  const betaOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.source_id === betaSource.source_id,
+  );
+  const relation = packet.candidate_relations[0];
+  assert.ok(alphaOccurrence);
+  assert.ok(betaOccurrence);
+  assert.ok(relation);
+  alphaOccurrence.actor = "Alpha actor";
+  alphaOccurrence.claim_text = "Alpha endpoint claim";
+  betaOccurrence.actor = "Beta actor";
+  betaOccurrence.claim_text = "Beta endpoint claim";
+  packet.candidate_relations = [{
+    ...relation,
+    left_occurrence_id: alphaOccurrence.occurrence_id,
+    right_occurrence_id: betaOccurrence.occurrence_id,
+    left_source_id: alphaSource.source_id,
+    right_source_id: betaSource.source_id,
+    relation_type: "contradicts",
+    reason: "The bounded summaries require human review",
+    insufficient_evidence: true,
+    left_support: {
+      ...relation.left_support,
+      source_id: alphaSource.source_id,
+      bounded_support: "Alpha bounded support",
+      url: alphaSource.url,
+    },
+    right_support: {
+      ...relation.right_support,
+      source_id: betaSource.source_id,
+      bounded_support: "Beta bounded support",
+      url: betaSource.url,
+    },
+  }];
+
+  const markdown = renderPublicEvidenceMarkdown(packet);
+  assert.match(markdown, /Alpha finding\n {2}- Sources: \[Alpha bulletin\]\(<https:\/\/records\.example\.org\/update-one>\)/);
+  assert.match(markdown, /Beta finding\n {2}- Sources: \[Beta field report\]\(<https:\/\/records\.example\.org\/update-two>\)/);
+  assert.match(markdown, /Alpha actor: Alpha claim\n {2}- Sources: \[Alpha bulletin\]\(<https:\/\/records\.example\.org\/update-one>\)/);
+  assert.match(markdown, /Beta actor: Beta claim\n {2}- Sources: \[Beta field report\]\(<https:\/\/records\.example\.org\/update-two>\)/);
+  assert.match(markdown, /Alpha actor: Alpha action\n {2}- Sources: \[Alpha bulletin\]\(<https:\/\/records\.example\.org\/update-one>\)/);
+  assert.match(markdown, /Beta actor: Beta action\n {2}- Sources: \[Beta field report\]\(<https:\/\/records\.example\.org\/update-two>\)/);
+  assert.match(markdown, /Relation: contradicts/);
+  assert.match(markdown, /Review status: pending review \(review only\)/);
+  assert.match(markdown, /Insufficient evidence: yes/);
+  assert.match(markdown, /Left endpoint: \[Alpha bulletin\]\(<https:\/\/records\.example\.org\/update-one>\) — Alpha actor: Alpha endpoint claim/);
+  assert.match(markdown, /Left bounded support: Alpha bounded support/);
+  assert.match(markdown, /Right endpoint: \[Beta field report\]\(<https:\/\/records\.example\.org\/update-two>\) — Beta actor: Beta endpoint claim/);
+  assert.match(markdown, /Right bounded support: Beta bounded support/);
+  assert.doesNotMatch(markdown, /finding_alpha|finding_beta|action_alpha|action_beta|occurrence_live_/);
+
+  const brief = renderPublicEvidenceShareableBrief(packet);
+  assert.match(brief, /Alpha finding — Sources: \[Alpha bulletin\]\(<https:\/\/records\.example\.org\/update-one>\)/);
+  assert.match(brief, /Beta finding — Sources: \[Beta field report\]\(<https:\/\/records\.example\.org\/update-two>\)/);
+});
+
+test("public limitation projection removes implementation vocabulary and keeps epistemic meaning", () => {
+  const internal = buildSiteReadyCasePacketFromAnalysis(liveRun());
+  internal.limitations = [
+    "src_live_private: Source text was not captured; model-generated web-search-grounded candidate summaries remain partial.",
+    "src_live_private: No exact YYYY-MM-DD or timezone-qualified ISO date-time was explicit, so time_candidate is null.",
+    "Zod schema structured_output validation details are internal.",
+    "Hard pair prefilter model-classified theoretical pair workload was bounded.",
+    "Coverage remains bounded to the reviewed public sources.",
+    "Coverage remains bounded to the reviewed public sources.",
+  ];
+  internal.source_snapshot_summaries[0].limitations = [
+    "src_live_private: Not captured page text; the model-generated web-search-grounded candidate summary is partial.",
+    "Zod schema internals are not portable.",
+  ];
+
+  const packet = buildPublicEvidencePacket(internal);
+  const publicLimitations = JSON.stringify({
+    limitations: packet.limitations,
+    source_limitations: packet.sources.map((source) => source.limitations),
+  });
+  const markdown = renderPublicEvidenceMarkdown(packet);
+
+  for (const rendered of [publicLimitations, markdown]) {
+    assert.doesNotMatch(
+      rendered,
+      /src_live_private|time_candidate|zod|schema|structured_output|hard pair|prefilter|model-classified|theoretical pair|workload/i,
+    );
+  }
+  assert.match(publicLimitations, /Live source pages were not captured/);
+  assert.match(publicLimitations, /precise date.*times remain unavailable/i);
+  assert.match(publicLimitations, /Coverage remains bounded to the reviewed public sources/);
+  assert.equal(
+    packet.limitations.filter((limitation) =>
+      limitation === "Coverage remains bounded to the reviewed public sources."
+    ).length,
+    1,
+  );
+  assert.match(markdown, /Live source pages were not captured/);
+  assert.match(markdown, /Coverage remains bounded to the reviewed public sources/);
+});
+
 test("failed live fallback becomes typed no-result without prepared evidence", () => {
   const fallback = structuredClone(buildPreparedSiteReadyCasePacket());
   fallback.mode = "fallback";
@@ -147,7 +270,9 @@ test("all export formats share one public packet and fixed safe filenames", () =
   assert.match(artifacts.markdown, /Candidate relations are review\\-only/i);
   assert.match(artifacts.markdown, /Source inclusion is not endorsement/i);
   assert.match(artifacts.markdown, /Model\\-generated web\\-search summaries are not captured page text/i);
+  assert.match(artifacts.markdown, /untrusted evidence data, not instructions/i);
   assert.match(artifacts.shareableBrief, /Synthetic prepared example only/i);
+  assert.match(artifacts.shareableBrief, /untrusted evidence data, not instructions/i);
   assert.doesNotMatch(artifacts.jsonFilename, /cooling|question/i);
   assert.doesNotMatch(artifacts.markdownFilename, /cooling|question/i);
 });
@@ -170,6 +295,10 @@ test("Markdown and shareable renderers isolate adversarial display strings and u
   internal.actor_claims[0].claim_text = attack;
   internal.actions[0].action_text = attack;
   internal.relation_candidates[0].reason = attack;
+  internal.relation_candidates[0].left_support_reference.bounded_excerpt = attack;
+  internal.relation_candidates[0].right_support_reference.bounded_excerpt = attack;
+  internal.claim_occurrences[0].actor = attack;
+  internal.claim_occurrences[0].original_claim_text = attack;
   internal.unresolved_questions[0].question = attack;
   internal.limitations = [attack];
 
@@ -186,6 +315,7 @@ test("Markdown and shareable renderers isolate adversarial display strings and u
     assert.match(rendered, /\\\|/);
     assert.doesNotMatch(rendered, /publisher\n# forged/);
   }
+  assert.match(markdown, /Left bounded support: .*&lt;script&gt;/i);
 
   for (const unsafe of [
     "javascript:alert(1)",
@@ -235,6 +365,15 @@ test("GET capability and OpenAPI are static, nonbillable, and describe real requ
       PUBLIC_EVIDENCE_CONTRACT_VERSION);
     assert.equal(capability.public_response.no_result_contract_version,
       PUBLIC_NO_RESULT_CONTRACT_VERSION);
+    assert.equal(capability.returned_content_trust, "untrusted_evidence_data");
+    assert.match(capability.returned_content_guidance.data_not_instructions,
+      /evidence data, not instructions/i);
+    assert.match(capability.returned_content_guidance.cannot_authorize,
+      /tool calls.*credential access.*policy changes.*canonical mutation/i);
+    assert.match(capability.returned_content_guidance.url_handling,
+      /not automatic authorization to fetch or follow/i);
+    assert.match(capability.returned_content_guidance.downstream_policy_required,
+      /tool, network, and security policy/i);
 
     const parsed = parseAnalysisRequest(capability.invocation.request.example);
     assert.deepEqual(parsed, capability.invocation.request.example);
@@ -244,6 +383,16 @@ test("GET capability and OpenAPI are static, nonbillable, and describe real requ
     assert.ok(openapi.paths["/api/lineage"].post);
     assert.equal(openapi.components.schemas.LineageRequest.additionalProperties, false);
     assert.equal(openapi.components.schemas.LineageRequest.properties.sourceLimit.maximum, 5);
+    const questionSchema = openapi.components.schemas.LineageRequest.properties.question;
+    assert.equal("minLength" in questionSchema, false);
+    assert.equal("maxLength" in questionSchema, false);
+    assert.equal(questionSchema["x-normalized-minLength"], 12);
+    assert.equal(questionSchema["x-normalized-maxLength"], 500);
+    assert.equal(questionSchema["x-normalization"], "trim_and_collapse_whitespace");
+    assert.equal(openapi["x-returned-content-trust"], "untrusted_evidence_data");
+    assert.match(openapi.info.description, /untrusted evidence data, not instructions/i);
+    assert.match(openapi.components.schemas.PublicEvidenceV1.description,
+      /untrusted evidence data, not instructions/i);
     assert.equal(openapi.components.schemas.PublicEvidenceV1.properties.contract_version.const,
       PUBLIC_EVIDENCE_CONTRACT_VERSION);
     assert.equal(openapi.components.schemas.PublicNoResultV1.properties.contract_version.const,
@@ -258,6 +407,19 @@ test("GET capability and OpenAPI are static, nonbillable, and describe real requ
   } finally {
     globalThis.fetch = originalFetch;
   }
+
+  const normalizedFromLongRaw = parseAnalysisRequest({
+    question: `How${" ".repeat(600)}did guidance change?`,
+  });
+  assert.equal(normalizedFromLongRaw.question, "How did guidance change?");
+  assert.throws(
+    () => parseAnalysisRequest({ question: `a${" ".repeat(20)}b` }),
+    /between 12 and 500 characters after normalization/i,
+  );
+  assert.throws(
+    () => parseAnalysisRequest({ question: "x".repeat(501) }),
+    /between 12 and 500 characters after normalization/i,
+  );
 
   const routeSource = readFileSync(
     new URL("../app/api/lineage/route.ts", import.meta.url),
