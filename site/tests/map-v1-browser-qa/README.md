@@ -31,3 +31,13 @@ the Map so each packet
 begins on its own occurrence-primary initial axis and derives its own stable row
 ordinal. The production axis, coverage lens, focus, trace, adaptive relation
 mode, responsive chapter transformation, and Inspector controls remain active.
+
+When either Map skip link receives focus, the harness records browser-derived
+containment evidence on `.map-skip-links`:
+
+- `data-qa-focused="true"`
+- `data-qa-inside-viewport="true"`
+- `data-qa-page-overflow="0"`
+
+The harness emits a console error if a focused skip-link surface leaves the
+viewport or creates page-level horizontal overflow.

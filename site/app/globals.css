@@ -1054,16 +1054,27 @@ p, li, blockquote { text-wrap: pretty; }
 }
 .map-skip-links:focus-within {
   width: auto;
+  max-width: calc(100% - 8px);
   height: auto;
+  box-sizing: border-box;
+  flex-wrap: wrap;
   padding: 10px 12px;
   overflow: visible;
   clip: auto;
   clip-path: none;
+  white-space: normal;
   border: 2px solid var(--navy);
   background: var(--surface-strong);
   box-shadow: 0 5px 18px rgba(20, 33, 61, .16);
 }
-.map-skip-links a { color: var(--navy); font-size: var(--map-font-supporting); font-weight: 720; text-underline-offset: 3px; }
+.map-skip-links a {
+  max-width: 100%;
+  color: var(--navy);
+  font-size: var(--map-font-supporting);
+  font-weight: 720;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
 .map-coverage-strip {
   border-top: 1px solid var(--line-strong);
   border-bottom: 1px solid var(--line-strong);

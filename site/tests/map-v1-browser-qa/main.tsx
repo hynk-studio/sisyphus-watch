@@ -1,4 +1,4 @@
-import { StrictMode, useMemo, useRef, useState } from "react";
+import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import "../../app/globals.css";
@@ -48,6 +48,48 @@ function MapQaApp() {
     () => FIXTURE_BUILDERS[fixtureName](),
     [fixtureName],
   );
+
+  useEffect(() => {
+    let animationFrame = 0;
+    const recordSkipLinkState = () => {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        const surface = document.querySelector<HTMLElement>(".map-skip-links");
+        if (!surface) return;
+        const focused = surface.matches(":focus-within");
+        const rect = surface.getBoundingClientRect();
+        const insideViewport = !focused || (
+          rect.left >= 0
+          && rect.right <= window.innerWidth
+          && rect.top >= 0
+          && rect.bottom <= window.innerHeight
+        );
+        const pageOverflow = document.documentElement.scrollWidth
+          - document.documentElement.clientWidth;
+        surface.dataset.qaFocused = String(focused);
+        surface.dataset.qaInsideViewport = String(insideViewport);
+        surface.dataset.qaPageOverflow = String(pageOverflow);
+        if (focused && (!insideViewport || pageOverflow !== 0)) {
+          console.error("Map QA skip-link containment regression", {
+            insideViewport,
+            pageOverflow,
+            viewportWidth: window.innerWidth,
+          });
+        }
+      });
+    };
+
+    document.addEventListener("focusin", recordSkipLinkState);
+    document.addEventListener("focusout", recordSkipLinkState);
+    window.addEventListener("resize", recordSkipLinkState);
+    recordSkipLinkState();
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      document.removeEventListener("focusin", recordSkipLinkState);
+      document.removeEventListener("focusout", recordSkipLinkState);
+      window.removeEventListener("resize", recordSkipLinkState);
+    };
+  }, []);
 
   return (
     <main className="site-shell map-qa-shell" id="top">

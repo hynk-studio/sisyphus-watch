@@ -798,7 +798,8 @@ test("Map viewing lenses and broader provider work are separate public control r
   assert.match(html, /current investigation remains unchanged/);
   assert.match(html, /Do not blindly retry while delivery status is unknown/);
   assert.match(html, /Filters only change what is emphasized/);
-  assert.match(html, /never remove or alter the saved investigation/);
+  assert.match(html, /never remove or alter the displayed investigation/);
+  assert.doesNotMatch(html, /saved investigation/i);
   assert.doesNotMatch(html, /class="focus-toolbar"/);
 
   const explorerSource = readFileSync(
@@ -913,7 +914,8 @@ test("default Map copy presents product boundaries without implementation langua
   assert.match(html, /claims as they appeared in each source|public claim as it appeared in its source/);
   assert.match(html, /Every candidate relation is listed once below/);
   assert.match(html, /See why this question remains open/);
-  assert.match(html, /Viewing and filtering never changes the saved investigation/);
+  assert.match(html, /Viewing and filtering never changes the displayed investigation/);
+  assert.doesNotMatch(html, /saved investigation/i);
   for (const phrase of [
     "canonical_mutation: none",
     "accessibility membership",
@@ -1762,7 +1764,8 @@ test("Map skip links are hidden at rest and visible on keyboard focus", () => {
     css.indexOf("@media (max-width: 1200px)"),
   );
   assert.match(mapRules, /\.map-skip-links \{[\s\S]*?width: 1px;[\s\S]*?clip-path: inset\(50%\)/);
-  assert.match(mapRules, /\.map-skip-links:focus-within \{[\s\S]*?width: auto;[\s\S]*?clip-path: none/);
+  assert.match(mapRules, /\.map-skip-links:focus-within \{[\s\S]*?width: auto;[\s\S]*?max-width: calc\(100% - 8px\);[\s\S]*?flex-wrap: wrap;[\s\S]*?clip-path: none;[\s\S]*?white-space: normal/);
+  assert.match(mapRules, /\.map-skip-links a \{[\s\S]*?max-width: 100%;[\s\S]*?white-space: nowrap/);
 });
 
 test("Map ships one semantic tree whose row identities survive the responsive transformation", () => {

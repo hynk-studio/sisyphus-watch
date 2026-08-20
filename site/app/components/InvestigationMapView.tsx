@@ -393,7 +393,7 @@ export function InvestigationMapView({
             </div>
             <p className="lens-note">
               Filters only change what is emphasized. They never remove or alter the
-              saved investigation.
+              displayed investigation.
             </p>
           </div>
         </details>
@@ -654,7 +654,7 @@ export function InvestigationMapView({
       <p className="map-boundary-note">
         Connections shown here are suggestions for review, not accepted facts. Source
         inclusion is not endorsement or truth verification. Viewing and filtering never
-        changes the saved investigation.
+        changes the displayed investigation.
       </p>
 
       {liveEnabled ? (
