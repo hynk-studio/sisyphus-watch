@@ -1,28 +1,44 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  COVERAGE_LENSES,
+  NON_CLAIM_SOURCE_SUBTYPE_LABELS,
   buildLineageRequest,
   chooseInitialTimeAxis,
   deriveCoverageHighlight,
   deriveInvestigationMap,
+  deriveInvestigationMapBase,
   deriveQuestionInspectionOrigins,
+  deriveRelationPresentation,
+  deriveRelationRoutes,
   deriveThreadTrace,
   investigationTimeAxisReducer,
+  projectInvestigationMap,
   spatialRelationEdges,
+  type InvestigationMap,
+  type NonClaimSourceSubtype,
 } from "../app/lib/investigation-map";
+import type { TimeAxis } from "../app/lib/experience";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
-import type {
-  PacketUnresolvedQuestion,
-  SiteReadyCasePacket,
+import {
+  validateSiteReadyCasePacket,
+  type PacketUnresolvedQuestion,
+  type RelationCandidate,
+  type SiteReadyCasePacket,
 } from "../app/lib/lineage/contracts";
-import { validateSiteReadyCasePacket } from "../app/lib/lineage/contracts";
-import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
 import {
   buildMapDensityFixture,
   buildSameSourceRelationFixture,
 } from "./fixtures/map-density";
 
-test("map derivation is deterministic, presentation-only, and preserves source roles and provenance labels", () => {
+const TIME_AXES: readonly TimeAxis[] = [
+  "event_time",
+  "publication_time",
+  "actor_assertion_time",
+  "retrieval_time",
+];
+
+test("v2 derivation is pure, deterministic, occurrence-primary, and packet-preserving", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const before = JSON.stringify(packet);
   const first = deriveInvestigationMap(packet, "event_time");
@@ -30,63 +46,210 @@ test("map derivation is deterministic, presentation-only, and preserves source r
 
   assert.deepEqual(first, second);
   assert.equal(JSON.stringify(packet), before);
-  assert.equal(first.contractVersion, "investigation_map.v1");
+  assert.equal(first.contractVersion, "investigation_map.v2");
   assert.equal(first.packetRunId, packet.run_id);
-  assert.deepEqual(
-    first.sources.map((source) => source.sourceId),
-    [
-      "src_city_heatwave_initial_announcement_2026_06_10",
-      "src_community_cooling_center_access_report_2026_06_12",
-      "src_city_heatwave_updated_guidance_2026_06_14",
-      "src_editorial_heatwave_accountability_note_2026_06_15",
-    ],
+  assert.equal(first.occurrences.length, packet.claim_occurrences.length);
+  assert.equal(first.nonClaimSources.length, 1);
+  assert.equal(first.relationLedger.length, packet.relation_candidates.length);
+  assert.equal(first.questions.length, packet.unresolved_questions.length);
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
+  assert.ok(first.occurrences.every((item) => item.kind === "claim_occurrence"));
+  assert.ok(first.nonClaimSources.every((item) => item.kind === "non_claim_source"));
+});
+
+test("prepared rows distinguish Candidate thread, Standalone, and local display identity", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const map = deriveInvestigationMap(packet, "event_time");
+  const candidate = map.rows.find((row) => row.rowKind === "candidate_thread");
+  const standalone = map.rows.find((row) => row.rowKind === "standalone_occurrence");
+
+  assert.ok(candidate);
+  assert.equal(candidate.label, "T01 · Candidate thread · 2 occurrences · needs review");
+  assert.equal(candidate.accessibleName, candidate.label);
+  assert.equal(candidate.traceLabel, "Candidate thread trace");
+  assert.equal(candidate.displayThreadNumber, "T01");
+  assert.equal(candidate.occurrenceNodeIds.length, 2);
+  assert.ok(candidate.familyId);
+  assert.equal(candidate.label.includes(candidate.familyId), false);
+
+  assert.ok(standalone);
+  assert.equal(
+    standalone.label,
+    "Standalone claim occurrence · grouping unresolved",
   );
-  assert.deepEqual(first.sources.map((source) => source.sourceRole), [
-    "Official notice",
-    "Community report",
-    "Official update",
-    "Opinion / interpretation",
-  ]);
-  for (const source of first.sources) {
-    const packetSource = packet.source_snapshot_summaries.find(
-      (item) => item.source_id === source.sourceId,
+  assert.equal(standalone.accessibleName, standalone.label);
+  assert.equal(standalone.traceLabel, "Standalone occurrence trace");
+  assert.equal(standalone.displayThreadNumber, null);
+  assert.equal(standalone.occurrenceNodeIds.length, 1);
+  assert.equal(map.rows.some((row) => row.rowKind === "ungrouped_occurrence"), false);
+
+  assertEveryOccurrenceExactlyOnce(packet, map);
+});
+
+test("missing, inconsistent, duplicate, and resolved-singleton family membership fails closed", () => {
+  const scenarios: Array<{
+    name: string;
+    mutate: (packet: SiteReadyCasePacket) => void;
+  }> = [
+    {
+      name: "occurrence references a missing family",
+      mutate(packet) {
+        packet.claim_occurrences[0].candidate_claim_family_id =
+          "family_missing_from_packet";
+      },
+    },
+    {
+      name: "family omits an occurrence that points back",
+      mutate(packet) {
+        packet.candidate_claim_families[0].occurrence_ids =
+          packet.candidate_claim_families[0].occurrence_ids.slice(1);
+      },
+    },
+    {
+      name: "one occurrence appears in multiple families",
+      mutate(packet) {
+        packet.candidate_claim_families[1].occurrence_ids.push(
+          packet.claim_occurrences[0].occurrence_id,
+        );
+      },
+    },
+    {
+      name: "duplicate family IDs make membership ambiguous",
+      mutate(packet) {
+        packet.candidate_claim_families.push(
+          structuredClone(packet.candidate_claim_families[0]),
+        );
+      },
+    },
+    {
+      name: "a singleton family is not unresolved",
+      mutate(packet) {
+        const singleton = packet.candidate_claim_families.find(
+          (family) => family.occurrence_ids.length === 1,
+        );
+        assert.ok(singleton);
+        singleton.unresolved = false;
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const packet = buildPreparedSiteReadyCasePacket();
+    scenario.mutate(packet);
+    const map = deriveInvestigationMap(packet, "event_time");
+    assertEveryOccurrenceExactlyOnce(packet, map);
+    assert.ok(
+      map.rows.some((row) => row.rowKind === "ungrouped_occurrence"),
+      scenario.name,
     );
-    assert.ok(packetSource);
-    assert.equal(source.publisher, packetSource.publisher);
-    assert.equal(source.domain, packetSource.domain);
-    assert.equal(source.lane, packetSource.source_selection.discovery_lane);
-    assert.equal(source.discoveryPass, packetSource.source_selection.discovery_pass);
-    assert.equal(source.snapshotId, packetSource.snapshot_id);
+    assert.ok(
+      map.diagnostics.some((item) =>
+        item.startsWith("family_membership_inconsistent:")
+      ),
+      scenario.name,
+    );
+    assert.ok(
+      map.rows
+        .filter((row) => row.rowKind === "ungrouped_occurrence")
+        .every((row) =>
+          row.label === "Ungrouped claim occurrence"
+          && row.displayThreadNumber === null
+          && row.occurrenceNodeIds.length === 1
+        ),
+      scenario.name,
+    );
   }
 });
 
-test("initial time axis prefers explicit event time, then publication time, and never retrieval time", () => {
+test("one packet-local row ordinal stays fixed across all axes and a new packet recomputes it", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const base = deriveInvestigationMapBase(packet);
+  const expectedRows = rowSignature(projectInvestigationMap(base, "event_time"));
+
+  for (const axis of TIME_AXES) {
+    const projected = projectInvestigationMap(base, axis);
+    assert.deepEqual(rowSignature(projected), expectedRows);
+    assert.deepEqual(
+      projected.rows.map((row) => row.rowOrdinal),
+      [1, 2],
+    );
+  }
+
+  const nextPacket = structuredClone(packet);
+  nextPacket.run_id = packet.run_id + "_reordered_for_new_display";
+  const candidateIds = base.rows.find(
+    (row) => row.rowKind === "candidate_thread",
+  )?.occurrenceNodeIds ?? [];
+  const standaloneId = base.rows.find(
+    (row) => row.rowKind === "standalone_occurrence",
+  )?.occurrenceNodeIds[0];
+  assert.ok(standaloneId);
+  for (const occurrence of nextPacket.claim_occurrences) {
+    occurrence.event_time_candidate = candidateIds.includes(occurrence.occurrence_id)
+      ? "2026-06-20T12:00:00Z"
+      : "2026-06-01T12:00:00Z";
+    occurrence.event_time_candidate_precision = "instant";
+  }
+  const nextBase = deriveInvestigationMapBase(nextPacket);
+  assert.equal(nextBase.rows[0].rowKind, "standalone_occurrence");
+  assert.equal(nextBase.rows[1].rowKind, "candidate_thread");
+  assert.equal(nextBase.rows[1].displayThreadNumber, "T01");
+  assert.notDeepEqual(
+    nextBase.rows.map((row) => row.occurrenceNodeIds),
+    base.rows.map((row) => row.occurrenceNodeIds),
+  );
+});
+
+test("initial axis uses the complete occurrence-primary and zero-occurrence fallback chains", () => {
   const eventPacket = buildPreparedSiteReadyCasePacket();
   assert.equal(chooseInitialTimeAxis(eventPacket), "event_time");
 
-  const publicationPacket = withoutEventTimes(eventPacket);
+  const publicationPacket = clearOccurrenceTimes(eventPacket, [
+    "event_time",
+  ]);
   assert.equal(chooseInitialTimeAxis(publicationPacket), "publication_time");
+
+  const assertionPacket = clearOccurrenceTimes(eventPacket, [
+    "event_time",
+    "publication_time",
+  ]);
+  assert.equal(chooseInitialTimeAxis(assertionPacket), "actor_assertion_time");
+
+  const retrievalPacket = clearOccurrenceTimes(eventPacket, [
+    "event_time",
+    "publication_time",
+    "actor_assertion_time",
+  ]);
+  assert.equal(chooseInitialTimeAxis(retrievalPacket), "retrieval_time");
+
+  const zeroOccurrencePublication = structuredClone(eventPacket);
+  zeroOccurrencePublication.claim_occurrences = [];
   assert.ok(
-    deriveInvestigationMap(publicationPacket, "publication_time").sources.some(
-      (source) => source.selectedTime !== null,
+    zeroOccurrencePublication.source_snapshot_summaries.some(
+      (source) => source.published_at,
     ),
   );
-  assert.ok(
-    deriveInvestigationMap(publicationPacket, "event_time").sources.every(
-      (source) => source.selectedTime === null && source.timeRegion === "time_unavailable",
-    ),
+  assert.equal(
+    chooseInitialTimeAxis(zeroOccurrencePublication),
+    "publication_time",
   );
 
-  const retrievalOnlyPacket = structuredClone(publicationPacket);
-  for (const source of retrievalOnlyPacket.source_snapshot_summaries) {
+  const zeroOccurrenceRetrieval = structuredClone(zeroOccurrencePublication);
+  for (const source of zeroOccurrenceRetrieval.source_snapshot_summaries) {
     source.published_at = null;
     source.published_at_precision = null;
   }
-  assert.ok(retrievalOnlyPacket.source_snapshot_summaries.every((source) => source.retrieved_at));
-  assert.equal(chooseInitialTimeAxis(retrievalOnlyPacket), "event_time");
+  assert.equal(chooseInitialTimeAxis(zeroOccurrenceRetrieval), "retrieval_time");
+
+  assert.ok(publicationPacket.actions.some((action) => action.event_time_candidate));
+  assert.equal(
+    chooseInitialTimeAxis(publicationPacket),
+    "publication_time",
+    "action times must not force initial Event time",
+  );
 });
 
-test("shared time-axis reducer preserves a manual selection until a new packet is displayed", () => {
+test("time-axis reducer preserves manual selection until a newly displayed packet", () => {
   const currentPacket = buildPreparedSiteReadyCasePacket();
   let axis = chooseInitialTimeAxis(currentPacket);
   axis = investigationTimeAxisReducer(axis, {
@@ -95,8 +258,8 @@ test("shared time-axis reducer preserves a manual selection until a new packet i
   });
   assert.equal(axis, "retrieval_time");
 
-  const nextPacket = withoutEventTimes(currentPacket);
-  nextPacket.run_id = `${currentPacket.run_id}_publication_only`;
+  const nextPacket = clearOccurrenceTimes(currentPacket, ["event_time"]);
+  nextPacket.run_id = currentPacket.run_id + "_publication_only";
   axis = investigationTimeAxisReducer(axis, {
     type: "display_packet",
     packet: nextPacket,
@@ -104,237 +267,989 @@ test("shared time-axis reducer preserves a manual selection until a new packet i
   assert.equal(axis, "publication_time");
 });
 
-test("prepared, mocked standard live, expanded live, partial expansion, and fallback packets use one map contract", () => {
-  const prepared = buildPreparedSiteReadyCasePacket();
-  const standard = asLivePacket(prepared, "standard");
-  const expanded = asLivePacket(prepared, "coverage_expansion");
-  const partialExpansion = structuredClone(expanded);
-  partialExpansion.warnings = ["one expansion source failed bounded extraction"];
-  assert.equal(partialExpansion.coverage_summary.coverage_basis, "live_discovery");
-  if (partialExpansion.coverage_summary.coverage_basis !== "live_discovery") {
-    throw new Error("expected mocked live coverage summary");
-  }
-  partialExpansion.coverage_summary = {
-    ...partialExpansion.coverage_summary,
-    expansion_completed_successfully: false,
-    expansion_returned: 2,
-  };
-  const fallback = structuredClone(prepared);
-  fallback.mode = "fallback";
-  fallback.status = "fallback";
-  fallback.discovery_profile = "coverage_expansion";
+test("day precision accepts a schema-valid timestamp without inventing its clock time", () => {
+  const packet = clearOccurrenceTimes(buildPreparedSiteReadyCasePacket(), [
+    "event_time",
+  ]);
+  const occurrence = packet.claim_occurrences[0];
+  occurrence.event_time_candidate = "2026-06-10T15:45:00-04:00";
+  occurrence.event_time_candidate_precision = "day";
 
-  const maps = [prepared, standard, expanded, partialExpansion, fallback].map((packet) =>
-    deriveInvestigationMap(packet, "publication_time"),
+  assert.equal(chooseInitialTimeAxis(packet), "event_time");
+  const node = occurrenceNode(
+    deriveInvestigationMap(packet, "event_time"),
+    occurrence.occurrence_id,
   );
-  for (const map of maps) {
-    assert.equal(map.contractVersion, "investigation_map.v1");
-    assert.deepEqual(
-      map.sources.map((source) => source.sourceId),
-      maps[0].sources.map((source) => source.sourceId),
+  assert.equal(node.selectedTime, "2026-06-10T00:00:00.000Z");
+  assert.equal(node.selectedTimePrecision, "day");
+  assert.equal(node.timeRegion, "dated");
+});
+
+test("manual axes use only matching occurrence fields and Unplaced is non-chronological", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const target = packet.claim_occurrences[0];
+  assert.ok(target.source_publication_time);
+  target.event_time_candidate = null;
+  target.event_time_candidate_precision = null;
+
+  const eventMap = deriveInvestigationMap(packet, "event_time");
+  const eventNode = occurrenceNode(eventMap, target.occurrence_id);
+  assert.equal(eventNode.selectedTime, null);
+  assert.equal(eventNode.selectedTimePrecision, null);
+  assert.equal(eventNode.timeRegion, "unplaced");
+  assert.equal(eventNode.column, null);
+  assert.equal(eventMap.unplacedRegionLabel, "Unplaced on Event time");
+  assert.ok(eventMap.unplacedOccurrenceIds.includes(target.occurrence_id));
+  assert.match(eventMap.timeSelectionRule, /not substituted/i);
+
+  const publicationMap = deriveInvestigationMap(packet, "publication_time");
+  const publicationNode = occurrenceNode(
+    publicationMap,
+    target.occurrence_id,
+  );
+  assert.equal(
+    publicationNode.selectedTime,
+    new Date(target.source_publication_time as string).toISOString(),
+  );
+  assert.equal(publicationNode.timeRegion, "dated");
+
+  const relation = eventMap.relationLedger.find(
+    (entry) => entry.leftOccurrenceId === target.occurrence_id,
+  );
+  assert.ok(relation);
+  assert.equal(relation.directionAsserted, false);
+  assert.equal(
+    relation.directionExplanation,
+    "Direction not asserted on the selected axis",
+  );
+});
+
+test("day and mixed precision group honestly and never invent within-day relation order", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const relation = packet.relation_candidates.find(
+    (item) => item.relation_type === "supersedes",
+  );
+  assert.ok(relation);
+  const left = packet.claim_occurrences.find(
+    (item) => item.occurrence_id === relation.left_occurrence_id,
+  );
+  const right = packet.claim_occurrences.find(
+    (item) => item.occurrence_id === relation.right_occurrence_id,
+  );
+  const peer = packet.claim_occurrences.find(
+    (item) =>
+      item.occurrence_id !== relation.left_occurrence_id
+      && item.occurrence_id !== relation.right_occurrence_id,
+  );
+  assert.ok(left);
+  assert.ok(right);
+  assert.ok(peer);
+
+  left.event_time_candidate = "2026-07-15T08:00:00Z";
+  left.event_time_candidate_precision = "instant";
+  peer.event_time_candidate = "2026-07-15T09:00:00Z";
+  peer.event_time_candidate_precision = "instant";
+  right.event_time_candidate = "2026-07-15T00:00:00.000Z";
+  right.event_time_candidate_precision = "day";
+
+  const mixed = deriveInvestigationMap(packet, "event_time");
+  assert.equal(mixed.timeGroups.length, 1);
+  assert.equal(mixed.timeGroups[0].precision, "mixed");
+  assert.deepEqual(mixed.timeGroups[0].occurrenceNodeIds, [
+    left.occurrence_id,
+    peer.occurrence_id,
+    right.occurrence_id,
+  ]);
+  assert.equal(relationEntry(mixed, relation.relation_id).directionAsserted, false);
+
+  const dayPeers = structuredClone(packet);
+  const dayLeft = dayPeers.claim_occurrences.find(
+    (item) => item.occurrence_id === relation.left_occurrence_id,
+  );
+  const dayRight = dayPeers.claim_occurrences.find(
+    (item) => item.occurrence_id === relation.right_occurrence_id,
+  );
+  const separate = dayPeers.claim_occurrences.find(
+    (item) =>
+      item.occurrence_id !== relation.left_occurrence_id
+      && item.occurrence_id !== relation.right_occurrence_id,
+  );
+  assert.ok(dayLeft);
+  assert.ok(dayRight);
+  assert.ok(separate);
+  dayLeft.event_time_candidate = "2026-07-15T00:00:00.000Z";
+  dayLeft.event_time_candidate_precision = "day";
+  dayRight.event_time_candidate = "2026-07-15T00:00:00.000Z";
+  dayRight.event_time_candidate_precision = "day";
+  separate.event_time_candidate = "2026-07-16T09:00:00Z";
+  separate.event_time_candidate_precision = "instant";
+  const dayMap = deriveInvestigationMap(dayPeers, "event_time");
+  assert.equal(dayMap.timeGroups[0].precision, "day");
+  assert.deepEqual(
+    [...dayMap.timeGroups[0].occurrenceNodeIds].sort(),
+    [dayLeft.occurrence_id, dayRight.occurrence_id].sort(),
+  );
+  assert.equal(
+    relationEntry(dayMap, relation.relation_id).directionAsserted,
+    false,
+  );
+});
+
+test("all five Non-claim source subtypes derive only from structured metadata and links", () => {
+  const expected: readonly NonClaimSourceSubtype[] = [
+    "context_interpretation",
+    "action_bearing",
+    "finding_bearing",
+    "source_only",
+    "mixed_non_claim",
+  ];
+
+  for (const subtype of expected) {
+    const packet = packetForNonClaimSubtype(subtype);
+    const map = deriveInvestigationMap(packet, "event_time");
+    const editorial = map.nonClaimSources.find(
+      (source) => source.sourceId === editorialSourceId(packet),
     );
-    assert.deepEqual(
-      map.relationEdges.map((edge) => edge.relationId),
-      maps[0].relationEdges.map((edge) => edge.relationId),
+    assert.ok(editorial, subtype);
+    assert.equal(editorial.subtype, subtype);
+    assert.equal(
+      editorial.subtypeLabel,
+      NON_CLAIM_SOURCE_SUBTYPE_LABELS[subtype],
     );
-    assert.deepEqual(
-      map.questions.map((question) => question.questionId),
-      maps[0].questions.map((question) => question.questionId),
+    assert.equal(editorial.relationEndpointEligible, false);
+    assert.equal(
+      map.rows.some((row) => row.occurrenceNodeIds.includes(editorial.sourceId)),
+      false,
+    );
+    assert.equal(
+      map.relationLedger.some((relation) =>
+        relation.leftSourceId === editorial.sourceId
+        || relation.rightSourceId === editorial.sourceId
+      ),
+      false,
     );
   }
 });
 
-test("relation edges preserve every exact relation, occurrence, source, review, reason, and support reference", () => {
+test("a Non-claim source moves between Dated and Unplaced subgroups without changing identity", () => {
   const packet = buildPreparedSiteReadyCasePacket();
-  const map = deriveInvestigationMap(packet, "actor_assertion_time");
-  assert.equal(map.relationEdges.length, packet.relation_candidates.length);
+  const sourceId = editorialSourceId(packet);
+  const base = deriveInvestigationMapBase(packet);
+  const eventMap = projectInvestigationMap(base, "event_time");
+  const publicationMap = projectInvestigationMap(base, "publication_time");
+  const assertionMap = projectInvestigationMap(base, "actor_assertion_time");
+  const retrievalMap = projectInvestigationMap(base, "retrieval_time");
 
+  const eventRecord = nonClaimRecord(eventMap, sourceId);
+  assert.equal(eventRecord.subtype, "context_interpretation");
+  assert.equal(eventRecord.timeRegion, "unplaced");
+  assert.equal(eventRecord.selectedTime, null);
+  assert.ok(eventMap.nonClaimUnplacedSourceNodeIds.includes(eventRecord.nodeId));
+  assert.equal(eventMap.nonClaimDatedGroups.length, 0);
+
+  const publicationRecord = nonClaimRecord(publicationMap, sourceId);
+  assert.equal(publicationRecord.nodeId, eventRecord.nodeId);
+  assert.equal(publicationRecord.subtype, eventRecord.subtype);
+  assert.equal(publicationRecord.timeRegion, "dated");
+  assert.equal(publicationRecord.selectedTime, "2026-06-15T08:00:00.000Z");
+  assert.ok(
+    publicationMap.nonClaimDatedSourceNodeIds.includes(publicationRecord.nodeId),
+  );
+  assert.equal(publicationMap.nonClaimDatedGroups[0].calendarDate, "2026-06-15");
+  assert.deepEqual(publicationMap.nonClaimDatedGroups[0].sourceNodeIds, [
+    publicationRecord.nodeId,
+  ]);
+
+  assert.equal(nonClaimRecord(assertionMap, sourceId).timeRegion, "unplaced");
+  assert.equal(nonClaimRecord(retrievalMap, sourceId).timeRegion, "dated");
+  assert.equal(
+    nonClaimRecord(retrievalMap, sourceId).selectedTime,
+    "2026-06-15T12:00:00.000Z",
+  );
+});
+
+test("relation ledger endpoints remain exact occurrence IDs with one semantic entry per relation_id", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const map = deriveInvestigationMap(packet, "publication_time");
+  const occurrenceIds = new Set(
+    packet.claim_occurrences.map((item) => item.occurrence_id),
+  );
+
+  assert.equal(map.relationLedger.length, packet.relation_candidates.length);
+  assert.equal(
+    new Set(map.relationLedger.map((item) => item.relationId)).size,
+    packet.relation_candidates.length,
+  );
   for (const relation of packet.relation_candidates) {
-    const edge = map.relationEdges.find((item) => item.relationId === relation.relation_id);
-    assert.ok(edge);
-    assert.equal(edge.leftOccurrenceId, relation.left_occurrence_id);
-    assert.equal(edge.rightOccurrenceId, relation.right_occurrence_id);
-    assert.equal(edge.leftSourceId, relation.left_source_id);
-    assert.equal(edge.rightSourceId, relation.right_source_id);
-    assert.equal(edge.relationType, relation.relation_type);
-    assert.equal(edge.reviewStatus, relation.review_status);
-    assert.equal(edge.reason, relation.reason);
-    assert.deepEqual(edge.leftSupportReference, relation.left_support_reference);
-    assert.deepEqual(edge.rightSupportReference, relation.right_support_reference);
-    assert.ok(packet.claim_lineage_rows.some((row) => row.lineage_row_id === edge.lineageRowId));
+    const entry = relationEntry(map, relation.relation_id);
+    assert.equal(entry.leftOccurrenceId, relation.left_occurrence_id);
+    assert.equal(entry.rightOccurrenceId, relation.right_occurrence_id);
+    assert.equal(entry.fromNodeId, relation.left_occurrence_id);
+    assert.equal(entry.toNodeId, relation.right_occurrence_id);
+    assert.ok(occurrenceIds.has(entry.fromNodeId));
+    assert.ok(occurrenceIds.has(entry.toNodeId));
+    assert.equal(entry.leftSourceId, relation.left_source_id);
+    assert.equal(entry.rightSourceId, relation.right_source_id);
+    assert.equal(entry.reviewStatus, "pending_review");
+    assert.equal(entry.publicReviewLabel, "Needs review");
+    assert.deepEqual(entry.leftSupportReference, relation.left_support_reference);
+    assert.deepEqual(entry.rightSupportReference, relation.right_support_reference);
   }
 });
 
-test("multiple claim relations between the same two sources remain separate and explicitly counted", () => {
-  const packet = buildPreparedSiteReadyCasePacket();
-  const original = packet.relation_candidates[0];
-  const duplicate = structuredClone(original);
-  duplicate.relation_id = "relation_candidate_fixture_parallel_relation_test";
-  duplicate.relation_type = "corroborates";
-  duplicate.reason = "A second bounded claim relation for the same source pair.";
-  packet.relation_candidates.push(duplicate);
-  packet.claim_lineage_rows.push({
-    ...packet.claim_lineage_rows[0],
-    lineage_row_id: "lineage_row_parallel_relation_test",
-    relation_id: duplicate.relation_id,
-    relation_type: duplicate.relation_type,
-    summary: duplicate.reason,
-  });
-
-  const map = deriveInvestigationMap(packet, "event_time");
-  const pairEdges = map.relationEdges.filter((edge) => edge.pairKey === map.relationEdges[0].pairKey);
-  assert.equal(pairEdges.length, 2);
-  assert.deepEqual(pairEdges.map((edge) => edge.parallelIndex), [0, 1]);
-  assert.ok(pairEdges.every((edge) => edge.parallelCount === 2));
-  assert.ok(pairEdges.some((edge) => edge.relationId === original.relation_id));
-  assert.ok(pairEdges.some((edge) => edge.relationId === duplicate.relation_id));
-});
-
-test("same-source relations remain packet data while spatial rendering omits the self-loop", () => {
+test("same-source occurrence relations remain spatially and ledger representable", () => {
   const packet = buildSameSourceRelationFixture();
   const relation = packet.relation_candidates.find(
-    (item) => item.relation_id === "relation_candidate_fixture_same_source_review",
+    (item) =>
+      item.relation_id === "relation_candidate_fixture_same_source_review",
   );
   assert.ok(relation);
   assert.equal(relation.left_source_id, relation.right_source_id);
+  assert.notEqual(relation.left_occurrence_id, relation.right_occurrence_id);
 
   const before = JSON.stringify(packet);
   const map = deriveInvestigationMap(packet, "publication_time");
-  assert.equal(map.relationEdges.length, packet.relation_candidates.length);
-  assert.ok(map.relationEdges.some((edge) => edge.relationId === relation.relation_id));
+  const entry = relationEntry(map, relation.relation_id);
+  assert.equal(entry.geometryEligible, true);
+  assert.equal(entry.leftSourceId, entry.rightSourceId);
+  assert.notEqual(entry.leftOccurrenceId, entry.rightOccurrenceId);
   assert.ok(
-    spatialRelationEdges(map).every(
-      (edge) => edge.leftSourceId !== edge.rightSourceId,
+    spatialRelationEdges(map, "matrix").some(
+      (item) => item.relationId === relation.relation_id,
     ),
   );
-  assert.equal(
-    spatialRelationEdges(map).some((edge) => edge.relationId === relation.relation_id),
-    false,
-  );
-  assert.ok(spatialRelationEdges(map).some(
-    (edge) => edge.leftSourceId !== edge.rightSourceId,
-  ));
-  assert.ok(getSiteReadyCaseDetail(packet, "relation", relation.relation_id));
-  assert.ok(packet.focused_detail_lookup_keys.some(
-    (key) => key.kind === "relation" && key.id === relation.relation_id,
-  ));
-  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
   assert.equal(JSON.stringify(packet), before);
 });
 
-test("unresolved questions resolve source, claim, action, and occurrence IDs conservatively while unknown IDs attach only to topic", () => {
+test("parallel relations remain separate and share only presentation pair metadata", () => {
   const packet = buildPreparedSiteReadyCasePacket();
-  const sourceId = packet.source_snapshot_summaries[0].source_id;
+  const original = packet.relation_candidates[0];
+  const duplicate = structuredClone(original);
+  duplicate.relation_id = "relation_candidate_fixture_parallel_review";
+  duplicate.relation_type = "corroborates";
+  duplicate.reason = "Separate parallel candidate relation for review.";
+  packet.relation_candidates.push(duplicate);
+
+  const map = deriveInvestigationMap(packet, "event_time");
+  const originalEntry = relationEntry(map, original.relation_id);
+  const pairEntries = map.relationLedger.filter(
+    (entry) => entry.pairKey === originalEntry.pairKey,
+  );
+  assert.equal(pairEntries.length, 2);
+  assert.deepEqual(
+    pairEntries.map((entry) => entry.parallelIndex),
+    [0, 1],
+  );
+  assert.ok(pairEntries.every((entry) => entry.parallelCount === 2));
+  assert.deepEqual(
+    pairEntries.map((entry) => entry.relationId),
+    [original.relation_id, duplicate.relation_id],
+  );
+});
+
+test("duplicate relation_id records fail closed into one non-spatial review entry", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const duplicate = structuredClone(packet.relation_candidates[0]);
+  duplicate.reason = "Conflicting duplicate record retained for explicit review.";
+  packet.relation_candidates.push(duplicate);
+
+  const map = deriveInvestigationMap(packet, "event_time");
+  const entries = map.relationLedger.filter(
+    (entry) => entry.relationId === duplicate.relation_id,
+  );
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].integrityState, "duplicate_relation_id");
+  assert.equal(entries[0].recordCount, 2);
+  assert.equal(entries[0].candidateRecords.length, 2);
+  assert.equal(entries[0].geometryEligible, false);
+  assert.equal(entries[0].directionAsserted, false);
+  assert.equal(
+    spatialRelationEdges(map, "matrix").some(
+      (entry) => entry.relationId === duplicate.relation_id,
+    ),
+    false,
+  );
+  assert.ok(
+    map.diagnostics.some((item) =>
+      item.startsWith("duplicate_relation_id:" + duplicate.relation_id + ":2")
+    ),
+  );
+});
+
+test("composite arrow eligibility passes or fails each conservative condition", () => {
+  const prepared = buildPreparedSiteReadyCasePacket();
+  const supersedes = prepared.relation_candidates.find(
+    (relation) => relation.relation_type === "supersedes",
+  );
+  const challenge = prepared.relation_candidates.find(
+    (relation) => relation.relation_type === "contradicts",
+  );
+  assert.ok(supersedes);
+  assert.ok(challenge);
+
+  assert.equal(
+    relationEntry(
+      deriveInvestigationMap(prepared, "event_time"),
+      supersedes.relation_id,
+    ).directionAsserted,
+    true,
+  );
+  assert.equal(
+    relationEntry(
+      deriveInvestigationMap(prepared, "event_time"),
+      challenge.relation_id,
+    ).directionAsserted,
+    false,
+    "Challenges is never directional",
+  );
+
+  const missingLeft = structuredClone(prepared);
+  setRelationEndpointTime(missingLeft, supersedes, "left", null, null);
+  assertDirection(missingLeft, supersedes.relation_id, false);
+
+  const missingRight = structuredClone(prepared);
+  setRelationEndpointTime(missingRight, supersedes, "right", null, null);
+  assertDirection(missingRight, supersedes.relation_id, false);
+
+  const equal = structuredClone(prepared);
+  setRelationEndpointTime(
+    equal,
+    supersedes,
+    "left",
+    "2026-06-12T12:00:00Z",
+    "instant",
+  );
+  setRelationEndpointTime(
+    equal,
+    supersedes,
+    "right",
+    "2026-06-12T12:00:00Z",
+    "instant",
+  );
+  assertDirection(equal, supersedes.relation_id, false);
+
+  const reversed = structuredClone(prepared);
+  setRelationEndpointTime(
+    reversed,
+    supersedes,
+    "left",
+    "2026-06-15T12:00:00Z",
+    "instant",
+  );
+  setRelationEndpointTime(
+    reversed,
+    supersedes,
+    "right",
+    "2026-06-10T12:00:00Z",
+    "instant",
+  );
+  assertDirection(reversed, supersedes.relation_id, false);
+
+  const mixedSameDay = structuredClone(prepared);
+  setRelationEndpointTime(
+    mixedSameDay,
+    supersedes,
+    "left",
+    "2026-06-12T00:00:00.000Z",
+    "day",
+  );
+  setRelationEndpointTime(
+    mixedSameDay,
+    supersedes,
+    "right",
+    "2026-06-12T18:00:00Z",
+    "instant",
+  );
+  assertDirection(mixedSameDay, supersedes.relation_id, false);
+
+  const orderedDays = structuredClone(prepared);
+  setRelationEndpointTime(
+    orderedDays,
+    supersedes,
+    "left",
+    "2026-06-10T00:00:00.000Z",
+    "day",
+  );
+  setRelationEndpointTime(
+    orderedDays,
+    supersedes,
+    "right",
+    "2026-06-14T00:00:00.000Z",
+    "day",
+  );
+  assertDirection(orderedDays, supersedes.relation_id, true);
+
+  assert.equal(
+    relationEntry(
+      deriveInvestigationMap(prepared, "retrieval_time"),
+      supersedes.relation_id,
+    ).directionAsserted,
+    false,
+    "equal retrieval instants cannot assert direction",
+  );
+});
+
+test("relation types use restrained labels, line families, and unrelated remains ledger-only", () => {
+  const expected = {
+    supersedes: ["Replaces", "transformative", "solid", true],
+    correction: ["Corrects", "transformative", "solid", true],
+    narrows: ["Narrows", "transformative", "solid", true],
+    follow_up: ["Responds", "responsive", "dashed", true],
+    contradicts: ["Challenges", "tension", "solid", false],
+    corroborates: ["Supports", "reinforcement_context", "dotted", false],
+    same_event: ["Same event", "reinforcement_context", "dotted", false],
+    unresolved: ["Unclear", "indeterminate", "dash_dot", false],
+    unrelated: ["No direct change", "unrelated", "none", false],
+  } as const;
+
+  for (const [type, specification] of Object.entries(expected)) {
+    const packet = buildPreparedSiteReadyCasePacket();
+    const relation = packet.relation_candidates[0];
+    relation.relation_type = type as RelationCandidate["relation_type"];
+    packet.relation_candidates = [relation];
+    const map = deriveInvestigationMap(packet, "event_time");
+    const entry = map.relationLedger[0];
+    assert.equal(entry.shortLabel, specification[0], type);
+    assert.equal(entry.visualFamily, specification[1], type);
+    assert.equal(entry.lineStyle, specification[2], type);
+    assert.equal(entry.directionAsserted, specification[3], type);
+    assert.equal(
+      spatialRelationEdges(map, "matrix").some(
+        (item) => item.relationId === relation.relation_id,
+      ),
+      type !== "unrelated",
+      type,
+    );
+    assert.ok(
+      map.relationLedger.some(
+        (item) => item.relationId === relation.relation_id,
+      ),
+      type,
+    );
+  }
+});
+
+test("Matrix and Relation-summary are adaptive presentation modes with zero relation loss", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const matrix = deriveInvestigationMap(packet, "event_time", {
+    availableWidth: 1_440,
+    drawableRelationCount: 3,
+    crossRowRelationCount: 2,
+    measuredCollisionCount: 0,
+    compactResponsiveMode: false,
+  });
+  const summary = deriveInvestigationMap(packet, "event_time", {
+    availableWidth: 1_440,
+    drawableRelationCount: 3,
+    crossRowRelationCount: 2,
+    measuredCollisionCount: 0,
+    compactResponsiveMode: true,
+  });
+  assert.equal(matrix.relationPresentation.mode, "matrix");
+  assert.equal(matrix.relationPresentation.simplified, false);
+  assert.equal(summary.relationPresentation.mode, "relation_summary");
+  assert.equal(summary.relationPresentation.simplified, true);
+  assert.equal(summary.relationPresentation.reason, "compact_transformation");
+  assert.equal(summary.relationPresentation.retainedRelationCount, 3);
+  assert.equal(
+    summary.relationPresentation.announcement,
+    "Spatial overview simplified · all 3 candidate relations remain listed below",
+  );
+  assert.deepEqual(summary.relationLedger, matrix.relationLedger);
+
+  const matrixRoutes = deriveRelationRoutes(matrix.relationLedger, "matrix", null);
+  const summaryRoutes = deriveRelationRoutes(
+    summary.relationLedger,
+    "relation_summary",
+    null,
+  );
+  assertAllRelationsRouted(matrix, matrixRoutes);
+  assertAllRelationsRouted(summary, summaryRoutes);
+  assert.ok(summaryRoutes.spatialRelationIds.length > 0);
+  assert.ok(summaryRoutes.portRelationIds.length > 0);
+
+  assert.deepEqual(
+    deriveRelationPresentation({
+      availableWidth: 1_440,
+      drawableRelationCount: 3,
+      crossRowRelationCount: 2,
+      measuredCollisionCount: 1,
+      compactResponsiveMode: false,
+    }),
+    {
+      mode: "relation_summary",
+      simplified: true,
+      reason: "measured_collisions",
+      retainedRelationCount: 3,
+      announcement:
+        "Spatial overview simplified · all 3 candidate relations remain listed below",
+    },
+  );
+  assert.equal(
+    deriveRelationPresentation({
+      availableWidth: 200,
+      drawableRelationCount: 3,
+      crossRowRelationCount: 2,
+      measuredCollisionCount: 0,
+      compactResponsiveMode: false,
+    }).reason,
+    "available_width_pressure",
+  );
+});
+
+test("3/5/8-source density fixtures exercise readable and simplified modes without loss", () => {
+  const scenarios = [
+    { count: 3 as const, width: 1_440, expectedMode: "matrix" as const },
+    { count: 5 as const, width: 1_024, expectedMode: "relation_summary" as const },
+    { count: 8 as const, width: 1_280, expectedMode: "relation_summary" as const },
+  ];
+  const expectedRelationCounts = { 3: 3, 5: 10, 8: 18 } as const;
+
+  for (const scenario of scenarios) {
+    const packet = buildMapDensityFixture(scenario.count);
+    validateSiteReadyCasePacket(packet);
+    const before = JSON.stringify(packet);
+    const baseline = deriveInvestigationMap(packet, "event_time");
+    const drawable = baseline.relationLedger.filter(
+      (entry) => entry.geometryEligible,
+    );
+    const map = deriveInvestigationMap(packet, "event_time", {
+      availableWidth: scenario.width,
+      drawableRelationCount: drawable.length,
+      crossRowRelationCount: drawable.filter((entry) => !entry.sameRow).length,
+      measuredCollisionCount: 0,
+      compactResponsiveMode: false,
+    });
+
+    assert.equal(packet.actual_source_count, scenario.count);
+    assert.equal(map.relationLedger.length, expectedRelationCounts[scenario.count]);
+    assert.equal(map.relationPresentation.mode, scenario.expectedMode);
+    assert.equal(
+      new Set(map.relationLedger.map((entry) => entry.relationId)).size,
+      expectedRelationCounts[scenario.count],
+    );
+    assertEveryOccurrenceExactlyOnce(packet, map);
+    assertAllRelationsRouted(map, map.relationRoutes);
+    assert.equal(JSON.stringify(packet), before);
+  }
+});
+
+test("all five unresolved-question origin types resolve conservatively", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const occurrenceId = packet.claim_occurrences[0].occurrence_id;
   const claimId = packet.actor_claims[1].claim_id;
   const actionId = packet.actions[0].action_id;
-  const occurrenceId = packet.claim_occurrences[2].occurrence_id;
+  const sourceId = editorialSourceId(packet);
   packet.unresolved_questions = [
-    question("question_source_reference", sourceId),
-    question("question_claim_reference", claimId),
-    question("question_action_reference", actionId),
-    question("question_occurrence_reference", occurrenceId),
-    question("question_unknown_reference", "unknown_external_identifier"),
+    question("question_origin_occurrence", [occurrenceId]),
+    question("question_origin_actor_claim", [claimId]),
+    question("question_origin_action", [actionId]),
+    question("question_origin_source", [sourceId]),
+    question("question_origin_unknown", ["unknown_record_id"]),
   ];
-  const before = JSON.stringify(packet);
-  const map = deriveInvestigationMap(packet, "event_time");
 
-  assert.equal(
-    map.questions.find((item) => item.questionId === "question_source_reference")
-      ?.resolvedReferences[0].resolution,
-    "source",
-  );
-  assert.equal(
-    map.questions.find((item) => item.questionId === "question_claim_reference")
-      ?.resolvedReferences[0].resolution,
-    "claim",
-  );
-  assert.equal(
-    map.questions.find((item) => item.questionId === "question_action_reference")
-      ?.resolvedReferences[0].resolution,
-    "action",
-  );
-  assert.equal(
-    map.questions.find((item) => item.questionId === "question_occurrence_reference")
-      ?.resolvedReferences[0].resolution,
-    "occurrence",
-  );
-  const unknown = map.questions.find((item) => item.questionId === "question_unknown_reference");
-  assert.deepEqual(unknown?.targetNodeIds, [map.topic.nodeId]);
-  const unknownEdges = map.questionEdges.filter((edge) => edge.toNodeId === unknown?.nodeId);
-  assert.equal(unknownEdges.length, 1);
-  assert.equal(unknownEdges[0].fromNodeId, map.topic.nodeId);
-  assert.equal(unknownEdges[0].resolution, "unknown");
-  const sourceOrigins = deriveQuestionInspectionOrigins(map, "question_source_reference");
-  assert.equal(sourceOrigins[0].resolution, "source");
-  assert.equal(sourceOrigins[0].sourceNodes[0].title, packet.source_snapshot_summaries[0].title);
-  assert.equal(sourceOrigins[0].sourceNodes[0].sourceRole, "Official notice");
-  assert.equal(sourceOrigins[0].topicRootOnly, false);
-  const unknownOrigins = deriveQuestionInspectionOrigins(map, "question_unknown_reference");
-  assert.deepEqual(unknownOrigins, [{
-    relatedId: "unknown_external_identifier",
-    resolution: "unknown",
-    sourceNodes: [],
-    topicRootOnly: true,
-  }]);
-  assert.equal(JSON.stringify(packet), before);
+  const map = deriveInvestigationMap(packet, "event_time");
+  const expected = {
+    question_origin_occurrence: "occurrence",
+    question_origin_actor_claim: "actor_claim",
+    question_origin_action: "action",
+    question_origin_source: "source",
+    question_origin_unknown: "topic_unknown",
+  } as const;
+  for (const [questionId, originType] of Object.entries(expected)) {
+    const item = map.questions.find(
+      (candidate) => candidate.questionId === questionId,
+    );
+    assert.ok(item);
+    assert.equal(item.origins.length, 1);
+    assert.equal(item.origins[0].originType, originType);
+    assert.equal(
+      deriveQuestionInspectionOrigins(map, questionId)[0].originType,
+      originType,
+    );
+  }
+
+  const action = map.questions.find(
+    (item) => item.questionId === "question_origin_action",
+  )?.origins[0];
+  assert.ok(action);
+  assert.equal(action.label, "Via action record");
+  assert.deepEqual(action.occurrenceNodeIds, []);
+  assert.equal(action.drawsOccurrenceTether, false);
+  assert.ok(action.sourceIdentities.length > 0);
+
+  const source = map.questions.find(
+    (item) => item.questionId === "question_origin_source",
+  )?.origins[0];
+  assert.ok(source);
+  assert.deepEqual(source.occurrenceNodeIds, []);
+  assert.equal(source.drawsOccurrenceTether, false);
+  assert.equal(source.nonClaimSourceNodeId, nonClaimRecord(map, sourceId).nodeId);
+
+  const unknown = map.questions.find(
+    (item) => item.questionId === "question_origin_unknown",
+  )?.origins[0];
+  assert.ok(unknown);
+  assert.equal(unknown.label, "Topic-level evidence gap");
+  assert.equal(unknown.nonClaimSourceNodeId, null);
+  assert.deepEqual(unknown.occurrenceNodeIds, []);
 });
 
-test("findings/actions-only and disconnected sources stay visible without #43 edges", () => {
+test("actor-claim origins anchor every matching source-local occurrence or use a typed chip", () => {
   const packet = buildPreparedSiteReadyCasePacket();
-  packet.actor_claims = [];
-  packet.claim_occurrences = [];
-  packet.candidate_claim_families = [];
-  packet.relation_candidates = [];
-  packet.claim_lineage_rows = [];
-  packet.event_timeline_rows = [];
-  const before = JSON.stringify(packet);
+  const actorClaim = packet.actor_claims[1];
+  const original = packet.claim_occurrences.find(
+    (occurrence) => occurrence.claim_id === actorClaim.claim_id,
+  );
+  assert.ok(original);
+  const second = structuredClone(original);
+  second.occurrence_id = "occurrence_fixture_question_origin_second_source";
+  second.source_id = packet.source_snapshot_summaries[2].source_id;
+  second.snapshot_id = packet.source_snapshot_summaries[2].snapshot_id;
+  second.source_record_status = packet.source_snapshot_summaries[2].record_status;
+  second.candidate_claim_family_id = null;
+  second.support_reference.source_id = second.source_id;
+  second.support_reference.snapshot_id = second.snapshot_id;
+  packet.claim_occurrences.push(second);
+  actorClaim.source_ids.push(second.source_id);
+  packet.unresolved_questions = [
+    question("question_actor_claim_all_occurrences", [actorClaim.claim_id]),
+  ];
+
+  const mapped = deriveInvestigationMap(packet, "event_time");
+  const mappedOrigin = mapped.questions[0].origins[0];
+  assert.equal(mappedOrigin.originType, "actor_claim");
+  assert.deepEqual(
+    [...mappedOrigin.occurrenceNodeIds].sort(),
+    [original.occurrence_id, second.occurrence_id].sort(),
+  );
+  assert.equal(mappedOrigin.drawsOccurrenceTether, true);
+  assert.equal(mapped.questionTethers.length, 2);
+
+  const chipPacket = buildPreparedSiteReadyCasePacket();
+  const chipClaim = chipPacket.actor_claims[1];
+  chipPacket.claim_occurrences = chipPacket.claim_occurrences.filter(
+    (occurrence) => occurrence.claim_id !== chipClaim.claim_id,
+  );
+  chipPacket.unresolved_questions = [
+    question("question_actor_claim_chip", [chipClaim.claim_id]),
+  ];
+  const chipMap = deriveInvestigationMap(chipPacket, "event_time");
+  const chipOrigin = chipMap.questions[0].origins[0];
+  assert.equal(chipOrigin.originType, "actor_claim");
+  assert.equal(chipOrigin.label, "Via actor claim record");
+  assert.deepEqual(chipOrigin.occurrenceNodeIds, []);
+  assert.equal(chipOrigin.drawsOccurrenceTether, false);
+  assert.equal(chipMap.questionTethers.length, 0);
+});
+
+test("source and action origins never borrow an arbitrary claim-occurrence anchor", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const claimBearingSourceId = packet.claim_occurrences[0].source_id;
+  const actionId = packet.actions[0].action_id;
+  packet.unresolved_questions = [
+    question("question_claim_bearing_source", [claimBearingSourceId]),
+    question("question_action_without_borrowed_claim", [actionId]),
+  ];
   const map = deriveInvestigationMap(packet, "event_time");
 
-  assert.equal(map.relationEdges.length, 0);
-  assert.equal(map.sources.length, packet.source_snapshot_summaries.length);
-  assert.ok(map.sources.some((source) => source.previewLabel === "Source-bound finding"));
-  assert.ok(map.sources.some((source) => source.findingCount > 0));
-  assert.ok(map.sources.some((source) => source.actionCount > 0));
-  assert.equal(JSON.stringify(packet), before);
+  for (const item of map.questions) {
+    const origin = item.origins[0];
+    assert.ok(origin.originType === "source" || origin.originType === "action");
+    assert.deepEqual(origin.occurrenceNodeIds, []);
+    assert.equal(origin.drawsOccurrenceTether, false);
+    assert.equal(item.occurrenceAnchorIds.length, 0);
+  }
+  const sourceOrigin = map.questions[0].origins[0];
+  assert.equal(sourceOrigin.nonClaimSourceNodeId, null);
+  assert.equal(map.questionTethers.length, 0);
+});
 
-  const original = buildPreparedSiteReadyCasePacket();
-  const originalMap = deriveInvestigationMap(original, "event_time");
-  const disconnected = originalMap.sources.find((source) =>
-    source.sourceId.includes("editorial_heatwave_accountability"),
+test("a multi-origin unresolved question remains one card with typed origins", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const occurrenceId = packet.claim_occurrences[0].occurrence_id;
+  const claimId = packet.claim_occurrences[0].claim_id;
+  const actionId = packet.actions[0].action_id;
+  const sourceId = editorialSourceId(packet);
+  packet.unresolved_questions = [
+    question("question_multi_origin", [
+      occurrenceId,
+      claimId,
+      actionId,
+      sourceId,
+      "unknown_record_id",
+    ]),
+  ];
+
+  const map = deriveInvestigationMap(packet, "event_time");
+  assert.equal(map.questions.length, 1);
+  assert.equal(map.questions[0].questionId, "question_multi_origin");
+  assert.deepEqual(
+    map.questions[0].origins.map((origin) => origin.originType),
+    ["occurrence", "actor_claim", "action", "source", "topic_unknown"],
   );
-  assert.ok(disconnected);
-  assert.equal(
-    originalMap.relationEdges.some((edge) =>
-      edge.fromNodeId === disconnected.nodeId || edge.toNodeId === disconnected.nodeId,
+  assert.deepEqual(map.questions[0].occurrenceAnchorIds, [occurrenceId]);
+  assert.equal(map.questionTethers.length, 2);
+  assert.ok(
+    map.questionTethers.every(
+      (tether) =>
+        tether.fromOccurrenceId === occurrenceId
+        && tether.toQuestionId === "question_multi_origin"
+        && tether.hasArrow === false,
     ),
-    false,
   );
 });
 
-test("focus tracing and coverage lenses are stable viewing operations that do not mutate map or packet", () => {
+test("coverage strip preserves all roles and zero counts while lenses only highlight", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const map = deriveInvestigationMap(packet, "event_time");
   const packetBefore = JSON.stringify(packet);
   const mapBefore = JSON.stringify(map);
-  const selected = map.sources[1];
 
-  const trace = deriveThreadTrace(map, selected.nodeId);
-  assert.ok(trace.nodeIds.includes(selected.nodeId));
-  assert.ok(trace.relationEdgeIds.length > 0);
-  assert.ok(trace.nodeIds.some((id) => map.questions.some((questionNode) => questionNode.nodeId === id)));
+  assert.equal(map.coverage.totalSources, 4);
+  assert.equal(map.coverage.representedRoleCount, 4);
+  assert.equal(map.coverage.targetRoleCount, 5);
+  assert.deepEqual(
+    map.coverage.roles.map((role) => [
+      role.lane,
+      role.count,
+      role.missing,
+    ]),
+    [
+      ["baseline_authority", 1, false],
+      ["primary_or_origin", 0, true],
+      ["local_or_firsthand", 1, false],
+      ["specialist_context", 1, false],
+      ["challenge_or_correction", 1, false],
+    ],
+  );
+  assert.equal(
+    map.coverage.roles.find((role) => role.lane === "primary_or_origin")?.label,
+    "Original records",
+  );
+  const originalRole = map.coverage.roles.find(
+    (role) => role.lane === "primary_or_origin",
+  );
+  assert.ok(originalRole);
+  assert.equal(originalRole.zero, true);
+  assert.equal(originalRole.missingTarget, true);
 
-  const baseline = deriveCoverageHighlight(map, "baseline");
-  const expansion = deriveCoverageHighlight(map, "coverage_expansion");
-  const questions = deriveCoverageHighlight(map, "open_questions");
-  assert.ok(baseline.nodeIds.includes(map.topic.nodeId));
-  assert.ok(baseline.nodeIds.includes(map.sources.find((source) => source.discoveryPass === "baseline")?.nodeId ?? ""));
-  assert.ok(expansion.nodeIds.includes(map.sources.find((source) => source.discoveryPass === "coverage_expansion")?.nodeId ?? ""));
-  assert.ok(map.questions.every((questionNode) => questions.nodeIds.includes(questionNode.nodeId)));
+  const zeroButNotTargetPacket = structuredClone(packet);
+  zeroButNotTargetPacket.coverage_summary.missing_target_lanes = [];
+  const zeroButNotTarget = deriveInvestigationMap(
+    zeroButNotTargetPacket,
+    "event_time",
+  ).coverage.roles.find((role) => role.lane === "primary_or_origin");
+  assert.ok(zeroButNotTarget);
+  assert.equal(zeroButNotTarget.zero, true);
+  assert.equal(zeroButNotTarget.missingTarget, false);
+
+  for (const lens of COVERAGE_LENSES) {
+    const highlight = deriveCoverageHighlight(map, lens);
+    assert.ok(Array.isArray(highlight.nodeIds));
+    assert.ok(Array.isArray(highlight.relationIds));
+  }
+  const all = deriveCoverageHighlight(map, "all");
+  assert.equal(
+    all.nodeIds.length,
+    map.occurrences.length + map.nonClaimSources.length + map.questions.length,
+  );
+  assert.equal(all.relationIds.length, map.relationLedger.length);
   assert.equal(JSON.stringify(packet), packetBefore);
   assert.equal(JSON.stringify(map), mapBefore);
 });
 
-test("coverage-expansion rerun preserves the existing request contract exactly", () => {
+test("trace labels and states preserve Candidate, Standalone, Ungrouped, question, and non-claim identity", () => {
+  const prepared = deriveInvestigationMap(
+    buildPreparedSiteReadyCasePacket(),
+    "event_time",
+  );
+  const candidateOccurrence = prepared.occurrences.find(
+    (item) => item.rowKind === "candidate_thread",
+  );
+  const standaloneOccurrence = prepared.occurrences.find(
+    (item) => item.rowKind === "standalone_occurrence",
+  );
+  assert.ok(candidateOccurrence);
+  assert.ok(standaloneOccurrence);
+  const candidateTrace = deriveThreadTrace(
+    prepared,
+    candidateOccurrence.nodeId,
+  );
+  assert.equal(candidateTrace.traceKind, "candidate_thread");
+  assert.equal(candidateTrace.traceLabel, "Candidate thread trace");
+  const standaloneTrace = deriveThreadTrace(
+    prepared,
+    standaloneOccurrence.nodeId,
+  );
+  assert.equal(standaloneTrace.traceKind, "standalone_occurrence");
+  assert.equal(
+    standaloneTrace.traceLabel,
+    "Standalone occurrence trace",
+  );
+
+  const inconsistent = buildPreparedSiteReadyCasePacket();
+  inconsistent.claim_occurrences[0].candidate_claim_family_id = null;
+  const ungroupedMap = deriveInvestigationMap(inconsistent, "event_time");
+  const ungrouped = ungroupedMap.occurrences.find(
+    (item) => item.rowKind === "ungrouped_occurrence",
+  );
+  assert.ok(ungrouped);
+  const ungroupedTrace = deriveThreadTrace(ungroupedMap, ungrouped.nodeId);
+  assert.equal(ungroupedTrace.traceKind, "ungrouped_occurrence");
+  assert.equal(
+    ungroupedTrace.traceLabel,
+    "Ungrouped occurrence trace",
+  );
+
+  const questionTrace = deriveThreadTrace(
+    prepared,
+    prepared.questions[0].nodeId,
+  );
+  assert.equal(questionTrace.traceKind, "question_context");
+  const sourceTrace = deriveThreadTrace(
+    prepared,
+    prepared.nonClaimSources[0].nodeId,
+  );
+  assert.equal(sourceTrace.traceKind, "non_claim_source");
+});
+
+test("occurrence model preserves the full claim and disciplined provenance boundaries", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const fullClaim =
+    "Residents could find safe, air-conditioned spaces across the city, including every qualification that must remain available after a visual clamp.";
+  packet.claim_occurrences[0].original_claim_text = fullClaim;
+  const map = deriveInvestigationMap(packet, "event_time");
+  const occurrence = occurrenceNode(
+    map,
+    packet.claim_occurrences[0].occurrence_id,
+  );
+
+  assert.equal(occurrence.originalClaimText, fullClaim);
+  assert.equal(occurrence.occurrenceBoundaryLabel, "Prepared case record");
+  assert.equal(occurrence.source.sourceBoundaryLabel, "Prepared source record");
+  assert.notEqual(occurrence.nodeId, occurrence.source.sourceId);
+  assert.ok(occurrence.actor);
+  assert.ok(occurrence.source.title);
+  assert.ok(occurrence.source.publisher);
+  assert.ok(occurrence.source.sourceRole);
+  assert.ok(map.relationLedger.every(
+    (relation) => relation.publicReviewLabel === "Needs review",
+  ));
+});
+
+test("prepared, live, and fallback boundaries share one v2 grammar without collapsing modes", () => {
+  const prepared = buildPreparedSiteReadyCasePacket();
+  const live = asLivePacket(prepared);
+  const fallback = structuredClone(prepared);
+  fallback.run_id = prepared.run_id + "_fallback";
+  fallback.mode = "fallback";
+  fallback.status = "fallback";
+  const packets = [prepared, live, fallback];
+  const maps = packets.map((packet) =>
+    deriveInvestigationMap(packet, chooseInitialTimeAxis(packet))
+  );
+  const grammar = grammarSignature(maps[0]);
+
+  for (const map of maps) {
+    assert.equal(map.contractVersion, "investigation_map.v2");
+    assert.deepEqual(grammarSignature(map), grammar);
+  }
+  assert.deepEqual(
+    maps.map((map) => [map.topic.mode, map.topic.status]),
+    [
+      ["deterministic", "ready"],
+      ["live", "live"],
+      ["fallback", "fallback"],
+    ],
+  );
+  assert.equal(
+    maps[0].occurrences[0].occurrenceBoundaryLabel,
+    "Prepared case record",
+  );
+  assert.equal(maps[1].occurrences[0].occurrenceBoundaryLabel, "Needs review");
+});
+
+test("Publication-only, Assertion-only, Retrieval-only, and zero-occurrence packets keep the same grammar", () => {
+  const prepared = buildPreparedSiteReadyCasePacket();
+  const variants = [
+    clearOccurrenceTimes(prepared, ["event_time"]),
+    clearOccurrenceTimes(prepared, ["event_time", "publication_time"]),
+    clearOccurrenceTimes(prepared, [
+      "event_time",
+      "publication_time",
+      "actor_assertion_time",
+    ]),
+  ];
+  const expectedRows = rowMembershipSignature(
+    deriveInvestigationMap(prepared, chooseInitialTimeAxis(prepared)),
+  );
+  for (const packet of variants) {
+    const map = deriveInvestigationMap(packet, chooseInitialTimeAxis(packet));
+    assert.deepEqual(rowMembershipSignature(map), expectedRows);
+    assertEveryOccurrenceExactlyOnce(packet, map);
+  }
+
+  const zeroOccurrence = structuredClone(prepared);
+  zeroOccurrence.claim_occurrences = [];
+  zeroOccurrence.candidate_claim_families = [];
+  zeroOccurrence.relation_candidates = [];
+  zeroOccurrence.claim_lineage_rows = [];
+  const zeroMap = deriveInvestigationMap(
+    zeroOccurrence,
+    chooseInitialTimeAxis(zeroOccurrence),
+  );
+  assert.equal(zeroMap.rows.length, 0);
+  assert.equal(zeroMap.occurrences.length, 0);
+  assert.equal(
+    zeroMap.nonClaimSources.length,
+    zeroOccurrence.source_snapshot_summaries.length,
+  );
+  assert.equal(zeroMap.selectedTimeAxis, "publication_time");
+});
+
+test("compact responsive projection preserves the same entities and semantic ledger", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const base = deriveInvestigationMapBase(packet);
+  const matrix = projectInvestigationMap(base, "event_time", {
+    availableWidth: 1_440,
+    drawableRelationCount: 3,
+    crossRowRelationCount: 2,
+    measuredCollisionCount: 0,
+    compactResponsiveMode: false,
+  });
+  const compact = projectInvestigationMap(base, "event_time", {
+    availableWidth: 390,
+    drawableRelationCount: 3,
+    crossRowRelationCount: 2,
+    measuredCollisionCount: 0,
+    compactResponsiveMode: true,
+  });
+
+  assert.equal(matrix.relationPresentation.mode, "matrix");
+  assert.equal(compact.relationPresentation.mode, "relation_summary");
+  assert.deepEqual(rowSignature(compact), rowSignature(matrix));
+  assert.deepEqual(
+    compact.occurrences.map((item) => item.occurrenceId),
+    matrix.occurrences.map((item) => item.occurrenceId),
+  );
+  assert.deepEqual(
+    compact.nonClaimSources.map((item) => item.sourceId),
+    matrix.nonClaimSources.map((item) => item.sourceId),
+  );
+  assert.deepEqual(
+    compact.questions.map((item) => item.questionId),
+    matrix.questions.map((item) => item.questionId),
+  );
+  assert.deepEqual(compact.relationLedger, matrix.relationLedger);
+  assertAllRelationsRouted(compact, compact.relationRoutes);
+});
+
+test("public packet and lineage request contracts remain unchanged", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  assert.doesNotThrow(() => validateSiteReadyCasePacket(packet));
+  assert.equal(packet.contract_version, "site_ready_case_packet.v1");
+
   const request = buildLineageRequest({
     question: "How is public access changing for residents?",
     sourceLimit: 5,
@@ -345,275 +1260,261 @@ test("coverage-expansion rerun preserves the existing request contract exactly",
     sourceLimit: 5,
     discoveryProfile: "coverage_expansion",
   });
-  assert.deepEqual(Object.keys(request), ["question", "sourceLimit", "discoveryProfile"]);
+  assert.deepEqual(Object.keys(request), [
+    "question",
+    "sourceLimit",
+    "discoveryProfile",
+  ]);
 });
 
-test("each selected time axis is explicit and missing values enter Time unavailable without fallback substitution", () => {
-  const packet = buildPreparedSiteReadyCasePacket();
-  const eventMap = deriveInvestigationMap(packet, "event_time");
-  const editorial = eventMap.sources.find((source) =>
-    source.sourceId.includes("editorial_heatwave_accountability"),
-  );
-  assert.equal(editorial?.selectedTime, null);
-  assert.equal(editorial?.timeRegion, "time_unavailable");
-  assert.equal(editorial?.selectedTimeAxisLabel, "Event time");
-  assert.match(eventMap.timeSelectionRule, /Missing values are not substituted/);
-
-  const retrievalMap = deriveInvestigationMap(packet, "retrieval_time");
-  assert.ok(retrievalMap.sources.every((source) => source.selectedTime));
-  assert.ok(retrievalMap.sources.every((source) => source.selectedTimeAxisLabel === "Sisyphus retrieval time"));
-});
-
-test("map groups mixed precision, preserves exact order, and marks relation endpoints non-chronological", () => {
-  const packet = buildPreparedSiteReadyCasePacket();
-  const [daySource, laterSource, earlierSource, nextDaySource] =
-    packet.source_snapshot_summaries;
-  daySource.published_at = "2025-07-15T00:00:00.000Z";
-  daySource.published_at_precision = "day";
-  laterSource.published_at = "2025-07-15T09:00:00.000Z";
-  laterSource.published_at_precision = "instant";
-  earlierSource.published_at = "2025-07-15T08:00:00.000Z";
-  earlierSource.published_at_precision = "instant";
-  nextDaySource.published_at = "2025-07-16T00:00:00.000Z";
-  nextDaySource.published_at_precision = "instant";
-
-  const relation = packet.relation_candidates[0];
-  const leftOccurrence = packet.claim_occurrences.find(
-    (occurrence) => occurrence.occurrence_id === relation.left_occurrence_id,
-  );
-  const rightOccurrence = packet.claim_occurrences.find(
-    (occurrence) => occurrence.occurrence_id === relation.right_occurrence_id,
-  );
-  assert.ok(leftOccurrence);
-  assert.ok(rightOccurrence);
-  leftOccurrence.event_time_candidate = "2025-07-15T00:00:00.000Z";
-  leftOccurrence.event_time_candidate_precision = "day";
-  rightOccurrence.event_time_candidate = "2025-07-15T08:00:00.000Z";
-  rightOccurrence.event_time_candidate_precision = "instant";
-
-  const map = deriveInvestigationMap(packet, "publication_time");
+function assertEveryOccurrenceExactlyOnce(
+  packet: SiteReadyCasePacket,
+  map: InvestigationMap,
+): void {
+  const mapped = map.rows.flatMap((row) => row.occurrenceNodeIds);
+  assert.equal(mapped.length, packet.claim_occurrences.length);
+  assert.equal(new Set(mapped).size, packet.claim_occurrences.length);
   assert.deepEqual(
-    map.sources.map((source) => source.sourceId),
-    [
-      earlierSource.source_id,
-      laterSource.source_id,
-      daySource.source_id,
-      nextDaySource.source_id,
-    ],
+    [...mapped].sort(),
+    packet.claim_occurrences.map((item) => item.occurrence_id).sort(),
   );
-  assert.deepEqual(map.timeGroups[0], {
-    groupId: "time_group:publication_time:2025-07-15",
-    calendarDate: "2025-07-15",
-    precision: "mixed",
-    sourceNodeIds: [
-      earlierSource.source_id,
-      laterSource.source_id,
-      daySource.source_id,
-    ],
-    startColumn: 1,
-    endColumn: 3,
-  });
-  assert.equal(map.sources.find((source) =>
-    source.sourceId === daySource.source_id
-  )?.timeGroupPrecision, "mixed");
-  assert.match(map.timeSelectionRule, /day-level records have no implied within-day position/);
-  assert.equal(
-    map.relationEdges.find((edge) => edge.relationId === relation.relation_id)
-      ?.endpointOrdering,
-    "non_chronological_mixed_precision",
+  assert.deepEqual(
+    map.occurrences.map((item) => item.occurrenceId).sort(),
+    packet.claim_occurrences.map((item) => item.occurrence_id).sort(),
   );
-});
+}
 
-test("the vertical list model contains the visual map's material source, relation, and question information", () => {
-  const packet = buildPreparedSiteReadyCasePacket();
-  const map = deriveInvestigationMap(packet, "publication_time");
-  const material = {
-    sources: map.sources.map((source) => ({
-      role: source.sourceRole,
-      title: source.title,
-      publisher: source.publisher,
-      domain: source.domain,
-      axis: source.selectedTimeAxisLabel,
-      time: source.selectedTime,
-      preview: source.preview,
-      state: source.recordBoundaryLabel,
-      citation: source.citationUrl,
-    })),
-    relations: map.relationEdges.map((edge) => ({
-      id: edge.relationId,
-      from: edge.fromNodeId,
-      to: edge.toNodeId,
-      label: edge.label,
-      review: edge.reviewStatus,
-    })),
-    questions: map.questions.map((questionNode) => ({
-      id: questionNode.questionId,
-      question: questionNode.question,
-      targets: questionNode.targetNodeIds,
-    })),
-  };
-  assert.equal(material.sources.length, packet.source_snapshot_summaries.length);
-  assert.equal(material.relations.length, packet.relation_candidates.length);
-  assert.equal(material.questions.length, packet.unresolved_questions.length);
-  assert.ok(material.sources.every((source) => source.role && source.title && source.publisher && source.axis && source.preview));
-  assert.ok(material.relations.every((edge) => edge.id && edge.from && edge.to && edge.label && edge.review));
-  assert.ok(material.questions.every((questionNode) => questionNode.id && questionNode.question && questionNode.targets.length));
-});
+function rowSignature(map: InvestigationMap): Array<{
+  ordinal: number;
+  kind: string;
+  label: string;
+  thread: string | null;
+  occurrenceIds: string[];
+}> {
+  return map.rows.map((row) => ({
+    ordinal: row.rowOrdinal,
+    kind: row.rowKind,
+    label: row.label,
+    thread: row.displayThreadNumber,
+    occurrenceIds: [...row.occurrenceNodeIds],
+  }));
+}
 
-test("deterministic 3, 5, and internal 8-source fixtures preserve material map information without mutation", () => {
-  const expectedRelationCounts = { 3: 3, 5: 10, 8: 18 } as const;
-  for (const sourceCount of [3, 5, 8] as const) {
-    const packet = buildMapDensityFixture(sourceCount);
-    validateSiteReadyCasePacket(packet);
-    const before = JSON.stringify(packet);
-    const map = deriveInvestigationMap(packet, "event_time");
-    assert.equal(map.sources.length, sourceCount);
-    assert.equal(packet.relation_candidates.length, expectedRelationCounts[sourceCount]);
-    assert.ok(map.sources.every((source) =>
-      source.sourceId &&
-      source.title &&
-      source.publisher &&
-      source.sourceRole &&
-      source.preview &&
-      source.recordBoundaryLabel
-    ));
-    assert.equal(map.relationEdges.length, packet.relation_candidates.length);
-    assert.equal(map.questions.length, packet.unresolved_questions.length);
-    assert.ok(map.questionEdges.length >= map.questions.length);
-
-    const firstSource = map.sources[0];
-    deriveThreadTrace(map, firstSource.nodeId);
-    deriveCoverageHighlight(map, "all");
-    deriveCoverageHighlight(map, "open_questions");
-    assert.equal(JSON.stringify(packet), before);
-  }
-
-  const stress = buildMapDensityFixture(8);
-  assert.match(stress.limitations.join(" "), /test-only/i);
-  assert.match(stress.limitations.join(" "), /not a public selectable input/i);
-});
-
-test("5/8-source density relations use only fixture-backed IDs and remain review-only", () => {
-  const five = buildMapDensityFixture(5);
-  const eight = buildMapDensityFixture(8);
-  assert.equal(five.relation_candidates.length, 10);
-  assert.equal(eight.relation_candidates.length, 18);
-  assert.ok(eight.relation_candidates.length > five.relation_candidates.length);
-
-  for (const packet of [five, eight]) {
-    const sourceById = new Map(
-      packet.source_snapshot_summaries.map((source) => [source.source_id, source]),
+function rowMembershipSignature(map: InvestigationMap): Array<{
+  kind: string;
+  occurrenceIds: string[];
+}> {
+  return map.rows
+    .map((row) => ({
+      kind: row.rowKind,
+      occurrenceIds: [...row.occurrenceNodeIds].sort(),
+    }))
+    .sort((left, right) =>
+      left.kind.localeCompare(right.kind)
+      || left.occurrenceIds.join("|").localeCompare(right.occurrenceIds.join("|"))
     );
-    const occurrenceById = new Map(
-      packet.claim_occurrences.map((occurrence) => [occurrence.occurrence_id, occurrence]),
-    );
-    const relationDetailIds = new Set(
-      packet.focused_detail_lookup_keys
-        .filter((item) => item.kind === "relation")
-        .map((item) => item.id),
-    );
-    const representedSources = new Set<string>();
+}
 
-    for (const relation of packet.relation_candidates) {
-      const leftOccurrence = occurrenceById.get(relation.left_occurrence_id);
-      const rightOccurrence = occurrenceById.get(relation.right_occurrence_id);
-      assert.ok(leftOccurrence);
-      assert.ok(rightOccurrence);
-      assert.equal(leftOccurrence.source_id, relation.left_source_id);
-      assert.equal(rightOccurrence.source_id, relation.right_source_id);
-      assert.equal(leftOccurrence.snapshot_id, relation.left_snapshot_id);
-      assert.equal(rightOccurrence.snapshot_id, relation.right_snapshot_id);
-      assert.deepEqual(leftOccurrence.support_reference, relation.left_support_reference);
-      assert.deepEqual(rightOccurrence.support_reference, relation.right_support_reference);
-      assert.equal(relation.left_support_reference.source_id, relation.left_source_id);
-      assert.equal(relation.right_support_reference.source_id, relation.right_source_id);
-      assert.equal(relation.left_support_reference.snapshot_id, relation.left_snapshot_id);
-      assert.equal(relation.right_support_reference.snapshot_id, relation.right_snapshot_id);
-      assert.ok(sourceById.has(relation.left_source_id));
-      assert.ok(sourceById.has(relation.right_source_id));
-      assert.equal(relation.status, "candidate");
-      assert.equal(relation.review_status, "pending_review");
-      assert.ok(relationDetailIds.has(relation.relation_id));
-      representedSources.add(relation.left_source_id);
-      representedSources.add(relation.right_source_id);
-
-      if (relation.relation_id.includes("density_fixture")) {
-        assert.equal(relation.generated_by, "deterministic_fixture");
-        assert.equal(relation.relation_type, "unresolved");
-        assert.equal(relation.insufficient_evidence, true);
-        assert.match(relation.reason, /test-only relation-density candidate/i);
-        assert.match(relation.reason, /does not assert endorsement, truth, correction, or canonical state/i);
+function clearOccurrenceTimes(
+  input: SiteReadyCasePacket,
+  axes: readonly Exclude<TimeAxis, "retrieval_time">[],
+): SiteReadyCasePacket {
+  const packet = structuredClone(input);
+  for (const occurrence of packet.claim_occurrences) {
+    for (const axis of axes) {
+      if (axis === "event_time") {
+        occurrence.event_time_candidate = null;
+        occurrence.event_time_candidate_precision = null;
+      } else if (axis === "publication_time") {
+        occurrence.source_publication_time = null;
+        occurrence.source_publication_time_precision = null;
+      } else {
+        occurrence.assertion_time_candidate = null;
+        occurrence.assertion_time_candidate_precision = null;
       }
     }
-    assert.equal(representedSources.size, packet.actual_source_count);
   }
+  return packet;
+}
 
-  const eightMap = deriveInvestigationMap(eight, "event_time");
-  const parallel = eightMap.relationEdges.filter((edge) => edge.parallelCount === 2);
-  assert.equal(parallel.length, 2);
-  assert.deepEqual(parallel.map((edge) => edge.parallelIndex).sort(), [0, 1]);
-});
+function occurrenceNode(map: InvestigationMap, occurrenceId: string) {
+  const node = map.occurrences.find(
+    (candidate) => candidate.occurrenceId === occurrenceId,
+  );
+  assert.ok(node);
+  return node;
+}
 
-function question(questionId: string, relatedId: string): PacketUnresolvedQuestion {
+function relationEntry(map: InvestigationMap, relationId: string) {
+  const entry = map.relationLedger.find(
+    (candidate) => candidate.relationId === relationId,
+  );
+  assert.ok(entry);
+  return entry;
+}
+
+function editorialSourceId(packet: SiteReadyCasePacket): string {
+  const occurrenceSourceIds = new Set(
+    packet.claim_occurrences.map((occurrence) => occurrence.source_id),
+  );
+  const source = packet.source_snapshot_summaries.find(
+    (candidate) => !occurrenceSourceIds.has(candidate.source_id),
+  );
+  assert.ok(source);
+  return source.source_id;
+}
+
+function packetForNonClaimSubtype(
+  subtype: NonClaimSourceSubtype,
+): SiteReadyCasePacket {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const sourceId = editorialSourceId(packet);
+  const source = packet.source_snapshot_summaries.find(
+    (candidate) => candidate.source_id === sourceId,
+  );
+  assert.ok(source);
+  source.source_selection.information_proximity =
+    subtype === "context_interpretation"
+      ? "analysis_or_commentary"
+      : "unknown";
+  packet.actions = packet.actions.filter(
+    (action) => !action.source_ids.includes(sourceId),
+  );
+  packet.source_bound_findings = packet.source_bound_findings.filter(
+    (finding) => !finding.source_ids.includes(sourceId),
+  );
+  if (
+    subtype === "action_bearing"
+    || subtype === "mixed_non_claim"
+  ) {
+    const action = structuredClone(packet.actions[0]);
+    action.action_id = "action_fixture_non_claim_" + subtype;
+    action.source_ids = [sourceId];
+    packet.actions.push(action);
+  }
+  if (
+    subtype === "finding_bearing"
+    || subtype === "mixed_non_claim"
+  ) {
+    const finding = structuredClone(packet.source_bound_findings[0]);
+    finding.finding_id = "finding_fixture_non_claim_" + subtype;
+    finding.source_ids = [sourceId];
+    packet.source_bound_findings.push(finding);
+  }
+  return packet;
+}
+
+function nonClaimRecord(
+  map: InvestigationMap,
+  sourceId: string,
+) {
+  const record = map.nonClaimSources.find(
+    (candidate) => candidate.sourceId === sourceId,
+  );
+  assert.ok(record);
+  return record;
+}
+
+function setRelationEndpointTime(
+  packet: SiteReadyCasePacket,
+  relation: RelationCandidate,
+  endpoint: "left" | "right",
+  value: string | null,
+  precision: "day" | "instant" | null,
+): void {
+  const occurrenceId = endpoint === "left"
+    ? relation.left_occurrence_id
+    : relation.right_occurrence_id;
+  const occurrence = packet.claim_occurrences.find(
+    (item) => item.occurrence_id === occurrenceId,
+  );
+  assert.ok(occurrence);
+  occurrence.event_time_candidate = value;
+  occurrence.event_time_candidate_precision = precision;
+}
+
+function assertDirection(
+  packet: SiteReadyCasePacket,
+  relationId: string,
+  expected: boolean,
+): void {
+  const entry = relationEntry(
+    deriveInvestigationMap(packet, "event_time"),
+    relationId,
+  );
+  assert.equal(entry.directionAsserted, expected);
+  assert.equal(
+    entry.directionExplanation,
+    expected
+      ? "Direction asserted from earlier to later on Event time under the conservative composite rule."
+      : "Direction not asserted on the selected axis",
+  );
+}
+
+function assertAllRelationsRouted(
+  map: InvestigationMap,
+  routes: {
+    spatialRelationIds: string[];
+    portRelationIds: string[];
+    ledgerOnlyRelationIds: string[];
+  },
+): void {
+  const routed = [
+    ...routes.spatialRelationIds,
+    ...routes.portRelationIds,
+    ...routes.ledgerOnlyRelationIds,
+  ];
+  assert.equal(routed.length, map.relationLedger.length);
+  assert.equal(new Set(routed).size, map.relationLedger.length);
+  assert.deepEqual(
+    [...routed].sort(),
+    map.relationLedger.map((entry) => entry.relationId).sort(),
+  );
+}
+
+function question(
+  questionId: string,
+  relatedIds: string[],
+): PacketUnresolvedQuestion {
   return {
     question_id: questionId,
-    question: `What remains unknown for ${relatedId}?`,
-    related_ids: [relatedId],
+    question: "What remains unknown for " + relatedIds.join(", ") + "?",
+    related_ids: relatedIds,
     status: "unresolved",
     record_status: "candidate",
     origin: "live_api",
   };
 }
 
-function withoutEventTimes(packet: SiteReadyCasePacket): SiteReadyCasePacket {
-  const result = structuredClone(packet);
-  for (const occurrence of result.claim_occurrences) {
-    occurrence.event_time_candidate = null;
-    occurrence.event_time_candidate_precision = null;
-  }
-  for (const action of result.actions) {
-    action.event_time_candidate = null;
-    action.event_time_candidate_precision = null;
-  }
-  result.time_candidates = result.time_candidates.filter(
-    (candidate) => candidate.candidate_type !== "event_time_candidate",
-  );
-  return result;
-}
-
-function asLivePacket(
-  input: SiteReadyCasePacket,
-  discoveryProfile: "standard" | "coverage_expansion",
-): SiteReadyCasePacket {
+function asLivePacket(input: SiteReadyCasePacket): SiteReadyCasePacket {
   const packet = structuredClone(input);
+  packet.run_id = input.run_id + "_live";
   packet.mode = "live";
   packet.status = "live";
-  packet.discovery_profile = discoveryProfile;
-  packet.source_snapshot_summaries = packet.source_snapshot_summaries.map((source, index) => ({
-    ...source,
-    record_status: "candidate" as const,
-    source_selection: {
-      ...source.source_selection,
-      discovery_pass:
-        discoveryProfile === "coverage_expansion" && index > 0
-          ? "coverage_expansion" as const
-          : "baseline" as const,
-    },
-  }));
-  packet.coverage_summary = {
-    coverage_basis: "live_discovery",
-    discovery_profile: discoveryProfile,
-    baseline_requested: discoveryProfile === "standard" ? 5 : 2,
-    baseline_returned: discoveryProfile === "standard" ? 4 : 2,
-    expansion_requested: discoveryProfile === "standard" ? 0 : 3,
-    expansion_returned: discoveryProfile === "standard" ? 0 : 2,
-    lane_counts: structuredClone(input.coverage_summary.lane_counts),
-    missing_target_lanes: discoveryProfile === "standard" ? [] : ["primary_or_origin"],
-    unique_domain_count: 4,
-    duplicate_url_count: 0,
-    source_limit_reached: false,
-    expansion_attempted: discoveryProfile === "coverage_expansion",
-    expansion_completed_successfully: true,
-  };
+  packet.discovery_profile = "standard";
+  for (const source of packet.source_snapshot_summaries) {
+    source.record_status = "candidate";
+  }
+  for (const occurrence of packet.claim_occurrences) {
+    occurrence.status = "candidate";
+    occurrence.source_record_status = "candidate";
+  }
+  for (const claim of packet.actor_claims) claim.status = "candidate";
+  for (const action of packet.actions) action.status = "candidate";
+  for (const finding of packet.source_bound_findings) finding.status = "candidate";
+  for (const unresolved of packet.unresolved_questions) {
+    unresolved.record_status = "candidate";
+  }
   return packet;
+}
+
+function grammarSignature(map: InvestigationMap) {
+  return {
+    rows: rowSignature(map),
+    occurrenceIds: map.occurrences.map((item) => item.occurrenceId),
+    nonClaimSourceIds: map.nonClaimSources.map((item) => item.sourceId),
+    relationIds: map.relationLedger.map((item) => item.relationId),
+    questionIds: map.questions.map((item) => item.questionId),
+    coverage: map.coverage,
+  };
 }

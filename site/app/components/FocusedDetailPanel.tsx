@@ -13,6 +13,7 @@ import {
   sourceRoleLabel,
 } from "../lib/experience";
 import {
+  chooseInitialTimeAxis,
   deriveInvestigationMap,
   deriveQuestionInspectionOrigins,
   type QuestionInspectionOrigin,
@@ -58,6 +59,7 @@ type InspectorAccessibilityModel =
 
 export type FocusedMapViewActions = {
   canTraceThread: boolean;
+  traceLabel: string;
   threadTraceActive: boolean;
   onTraceThread: () => void;
   onShowFullMap: () => void;
@@ -139,7 +141,7 @@ export function FocusedDetailPanel({
             >
               <span>
                 {visibleMapViewActions.threadTraceActive
-                  ? "Thread trace active"
+                  ? `${visibleMapViewActions.traceLabel} active`
                   : "Map context"}
               </span>
               <div>
@@ -149,7 +151,7 @@ export function FocusedDetailPanel({
                     aria-pressed={visibleMapViewActions.threadTraceActive}
                     onClick={visibleMapViewActions.onTraceThread}
                   >
-                    Trace this thread
+                    {visibleMapViewActions.traceLabel}
                   </button>
                 ) : null}
                 <button type="button" onClick={visibleMapViewActions.onShowFullMap}>
@@ -337,24 +339,322 @@ function DetailBody({
   if (kind === "relation") {
     return <RelationDetail selection={selection} item={item} />;
   }
+  if (kind === "claim_family") {
+    return (
+      <ClaimFamilyDetail
+        packet={packet}
+        selection={selection}
+        item={item}
+      />
+    );
+  }
   if (kind === "claim_occurrence") {
     return (
-      <div className="detail-body">
-        <DetailField
-          label="Actor"
-          value={actorLabel(typeof item.actor === "string" ? item.actor : null)}
-        />
-        <DetailField label="Claim" value={item.original_claim_text} />
-        <DetailField label="Support kind" value={item.support_kind} />
-        <DetailField label="Record status" value={focusedRecordStatusLabel(item.status)} />
-        <details className="technical-details">
-          <summary>Record status enum</summary>
-          <DetailField label="Status enum" value={item.status} />
-        </details>
-      </div>
+      <ClaimOccurrenceDetail
+        packet={packet}
+        selection={selection}
+        item={item}
+      />
     );
   }
   return <QuestionDetail packet={packet} selection={selection} item={item} />;
+}
+
+function ClaimOccurrenceDetail({
+  packet,
+  selection,
+  item,
+}: {
+  packet?: SiteReadyCasePacket;
+  selection: FocusSelection;
+  item: Record<string, unknown>;
+}) {
+  const support = asRecord(item.support_reference);
+  const sourceId = asNullableString(item.source_id);
+  const source = packet?.source_snapshot_summaries.find(
+    (candidate) => candidate.source_id === sourceId,
+  );
+  const familyId = asNullableString(item.candidate_claim_family_id);
+
+  return (
+    <div className="detail-body">
+      <DetailField
+        label="Actor"
+        value={actorLabel(typeof item.actor === "string" ? item.actor : null)}
+      />
+      <DetailField label="Claim" value={item.original_claim_text} />
+      <DetailField
+        label="Event time and precision"
+        value={timestampWithPrecision(
+          asNullableString(item.event_time_candidate),
+          asTemporalPrecision(item.event_time_candidate_precision),
+        )}
+      />
+      <DetailField
+        label="Actor assertion time and precision"
+        value={timestampWithPrecision(
+          asNullableString(item.assertion_time_candidate),
+          asTemporalPrecision(item.assertion_time_candidate_precision),
+        )}
+      />
+      <DetailField
+        label="Publication time and precision"
+        value={timestampWithPrecision(
+          asNullableString(item.source_publication_time),
+          asTemporalPrecision(item.source_publication_time_precision),
+        )}
+      />
+      <DetailField
+        label="Sisyphus retrieval time and precision"
+        value={timestampWithPrecision(
+          asNullableString(item.source_retrieval_time),
+          asTemporalPrecision(item.source_retrieval_time_precision),
+        )}
+      />
+      <p className="detail-note">
+        Each timestamp keeps its own meaning. Missing values are not replaced by another axis.
+      </p>
+      <DetailField label="Uncertainty" value={item.uncertainty} />
+      <DetailField label="Confidence" value={humanize(item.confidence)} />
+      <DetailField
+        label="Support kind"
+        value={supportKindLabel(item.support_kind ?? support.support_kind)}
+      />
+      <DetailField label="Support reference" value={support.evidence_reference} />
+      <div className="support-box">
+        <strong>Bounded support excerpt</strong>
+        <p>{stringValue(support.bounded_excerpt)}</p>
+        <small>{supportBoundaryLabel(support.proves)}</small>
+      </div>
+      <div className="support-box">
+        <strong>Source attachment</strong>
+        <p>
+          {source
+            ? `${sourceRoleLabel(source)} · ${source.title}`
+            : "The source attachment is unavailable in the displayed packet."}
+        </p>
+        <small>
+          {source
+            ? `${source.publisher} · ${sourceRecordBoundaryLabel(source.record_status)}`
+            : "Source detail unavailable"}
+        </small>
+      </div>
+      <DetailField
+        label="Candidate family membership"
+        value={occurrenceFamilyMembershipLabel(
+          packet,
+          selection.id,
+          familyId,
+        )}
+      />
+      <DetailField label="Occurrence origin" value={lineageOriginLabel(item.origin)} />
+      <DetailField label="Record status" value={focusedRecordStatusLabel(item.status)} />
+      <DetailField
+        label="Attached source boundary"
+        value={sourceRecordBoundaryLabel(
+          source?.record_status ?? item.source_record_status,
+        )}
+      />
+      <details className="technical-details">
+        <summary>Record status enum and exact references</summary>
+        <div className="detail-disclosure-body">
+          <DetailField label="Status enum" value={item.status} />
+          <DetailField label="Origin enum" value={item.origin} />
+          <DetailField label="Claim ID" value={item.claim_id} />
+          <DetailField label="Source ID" value={item.source_id} />
+          <DetailField label="Snapshot ID" value={item.snapshot_id} />
+          <DetailField label="Candidate family ID" value={familyId} />
+          <DetailField label="Support kind enum" value={item.support_kind} />
+          <DetailField label="Validation status" value={item.validation_status} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function ClaimFamilyDetail({
+  packet,
+  selection,
+  item,
+}: {
+  packet?: SiteReadyCasePacket;
+  selection: FocusSelection;
+  item: Record<string, unknown>;
+}) {
+  const occurrenceIds = arrayValue(item.occurrence_ids);
+  const occurrences = occurrenceIds.map((occurrenceId) =>
+    packet?.claim_occurrences.find(
+      (candidate) => candidate.occurrence_id === occurrenceId,
+    ),
+  );
+  const membershipState = claimFamilyMembershipLabel(
+    packet,
+    selection.id,
+    occurrenceIds,
+    item.unresolved === true,
+  );
+
+  return (
+    <div className="detail-body">
+      <DetailField label="Grouping state" value={membershipState} />
+      <DetailField label="Grouping reason" value={item.grouping_reason} />
+      <InspectorList
+        title="Source-local claim occurrences"
+        items={occurrences.map((occurrence) => {
+          if (!occurrence) return "One listed occurrence is unavailable in the displayed packet.";
+          const source = packet?.source_snapshot_summaries.find(
+            (candidate) => candidate.source_id === occurrence.source_id,
+          );
+          return [
+            `${actorLabel(occurrence.actor)}: ${occurrence.original_claim_text}`,
+            source ? `${sourceRoleLabel(source)} · ${source.title}` : null,
+            focusedRecordStatusLabel(occurrence.status),
+          ].filter((value): value is string => Boolean(value)).join(" · ");
+        })}
+        empty="No source-local claim occurrence is listed for this candidate family."
+      />
+      <InspectorList
+        title="Grouping signals"
+        items={arrayValue(item.grouping_signals)}
+        empty="No grouping signal is available."
+      />
+      <DetailField
+        label="Unresolved grouping"
+        value={item.unresolved === true ? "Yes · grouping remains unresolved" : "No · grouping still needs review"}
+      />
+      <DetailField label="Review status" value="Needs review" />
+      <DetailField label="Family origin" value={lineageOriginLabel(item.origin)} />
+      <p className="detail-note">
+        Candidate family membership organizes review. It is not an accepted taxonomy or truth judgment.
+      </p>
+      <details className="technical-details">
+        <summary>Exact family membership and status enums</summary>
+        <div className="detail-disclosure-body">
+          <DetailField label="Family ID" value={selection.id} />
+          <DetailField label="Occurrence IDs" value={occurrenceIds.join(" · ")} />
+          <DetailField label="Review status enum" value={item.review_status} />
+          <DetailField label="Status enum" value={item.status} />
+          <DetailField label="Origin enum" value={item.origin} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function timestampWithPrecision(
+  value: string | null,
+  precision: TemporalPrecision,
+): string {
+  const formatted = formatReviewTimestamp(value, precision);
+  if (!value || !precision) return `${formatted} · no explicit value and precision`;
+  return precision === "day"
+    ? `${formatted} · day precision; no within-day order`
+    : `${formatted} · exact instant`;
+}
+
+function supportKindLabel(value: unknown): string {
+  if (value === "captured_fixture_source_evidence_excerpt") {
+    return "Captured fixture evidence excerpt";
+  }
+  if (value === "model_generated_web_search_summary_span") {
+    return "Model-generated web-search summary span · not captured page text";
+  }
+  return "Support kind unavailable";
+}
+
+function supportBoundaryLabel(value: unknown): string {
+  if (value === "captured_fixture_support") return "Captured fixture support";
+  if (value === "model_summary_containment_only") {
+    return "Model-generated summary containment only · not captured page text";
+  }
+  return "Support boundary unavailable";
+}
+
+function sourceRecordBoundaryLabel(value: unknown): string {
+  if (value === "canonical") return "Prepared source record";
+  if (value === "candidate") return "Needs review";
+  return "Source boundary unavailable";
+}
+
+function lineageOriginLabel(value: unknown): string {
+  if (value === "deterministic_fixture") return "Prepared fixture";
+  if (value === "live_api") return "Live review candidate";
+  return "Origin unavailable";
+}
+
+function occurrenceFamilyMembershipLabel(
+  packet: SiteReadyCasePacket | undefined,
+  occurrenceId: string,
+  familyId: string | null,
+): string {
+  if (!packet) {
+    return familyId
+      ? "Candidate family reference present · membership needs review"
+      : "Ungrouped claim occurrence";
+  }
+
+  const containingFamilies = packet.candidate_claim_families.filter(
+    (family) => family.occurrence_ids.includes(occurrenceId),
+  );
+  if (!familyId) {
+    return containingFamilies.length
+      ? "Ungrouped claim occurrence · family membership is inconsistent"
+      : "Ungrouped claim occurrence";
+  }
+
+  const family = packet.candidate_claim_families.find(
+    (candidate) => candidate.family_id === familyId,
+  );
+  const consistent = family
+    && family.occurrence_ids.includes(occurrenceId)
+    && containingFamilies.length === 1
+    && containingFamilies[0].family_id === familyId;
+  if (!consistent) {
+    return "Ungrouped claim occurrence · family membership is missing or inconsistent";
+  }
+  if (family.occurrence_ids.length === 1 && family.unresolved) {
+    return "Standalone claim occurrence · grouping unresolved";
+  }
+  if (family.occurrence_ids.length > 1) {
+    return `Candidate thread membership · ${family.occurrence_ids.length} occurrences · needs review`;
+  }
+  return "Ungrouped claim occurrence · singleton grouping is not marked unresolved";
+}
+
+function claimFamilyMembershipLabel(
+  packet: SiteReadyCasePacket | undefined,
+  familyId: string,
+  occurrenceIds: string[],
+  unresolved: boolean,
+): string {
+  const uniqueOccurrenceIds = new Set(occurrenceIds);
+  if (occurrenceIds.length === 0 || uniqueOccurrenceIds.size !== occurrenceIds.length) {
+    return "Candidate family membership is missing or inconsistent · occurrences fail closed to Ungrouped";
+  }
+
+  if (packet) {
+    const consistent = occurrenceIds.every((occurrenceId) => {
+      const occurrence = packet.claim_occurrences.find(
+        (candidate) => candidate.occurrence_id === occurrenceId,
+      );
+      const containingFamilies = packet.candidate_claim_families.filter(
+        (family) => family.occurrence_ids.includes(occurrenceId),
+      );
+      return occurrence?.candidate_claim_family_id === familyId
+        && containingFamilies.length === 1
+        && containingFamilies[0].family_id === familyId;
+    });
+    if (!consistent) {
+      return "Candidate family membership is missing or inconsistent · occurrences fail closed to Ungrouped";
+    }
+  }
+
+  if (occurrenceIds.length === 1) {
+    return unresolved
+      ? "Standalone claim occurrence · grouping unresolved"
+      : "One-occurrence family is not marked unresolved · occurrence fails closed to Ungrouped";
+  }
+  return `Candidate thread · ${occurrenceIds.length} occurrences · needs review`;
 }
 
 function SourceDetail({
@@ -392,8 +692,13 @@ function SourceDetail({
     relation.left_source_id === selection.id || relation.right_source_id === selection.id,
   ) ?? [];
   const relatedQuestions = packet
-    ? deriveInvestigationMap(packet, "event_time").questions.filter((question) =>
-        question.targetNodeIds.includes(selection.id),
+    ? deriveInvestigationMap(
+        packet,
+        chooseInitialTimeAxis(packet),
+      ).questions.filter((question) =>
+        question.origins.some((origin) =>
+          origin.sourceIdentities.some((source) => source.sourceId === selection.id)
+        )
       )
     : [];
   const citationUrl = asNullableString(item.canonical_url)
@@ -587,7 +892,7 @@ function QuestionDetail({
 }) {
   const origins = packet
     ? deriveQuestionInspectionOrigins(
-        deriveInvestigationMap(packet, "event_time"),
+        deriveInvestigationMap(packet, chooseInitialTimeAxis(packet)),
         selection.id,
       )
     : [];
@@ -634,7 +939,7 @@ function QuestionDetail({
           />
           <DetailField
             label="Resolution types"
-            value={origins.map((origin) => origin.resolution).join(" · ")}
+            value={origins.map((origin) => origin.originType).join(" · ")}
           />
           <DetailField label="Record status enum" value={item.record_status} />
           <DetailField label="Question status enum" value={item.status} />
@@ -646,19 +951,21 @@ function QuestionDetail({
 
 function questionOriginDescription(origin: QuestionInspectionOrigin): string {
   if (origin.topicRootOnly) {
-    return "Unknown related record: conservative resolution stops at the investigation topic; no source edge is added.";
+    return `${origin.label}: ${origin.conciseIdentity}. No claim-occurrence tether is added.`;
   }
-  const sourceDescription = origin.sourceNodes
+  const sourceDescription = origin.sourceIdentities
     .map((source) => `${source.title} (${source.sourceRole})`)
     .join("; ");
   const connection = {
-    source: "The question directly references this source record",
-    claim: "A referenced actor claim resolves to this source record",
-    action: "A referenced action resolves to this source record",
-    occurrence: "A referenced claim occurrence resolves to this source record",
-    unknown: "No source record was conservatively resolved",
-  }[origin.resolution];
-  return `${sourceDescription || "Investigation topic only"}. ${connection}.`;
+    source: "The question references a source record without borrowing a claim body",
+    actor_claim: origin.drawsOccurrenceTether
+      ? "The actor claim resolves to every matching source-local occurrence"
+      : "No matching source-local occurrence exists, so this remains a typed actor-claim origin",
+    action: "The action stays a typed action-record origin and is not tethered to an arbitrary claim",
+    occurrence: "The question references this exact claim occurrence",
+    topic_unknown: "No record was conservatively resolved",
+  }[origin.originType];
+  return `${origin.label}: ${origin.conciseIdentity}. ${sourceDescription || "No source identity resolved"}. ${connection}.`;
 }
 
 function InspectorList({

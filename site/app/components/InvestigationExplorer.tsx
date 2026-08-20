@@ -29,8 +29,9 @@ import {
 import {
   buildLineageRequest,
   chooseInitialTimeAxis,
-  deriveInvestigationMap,
+  deriveInvestigationMapBase,
   investigationTimeAxisReducer,
+  projectInvestigationMap,
   type CoverageLens,
 } from "../lib/investigation-map";
 import type {
@@ -94,10 +95,15 @@ export function CaseExplorer({
   const activeDetailKey = useRef<string | null>(null);
   const activatingElement = useRef<HTMLElement | null>(null);
   const activatingTriggerId = useRef<string | null>(null);
+  const activatingSelection = useRef<FocusSelection | null>(null);
   const activatingScrollY = useRef(0);
+  const mapBase = useMemo(
+    () => deriveInvestigationMapBase(packet),
+    [packet],
+  );
   const map = useMemo(
-    () => deriveInvestigationMap(packet, timeAxis),
-    [packet, timeAxis],
+    () => projectInvestigationMap(mapBase, timeAxis),
+    [mapBase, timeAxis],
   );
 
   useEffect(() => {
@@ -123,14 +129,29 @@ export function CaseExplorer({
   function closeDetail() {
     const trigger = activatingElement.current;
     const triggerId = activatingTriggerId.current;
+    const selection = activatingSelection.current;
     const scrollY = activatingScrollY.current;
     clearDetail();
     requestAnimationFrame(() => {
-      const fallback = triggerId
-        ? [...document.querySelectorAll<HTMLElement>(`[${FOCUS_TRIGGER_ATTRIBUTE}]`)]
-          .find((element) => element.getAttribute(FOCUS_TRIGGER_ATTRIBUTE) === triggerId)
+      const focusTriggers = [
+        ...document.querySelectorAll<HTMLElement>(`[${FOCUS_TRIGGER_ATTRIBUTE}]`),
+      ];
+      const exactFallback = triggerId
+        ? focusTriggers.find((element) =>
+          element.getAttribute(FOCUS_TRIGGER_ATTRIBUTE) === triggerId
+          && isVisibleFocusTarget(element)
+        )
         : null;
-      const restoreTarget = trigger?.isConnected ? trigger : fallback;
+      const entityFallback = selection
+        ? focusTriggers.find((element) =>
+          element.dataset.focusKind === selection.kind
+          && element.dataset.focusId === selection.id
+          && isVisibleFocusTarget(element)
+        )
+        : null;
+      const restoreTarget = trigger && isVisibleFocusTarget(trigger)
+        ? trigger
+        : exactFallback ?? entityFallback;
       if (restoreTarget) {
         restoreTarget.focus({ preventScroll: true });
       } else {
@@ -257,6 +278,7 @@ export function CaseExplorer({
     activeDetailKey.current = key;
     activatingElement.current = trigger;
     activatingTriggerId.current = trigger.getAttribute(FOCUS_TRIGGER_ATTRIBUTE);
+    activatingSelection.current = selection;
     activatingScrollY.current = scrollY;
     setFocus(selection);
     setThreadTraceActive(false);
@@ -326,10 +348,21 @@ export function CaseExplorer({
     routeError,
     cooldownRemainingSeconds,
   );
-  const selectedNodeId = focus?.kind === "source" || focus?.kind === "unresolved_question"
+  const selectedNodeId = focus?.kind === "claim_occurrence"
+    || focus?.kind === "source"
+    || focus?.kind === "unresolved_question"
+    || focus?.kind === "claim_family"
     ? focus.id
     : null;
   const selectedEdgeId = focus?.kind === "relation" ? focus.id : null;
+  const canTraceSelection = focus?.kind === "claim_occurrence"
+    || focus?.kind === "claim_family";
+  const selectedTraceRow = selectedNodeId
+    ? map.rows.find((row) =>
+      row.occurrenceNodeIds.includes(selectedNodeId)
+      || row.familyId === selectedNodeId
+    )
+    : null;
 
   return (
     <main className="site-shell" id="top">
@@ -453,6 +486,7 @@ export function CaseExplorer({
                   map={map}
                   timeAxis={timeAxis}
                   coverageLens={coverageLens}
+                  selectedKind={focus?.kind ?? null}
                   selectedNodeId={selectedNodeId}
                   selectedEdgeId={selectedEdgeId}
                   threadTraceActive={threadTraceActive}
@@ -500,7 +534,8 @@ export function CaseExplorer({
                 state={detailState}
                 onClose={closeDetail}
                 mapViewActions={activeView === "map" ? {
-                  canTraceThread: selectedNodeId !== null,
+                  canTraceThread: canTraceSelection,
+                  traceLabel: selectedTraceRow?.traceLabel ?? "Trace claim occurrence",
                   threadTraceActive,
                   onTraceThread: showThreadTrace,
                   onShowFullMap: closeDetail,
@@ -523,6 +558,13 @@ function parseRetryAfterSeconds(value: string | null): number {
   if (!value || !/^\d+$/.test(value)) return 0;
   const seconds = Number(value);
   return Number.isSafeInteger(seconds) ? Math.min(seconds, 86_400) : 0;
+}
+
+function isVisibleFocusTarget(element: HTMLElement): boolean {
+  return element.isConnected
+    && element.getClientRects().length > 0
+    && !element.hidden
+    && element.getAttribute("aria-hidden") !== "true";
 }
 
 export function getRunNotice(
