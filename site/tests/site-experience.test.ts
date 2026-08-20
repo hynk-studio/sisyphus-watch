@@ -23,6 +23,7 @@ import {
   recordBoundaryLabel,
   sourceContentLabel,
   timeAxisSemanticNote,
+  type TimeAxis,
 } from "../app/lib/experience";
 import {
   FocusedDetailSupplementCache,
@@ -57,7 +58,11 @@ import {
   PublicLiveRunGuard,
   publicRerunSourceLimit,
 } from "../app/lib/public-live";
-import { buildSameSourceRelationFixture } from "./fixtures/map-density";
+import {
+  buildMapDensityFixture,
+  buildSameSourceRelationFixture,
+  buildUnplacedOccurrenceFixture,
+} from "./fixtures/map-density";
 
 const noop = () => undefined;
 
@@ -471,7 +476,7 @@ test("timeline, map, and detail expose mixed day/instant groups without losing e
     onExpandCoverage: noop,
   }));
   assert.match(mapHtml, /Mixed precision · no artificial order/);
-  assert.match(mapHtml, /Direction not asserted on the selected axis/);
+  assert.match(mapHtml, /Direction not established on Publication time/);
   assert.match(mapHtml, /data-direction-asserted="false"/);
   assert.doesNotMatch(`${timeline}${sources}${mapHtml}`, /Jul 14/);
 });
@@ -732,10 +737,10 @@ test("map uses occurrence-primary claim rows with complete candidate relations a
   assert.match(html, /Non-claim source records/);
   assert.match(html, /Context \/ interpretation/);
   assert.match(html, /Prepared source record/);
-  assert.match(html, /Via matching claim occurrences/);
+  assert.match(html, /Via matching claim/);
   assert.match(html, /Via action record/);
   assert.match(html, /Source-role coverage/);
-  assert.match(html, /4 sources · 4 of 5 target roles/);
+  assert.match(html, /4 sources · 4 of 5 roles/);
   assert.match(html, /Original records/);
   assert.match(html, /0 · missing/);
   assert.equal((html.match(/data-occurrence-id=/g) ?? []).length, 3);
@@ -747,6 +752,178 @@ test("map uses occurrence-primary claim rows with complete candidate relations a
       (html.match(new RegExp(escapeRegex(question.question), "g")) ?? []).length,
       1,
     );
+  }
+});
+
+test("Map relation language reads earlier to later without changing candidate semantics", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const eventHtml = renderMapMarkup(packet, "event_time");
+
+  assert.match(eventHtml, /Superseded by/);
+  assert.match(eventHtml, /Response follows/);
+  assert.match(eventHtml, /Challenge/);
+  assert.match(eventHtml, /Later Fictional City Emergency Management Office claim supersedes the earlier/);
+  assert.match(eventHtml, /These claim occurrences challenge one another/);
+  assert.doesNotMatch(eventHtml, />Replaces</);
+  assert.doesNotMatch(eventHtml, />Responds</);
+
+  const challenge = deriveInvestigationMap(packet, "event_time").relationLedger.find(
+    (entry) => entry.relationType === "contradicts",
+  );
+  assert.ok(challenge);
+  assert.equal(challenge.directionAsserted, false);
+  assert.match(
+    eventHtml,
+    new RegExp(`data-relation-id="${escapeRegex(challenge.relationId)}" data-direction-asserted="false"`),
+  );
+
+  const retrievalHtml = renderMapMarkup(packet, "retrieval_time");
+  assert.match(retrievalHtml, /Possible supersession between these claim occurrences/);
+  assert.match(retrievalHtml, /Direction not established on Sisyphus retrieval time/);
+  assert.match(retrievalHtml, /Supersession/);
+  assert.doesNotMatch(retrievalHtml, /Superseded by/);
+  assert.doesNotMatch(retrievalHtml, /Response follows/);
+});
+
+test("Map viewing lenses and broader provider work are separate public control regions", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const html = renderMapMarkup(packet, "event_time", true);
+  const lensGroup = html.match(/<div class="lens-list"[^>]*>([\s\S]*?)<\/div><p class="lens-note">/)?.[1];
+  assert.ok(lensGroup);
+  assert.match(lensGroup, />All</);
+  assert.match(lensGroup, />Open questions</);
+  assert.doesNotMatch(lensGroup, /broader investigation|bounded provider/i);
+  assert.match(html, /Run a broader investigation/);
+  assert.match(html, /Starts a new bounded provider request/);
+  assert.match(html, /current investigation remains unchanged/);
+  assert.match(html, /Do not blindly retry while delivery status is unknown/);
+  assert.match(html, /Filters only change what is emphasized/);
+  assert.match(html, /never remove or alter the displayed investigation/);
+  assert.doesNotMatch(html, /saved investigation/i);
+  assert.doesNotMatch(html, /class="focus-toolbar"/);
+
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(explorerSource, /onExpandCoverage=\{\(\) => void runAnalysis\(\{[\s\S]*?discoveryProfile: "coverage_expansion"/);
+});
+
+test("Map removes idle and empty structural surfaces without weakening explicit Unplaced warnings", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const eventHtml = renderMapMarkup(packet, "event_time");
+  assert.doesNotMatch(eventHtml, /class="unplaced-occurrence-band"/);
+  assert.doesNotMatch(eventHtml, /Dated on Event time/);
+  assert.match(eventHtml, /Unplaced on Event time/);
+  assert.doesNotMatch(eventHtml, /No records in this selected-axis subgroup/);
+
+  const publicationHtml = renderMapMarkup(packet, "publication_time");
+  assert.match(publicationHtml, /Dated on Publication time/);
+  assert.doesNotMatch(publicationHtml, /Unplaced on Publication time/);
+
+  const unplacedPacket = buildUnplacedOccurrenceFixture();
+  const unplacedHtml = renderMapMarkup(unplacedPacket, "event_time");
+  assert.match(unplacedHtml, /class="unplaced-occurrence-band"/);
+  assert.match(unplacedHtml, /Non-chronological region/);
+  assert.match(unplacedHtml, /This is not a later chronological column/);
+  assert.match(unplacedHtml, /no arrow direction is inferred through this region/);
+
+  const bothPacket = structuredClone(packet);
+  const contextSource = bothPacket.source_snapshot_summaries.find((source) =>
+    !bothPacket.claim_occurrences.some((occurrence) =>
+      occurrence.source_id === source.source_id
+      && occurrence.snapshot_id === source.snapshot_id
+    )
+  );
+  assert.ok(contextSource);
+  bothPacket.source_snapshot_summaries.push({
+    ...structuredClone(contextSource),
+    source_id: "src_internal_nonclaim_unplaced_peer",
+    snapshot_id: "snapshot_internal_nonclaim_unplaced_peer",
+    title: "Internal unplaced non-claim peer",
+    published_at: null,
+    published_at_precision: null,
+  });
+  const bothHtml = renderMapMarkup(bothPacket, "publication_time");
+  assert.match(bothHtml, /Dated on Publication time/);
+  assert.match(bothHtml, /Unplaced on Publication time/);
+
+  const zeroPacket = structuredClone(packet);
+  zeroPacket.source_snapshot_summaries = zeroPacket.source_snapshot_summaries.filter(
+    (source) => zeroPacket.claim_occurrences.some((occurrence) =>
+      occurrence.source_id === source.source_id
+      && occurrence.snapshot_id === source.snapshot_id
+    ),
+  );
+  const zeroHtml = renderMapMarkup(zeroPacket, "event_time");
+  assert.doesNotMatch(zeroHtml, /Non-claim source records/);
+});
+
+test("compact relation ledger remains complete, inspectable, and public-facing", () => {
+  for (const sourceCount of [3, 5, 8] as const) {
+    const packet = buildMapDensityFixture(sourceCount);
+    const html = renderMapMarkup(packet, "publication_time");
+    const map = deriveInvestigationMap(packet, "publication_time");
+    assert.equal((html.match(/data-ledger-entry="true"/g) ?? []).length, map.relationLedger.length);
+    for (const relation of map.relationLedger) {
+      assert.equal(
+        (html.match(new RegExp(`data-ledger-entry="true" data-relation-id="${escapeRegex(relation.relationId)}"`, "g")) ?? []).length,
+        1,
+      );
+      assert.match(html, new RegExp(`>${escapeRegex(relation.publicNumber)}<`));
+    }
+    assert.match(html, /Needs review/);
+    assert.match(html, /Full claims, sources, times, and reasoning/);
+    assert.match(html, /First occurrence/);
+    assert.match(html, /Second occurrence/);
+  }
+
+  const longClaimPacket = structuredClone(buildPreparedSiteReadyCasePacket());
+  const relatedOccurrenceId = longClaimPacket.relation_candidates[0]?.left_occurrence_id;
+  const relatedOccurrence = longClaimPacket.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === relatedOccurrenceId,
+  );
+  assert.ok(relatedOccurrence);
+  const fullLongClaim = `Full ledger claim ${"remains inspectable after compact summary ".repeat(6)}end.`;
+  relatedOccurrence.original_claim_text = fullLongClaim;
+  const longClaimHtml = renderMapMarkup(longClaimPacket, "event_time");
+  assert.ok(
+    (longClaimHtml.match(new RegExp(escapeRegex(fullLongClaim), "g")) ?? []).length >= 2,
+  );
+});
+
+test("relation simplification is announced only when the spatial overview is simplified", () => {
+  const preparedHtml = renderMapMarkup(buildPreparedSiteReadyCasePacket(), "event_time");
+  assert.doesNotMatch(preparedHtml, /Spatial overview simplified/);
+  assert.doesNotMatch(preparedHtml, /Matrix mode/);
+
+  for (const sourceCount of [5, 8] as const) {
+    const packet = buildMapDensityFixture(sourceCount);
+    const map = deriveInvestigationMap(packet, "publication_time");
+    const html = renderMapMarkup(packet, "publication_time");
+    assert.match(
+      html,
+      new RegExp(`Spatial overview simplified · all ${map.relationLedger.length} candidate relations remain listed below`),
+    );
+    assert.equal((html.match(/data-ledger-entry="true"/g) ?? []).length, map.relationLedger.length);
+  }
+});
+
+test("default Map copy presents product boundaries without implementation language", () => {
+  const html = renderMapMarkup(buildPreparedSiteReadyCasePacket(), "event_time");
+  assert.match(html, /claims as they appeared in each source|public claim as it appeared in its source/);
+  assert.match(html, /Every candidate relation is listed once below/);
+  assert.match(html, /See why this question remains open/);
+  assert.match(html, /Viewing and filtering never changes the displayed investigation/);
+  assert.doesNotMatch(html, /saved investigation/i);
+  for (const phrase of [
+    "canonical_mutation: none",
+    "accessibility membership",
+    "one authoritative semantic ledger entry per relation ID",
+    "typed origins and exact related IDs",
+    "source-local claim occurrences",
+  ]) {
+    assert.doesNotMatch(html, new RegExp(escapeRegex(phrase), "i"));
   }
 });
 
@@ -774,7 +951,7 @@ test("same-source relations remain occurrence-to-occurrence in spatial eligibili
     onExpandCoverage: noop,
   }));
 
-  assert.match(html, new RegExp(`${map.relationLedger.length} candidate relations`));
+  assert.match(html, /Every candidate relation is listed once below/);
   assert.match(html, new RegExp(`relation-ledger:relation:${relationId}`));
   assert.equal((html.match(new RegExp(`data-relation-id="${relationId}"`, "g")) ?? []).length, 1);
   assert.ok(spatialRelationEdges(map).some(
@@ -1529,11 +1706,11 @@ test("920px CSS transforms the same matrix into typed claim chapters with a comp
   assert.match(tabletRules, /\.claim-row \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(tabletRules, /\.claim-relation-layer,[\s\S]*?\.spatial-relation-shortcuts \{ display: none; \}/);
   assert.match(tabletRules, /\.relation-port-list \{/);
-  assert.match(tabletRules, /\.complete-relation-ledger li \{/);
-  assert.match(tabletRules, /\.non-claim-source-section \{ grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(tabletRules, /\.relation-ledger-detail-grid \{ grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(tabletRules, /\.non-claim-source-section\.has-1-subgroups,[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
 
   const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
-  assert.match(mobileRules, /\.complete-relation-ledger li \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(mobileRules, /\.relation-ledger-summary \{ grid-template-columns: 36px minmax\(0, 1fr\)/);
   assert.match(mobileRules, /\.relation-port-list \{ display: grid/);
   assert.match(mobileRules, /\.focus-toolbar \{ min-height: 0/);
   assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto; height: calc\(100dvh - 16px\)/);
@@ -1564,11 +1741,10 @@ test("Map analytical typography preserves a readable primary and important hiera
   assert.match(mapRules, /\.relation-shortcut span \{[^}]*font-size: var\(--map-font-important\)/);
   assert.match(mapRules, /\.relation-port-list span,[\s\S]*?font-size: var\(--map-font-supporting\)/);
   assert.match(mapRules, /\.question-origin-chip b \{[^}]*font-size: var\(--map-font-important\)/);
-  assert.match(mapRules, /\.question-origin-chip small \{[^}]*font-size: var\(--map-font-supporting\)/);
   assert.match(mapRules, /\.ledger-endpoint strong \{[^}]*font-size: var\(--map-font-prominent\)/);
   assert.match(mapRules, /\.ledger-endpoint span \{[^}]*font-size: var\(--map-font-important\)/);
   assert.match(mapRules, /\.ledger-endpoint time \{[^}]*font-size: var\(--map-font-supporting\)/);
-  assert.match(mapRules, /\.complete-relation-ledger li > button strong \{[^}]*font-size: var\(--map-font-important\)/);
+  assert.match(mapRules, /\.relation-ledger-summary-body > strong \{[^}]*font-size: var\(--map-font-important\)/);
   assert.match(mapRules, /\.non-claim-source-card span:not\(\.source-role-badge\) \{[^}]*font-size: var\(--map-font-prominent\)/);
   assert.match(mapRules, /\.non-claim-source-card time,[\s\S]*?font-size: var\(--map-font-supporting\)/);
   assert.match(mapRules, /\.map-coverage-strip dt \{[^}]*font-size: var\(--map-font-supporting\)/);
@@ -1579,6 +1755,17 @@ test("Map analytical typography preserves a readable primary and important hiera
   assert.doesNotMatch(compactRules, /\.occurrence-provenance[^}]*font-size:\s*\.(?:6|7[0-4])\d*rem/);
   assert.doesNotMatch(compactRules, /\.ledger-endpoint[^}]*font-size:\s*\.(?:6|7[0-4])\d*rem/);
   assert.doesNotMatch(compactRules, /\.question-origin-chip[^}]*font-size:\s*\.(?:6|7[0-4])\d*rem/);
+});
+
+test("Map skip links are hidden at rest and visible on keyboard focus", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const mapRules = css.slice(
+    css.indexOf("/* Temporal Claim-Lineage Matrix v1 */"),
+    css.indexOf("@media (max-width: 1200px)"),
+  );
+  assert.match(mapRules, /\.map-skip-links \{[\s\S]*?width: 1px;[\s\S]*?clip-path: inset\(50%\)/);
+  assert.match(mapRules, /\.map-skip-links:focus-within \{[\s\S]*?width: auto;[\s\S]*?max-width: calc\(100% - 8px\);[\s\S]*?flex-wrap: wrap;[\s\S]*?clip-path: none;[\s\S]*?white-space: normal/);
+  assert.match(mapRules, /\.map-skip-links a \{[\s\S]*?max-width: 100%;[\s\S]*?white-space: nowrap/);
 });
 
 test("Map ships one semantic tree whose row identities survive the responsive transformation", () => {
@@ -1655,6 +1842,32 @@ test("matrix activates keyboard scrolling only for measured horizontal overflow"
   assert.match(mapSource, /container\.scrollLeft = maxScrollLeft/);
   assert.match(mapSource, /matrixOverflowing \? \([\s\S]*?id="map-canvas-scroll-hint"/);
 });
+
+function renderMapMarkup(
+  packet: ReturnType<typeof buildPreparedSiteReadyCasePacket>,
+  timeAxis: TimeAxis,
+  liveEnabled = false,
+): string {
+  return renderToStaticMarkup(createElement(InvestigationMapView, {
+    packet,
+    map: deriveInvestigationMap(packet, timeAxis),
+    timeAxis,
+    coverageLens: "all",
+    selectedKind: null,
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    threadTraceActive: false,
+    liveEnabled,
+    runBlocked: false,
+    runStatusLabel: null,
+    onTimeAxisChange: noop,
+    onCoverageLensChange: noop,
+    onFocus: noop,
+    onTraceThread: noop,
+    onShowFullMap: noop,
+    onExpandCoverage: noop,
+  }));
+}
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

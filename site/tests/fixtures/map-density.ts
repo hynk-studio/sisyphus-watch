@@ -161,6 +161,21 @@ export function buildSameSourceRelationFixture(): SiteReadyCasePacket {
   return validateSiteReadyCasePacket(packet);
 }
 
+export function buildUnplacedOccurrenceFixture(): SiteReadyCasePacket {
+  const packet = structuredClone(buildPreparedSiteReadyCasePacket());
+  const occurrence = packet.claim_occurrences[0];
+  if (!occurrence) throw new Error("prepared unplaced-occurrence fixture unavailable");
+  occurrence.event_time_candidate = null;
+  occurrence.event_time_candidate_precision = null;
+  packet.run_id = "run_internal_unplaced_occurrence_fixture";
+  packet.title = "Internal unplaced-occurrence Map fixture";
+  packet.limitations = [
+    ...packet.limitations,
+    "Deterministic test-only packet for the selected-axis Unplaced presentation.",
+  ];
+  return validateSiteReadyCasePacket(packet);
+}
+
 function addRelationDensity(
   packet: SiteReadyCasePacket,
   sourceCount: 5 | 8,

@@ -493,7 +493,7 @@ export function CaseExplorer({
                   liveEnabled={liveEnabled}
                   runBlocked={isLoading || cooldownRemainingSeconds > 0}
                   runStatusLabel={isLoading
-                    ? "Expanding source coverage…"
+                    ? "Running broader investigation…"
                     : cooldownRemainingSeconds > 0
                       ? `Try again in ${cooldownRemainingSeconds}s`
                       : null}

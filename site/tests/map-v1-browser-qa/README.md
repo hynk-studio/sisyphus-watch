@@ -2,7 +2,8 @@
 
 This test-only Vite entry mounts the production `InvestigationMapView` and
 `FocusedDetailPanel` with the prepared packet and
-`buildMapDensityFixture(3 | 5 | 8)`. It does not add a production route, run the
+`buildMapDensityFixture(3 | 5 | 8)`, plus one deterministic occurrence-Unplaced
+packet. It does not add a production route, run the
 Vinext/Worker stack, or call a provider/API.
 
 From `site/`, start it with:
@@ -25,7 +26,18 @@ npx vite build --config tests/map-v1-browser-qa/vite.config.ts \
 ```
 
 Use the `QA packet` selector to switch between the prepared, 3-source,
-5-source, and 8-source cases. Fixture switching remounts the Map so each packet
+5-source, 8-source, and selected-axis Unplaced cases. Fixture switching remounts
+the Map so each packet
 begins on its own occurrence-primary initial axis and derives its own stable row
 ordinal. The production axis, coverage lens, focus, trace, adaptive relation
 mode, responsive chapter transformation, and Inspector controls remain active.
+
+When either Map skip link receives focus, the harness records browser-derived
+containment evidence on `.map-skip-links`:
+
+- `data-qa-focused="true"`
+- `data-qa-inside-viewport="true"`
+- `data-qa-page-overflow="0"`
+
+The harness emits a console error if a focused skip-link surface leaves the
+viewport or creates page-level horizontal overflow.

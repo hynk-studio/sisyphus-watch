@@ -28,6 +28,7 @@ import {
 import {
   TIME_AXES,
   TIME_AXIS_LABELS,
+  relationDisplayLabel,
   sourceCoverageNote,
   type TimeAxis,
 } from "../lib/experience";
@@ -355,9 +356,8 @@ export function InvestigationMapView({
             <p className="eyebrow">Temporal claim-lineage matrix</p>
             <h3 id="map-grammar-title">What changed in the public claims?</h3>
             <p>
-              Follow source-local claim occurrences across the selected time axis.
-              Candidate connections need review; unresolved questions are evidence gaps,
-              not conclusions or chronological records.
+              Follow each public claim as it appeared in its source and see what came
+              next. Connections need review; open questions remain unresolved.
             </p>
           </div>
           <label className="axis-control" htmlFor="map-time-axis">
@@ -373,35 +373,30 @@ export function InvestigationMapView({
             </select>
           </label>
         </div>
-        <div className="map-toolbar">
-          <h4>Coverage lens</h4>
-          <div className="lens-list" role="group" aria-label="Map coverage lens">
-            {COVERAGE_LENSES.map((lens) => (
-              <button
-                key={lens}
-                type="button"
-                aria-pressed={coverageLens === lens}
-                onClick={() => onCoverageLensChange(lens)}
-              >
-                {COVERAGE_LENS_LABELS[lens]}
-              </button>
-            ))}
+        <details className="map-toolbar map-lens-panel">
+          <summary>
+            <span>Coverage lens</span>
+            <strong>{COVERAGE_LENS_LABELS[coverageLens]}</strong>
+          </summary>
+          <div className="map-lens-panel-body">
+            <div className="lens-list" role="group" aria-label="Map coverage lens">
+              {COVERAGE_LENSES.map((lens) => (
+                <button
+                  key={lens}
+                  type="button"
+                  aria-pressed={coverageLens === lens}
+                  onClick={() => onCoverageLensChange(lens)}
+                >
+                  {COVERAGE_LENS_LABELS[lens]}
+                </button>
+              ))}
+            </div>
+            <p className="lens-note">
+              Filters only change what is emphasized. They never remove or alter the
+              displayed investigation.
+            </p>
           </div>
-          <p className="lens-note">
-            Lenses highlight and dim only. They never remove records or change families,
-            relations, accessibility membership, or canonical state.
-          </p>
-          {liveEnabled ? (
-            <button
-              className="expand-coverage-button"
-              type="button"
-              disabled={runBlocked}
-              onClick={onExpandCoverage}
-            >
-              {runStatusLabel ?? "Expand source coverage"}
-            </button>
-          ) : null}
-        </div>
+        </details>
         {selectedNodeId || selectedEdgeId ? (
           <div className="focus-toolbar">
             <div>
@@ -424,12 +419,7 @@ export function InvestigationMapView({
               <button type="button" onClick={onShowFullMap}>Show full map</button>
             </div>
           </div>
-        ) : (
-          <div className="focus-toolbar focus-toolbar-idle">
-            <strong>Select a claim, provenance attachment, relation, or question to inspect.</strong>
-            <small>Closing the Inspector restores the visible trigger and scroll position.</small>
-          </div>
-        )}
+        ) : null}
       </div>
 
       <CoverageStrip packet={packet} map={map} />
@@ -517,11 +507,7 @@ export function InvestigationMapView({
               <p className="relation-simplification-notice" role="status">
                 {relationPresentation.announcement}
               </p>
-            ) : (
-              <p className="relation-mode-note">
-                Matrix mode · readable candidate relations remain spatial; every relation is listed below.
-              </p>
-            )}
+            ) : null}
             {compact ? (
               <CompactClaimChapters
                 map={map}
@@ -598,18 +584,20 @@ export function InvestigationMapView({
                   </div>
                 </div>
 
-                <UnplacedBand
-                  map={map}
-                  occurrenceById={occurrenceById}
-                  includedOccurrenceIds={unplacedOccurrenceIds}
-                  portRelationsByOccurrence={portRelationsByOccurrence}
-                  activeNodeIds={activeNodeIds}
-                  selectedOccurrenceId={selectedOccurrenceId}
-                  selectedSourceId={selectedSourceId}
-                  selectedFamilyId={selectedFamilyId}
-                  selectedEdgeId={selectedEdgeId}
-                  onFocus={onFocus}
-                />
+                {map.unplacedOccurrenceIds.length ? (
+                  <UnplacedBand
+                    map={map}
+                    occurrenceById={occurrenceById}
+                    includedOccurrenceIds={unplacedOccurrenceIds}
+                    portRelationsByOccurrence={portRelationsByOccurrence}
+                    activeNodeIds={activeNodeIds}
+                    selectedOccurrenceId={selectedOccurrenceId}
+                    selectedSourceId={selectedSourceId}
+                    selectedFamilyId={selectedFamilyId}
+                    selectedEdgeId={selectedEdgeId}
+                    onFocus={onFocus}
+                  />
+                ) : null}
               </>
             )}
           </div>
@@ -623,6 +611,8 @@ export function InvestigationMapView({
 
           <CompleteRelationLedger
             entries={map.relationLedger}
+            occurrenceById={occurrenceById}
+            selectedTimeAxisLabel={map.selectedTimeAxisLabel}
             selectedEdgeId={selectedEdgeId}
             activeRelationIds={activeRelationIds}
             onFocus={onFocus}
@@ -646,7 +636,7 @@ export function InvestigationMapView({
                 type="button"
                 className={`relation-shortcut relation-${entry.visualFamily}${selectedEdgeId === entry.relationId ? " is-selected" : ""}${activeRelationIds.has(entry.relationId) ? "" : " is-dimmed"}`}
                 style={{ left: geometryItem.labelX, top: geometryItem.labelY }}
-                aria-label={relationAccessibleName(entry)}
+                aria-label={relationAccessibleName(entry, map.selectedTimeAxisLabel)}
                 aria-controls={`relation-ledger-${safeDomId(entry.relationId)}`}
                 data-relation-id={entry.relationId}
                 data-focus-kind="relation"
@@ -654,7 +644,7 @@ export function InvestigationMapView({
                 {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId("spatial-relation", relationSelection(entry)) }}
                 onClick={(event) => onFocus(relationSelection(entry), event.currentTarget)}
               >
-                <span>{entry.shortLabel}</span>
+                <span>{relationSpatialLabel(entry)}</span>
               </button>
             );
           })}
@@ -662,10 +652,31 @@ export function InvestigationMapView({
       </div>
 
       <p className="map-boundary-note">
-        All spatial relation labels are candidate relation types requiring review,
-        not accepted facts. Source inclusion is not endorsement or truth verification.
-        Browsing, focus, traces, and coverage lenses have canonical_mutation: none.
+        Connections shown here are suggestions for review, not accepted facts. Source
+        inclusion is not endorsement or truth verification. Viewing and filtering never
+        changes the displayed investigation.
       </p>
+
+      {liveEnabled ? (
+        <section className="map-provider-action" aria-labelledby="broader-investigation-title">
+          <div>
+            <h4 id="broader-investigation-title">Run a broader investigation</h4>
+            <p>
+              Starts a new bounded provider request. The current investigation remains
+              unchanged while the new result is being created.
+            </p>
+            <small>Do not blindly retry while delivery status is unknown.</small>
+          </div>
+          <button
+            className="expand-coverage-button"
+            type="button"
+            disabled={runBlocked}
+            onClick={onExpandCoverage}
+          >
+            {runStatusLabel ?? "Run broader investigation"}
+          </button>
+        </section>
+      ) : null}
     </section>
   );
 }
@@ -677,23 +688,31 @@ function CoverageStrip({
   packet: SiteReadyCasePacket;
   map: InvestigationMap;
 }) {
+  const missingRoles = map.coverage.roles
+    .filter((role) => role.missingTarget)
+    .map((role) => role.label);
   return (
     <section className="map-coverage-strip" aria-labelledby="map-coverage-title">
-      <div>
-        <p className="eyebrow">Source-role coverage</p>
-        <h4 id="map-coverage-title">
-          {map.coverage.totalSources} sources · {map.coverage.representedRoleCount} of {map.coverage.targetRoleCount} target roles
-        </h4>
-      </div>
-      <dl>
-        {map.coverage.roles.map((role) => (
-          <div key={role.lane} className={role.zero ? "is-zero" : undefined}>
-            <dt>{role.label}</dt>
-            <dd>{role.count}{role.missingTarget ? " · missing" : ""}</dd>
-          </div>
-        ))}
-      </dl>
-      <p>{sourceCoverageNote(packet)}</p>
+      <details>
+        <summary>
+          <span className="eyebrow">Source-role coverage</span>
+          <strong id="map-coverage-title">
+            {map.coverage.totalSources} sources · {map.coverage.representedRoleCount} of {map.coverage.targetRoleCount} roles
+          </strong>
+          <span>{missingRoles.length ? `${missingRoles.join(", ")} missing` : "All target roles represented"}</span>
+        </summary>
+        <div className="map-coverage-breakdown">
+          <dl>
+            {map.coverage.roles.map((role) => (
+              <div key={role.lane} className={role.zero ? "is-zero" : undefined}>
+                <dt>{role.label}</dt>
+                <dd>{role.count}{role.missingTarget ? " · missing" : ""}</dd>
+              </div>
+            ))}
+          </dl>
+          <p>{sourceCoverageNote(packet)}</p>
+        </div>
+      </details>
     </section>
   );
 }
@@ -722,8 +741,8 @@ function CompactClaimChapters({
   return (
     <div className="claim-chapter-list" aria-label="Typed claim chapters">
       <p className="claim-chapter-axis-note">
-        {map.selectedTimeAxisLabel} runs top to bottom inside each fixed row.
-        Unplaced records remain non-chronological.
+        {map.selectedTimeAxisLabel} runs top to bottom. Unplaced records are not
+        chronological.
       </p>
       {map.rows.map((row) => {
         const occurrences = row.occurrenceNodeIds
@@ -1041,7 +1060,7 @@ function OccurrenceCard({
                 key={entry.relationId}
                 type="button"
                 className={selectedEdgeId === entry.relationId ? "is-selected" : undefined}
-                aria-label={`${relationAccessibleName(entry)}; other endpoint from this port: ${other.actor}, ${other.conciseClaim}; opens ${entry.publicNumber} in the Complete relation review ledger`}
+                aria-label={`${relationAccessibleName(entry, occurrence.selectedTimeAxisLabel)}; other endpoint from this port: ${other.actor}, ${other.conciseClaim}; opens ${entry.publicNumber} in the Complete relation review ledger`}
                 aria-controls={`relation-ledger-${safeDomId(entry.relationId)}`}
                 data-relation-port={entry.relationId}
                 data-focus-kind={selection.kind}
@@ -1049,7 +1068,7 @@ function OccurrenceCard({
                 {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId(`relation-port-${occurrence.occurrenceId}`, selection) }}
                 onClick={(event) => onFocus(selection, event.currentTarget)}
               >
-                <strong>{entry.publicNumber} · {entry.shortLabel}</strong>
+                <strong>{entry.publicNumber} · {relationDisplayLabel(entry.relationType)}</strong>
                 <span>{entry.publicReviewLabel}</span>
                 <small>Other endpoint: {other.actor}</small>
               </button>
@@ -1191,12 +1210,11 @@ function UnresolvedRegion({
                       className={`question-origin-chip origin-${origin.originType}`}
                       data-question-origin-type={origin.originType}
                     >
-                      <b>{origin.label}</b>
-                      <small>{origin.conciseIdentity}</small>
+                      <b>{questionOriginPublicLabel(origin.originType)}</b>
                     </span>
                   ))}
                 </span>
-                <span className="inspect-affordance">Inspect typed origins and exact related IDs</span>
+                <span className="inspect-affordance">See why this question remains open</span>
               </button>
             </article>
           );
@@ -1219,8 +1237,13 @@ function NonClaimSourceSection({
 }) {
   const dated = map.nonClaimSources.filter((source) => source.timeRegion === "dated");
   const unplaced = map.nonClaimSources.filter((source) => source.timeRegion === "unplaced");
+  if (!map.nonClaimSources.length) return null;
+  const subgroupCount = Number(dated.length > 0) + Number(unplaced.length > 0);
   return (
-    <section className="non-claim-source-section" aria-labelledby="non-claim-source-title">
+    <section
+      className={`non-claim-source-section has-${subgroupCount}-subgroups`}
+      aria-labelledby="non-claim-source-title"
+    >
       <header>
         <p className="eyebrow">Annotations and supporting records</p>
         <h4 id="non-claim-source-title">Non-claim source records</h4>
@@ -1229,22 +1252,26 @@ function NonClaimSourceSection({
           they are never claim-relation endpoints.
         </p>
       </header>
-      <NonClaimGroup
-        title={`Dated on ${map.selectedTimeAxisLabel}`}
-        records={dated}
-        groups={map.nonClaimDatedGroups}
-        activeNodeIds={activeNodeIds}
-        selectedSourceId={selectedSourceId}
-        onFocus={onFocus}
-      />
-      <NonClaimGroup
-        title={`Unplaced on ${map.selectedTimeAxisLabel}`}
-        records={unplaced}
-        groups={[]}
-        activeNodeIds={activeNodeIds}
-        selectedSourceId={selectedSourceId}
-        onFocus={onFocus}
-      />
+      {dated.length ? (
+        <NonClaimGroup
+          title={`Dated on ${map.selectedTimeAxisLabel}`}
+          records={dated}
+          groups={map.nonClaimDatedGroups}
+          activeNodeIds={activeNodeIds}
+          selectedSourceId={selectedSourceId}
+          onFocus={onFocus}
+        />
+      ) : null}
+      {unplaced.length ? (
+        <NonClaimGroup
+          title={`Unplaced on ${map.selectedTimeAxisLabel}`}
+          records={unplaced}
+          groups={[]}
+          activeNodeIds={activeNodeIds}
+          selectedSourceId={selectedSourceId}
+          onFocus={onFocus}
+        />
+      ) : null}
     </section>
   );
 }
@@ -1264,6 +1291,7 @@ function NonClaimGroup({
   selectedSourceId: string | null;
   onFocus: FocusHandler;
 }) {
+  if (!records.length) return null;
   const recordByNodeId = new Map(records.map((record) => [record.nodeId, record]));
   return (
     <section className="non-claim-subgroup">
@@ -1310,7 +1338,7 @@ function NonClaimGroup({
             ))}
           </div>
         )
-      ) : <p className="non-claim-empty">No records in this selected-axis subgroup.</p>}
+      ) : null}
     </section>
   );
 }
@@ -1361,11 +1389,15 @@ function NonClaimRecordCard({
 
 function CompleteRelationLedger({
   entries,
+  occurrenceById,
+  selectedTimeAxisLabel,
   selectedEdgeId,
   activeRelationIds,
   onFocus,
 }: {
   entries: readonly InvestigationRelationLedgerEntry[];
+  occurrenceById: ReadonlyMap<string, InvestigationOccurrenceNode>;
+  selectedTimeAxisLabel: string;
   selectedEdgeId: string | null;
   activeRelationIds: ReadonlySet<string>;
   onFocus: FocusHandler;
@@ -1381,8 +1413,8 @@ function CompleteRelationLedger({
         <p className="eyebrow">Candidate connections</p>
         <h4 id="relation-ledger-title">Complete relation review ledger</h4>
         <p>
-          {entries.length} candidate relations · one authoritative semantic ledger entry per relation ID.
-          Spatial edges and numbered ports are synchronized shortcuts only.
+          Every candidate relation is listed once below. Open a relation for full
+          claims, sources, times, evidence, and reasoning.
         </p>
       </header>
       <ol>
@@ -1397,45 +1429,84 @@ function CompleteRelationLedger({
               data-relation-id={entry.relationId}
               data-direction-asserted={String(entry.directionAsserted)}
             >
-              <div className="ledger-endpoint">
-                <strong>{entry.leftEndpoint.actor}</strong>
-                <span>{entry.leftEndpoint.conciseClaim}</span>
-                <small>{entry.leftEndpoint.sourceIdentity}</small>
-                <time>{entry.leftEndpoint.selectedTimeState}</time>
-              </div>
               <button
+                className="relation-ledger-summary"
                 type="button"
-                aria-label={relationAccessibleName(entry)}
+                aria-label={relationAccessibleName(entry, selectedTimeAxisLabel)}
                 data-focus-kind={selection.kind}
                 data-focus-id={selection.id}
                 {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId("relation-ledger", selection) }}
                 onClick={(event) => onFocus(selection, event.currentTarget)}
               >
-                <span>{entry.publicNumber}</span>
-                <strong>{entry.shortLabel}</strong>
-                <small>{entry.publicReviewLabel}</small>
-                <em>{entry.directionExplanation}</em>
+                <span className="relation-ledger-number">{entry.publicNumber}</span>
+                <span className="relation-ledger-summary-body">
+                  <span className="relation-ledger-route">
+                    <span>{compactRelationEndpoint(entry.leftEndpoint)}</span>
+                    <b aria-hidden="true">{entry.directionAsserted ? "→" : "↔"}</b>
+                    <span>{compactRelationEndpoint(entry.rightEndpoint)}</span>
+                  </span>
+                  <strong>{relationLedgerSentence(entry)}</strong>
+                  <span className="relation-ledger-meta">
+                    <span>{entry.publicReviewLabel}</span>
+                    <span>{relationDirectionState(entry, selectedTimeAxisLabel)}</span>
+                    {entry.parallelCount > 1 ? (
+                      <span>Parallel relation {entry.parallelIndex + 1} of {entry.parallelCount}</span>
+                    ) : null}
+                    {entry.leftSourceId === entry.rightSourceId ? (
+                      <span>Same-source occurrences</span>
+                    ) : null}
+                  </span>
+                </span>
               </button>
-              <div className="ledger-endpoint is-right">
-                <strong>{entry.rightEndpoint.actor}</strong>
-                <span>{entry.rightEndpoint.conciseClaim}</span>
-                <small>{entry.rightEndpoint.sourceIdentity}</small>
-                <time>{entry.rightEndpoint.selectedTimeState}</time>
-              </div>
               <details>
-                <summary>Relation reasoning and integrity</summary>
-                <p>{entry.reason}</p>
-                <small>
-                  {entry.integrityState === "valid"
-                    ? "One candidate relation record"
-                    : `${entry.recordCount} conflicting records share this relation ID; geometry is suppressed`}
-                </small>
+                <summary>Full claims, sources, times, and reasoning</summary>
+                <div className="relation-ledger-detail-grid">
+                  <RelationLedgerEndpointDetail
+                    endpoint={entry.leftEndpoint}
+                    fullClaim={occurrenceById.get(entry.leftOccurrenceId)?.originalClaimText}
+                    label="First occurrence"
+                  />
+                  <div className="relation-ledger-reason">
+                    <strong>{relationDisplayLabel(entry.relationType)} · {entry.publicReviewLabel}</strong>
+                    <p>{entry.reason}</p>
+                    <small>
+                      {entry.integrityState === "valid"
+                        ? "One candidate relation record"
+                        : `${entry.recordCount} conflicting records share this relation ID; geometry is suppressed`}
+                    </small>
+                  </div>
+                  <RelationLedgerEndpointDetail
+                    endpoint={entry.rightEndpoint}
+                    fullClaim={occurrenceById.get(entry.rightOccurrenceId)?.originalClaimText}
+                    label="Second occurrence"
+                  />
+                </div>
               </details>
             </li>
           );
         })}
       </ol>
     </section>
+  );
+}
+
+function RelationLedgerEndpointDetail({
+  endpoint,
+  fullClaim,
+  label,
+}: {
+  endpoint: InvestigationRelationLedgerEntry["leftEndpoint"];
+  fullClaim?: string;
+  label: string;
+}) {
+  return (
+    <div className="ledger-endpoint">
+      <small>{label}</small>
+      <strong>{endpoint.actor}</strong>
+      <span>{fullClaim ?? endpoint.conciseClaim}</span>
+      <small>{endpoint.sourceIdentity}</small>
+      <time>{endpoint.selectedTimeState}</time>
+    </div>
   );
 }
 
@@ -1527,18 +1598,111 @@ function relationSelection(entry: InvestigationRelationLedgerEntry): FocusSelect
   return {
     kind: "relation",
     id: entry.relationId,
-    label: `${entry.publicNumber} · ${entry.shortLabel} · ${entry.publicReviewLabel}`,
+    label: `${entry.publicNumber} · ${relationDisplayLabel(entry.relationType)} · ${entry.publicReviewLabel}`,
   };
 }
 
-function relationAccessibleName(entry: InvestigationRelationLedgerEntry): string {
-  return `${entry.publicNumber}, candidate relation ${entry.shortLabel}, ${entry.publicReviewLabel}; first occurrence: ${relationEndpointAccessibleName(entry.leftEndpoint)}; second occurrence: ${relationEndpointAccessibleName(entry.rightEndpoint)}; ${entry.directionExplanation}; opens the same relation detail as the Complete relation review ledger`;
+function relationAccessibleName(
+  entry: InvestigationRelationLedgerEntry,
+  selectedTimeAxisLabel: string,
+): string {
+  const connector = entry.directionAsserted
+    ? `; earlier-to-later connector ${relationSpatialLabel(entry)}`
+    : "";
+  return `${entry.publicNumber}, candidate relation ${relationDisplayLabel(entry.relationType)}, ${entry.publicReviewLabel}${connector}; ${relationLedgerSentence(entry)}; first occurrence: ${relationEndpointAccessibleName(entry.leftEndpoint)}; second occurrence: ${relationEndpointAccessibleName(entry.rightEndpoint)}; ${relationDirectionState(entry, selectedTimeAxisLabel)}; opens the same relation detail as the Complete relation review ledger`;
 }
 
 function relationEndpointAccessibleName(
   endpoint: InvestigationRelationLedgerEntry["leftEndpoint"],
 ): string {
   return `${endpoint.actor}, claim ${endpoint.conciseClaim}, source ${endpoint.sourceIdentity}, selected-axis time ${endpoint.selectedTimeState}`;
+}
+
+function relationSpatialLabel(entry: InvestigationRelationLedgerEntry): string {
+  if (!entry.directionAsserted) return relationDisplayLabel(entry.relationType);
+  if (entry.relationType === "supersedes") return "Superseded by";
+  if (entry.relationType === "correction") return "Corrected by";
+  if (entry.relationType === "narrows") return "Narrowed by";
+  if (entry.relationType === "follow_up") return "Response follows";
+  return relationDisplayLabel(entry.relationType);
+}
+
+function relationDirectionState(
+  entry: InvestigationRelationLedgerEntry,
+  selectedTimeAxisLabel: string,
+): string {
+  if (!isDirectionalRelationType(entry.relationType)) {
+    return "Non-directional relation";
+  }
+  return entry.directionAsserted
+    ? `Earlier-to-later direction established on ${selectedTimeAxisLabel}`
+    : `Direction not established on ${selectedTimeAxisLabel}`;
+}
+
+function isDirectionalRelationType(relationType: string): boolean {
+  return relationType === "supersedes"
+    || relationType === "correction"
+    || relationType === "narrows"
+    || relationType === "follow_up";
+}
+
+function relationLedgerSentence(entry: InvestigationRelationLedgerEntry): string {
+  const earlierActor = boundedAccessibleClaim(entry.leftEndpoint.actor, 42);
+  const laterActor = boundedAccessibleClaim(entry.rightEndpoint.actor, 42);
+  if (!entry.directionAsserted) {
+    if (entry.relationType === "supersedes") {
+      return "Possible supersession between these claim occurrences";
+    }
+    if (entry.relationType === "correction") {
+      return "Possible correction between these claim occurrences";
+    }
+    if (entry.relationType === "narrows") {
+      return "Possible narrowing between these claim occurrences";
+    }
+    if (entry.relationType === "follow_up") {
+      return "Possible follow-up between these claim occurrences";
+    }
+    if (entry.relationType === "contradicts") {
+      return "These claim occurrences challenge one another";
+    }
+    if (entry.relationType === "corroborates") {
+      return "These claim occurrences support one another";
+    }
+    if (entry.relationType === "same_event") {
+      return "These claim occurrences describe the same event";
+    }
+    if (entry.relationType === "unresolved") {
+      return "The connection between these claim occurrences remains unclear";
+    }
+    return "No direct change is identified between these claim occurrences";
+  }
+  if (entry.relationType === "supersedes") {
+    return `Later ${laterActor} claim supersedes the earlier ${earlierActor} claim`;
+  }
+  if (entry.relationType === "correction") {
+    return `Later ${laterActor} claim corrects the earlier ${earlierActor} claim`;
+  }
+  if (entry.relationType === "narrows") {
+    return `Later ${laterActor} claim narrows the earlier ${earlierActor} claim`;
+  }
+  return `${laterActor} response follows the earlier ${earlierActor} claim`;
+}
+
+function compactRelationEndpoint(
+  endpoint: InvestigationRelationLedgerEntry["leftEndpoint"],
+): string {
+  return `${boundedAccessibleClaim(endpoint.actor, 36)} · ${boundedAccessibleClaim(endpoint.conciseClaim, 64)}`;
+}
+
+function questionOriginPublicLabel(
+  originType: InvestigationQuestionNode["origins"][number]["originType"],
+): string {
+  if (originType === "occurrence" || originType === "actor_claim") {
+    return "Via matching claim";
+  }
+  if (originType === "action") return "Via action record";
+  if (originType === "source") return "Via source record";
+  return "Topic-level evidence gap";
 }
 
 function occurrenceRowTypeAccessibleName(
