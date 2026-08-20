@@ -190,6 +190,17 @@ export function CaseExplorer({
     return () => window.clearInterval(timer);
   }, [cooldownUntilMs]);
 
+  useEffect(() => {
+    if (!investigationStarted) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById("investigation-workspace")?.scrollIntoView({
+        block: "start",
+        behavior: "instant",
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [investigationStarted]);
+
   function clearDetail() {
     activeDetailKey.current = null;
     setFocus(null);
@@ -317,11 +328,6 @@ export function CaseExplorer({
     setCoverageLens("all");
     setRouteError(null);
     clearDetail();
-    requestAnimationFrame(() => {
-      document.getElementById("investigation-workspace")?.scrollIntoView({
-        block: "start",
-      });
-    });
   }
 
   function startNewInvestigation() {

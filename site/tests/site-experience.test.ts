@@ -159,6 +159,10 @@ test("result-mode home controls expose one shared local reset path", () => {
     (explorerSource.match(/activateButtonFromKeyboard\(event, on(?:ReturnHome|Start)\)/g) ?? []).length,
     2,
   );
+  assert.match(
+    explorerSource,
+    /if \(!investigationStarted\) return;[\s\S]*?"investigation-workspace"[\s\S]*?behavior: "instant"/,
+  );
   const resetStart = explorerSource.indexOf("function startNewInvestigation()");
   const resetEnd = explorerSource.indexOf("function openDetailSelection", resetStart);
   assert.ok(resetStart > 0 && resetEnd > resetStart);
