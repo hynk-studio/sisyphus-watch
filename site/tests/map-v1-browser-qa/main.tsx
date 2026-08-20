@@ -19,13 +19,17 @@ import { buildPreparedSiteReadyCasePacket } from "../../app/lib/lineage/builder"
 import type { SiteReadyCasePacket } from "../../app/lib/lineage/contracts";
 import { getSiteReadyCaseDetail } from "../../app/lib/lineage/details";
 import type { TimeAxis } from "../../app/lib/experience";
-import { buildMapDensityFixture } from "../fixtures/map-density";
+import {
+  buildMapDensityFixture,
+  buildUnplacedOccurrenceFixture,
+} from "../fixtures/map-density";
 
 const FIXTURE_BUILDERS = {
   prepared: buildPreparedSiteReadyCasePacket,
   density3: () => buildMapDensityFixture(3),
   density5: () => buildMapDensityFixture(5),
   density8: () => buildMapDensityFixture(8),
+  unplaced: buildUnplacedOccurrenceFixture,
 } as const;
 
 type FixtureName = keyof typeof FIXTURE_BUILDERS;
@@ -35,6 +39,7 @@ const FIXTURE_LABELS: Record<FixtureName, string> = {
   density3: "3-source density fixture",
   density5: "5-source density fixture",
   density8: "8-source density fixture",
+  unplaced: "Unplaced-occurrence fixture",
 };
 
 function MapQaApp() {
@@ -163,7 +168,7 @@ function MountedMap({
             selectedNodeId={selectedNodeId}
             selectedEdgeId={selectedEdgeId}
             threadTraceActive={threadTraceActive}
-            liveEnabled={false}
+            liveEnabled={true}
             runBlocked={false}
             runStatusLabel={null}
             onTimeAxisChange={setTimeAxis}

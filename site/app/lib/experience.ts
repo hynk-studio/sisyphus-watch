@@ -233,15 +233,15 @@ export function sourceCoverageNote(packet: SiteReadyCasePacket): string {
 }
 
 const RELATION_LABELS: Record<string, string> = {
-  same_event: "Describes the same event",
-  correction: "Corrects the earlier claim",
-  contradicts: "Challenges the earlier claim",
-  supersedes: "Replaces earlier guidance",
-  follow_up: "Responds to the earlier report",
-  corroborates: "Supports the earlier report",
-  narrows: "Makes the earlier claim more specific",
-  unresolved: "Connection remains unclear",
-  unrelated: "No direct change identified",
+  same_event: "Same event",
+  correction: "Correction",
+  contradicts: "Challenge",
+  supersedes: "Supersession",
+  follow_up: "Follow-up",
+  corroborates: "Support",
+  narrows: "Narrowing",
+  unresolved: "Unclear connection",
+  unrelated: "No direct change",
 };
 
 export function relationDisplayLabel(value: string): string {
