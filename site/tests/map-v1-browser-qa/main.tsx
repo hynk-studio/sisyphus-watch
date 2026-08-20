@@ -7,6 +7,7 @@ import "./map-v1-browser-qa.css";
 import { CaseExplorer } from "../../app/components/CaseExplorer";
 import { FocusedDetailPanel } from "../../app/components/FocusedDetailPanel";
 import { InvestigationMapView } from "../../app/components/InvestigationMapView";
+import { SearchComposer } from "../../app/components/SearchComposer";
 import {
   type FocusHandler,
   type FocusSelection,
@@ -24,6 +25,7 @@ import {
   buildMapDensityFixture,
   buildUnplacedOccurrenceFixture,
 } from "../fixtures/map-density";
+import { buildTemporalAcceptanceFixture } from "../fixtures/temporal-acceptance";
 
 const FIXTURE_BUILDERS = {
   prepared: buildPreparedSiteReadyCasePacket,
@@ -31,6 +33,7 @@ const FIXTURE_BUILDERS = {
   density5: () => buildMapDensityFixture(5),
   density8: () => buildMapDensityFixture(8),
   unplaced: buildUnplacedOccurrenceFixture,
+  temporal: buildTemporalAcceptanceFixture,
 } as const;
 
 type FixtureName = keyof typeof FIXTURE_BUILDERS;
@@ -41,11 +44,11 @@ const FIXTURE_LABELS: Record<FixtureName, string> = {
   density5: "5-source density fixture",
   density8: "8-source density fixture",
   unplaced: "Unplaced-occurrence fixture",
+  temporal: "Temporal acceptance regression",
 };
 
 function MapQaApp() {
-  const experienceSurface = new URLSearchParams(window.location.search)
-    .get("surface") === "experience";
+  const surface = new URLSearchParams(window.location.search).get("surface");
   const [fixtureName, setFixtureName] = useState<FixtureName>("prepared");
   const packet = useMemo(
     () => FIXTURE_BUILDERS[fixtureName](),
@@ -94,10 +97,14 @@ function MapQaApp() {
     };
   }, []);
 
-  if (experienceSurface) {
+  if (surface === "loading") return <LoadingComposerHarness />;
+
+  if (surface === "experience" || surface === "temporal") {
     return (
       <CaseExplorer
-        preparedCase={buildPreparedSiteReadyCasePacket()}
+        preparedCase={surface === "temporal"
+          ? buildTemporalAcceptanceFixture()
+          : buildPreparedSiteReadyCasePacket()}
         liveEnabled={true}
       />
     );
@@ -132,6 +139,35 @@ function MapQaApp() {
         </label>
       </header>
       <MountedMap key={fixtureName} packet={packet} fixtureName={fixtureName} />
+    </main>
+  );
+}
+
+function LoadingComposerHarness() {
+  return (
+    <main className="site-shell map-qa-shell" id="top">
+      <header className="map-qa-header">
+        <div>
+          <p className="eyebrow">Test-only browser harness</p>
+          <h1>Simulated live-loading state</h1>
+          <p>No request is started; production composer controls receive a local loading state.</p>
+        </div>
+      </header>
+      <SearchComposer
+        question="How did a public schedule change?"
+        sourceLimit={3}
+        discoveryProfile="standard"
+        liveEnabled={true}
+        isLoading={true}
+        cooldownRemainingSeconds={0}
+        routeError={null}
+        investigationStarted={false}
+        onQuestionChange={() => undefined}
+        onSourceLimitChange={() => undefined}
+        onDiscoveryProfileChange={() => undefined}
+        onSubmit={(event) => event.preventDefault()}
+        onPreparedExample={() => undefined}
+      />
     </main>
   );
 }

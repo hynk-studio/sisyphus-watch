@@ -25,6 +25,18 @@ component harness with:
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=experience
 ```
 
+For the synthetic temporal-acceptance packet and the simulated live-loading
+composer, use:
+
+```text
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=temporal
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=loading
+```
+
+The temporal surface starts only the local synthetic packet when the prepared
+example control is activated. The loading surface passes `isLoading=true`
+directly to the production composer; neither surface submits `/api/lineage`.
+
 That surface mounts the production `CaseExplorer` with local live capability
 presentation enabled. It does not submit the composer, call `/api/lineage`, or
 touch a provider or D1 unless a tester explicitly activates the primary live

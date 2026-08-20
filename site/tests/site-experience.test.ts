@@ -21,9 +21,12 @@ import {
   EXPERIENCE_VIEWS,
   VIEW_LABELS,
   actorLabel,
+  groupSupportingDatedEvidenceRowsByPrecision,
   publicMethodLimitations,
   recordBoundaryLabel,
   sourceContentLabel,
+  sourceCoverageNote,
+  supportingDatedEvidenceRows,
   timeAxisSemanticNote,
   type TimeAxis,
 } from "../app/lib/experience";
@@ -68,6 +71,7 @@ import {
   buildSameSourceRelationFixture,
   buildUnplacedOccurrenceFixture,
 } from "./fixtures/map-density";
+import { buildTemporalAcceptanceFixture } from "./fixtures/temporal-acceptance";
 
 const noop = () => undefined;
 
@@ -234,9 +238,11 @@ test("loading and cooldown retain their distinct availability treatments", () =>
   const loading = renderState(true, 0);
   assert.match(loading, /availability-note availability-loading/);
   assert.match(loading, /Bounded live investigation running/);
+  assert.match(loading, /prepared-example-button" type="button" disabled=""/);
   const cooldown = renderState(false, 12);
   assert.match(cooldown, /availability-note availability-cooldown/);
   assert.match(cooldown, /Next live attempt available in 12s/);
+  assert.doesNotMatch(cooldown, /prepared-example-button" type="button" disabled/);
 });
 
 test("first payoff resolves one existing source-bound finding without fabricating fallback evidence", () => {
@@ -245,6 +251,7 @@ test("first payoff resolves one existing source-bound finding without fabricatin
   const otherSource = packet.source_snapshot_summaries[0];
   packet.source_bound_findings[0].text = "One existing source-bound finding.";
   packet.source_bound_findings[0].source_ids = [intendedSource.source_id];
+  packet.source_bound_findings = [packet.source_bound_findings[0]];
 
   const payoff = firstPayoffForPacket(packet);
   assert.equal(payoff?.source.source_id, intendedSource.source_id);
@@ -307,6 +314,160 @@ test("first payoff resolves one existing source-bound finding without fabricatin
     "utf8",
   );
   assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|\/api\//);
+});
+
+test("first payoff deterministically prefers a question-relevant existing finding and keeps stable fallback order", () => {
+  const packet = buildTemporalAcceptanceFixture();
+  const before = JSON.stringify(packet);
+  const payoff = firstPayoffForPacket(packet);
+  assert.ok(payoff);
+  assert.equal(payoff.finding.finding_id, "candidate_live_finding_schedule_change");
+  assert.equal(
+    payoff.finding.text,
+    "The agency moved maintenance exercise 97 from September 13 to September 18 after an unexpected suit sensor reading prompted a safety review.",
+  );
+  assert.ok(packet.source_bound_findings.includes(payoff.finding));
+  assert.equal(firstPayoffForPacket(packet)?.finding.finding_id, payoff.finding.finding_id);
+  assert.equal(JSON.stringify(packet), before);
+
+  const tied = structuredClone(packet);
+  tied.normalized_public_interest_question = "Which agency exercise record changed?";
+  tied.source_bound_findings = tied.source_bound_findings.slice(0, 2);
+  tied.source_bound_findings[0].text = "Agency exercise record changed.";
+  tied.source_bound_findings[1].text = "Agency exercise record changed.";
+  tied.source_bound_findings[1].source_ids = [...tied.source_bound_findings[0].source_ids];
+  assert.equal(
+    firstPayoffForPacket(tied)?.finding.finding_id,
+    tied.source_bound_findings[0].finding_id,
+  );
+
+  const noOverlap = structuredClone(packet);
+  noOverlap.normalized_public_interest_question = "Why are harbor permits delayed?";
+  noOverlap.source_bound_findings = noOverlap.source_bound_findings.slice(0, 2);
+  noOverlap.source_bound_findings[0].text = "Orchids bloom indoors.";
+  noOverlap.source_bound_findings[1].text = "Copper roofs weather slowly.";
+  assert.equal(
+    firstPayoffForPacket(noOverlap)?.finding.finding_id,
+    noOverlap.source_bound_findings[0].finding_id,
+  );
+});
+
+test("Timeline surfaces typed source-bound actions and findings without promoting them to claims", () => {
+  const packet = buildTemporalAcceptanceFixture();
+  const before = JSON.stringify({
+    claims: packet.actor_claims,
+    occurrences: packet.claim_occurrences,
+    timeline: packet.event_timeline_rows,
+    boundary: packet.candidate_canonical_boundary,
+  });
+  const eventRows = supportingDatedEvidenceRows(packet, "event_time");
+  const scheduleChange = eventRows.find(
+    (row) => row.recordId === "candidate_live_action_schedule_change",
+  );
+  const scheduleFinding = eventRows.find(
+    (row) => row.recordId === "candidate_live_finding_schedule_change",
+  );
+  assert.ok(scheduleChange);
+  assert.equal(scheduleChange.recordKind, "action");
+  assert.equal(scheduleChange.selectedTime, "2030-09-18T00:00:00.000Z");
+  assert.equal(scheduleChange.selectedTimePrecision, "day");
+  assert.equal(scheduleChange.selectedTimeLabel, "Event time");
+  assert.ok(scheduleFinding);
+  assert.equal(scheduleFinding.recordKind, "finding");
+  assert.equal(scheduleFinding.selectedTime, null);
+  assert.equal(scheduleFinding.selectedTimePrecision, null);
+
+  const publicationRows = supportingDatedEvidenceRows(packet, "publication_time");
+  const publishedFinding = publicationRows.find(
+    (row) => row.recordId === "candidate_live_finding_schedule_change",
+  );
+  assert.ok(publishedFinding);
+  assert.equal(publishedFinding.selectedTime, "2030-09-07T00:00:00.000Z");
+  assert.equal(publishedFinding.selectedTimeLabel, "Linked source publication time");
+  assert.ok(groupSupportingDatedEvidenceRowsByPrecision(publicationRows).length > 0);
+  const retrievalFinding = supportingDatedEvidenceRows(packet, "retrieval_time").find(
+    (row) => row.recordId === "candidate_live_finding_schedule_change",
+  );
+  assert.ok(retrievalFinding);
+  assert.equal(retrievalFinding.selectedTime, "2030-09-20T12:00:00.000Z");
+  assert.equal(
+    retrievalFinding.selectedTimeLabel,
+    "Linked source Sisyphus retrieval time",
+  );
+  assert.ok(supportingDatedEvidenceRows(packet, "actor_assertion_time").every(
+    (row) => row.selectedTime === null,
+  ));
+
+  const multiSource = structuredClone(packet);
+  multiSource.actions[1].source_ids = [
+    packet.source_snapshot_summaries[0].source_id,
+    packet.source_snapshot_summaries[1].source_id,
+  ];
+  const multiSourceRows = supportingDatedEvidenceRows(
+    multiSource,
+    "publication_time",
+  ).filter((row) => row.recordId === "candidate_live_action_schedule_change");
+  assert.deepEqual(
+    multiSourceRows.map((row) => row.selectedTime),
+    ["2030-09-01T00:00:00.000Z", "2030-09-07T00:00:00.000Z"],
+  );
+
+  const html = renderToStaticMarkup(createElement(TimelineView, {
+    packet,
+    timeAxis: "publication_time",
+    onTimeAxisChange: noop,
+    onFocus: noop,
+  }));
+  assert.match(html, /Actor-claim timeline/);
+  assert.match(html, /Only statements attributed to an actor appear in this section/);
+  assert.match(html, /Source-bound actions and findings/);
+  assert.match(html, /Not an actor claim/);
+  assert.match(html, /moved maintenance exercise 97 from September 13 to September 18/);
+  assert.match(html, /unexpected suit sensor reading prompted a safety review/);
+  assert.match(html, /Linked source publication time/);
+  assert.equal(packet.claim_occurrences.length, 1);
+  assert.equal(packet.event_timeline_rows.length, 1);
+  assert.equal(JSON.stringify({
+    claims: packet.actor_claims,
+    occurrences: packet.claim_occurrences,
+    timeline: packet.event_timeline_rows,
+    boundary: packet.candidate_canonical_boundary,
+  }), before);
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
+});
+
+test("Map coverage copy separates actual representation from profile target gaps", () => {
+  const standard = buildTemporalAcceptanceFixture();
+  const standardHtml = renderMapMarkup(standard, "publication_time", true);
+  assert.match(standardHtml, /3 sources · 1 of 5 role categories represented/);
+  assert.match(standardHtml, /4 role categories are not represented/);
+  assert.match(standardHtml, /Standard does not target every category/);
+  assert.doesNotMatch(standardHtml, /All target roles represented/);
+  assert.doesNotMatch(standardHtml, /Target-role gaps:/);
+  assert.match(sourceCoverageNote(standard), /4 role categories are not represented/);
+
+  const expansion = structuredClone(standard);
+  expansion.discovery_profile = "coverage_expansion";
+  assert.equal(expansion.coverage_summary.coverage_basis, "live_discovery");
+  if (expansion.coverage_summary.coverage_basis !== "live_discovery") {
+    throw new Error("temporal acceptance fixture must use live discovery coverage");
+  }
+  expansion.coverage_summary.discovery_profile = "coverage_expansion";
+  expansion.coverage_summary.missing_target_lanes = [
+    "primary_or_origin",
+    "local_or_firsthand",
+    "specialist_context",
+    "challenge_or_correction",
+  ];
+  const expansionHtml = renderMapMarkup(expansion, "publication_time", true);
+  assert.match(expansionHtml, /Target-role gaps: Original records, Local &amp; firsthand, Specialist context, Challenges &amp; corrections/);
+  assert.match(sourceCoverageNote(expansion), /Coverage-expansion target-role gap/);
+
+  const prepared = buildPreparedSiteReadyCasePacket();
+  const preparedHtml = renderMapMarkup(prepared, "event_time");
+  assert.match(preparedHtml, /4 sources · 4 of 5 role categories represented/);
+  assert.match(preparedHtml, /Target-role gaps: Original records/);
+  assert.match(sourceCoverageNote(prepared), /Prepared case target role not represented: Original records/);
 });
 
 test("live composer presents concise privacy, review, persistence, and cost-density limits", () => {
@@ -825,7 +986,7 @@ test("map uses occurrence-primary claim rows with complete candidate relations a
   assert.match(html, /Via matching claim/);
   assert.match(html, /Via action record/);
   assert.match(html, /Source-role coverage/);
-  assert.match(html, /4 sources · 4 of 5 roles/);
+  assert.match(html, /4 sources · 4 of 5 role categories represented/);
   assert.match(html, /Original records/);
   assert.match(html, /0 · missing/);
   assert.equal((html.match(/data-occurrence-id=/g) ?? []).length, 3);
@@ -1534,7 +1695,7 @@ test("Method narrowly humanizes known time-candidate validation without raw IDs 
     limitations.filter((limitation) => /precise date/i.test(limitation)).length,
     1,
   );
-  assert.match(text, /Cross-source temporal relation analysis is not performed/);
+  assert.match(text, /Cross-source temporal relationships were not analyzed in this bounded run/);
   assert.match(text, /Source coverage is bounded and nonexhaustive/i);
   assert.match(text, /Source inclusion is not endorsement or truth verification/);
   assert.match(text, /Candidate relationships organize review/);
@@ -1544,6 +1705,38 @@ test("Method narrowly humanizes known time-candidate validation without raw IDs 
   const html = renderToStaticMarkup(createElement(MethodView, { packet }));
   assert.doesNotMatch(html, /src_candidate_live_|time_candidate|candidate_id|validation_path|YYYY-MM-DD|timezone-qualified/);
   assert.match(html, /What this investigation cannot establish/);
+});
+
+test("Method conservatively collapses known summary-capture and cross-source wording families", () => {
+  const packet = buildTemporalAcceptanceFixture();
+  packet.limitations.push(
+    "The supplied material is a bounded model-generated summary, not independently verified source text.",
+    "No cross-source temporal relationship or factual truth determination was made.",
+    "A distinct publication date is unavailable for the final listing.",
+  );
+  const limitations = publicMethodLimitations(packet);
+  assert.equal(
+    limitations.filter((limitation) =>
+      limitation === "Live source pages were not captured; model-generated web-search summaries remain partial review material."
+    ).length,
+    1,
+  );
+  assert.equal(
+    limitations.filter((limitation) =>
+      limitation === "Cross-source temporal relationships were not analyzed in this bounded run."
+    ).length,
+    1,
+  );
+  assert.ok(limitations.includes("A distinct publication date is unavailable for the final listing."));
+  assert.ok(limitations.includes("Source coverage is bounded and nonexhaustive."));
+  assert.ok(limitations.includes("Source inclusion is not endorsement or truth verification."));
+  assert.equal(
+    limitations.filter((limitation) => /Source inclusion is not endorsement/i.test(limitation)).length,
+    1,
+  );
+  assert.ok(limitations.includes(
+    "Candidate relationships organize review; they do not establish truth or causation.",
+  ));
 });
 
 test("inspection actions have distinguishable accessible names on every repeated surface", () => {

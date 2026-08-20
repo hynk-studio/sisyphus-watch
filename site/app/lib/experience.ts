@@ -3,10 +3,11 @@ import type {
   SiteReadyCasePacket,
   SiteTimelineRow,
 } from "./lineage/contracts";
-import type {
-  DiscoveryLane,
-  InformationProximity,
-  SourceContext,
+import {
+  DISCOVERY_LANES,
+  type DiscoveryLane,
+  type InformationProximity,
+  type SourceContext,
 } from "./source-profile";
 import {
   groupReviewTimestampItems,
@@ -31,6 +32,21 @@ export const TIME_AXES = [
 ] as const;
 
 export type TimeAxis = (typeof TIME_AXES)[number];
+
+export interface SupportingDatedEvidenceRow {
+  evidenceRowId: string;
+  recordKind: "action" | "finding";
+  recordId: string;
+  text: string;
+  actor: string | null;
+  sourceId: string | null;
+  sourceTitle: string | null;
+  selectedTime: string | null;
+  selectedTimePrecision: TemporalPrecision;
+  selectedTimeLabel: string;
+  status: "candidate" | "canonical";
+  packetOrder: number;
+}
 
 export const VIEW_LABELS: Record<ExperienceView, string> = {
   map: "Map",
@@ -154,8 +170,20 @@ function humanizeMethodLimitation(limitation: string): string | null {
   if (/missing_coverage_lanes/i.test(normalized)) {
     return "Some intended source roles were not represented in the bounded discovery results.";
   }
-  if (/source text was not captured|not captured source text|not captured page text|model-generated web-search-grounded candidate summar/i.test(normalized)) {
+  if (/^source inclusion is not endorsement\.?$/i.test(normalized)) {
+    return "Source inclusion is not endorsement or truth verification.";
+  }
+  if (
+    /source text was not captured|not captured source text|not captured page text|live source pages? (?:was|were) not captured|no page text (?:or|and) independent verification|model-generated (?:web-search(?:-grounded)? )?(?:candidate )?summar(?:y|ies).*(?:partial review|not independently verified|rather than captured page text)|bounded model-generated summary, not independently verified source text/i
+      .test(normalized)
+  ) {
     return "Live source pages were not captured; model-generated web-search summaries remain partial review material.";
+  }
+  if (
+    /each extraction used exactly one source.*cross-source temporal relation analysis is not performed|no cross-source temporal relations? or truth judgments? were made|no cross-source temporal relationships? or factual truth determination was made/i
+      .test(normalized)
+  ) {
+    return "Cross-source temporal relationships were not analyzed in this bounded run.";
   }
   if (/compact read model|focused detail returns/i.test(normalized)) {
     return "The default view omits full source text; source details remain bounded to the available record.";
@@ -216,20 +244,145 @@ export function sourceCoverageNote(packet: SiteReadyCasePacket): string {
   const missing = packet.coverage_summary.missing_target_lanes
     .map(discoveryLaneLabel)
     .join(", ");
+  const absentRoleCount = DISCOVERY_LANES.filter(
+    (lane) => packet.coverage_summary.lane_counts[lane] === 0,
+  ).length;
 
   if (packet.coverage_summary.coverage_basis === "prepared_fixture") {
     const fixtureGap = missing
-      ? `Prepared case source type not represented: ${missing}.`
-      : "Every target source type is represented in this prepared case; exhaustive web coverage is not claimed.";
+      ? `Prepared case target role not represented: ${missing}.`
+      : "Every target role category is represented in this prepared case; exhaustive web coverage is not claimed.";
     return packet.mode === "fallback"
       ? `The live attempt failed. These counts describe the prepared fallback, not live discovery. ${fixtureGap}`
       : `These counts describe curated prepared-case coverage, not live discovery. ${fixtureGap}`;
   }
 
-  if (missing) return `Live discovery source-type gap: ${missing}.`;
-  return packet.coverage_summary.discovery_profile === "coverage_expansion"
-    ? "Every target source type is represented in this bounded live packet; exhaustive web coverage is still not claimed."
-    : "Standard live review does not claim to fill every source type or exhaustively cover the web.";
+  if (packet.coverage_summary.discovery_profile === "standard") {
+    return absentRoleCount > 0
+      ? `Standard review does not target every role category; ${absentRoleCount} role ${absentRoleCount === 1 ? "category is" : "categories are"} not represented in this packet.`
+      : "All five role categories happen to be represented; Standard review still does not target exhaustive role coverage.";
+  }
+  if (missing) return `Coverage-expansion target-role gap: ${missing}.`;
+  return "Every target role category is represented in this bounded coverage-expansion packet; exhaustive web coverage is still not claimed.";
+}
+
+export function supportingDatedEvidenceRows(
+  packet: SiteReadyCasePacket,
+  axis: TimeAxis,
+): SupportingDatedEvidenceRow[] {
+  const sourceById = new Map(
+    packet.source_snapshot_summaries.map((source) => [source.source_id, source]),
+  );
+  const rows: SupportingDatedEvidenceRow[] = [];
+  let packetOrder = 0;
+
+  const appendRows = (input: {
+    recordKind: SupportingDatedEvidenceRow["recordKind"];
+    recordId: string;
+    text: string;
+    actor: string | null;
+    sourceIds: string[];
+    eventTime: string | null;
+    eventTimePrecision: TemporalPrecision;
+    status: SupportingDatedEvidenceRow["status"];
+  }) => {
+    const linkedSources = input.sourceIds
+      .map((sourceId) => sourceById.get(sourceId))
+      .filter((source): source is SiteReadyCasePacket["source_snapshot_summaries"][number] => Boolean(source));
+    const sources = linkedSources.length ? linkedSources : [null];
+    for (const [sourceIndex, source] of sources.entries()) {
+      const selected = supportingEvidenceTimestamp(input, source, axis);
+      rows.push({
+        evidenceRowId: `${input.recordKind}:${input.recordId}:${source?.source_id ?? `unlinked-${sourceIndex}`}`,
+        recordKind: input.recordKind,
+        recordId: input.recordId,
+        text: input.text,
+        actor: input.actor,
+        sourceId: source?.source_id ?? null,
+        sourceTitle: source?.title ?? null,
+        selectedTime: selected.value,
+        selectedTimePrecision: selected.precision,
+        selectedTimeLabel: selected.label,
+        status: input.status,
+        packetOrder: packetOrder++,
+      });
+    }
+  };
+
+  for (const action of packet.actions) {
+    appendRows({
+      recordKind: "action",
+      recordId: action.action_id,
+      text: action.action_text,
+      actor: action.actor,
+      sourceIds: action.source_ids,
+      eventTime: action.event_time_candidate,
+      eventTimePrecision: action.event_time_candidate_precision,
+      status: action.status,
+    });
+  }
+  for (const finding of packet.source_bound_findings) {
+    appendRows({
+      recordKind: "finding",
+      recordId: finding.finding_id,
+      text: finding.text,
+      actor: null,
+      sourceIds: finding.source_ids,
+      eventTime: null,
+      eventTimePrecision: null,
+      status: finding.status,
+    });
+  }
+  return rows;
+}
+
+export function groupSupportingDatedEvidenceRowsByPrecision(
+  rows: SupportingDatedEvidenceRow[],
+): ReviewTimestampGroup<SupportingDatedEvidenceRow>[] {
+  return groupReviewTimestampItems(
+    rows.filter((row) => row.selectedTime && row.selectedTimePrecision),
+    (row) => ({
+      value: row.selectedTime as string,
+      precision: row.selectedTimePrecision as Exclude<TemporalPrecision, null>,
+    }),
+    (left, right) => left.packetOrder - right.packetOrder,
+  );
+}
+
+function supportingEvidenceTimestamp(
+  input: {
+    eventTime: string | null;
+    eventTimePrecision: TemporalPrecision;
+  },
+  source: SiteReadyCasePacket["source_snapshot_summaries"][number] | null,
+  axis: TimeAxis,
+): { value: string | null; precision: TemporalPrecision; label: string } {
+  if (axis === "event_time") {
+    return {
+      value: input.eventTime,
+      precision: input.eventTimePrecision,
+      label: "Event time",
+    };
+  }
+  if (axis === "publication_time") {
+    return {
+      value: source?.published_at ?? null,
+      precision: source?.published_at_precision ?? null,
+      label: "Linked source publication time",
+    };
+  }
+  if (axis === "retrieval_time") {
+    return {
+      value: source?.retrieved_at ?? null,
+      precision: source ? "instant" : null,
+      label: "Linked source Sisyphus retrieval time",
+    };
+  }
+  return {
+    value: null,
+    precision: null,
+    label: "Actor assertion time",
+  };
 }
 
 const RELATION_LABELS: Record<string, string> = {
