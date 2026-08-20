@@ -91,6 +91,11 @@ interface GeometryState {
   fullFieldCollisionCount: number;
 }
 
+interface SameRowGeometryState {
+  key: string;
+  readableRelationIds: string[];
+}
+
 const EMPTY_GEOMETRY: GeometryState = {
   width: 0,
   height: 0,
@@ -129,6 +134,10 @@ export function InvestigationMapView({
   const [availableWidth, setAvailableWidth] = useState(1280);
   const [geometry, setGeometry] = useState<GeometryState>(EMPTY_GEOMETRY);
   const [collisionState, setCollisionState] = useState({ key: "", count: 0 });
+  const [sameRowGeometryState, setSameRowGeometryState] = useState<SameRowGeometryState>({
+    key: "",
+    readableRelationIds: [],
+  });
   const relationLayoutBand = compact
     ? "compact"
     : availableWidth > 1000
@@ -170,8 +179,20 @@ export function InvestigationMapView({
       map.relationLedger,
       relationPresentation.mode,
       selectedEdgeId,
+      compact
+        ? new Set<string>()
+        : sameRowGeometryState.key === collisionKey
+          ? new Set(sameRowGeometryState.readableRelationIds)
+          : undefined,
     ),
-    [map.relationLedger, relationPresentation.mode, selectedEdgeId],
+    [
+      collisionKey,
+      compact,
+      map.relationLedger,
+      relationPresentation.mode,
+      sameRowGeometryState,
+      selectedEdgeId,
+    ],
   );
   const spatialRelationIds = useMemo(
     () => new Set(relationRoutes.spatialRelationIds),
@@ -258,12 +279,33 @@ export function InvestigationMapView({
       const id = element.dataset.questionId;
       if (id) questionRects.set(id, element.getBoundingClientRect());
     });
-    const allPotentialPaths = drawableRelations.flatMap((entry) => {
-      const left = occurrenceRects.get(entry.leftOccurrenceId);
-      const right = occurrenceRects.get(entry.rightOccurrenceId);
-      if (!left || !right) return [];
-      return [relationGeometry(entry, left, right, shellRect)];
-    });
+    const allPotentialPaths = drawableRelations
+      .filter((entry) => entry.sameRow)
+      .flatMap((entry) => {
+        const left = occurrenceRects.get(entry.leftOccurrenceId);
+        const right = occurrenceRects.get(entry.rightOccurrenceId);
+        if (!left || !right) return [];
+        return [relationGeometry(entry, left, right, shellRect)];
+      });
+    const readableRelationIds = drawableRelations
+      .filter((entry) => entry.sameRow)
+      .filter((entry) => {
+        const left = occurrenceRects.get(entry.leftOccurrenceId);
+        const right = occurrenceRects.get(entry.rightOccurrenceId);
+        return Boolean(
+          left
+          && right
+          && sameRowRelationGeometryIsReadable(entry, left, right),
+        );
+      })
+      .map((entry) => entry.relationId)
+      .sort();
+    setSameRowGeometryState((current) => (
+      current.key === collisionKey
+      && current.readableRelationIds.join("\u0000") === readableRelationIds.join("\u0000")
+        ? current
+        : { key: collisionKey, readableRelationIds }
+    ));
     const relationPaths = allPotentialPaths.filter((item) =>
       spatialRelationIds.has(item.relationId)
     );
@@ -460,7 +502,7 @@ export function InvestigationMapView({
               <path className="open-arrow-marker" d="M 0 0 L 10 5 L 0 10" />
             </marker>
           </defs>
-          {geometry.relationPaths.map((geometryItem) => {
+          {(compact ? [] : geometry.relationPaths).map((geometryItem) => {
             const entry = relationById.get(geometryItem.relationId);
             if (!entry) return null;
             const dimmed = !activeRelationIds.has(entry.relationId);
@@ -477,6 +519,10 @@ export function InvestigationMapView({
                   className={`claim-relation-path relation-${entry.visualFamily} line-${entry.lineStyle}${stateClasses}`}
                   markerEnd={markerEnd}
                   data-relation-id={entry.relationId}
+                  data-relation-route="spatial"
+                  data-left-occurrence-id={entry.leftOccurrenceId}
+                  data-right-occurrence-id={entry.rightOccurrenceId}
+                  data-row-crossing="false"
                   data-direction-asserted={String(entry.directionAsserted)}
                 />
                 {entry.visualFamily === "tension" ? (
@@ -627,7 +673,7 @@ export function InvestigationMapView({
         </div>
 
         <div className="spatial-relation-shortcuts" aria-label="Visual relation shortcuts">
-          {geometry.relationPaths.map((geometryItem) => {
+          {(compact ? [] : geometry.relationPaths).map((geometryItem) => {
             const entry = relationById.get(geometryItem.relationId);
             if (!entry) return null;
             return (
@@ -1063,14 +1109,16 @@ function OccurrenceCard({
                 aria-label={`${relationAccessibleName(entry, occurrence.selectedTimeAxisLabel)}; other endpoint from this port: ${other.actor}, ${other.conciseClaim}; opens ${entry.publicNumber} in the Complete relation review ledger`}
                 aria-controls={`relation-ledger-${safeDomId(entry.relationId)}`}
                 data-relation-port={entry.relationId}
+                data-relation-route="port"
+                data-left-occurrence-id={entry.leftOccurrenceId}
+                data-right-occurrence-id={entry.rightOccurrenceId}
                 data-focus-kind={selection.kind}
                 data-focus-id={selection.id}
                 {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId(`relation-port-${occurrence.occurrenceId}`, selection) }}
                 onClick={(event) => onFocus(selection, event.currentTarget)}
               >
                 <strong>{entry.publicNumber} · {relationDisplayLabel(entry.relationType)}</strong>
-                <span>{entry.publicReviewLabel}</span>
-                <small>Other endpoint: {other.actor}</small>
+                <span aria-label={entry.publicReviewLabel}>Review</span>
               </button>
             );
           })}
@@ -1520,33 +1568,44 @@ function relationGeometry(
   const leftCenterY = left.top - shell.top + left.height * 0.5;
   const rightCenterX = right.left - shell.left + right.width * 0.5;
   const rightCenterY = right.top - shell.top + right.height * 0.5;
-  const horizontal = Math.abs(rightCenterX - leftCenterX)
-    >= Math.abs(rightCenterY - leftCenterY);
-  const startX = horizontal
-    ? (rightCenterX >= leftCenterX ? left.right : left.left) - shell.left
-    : leftCenterX;
-  const startY = horizontal
-    ? leftCenterY
-    : (rightCenterY >= leftCenterY ? left.bottom : left.top) - shell.top;
-  const endX = horizontal
-    ? (rightCenterX >= leftCenterX ? right.left : right.right) - shell.left
-    : rightCenterX;
-  const endY = horizontal
-    ? rightCenterY
-    : (rightCenterY >= leftCenterY ? right.top : right.bottom) - shell.top;
-  const bend = Math.max(38, Math.abs(endX - startX) * 0.24)
-    + entry.parallelIndex * 18;
-  const direction = endX >= startX ? 1 : -1;
+  const leftToRight = rightCenterX >= leftCenterX;
+  const startX = (leftToRight ? left.right : left.left) - shell.left;
+  const endX = (leftToRight ? right.left : right.right) - shell.left;
+  const overlapTop = Math.max(left.top, right.top) - shell.top;
+  const overlapBottom = Math.min(left.bottom, right.bottom) - shell.top;
+  const sharedY = overlapBottom > overlapTop
+    ? (overlapTop + overlapBottom) / 2
+    : (leftCenterY + rightCenterY) / 2;
+  const startY = sharedY;
+  const endY = sharedY;
   const length = Math.hypot(endX - startX, endY - startY) || 1;
   const tickX = (-(endY - startY) / length) * 6;
   const tickY = ((endX - startX) / length) * 6;
   return {
     relationId: entry.relationId,
-    path: `M ${startX} ${startY} C ${startX + bend * direction} ${startY}, ${endX - bend * direction} ${endY}, ${endX} ${endY}`,
+    path: `M ${startX} ${startY} L ${endX} ${endY}`,
     terminalTickPath: `M ${startX - tickX} ${startY - tickY} L ${startX + tickX} ${startY + tickY} M ${endX - tickX} ${endY - tickY} L ${endX + tickX} ${endY + tickY}`,
     labelX: (startX + endX) / 2,
     labelY: (startY + endY) / 2 - 12 - entry.parallelIndex * 22,
   };
+}
+
+function sameRowRelationGeometryIsReadable(
+  entry: InvestigationRelationLedgerEntry,
+  left: DOMRect,
+  right: DOMRect,
+): boolean {
+  if (!entry.sameRow) return false;
+  const horizontalGap = right.left >= left.right
+    ? right.left - left.right
+    : left.left >= right.right
+      ? left.left - right.right
+      : -1;
+  const verticalOverlap = Math.min(left.bottom, right.bottom)
+    - Math.max(left.top, right.top);
+  const estimatedLabelWidth = relationSpatialLabel(entry).length * 7.4 + 20;
+  return horizontalGap >= estimatedLabelWidth + 28
+    && verticalOverlap >= Math.min(left.height, right.height) * 0.35;
 }
 
 function questionPath(occurrence: DOMRect, question: DOMRect, shell: DOMRect): string {
@@ -1618,7 +1677,7 @@ function relationEndpointAccessibleName(
   return `${endpoint.actor}, claim ${endpoint.conciseClaim}, source ${endpoint.sourceIdentity}, selected-axis time ${endpoint.selectedTimeState}`;
 }
 
-function relationSpatialLabel(entry: InvestigationRelationLedgerEntry): string {
+export function relationSpatialLabel(entry: InvestigationRelationLedgerEntry): string {
   if (!entry.directionAsserted) return relationDisplayLabel(entry.relationType);
   if (entry.relationType === "supersedes") return "Superseded by";
   if (entry.relationType === "correction") return "Corrected by";

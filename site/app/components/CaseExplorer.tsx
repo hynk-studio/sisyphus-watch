@@ -2,6 +2,8 @@ export {
   AnalysisResult,
   CaseExplorer,
   LineageResult,
+  SisyphusWordmark,
+  StartNewInvestigationButton,
   getRunNotice,
 } from "./InvestigationExplorer";
 export { FocusedDetailPanel } from "./FocusedDetailPanel";

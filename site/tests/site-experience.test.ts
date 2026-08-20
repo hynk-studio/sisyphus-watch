@@ -10,6 +10,8 @@ import {
   InvestigationMapView,
   MethodView,
   SearchComposer,
+  SisyphusWordmark,
+  StartNewInvestigationButton,
   SourcesView,
   TimelineView,
   firstPayoffForPacket,
@@ -48,7 +50,10 @@ import {
   MOBILE_INSPECTOR_MEDIA_QUERY,
   focusedRecordStatusLabel,
 } from "../app/components/FocusedDetailPanel";
-import { mapCanvasHasHorizontalOverflow } from "../app/components/InvestigationMapView";
+import {
+  mapCanvasHasHorizontalOverflow,
+  relationSpatialLabel,
+} from "../app/components/InvestigationMapView";
 import {
   focusTriggerId,
   type FocusSelection,
@@ -124,6 +129,53 @@ test("the persistent top target and visible page heading follow the active surfa
   assert.doesNotMatch(composerHtml, /<h1/);
 });
 
+test("result-mode home controls expose one shared local reset path", () => {
+  const wordmarkHtml = renderToStaticMarkup(createElement(SisyphusWordmark, {
+    resultMode: true,
+    onReturnHome: noop,
+  }));
+  const actionHtml = renderToStaticMarkup(createElement(StartNewInvestigationButton, {
+    onStart: noop,
+  }));
+  assert.match(wordmarkHtml, /^<button/);
+  assert.match(wordmarkHtml, /Sisyphus Watch home · start new investigation/);
+  assert.doesNotMatch(wordmarkHtml, /href="#top"/);
+  assert.match(actionHtml, /class="start-new-investigation-button"/);
+  assert.match(actionHtml, />Start new investigation</);
+
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    explorerSource,
+    /<SisyphusWordmark[\s\S]*?onReturnHome=\{startNewInvestigation\}/,
+  );
+  assert.match(
+    explorerSource,
+    /<StartNewInvestigationButton onStart=\{startNewInvestigation\}/,
+  );
+  assert.equal(
+    (explorerSource.match(/activateButtonFromKeyboard\(event, on(?:ReturnHome|Start)\)/g) ?? []).length,
+    2,
+  );
+  assert.match(
+    explorerSource,
+    /if \(!investigationStarted\) return;[\s\S]*?"investigation-workspace"[\s\S]*?behavior: "instant"/,
+  );
+  const resetStart = explorerSource.indexOf("function startNewInvestigation()");
+  const resetEnd = explorerSource.indexOf("function openDetailSelection", resetStart);
+  assert.ok(resetStart > 0 && resetEnd > resetStart);
+  const resetSource = explorerSource.slice(resetStart, resetEnd);
+  assert.match(resetSource, /runGuard\.current\.invalidateResponse\(\)/);
+  assert.match(resetSource, /setInvestigationStarted\(false\)/);
+  assert.match(resetSource, /clearDetail\(\)/);
+  assert.match(resetSource, /"investigation-question"/);
+  assert.match(resetSource, /"prepared-investigation-cta"/);
+  assert.match(resetSource, /\.focus\(\)/);
+  assert.doesNotMatch(resetSource, /fetch\(|\/api\/lineage/);
+});
+
 test("live composer exposes the existing bounded request controls without claiming success", () => {
   const html = renderToStaticMarkup(createElement(SearchComposer, {
     question: "How is public access changing?",
@@ -147,11 +199,44 @@ test("live composer exposes the existing bounded request controls without claimi
   assert.match(html, /3 sources/);
   assert.match(html, /5 sources · broader and slower/);
   assert.doesNotMatch(html, /8 sources/);
-  assert.match(html, /Bounded live discovery is available/);
+  assert.match(html, /Live discovery available/);
+  assert.match(html, /bounded limits apply/);
+  assert.match(html, /availability-note availability-idle-ready/);
+  assert.match(html, /data-live-capability="available"/);
+  assert.match(html, /Privacy &amp; limits/);
+  assert.match(html, /Server-side aggregate capacity limits/);
   assert.match(html, /live, partial, or a clearly labeled prepared fallback/);
+  assert.match(html, /every inferred record remains a review candidate/);
+  assert.doesNotMatch(html, /Bounded live discovery is available/);
+  assert.doesNotMatch(html, /availability-note live-ready/);
   assert.doesNotMatch(html, /\bvalidated\b/i);
   assert.doesNotMatch(html, /disabled=""/);
   assert.ok(html.indexOf("Build investigation map") < html.indexOf("Try the cooling-center example"));
+});
+
+test("loading and cooldown retain their distinct availability treatments", () => {
+  const renderState = (isLoading: boolean, cooldownRemainingSeconds: number) =>
+    renderToStaticMarkup(createElement(SearchComposer, {
+      question: "How is public access changing?",
+      sourceLimit: 3,
+      discoveryProfile: "standard",
+      liveEnabled: true,
+      isLoading,
+      cooldownRemainingSeconds,
+      routeError: null,
+      investigationStarted: false,
+      onQuestionChange: noop,
+      onSourceLimitChange: noop,
+      onDiscoveryProfileChange: noop,
+      onSubmit: noop,
+      onPreparedExample: noop,
+    }));
+  const loading = renderState(true, 0);
+  assert.match(loading, /availability-note availability-loading/);
+  assert.match(loading, /Bounded live investigation running/);
+  const cooldown = renderState(false, 12);
+  assert.match(cooldown, /availability-note availability-cooldown/);
+  assert.match(cooldown, /Next live attempt available in 12s/);
 });
 
 test("first payoff resolves one existing source-bound finding without fabricating fallback evidence", () => {
@@ -758,19 +843,45 @@ test("map uses occurrence-primary claim rows with complete candidate relations a
 test("Map relation language reads earlier to later without changing candidate semantics", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const eventHtml = renderMapMarkup(packet, "event_time");
+  const eventMap = deriveInvestigationMap(packet, "event_time");
+  const supersedes = eventMap.relationLedger.find(
+    (entry) => entry.relationType === "supersedes",
+  );
+  const challenge = eventMap.relationLedger.find(
+    (entry) => entry.relationType === "contradicts",
+  );
+  const followUp = eventMap.relationLedger.find(
+    (entry) => entry.relationType === "follow_up",
+  );
+  assert.ok(supersedes);
+  assert.ok(challenge);
+  assert.ok(followUp);
 
-  assert.match(eventHtml, /Superseded by/);
-  assert.match(eventHtml, /Response follows/);
-  assert.match(eventHtml, /Challenge/);
+  assert.equal(relationSpatialLabel(supersedes), "Superseded by");
+  assert.match(eventHtml, /R2 · Challenge/);
+  assert.match(eventHtml, /R3 · Follow-up/);
+  assert.equal(
+    (eventHtml.match(new RegExp(`data-relation-port="${escapeRegex(challenge.relationId)}"`, "g")) ?? []).length,
+    2,
+  );
+  assert.equal(
+    (eventHtml.match(new RegExp(`data-relation-port="${escapeRegex(followUp.relationId)}"`, "g")) ?? []).length,
+    2,
+  );
+  for (const entry of [challenge, followUp]) {
+    assert.match(
+      eventHtml,
+      new RegExp(
+        `data-relation-port="${escapeRegex(entry.relationId)}"[\\s\\S]*?data-focus-kind="relation" data-focus-id="${escapeRegex(entry.relationId)}"`,
+      ),
+    );
+  }
+  assert.doesNotMatch(eventHtml, />Response follows</);
   assert.match(eventHtml, /Later Fictional City Emergency Management Office claim supersedes the earlier/);
   assert.match(eventHtml, /These claim occurrences challenge one another/);
   assert.doesNotMatch(eventHtml, />Replaces</);
   assert.doesNotMatch(eventHtml, />Responds</);
 
-  const challenge = deriveInvestigationMap(packet, "event_time").relationLedger.find(
-    (entry) => entry.relationType === "contradicts",
-  );
-  assert.ok(challenge);
   assert.equal(challenge.directionAsserted, false);
   assert.match(
     eventHtml,
@@ -954,9 +1065,14 @@ test("same-source relations remain occurrence-to-occurrence in spatial eligibili
   assert.match(html, /Every candidate relation is listed once below/);
   assert.match(html, new RegExp(`relation-ledger:relation:${relationId}`));
   assert.equal((html.match(new RegExp(`data-relation-id="${relationId}"`, "g")) ?? []).length, 1);
-  assert.ok(spatialRelationEdges(map).some(
+  assert.equal(spatialRelationEdges(map).some(
     (edge) => edge.relationId === relationId,
-  ));
+  ), false);
+  assert.equal(map.relationRoutes.portRelationIds.includes(relationId), true);
+  assert.equal(
+    (html.match(new RegExp(`data-relation-port="${relationId}"`, "g")) ?? []).length,
+    2,
+  );
   const crossSourceRelationId = packet.relation_candidates.find(
     (relation) => relation.left_source_id !== relation.right_source_id,
   )?.relation_id;
@@ -1739,7 +1855,7 @@ test("Map analytical typography preserves a readable primary and important hiera
   assert.match(mapRules, /\.occurrence-provenance \.source-role-badge \{[^}]*font-size: var\(--map-font-supporting\)/);
   assert.match(mapRules, /\.occurrence-provenance strong \{[^}]*font-size: var\(--map-font-important\)/);
   assert.match(mapRules, /\.relation-shortcut span \{[^}]*font-size: var\(--map-font-important\)/);
-  assert.match(mapRules, /\.relation-port-list span,[\s\S]*?font-size: var\(--map-font-supporting\)/);
+  assert.match(mapRules, /\.relation-port-list span \{[^}]*font-size: var\(--map-font-supporting\)/);
   assert.match(mapRules, /\.question-origin-chip b \{[^}]*font-size: var\(--map-font-important\)/);
   assert.match(mapRules, /\.ledger-endpoint strong \{[^}]*font-size: var\(--map-font-prominent\)/);
   assert.match(mapRules, /\.ledger-endpoint span \{[^}]*font-size: var\(--map-font-important\)/);

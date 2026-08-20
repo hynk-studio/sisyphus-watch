@@ -642,6 +642,7 @@ export function projectInvestigationMap(
     relationLedger,
     relationPresentation.mode,
     null,
+    relationPresentationInput?.compactResponsiveMode ? new Set() : undefined,
   );
 
   return {
@@ -762,8 +763,9 @@ export function deriveRelationPresentation(
 
 export function deriveRelationRoutes(
   ledger: readonly InvestigationRelationLedgerEntry[],
-  mode: RelationPresentationMode,
-  selectedRelationId: string | null,
+  _mode: RelationPresentationMode,
+  _selectedRelationId: string | null,
+  sameRowSpatialRelationIds?: ReadonlySet<string>,
 ): RelationRouteState {
   const spatialRelationIds: string[] = [];
   const portRelationIds: string[] = [];
@@ -773,11 +775,9 @@ export function deriveRelationRoutes(
       ledgerOnlyRelationIds.push(entry.relationId);
       continue;
     }
-    if (
-      mode === "matrix"
-      || entry.sameRow
-      || entry.relationId === selectedRelationId
-    ) {
+    const sameRowHasReadableGeometry = entry.sameRow
+      && (sameRowSpatialRelationIds?.has(entry.relationId) ?? true);
+    if (sameRowHasReadableGeometry) {
       spatialRelationIds.push(entry.relationId);
     } else {
       portRelationIds.push(entry.relationId);
