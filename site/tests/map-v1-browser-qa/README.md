@@ -18,6 +18,18 @@ Then open:
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html
 ```
 
+For deterministic landing and result-navigation QA, open the same production
+component harness with:
+
+```text
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=experience
+```
+
+That surface mounts the production `CaseExplorer` with local live capability
+presentation enabled. It does not submit the composer, call `/api/lineage`, or
+touch a provider or D1 unless a tester explicitly activates the primary live
+submission control.
+
 Build it without writing generated output into the repository:
 
 ```sh

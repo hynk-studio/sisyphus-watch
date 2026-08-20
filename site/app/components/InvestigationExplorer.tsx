@@ -62,6 +62,78 @@ import {
   type FocusSelection,
 } from "./investigation-types";
 
+export function SisyphusWordmark({
+  resultMode,
+  onReturnHome,
+}: {
+  resultMode: boolean;
+  onReturnHome: () => void;
+}) {
+  const content = (
+    <>
+      <span className="wordmark-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" focusable="false">
+          <rect width="32" height="32" rx="7" fill="#14213d" />
+          <path
+            d="M8 22c3.2-7.7 7.7-11.7 15-12M9 23h14"
+            fill="none"
+            stroke="#f6c453"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+          <circle cx="23" cy="10" r="3" fill="#f7f4eb" />
+        </svg>
+      </span>
+      <span className="wordmark-copy">
+        <strong className="wordmark-name">Sisyphus Watch</strong>
+        <small className="wordmark-descriptor">Public-interest investigation ledger</small>
+      </span>
+    </>
+  );
+
+  return resultMode ? (
+    <button
+      className="wordmark wordmark-home-button"
+      type="button"
+      aria-label="Sisyphus Watch home · start new investigation"
+      onClick={onReturnHome}
+      onKeyDown={(event) => activateButtonFromKeyboard(event, onReturnHome)}
+    >
+      {content}
+    </button>
+  ) : (
+    <a className="wordmark" href="#top" aria-label="Sisyphus Watch home">
+      {content}
+    </a>
+  );
+}
+
+export function StartNewInvestigationButton({
+  onStart,
+}: {
+  onStart: () => void;
+}) {
+  return (
+    <button
+      className="start-new-investigation-button"
+      type="button"
+      onClick={onStart}
+      onKeyDown={(event) => activateButtonFromKeyboard(event, onStart)}
+    >
+      Start new investigation
+    </button>
+  );
+}
+
+function activateButtonFromKeyboard(
+  event: KeyboardEvent<HTMLButtonElement>,
+  activate: () => void,
+) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  activate();
+}
+
 export function CaseExplorer({
   preparedCase,
   liveEnabled = false,
@@ -367,25 +439,10 @@ export function CaseExplorer({
   return (
     <main className="site-shell" id="top">
       <header className="masthead" aria-label="Sisyphus Watch">
-        <a className="wordmark" href="#top" aria-label="Sisyphus Watch home">
-          <span className="wordmark-mark" aria-hidden="true">
-            <svg viewBox="0 0 32 32" focusable="false">
-              <rect width="32" height="32" rx="7" fill="#14213d" />
-              <path
-                d="M8 22c3.2-7.7 7.7-11.7 15-12M9 23h14"
-                fill="none"
-                stroke="#f6c453"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-              <circle cx="23" cy="10" r="3" fill="#f7f4eb" />
-            </svg>
-          </span>
-          <span className="wordmark-copy">
-            <strong className="wordmark-name">Sisyphus Watch</strong>
-            <small className="wordmark-descriptor">Public-interest investigation ledger</small>
-          </span>
-        </a>
+        <SisyphusWordmark
+          resultMode={investigationStarted}
+          onReturnHome={startNewInvestigation}
+        />
         <span className="header-note">A version map for changing public information</span>
       </header>
 
@@ -427,13 +484,7 @@ export function CaseExplorer({
             </div>
             <div className="case-actions">
               <ExportInvestigation packet={packet} />
-              <button
-                className="quiet-button"
-                type="button"
-                onClick={startNewInvestigation}
-              >
-                New investigation
-              </button>
+              <StartNewInvestigationButton onStart={startNewInvestigation} />
             </div>
           </div>
 

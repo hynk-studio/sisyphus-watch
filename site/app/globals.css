@@ -90,6 +90,14 @@ p, li, blockquote { text-wrap: pretty; }
   gap: 12px;
   text-decoration: none;
 }
+.wordmark-home-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
 .wordmark-mark {
   display: block;
   width: 34px;
@@ -379,10 +387,35 @@ p, li, blockquote { text-wrap: pretty; }
   font-size: .8rem;
   line-height: 1.5;
 }
-.availability-note.live-ready {
-  border-left-color: var(--success);
-  background: var(--success-soft);
-  color: var(--success);
+.availability-idle-ready {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  background: var(--surface-inset);
+  color: var(--ink-soft);
+}
+.live-ready-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 5px;
+  align-items: center;
+  font-weight: 680;
+}
+.live-ready-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--success);
+}
+.availability-loading {
+  border-left-color: var(--navy);
+  background: var(--navy-soft);
+  color: var(--navy);
 }
 .form-error { margin: 0; color: var(--red); font-size: .76rem; line-height: 1.5; }
 
@@ -468,19 +501,19 @@ p, li, blockquote { text-wrap: pretty; }
 }
 .case-question { max-width: 820px; margin: 0; color: var(--muted); font-size: .94rem; line-height: 1.55; }
 .case-actions { display: grid; min-width: 178px; flex: 0 0 auto; gap: 7px; justify-items: stretch; }
-.quiet-button {
-  min-height: 40px;
+.start-new-investigation-button {
+  min-height: 42px;
   flex: 0 0 auto;
   padding: 0 13px;
-  border: 0;
-  border-bottom: 1px solid var(--line-strong);
-  border-radius: 0;
+  border: 1px solid var(--navy);
+  border-radius: 3px;
   background: transparent;
   color: var(--navy);
   cursor: pointer;
-  font-size: .82rem;
-  font-weight: 680;
+  font-size: .84rem;
+  font-weight: 720;
 }
+.start-new-investigation-button:hover { background: var(--navy-soft); }
 .run-notice {
   display: flex;
   gap: 12px 18px;
@@ -1240,9 +1273,10 @@ p, li, blockquote { text-wrap: pretty; }
 .occurrence-provenance small { overflow-wrap: anywhere; color: var(--muted); font-size: var(--map-font-supporting); line-height: 1.4; }
 .relation-port-list { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 10px 10px; border-top: 1px dashed var(--line-strong); }
 .relation-port-list button {
-  display: grid;
+  display: inline-flex;
   min-width: 0;
-  gap: 2px;
+  gap: 6px;
+  align-items: center;
   padding: 6px 8px;
   border: 1px solid #b98a32;
   border-radius: 999px;
@@ -1252,9 +1286,9 @@ p, li, blockquote { text-wrap: pretty; }
   text-align: left;
 }
 .relation-port-list button.is-selected { border-color: var(--navy); box-shadow: inset 3px 0 0 var(--navy); }
-.relation-port-list strong { overflow-wrap: anywhere; font-size: .82rem; line-height: 1.35; }
-.relation-port-list span,
-.relation-port-list small { overflow-wrap: anywhere; font-size: var(--map-font-supporting); line-height: 1.35; }
+.relation-port-list strong { overflow-wrap: normal; font-size: .82rem; line-height: 1.35; white-space: nowrap; }
+.relation-port-list span { color: var(--muted); font-size: var(--map-font-supporting); line-height: 1.35; white-space: nowrap; }
+.relation-port-list span::before { margin-right: 6px; color: var(--gold-ink); content: "·"; }
 
 .unplaced-occurrence-band {
   display: grid;
@@ -1360,7 +1394,7 @@ p, li, blockquote { text-wrap: pretty; }
   position: absolute;
   display: inline-block;
   width: max-content;
-  max-width: 112px;
+  max-width: none;
   padding: 2px 5px;
   transform: translate(-50%, -50%);
   border: 0;
@@ -1370,6 +1404,7 @@ p, li, blockquote { text-wrap: pretty; }
   cursor: pointer;
   pointer-events: auto;
   text-align: center;
+  white-space: nowrap;
 }
 .relation-shortcut:hover { text-decoration: underline; text-underline-offset: 2px; }
 .relation-shortcut.is-selected { color: var(--navy); box-shadow: 0 0 0 2px var(--navy-soft); }
@@ -1753,7 +1788,7 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
   .workspace { margin: 24px -1px 44px; border-radius: 0; }
   .case-heading { align-items: stretch; flex-direction: column; gap: 18px; padding: 20px 18px 18px; }
   .case-heading h1 { font-size: 1.55rem; line-height: 1.12; }
-  .case-actions, .quiet-button, .export-investigation { width: 100%; }
+  .case-actions, .start-new-investigation-button, .export-investigation { width: 100%; }
   .export-panel { right: auto; left: 0; }
   .run-notice { align-items: flex-start; flex-direction: column; gap: 3px; padding: 8px 18px; }
   .tab-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 0 4px; }

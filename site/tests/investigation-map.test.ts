@@ -497,7 +497,7 @@ test("relation ledger endpoints remain exact occurrence IDs with one semantic en
   }
 });
 
-test("same-source occurrence relations remain spatially and ledger representable", () => {
+test("same-source cross-row occurrence relations remain port and ledger representable", () => {
   const packet = buildSameSourceRelationFixture();
   const relation = packet.relation_candidates.find(
     (item) =>
@@ -511,13 +511,16 @@ test("same-source occurrence relations remain spatially and ledger representable
   const map = deriveInvestigationMap(packet, "publication_time");
   const entry = relationEntry(map, relation.relation_id);
   assert.equal(entry.geometryEligible, true);
+  assert.equal(entry.sameRow, false);
   assert.equal(entry.leftSourceId, entry.rightSourceId);
   assert.notEqual(entry.leftOccurrenceId, entry.rightOccurrenceId);
-  assert.ok(
+  assert.equal(
     spatialRelationEdges(map, "matrix").some(
       (item) => item.relationId === relation.relation_id,
     ),
+    false,
   );
+  assert.equal(map.relationRoutes.portRelationIds.includes(relation.relation_id), true);
   assert.equal(JSON.stringify(packet), before);
 });
 
@@ -763,10 +766,52 @@ test("Matrix and Relation-summary are adaptive presentation modes with zero rela
     "relation_summary",
     null,
   );
+  const supersedes = matrix.relationLedger.find(
+    (entry) => entry.relationType === "supersedes",
+  );
+  const challenge = matrix.relationLedger.find(
+    (entry) => entry.relationType === "contradicts",
+  );
+  const followUp = matrix.relationLedger.find(
+    (entry) => entry.relationType === "follow_up",
+  );
+  assert.ok(supersedes);
+  assert.ok(challenge);
+  assert.ok(followUp);
   assertAllRelationsRouted(matrix, matrixRoutes);
   assertAllRelationsRouted(summary, summaryRoutes);
-  assert.ok(summaryRoutes.spatialRelationIds.length > 0);
-  assert.ok(summaryRoutes.portRelationIds.length > 0);
+  assert.deepEqual(matrixRoutes.spatialRelationIds, [supersedes.relationId]);
+  assert.deepEqual(
+    [...matrixRoutes.portRelationIds].sort(),
+    [challenge.relationId, followUp.relationId].sort(),
+  );
+  assert.deepEqual(summaryRoutes.spatialRelationIds, [supersedes.relationId]);
+  assert.deepEqual(
+    [...summaryRoutes.portRelationIds].sort(),
+    [challenge.relationId, followUp.relationId].sort(),
+  );
+  const selectedCrossRowRoutes = deriveRelationRoutes(
+    matrix.relationLedger,
+    "matrix",
+    challenge.relationId,
+  );
+  assert.equal(
+    selectedCrossRowRoutes.spatialRelationIds.includes(challenge.relationId),
+    false,
+    "selecting a cross-row relation must not restore its curve",
+  );
+  assert.equal(selectedCrossRowRoutes.portRelationIds.includes(challenge.relationId), true);
+  const compactRoutes = deriveRelationRoutes(
+    summary.relationLedger,
+    "relation_summary",
+    null,
+    new Set(),
+  );
+  assert.deepEqual(compactRoutes.spatialRelationIds, []);
+  assert.deepEqual(
+    [...compactRoutes.portRelationIds].sort(),
+    matrix.relationLedger.map((entry) => entry.relationId).sort(),
+  );
 
   assert.deepEqual(
     deriveRelationPresentation({
@@ -1243,6 +1288,8 @@ test("compact responsive projection preserves the same entities and semantic led
   );
   assert.deepEqual(compact.relationLedger, matrix.relationLedger);
   assertAllRelationsRouted(compact, compact.relationRoutes);
+  assert.equal(compact.relationRoutes.spatialRelationIds.length, 0);
+  assert.equal(compact.relationRoutes.portRelationIds.length, 3);
 });
 
 test("public packet and lineage request contracts remain unchanged", () => {

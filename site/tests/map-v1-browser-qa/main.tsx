@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import "../../app/globals.css";
 import "./map-v1-browser-qa.css";
 
+import { CaseExplorer } from "../../app/components/CaseExplorer";
 import { FocusedDetailPanel } from "../../app/components/FocusedDetailPanel";
 import { InvestigationMapView } from "../../app/components/InvestigationMapView";
 import {
@@ -43,6 +44,8 @@ const FIXTURE_LABELS: Record<FixtureName, string> = {
 };
 
 function MapQaApp() {
+  const experienceSurface = new URLSearchParams(window.location.search)
+    .get("surface") === "experience";
   const [fixtureName, setFixtureName] = useState<FixtureName>("prepared");
   const packet = useMemo(
     () => FIXTURE_BUILDERS[fixtureName](),
@@ -90,6 +93,15 @@ function MapQaApp() {
       window.removeEventListener("resize", recordSkipLinkState);
     };
   }, []);
+
+  if (experienceSurface) {
+    return (
+      <CaseExplorer
+        preparedCase={buildPreparedSiteReadyCasePacket()}
+        liveEnabled={true}
+      />
+    );
+  }
 
   return (
     <main className="site-shell map-qa-shell" id="top">

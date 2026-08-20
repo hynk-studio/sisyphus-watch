@@ -31,6 +31,11 @@ export function SearchComposer({
   onPreparedExample: () => void;
 }) {
   const ComposerHeading = investigationStarted ? "h2" : "h1";
+  const availabilityState = isLoading
+    ? "loading"
+    : cooldownRemainingSeconds > 0
+      ? "cooldown"
+      : "idle-ready";
 
   return (
     <section
@@ -96,6 +101,11 @@ export function SearchComposer({
                   Server-side aggregate capacity limits bound concurrent, hourly, and
                   daily work. They do not store visitor identity and therefore do not
                   guarantee fairness between signed-out visitors.
+                </p>
+                <p>
+                  Results can be live, partial, or a clearly labeled prepared fallback.
+                  A capacity denial leaves the displayed investigation intact, and every
+                  inferred record remains a review candidate.
                 </p>
               </details>
             </div>
@@ -175,23 +185,30 @@ export function SearchComposer({
           </div>
           <div
             id="live-availability-note"
-            className={`availability-note${liveEnabled ? " live-ready" : ""}`}
+            className={`availability-note availability-${availabilityState}`}
+            data-live-capability="available"
+            data-availability-state={availabilityState}
             role="status"
           >
-            <strong>
-              {isLoading
-                ? "Bounded live investigation running."
-                : cooldownRemainingSeconds > 0
-                  ? `Next live attempt available in ${cooldownRemainingSeconds}s.`
-                  : "Bounded live discovery is available."}
-            </strong>
-            <span>
-              {isLoading
-                ? "The displayed investigation stays intact until one schema-checked response is available."
-                : cooldownRemainingSeconds > 0
-                  ? "The prepared investigation and New investigation remain usable during this accidental-repeat guard."
-                  : "Results can be live, partial, or a clearly labeled prepared fallback. A capacity denial leaves the displayed investigation intact; the prepared example remains a separate choice. Every inferred record remains review-only."}
-            </span>
+            {availabilityState === "idle-ready" ? (
+              <strong className="live-ready-line">
+                <span className="live-ready-dot" aria-hidden="true" />
+                Live discovery available <span aria-hidden="true">·</span> bounded limits apply
+              </strong>
+            ) : (
+              <>
+                <strong>
+                  {isLoading
+                    ? "Bounded live investigation running."
+                    : `Next live attempt available in ${cooldownRemainingSeconds}s.`}
+                </strong>
+                <span>
+                  {isLoading
+                    ? "The displayed investigation stays intact until one schema-checked response is available."
+                    : "The prepared investigation and Start new investigation remain usable during this accidental-repeat guard."}
+                </span>
+              </>
+            )}
           </div>
           {routeError ? <p className="form-error" role="alert">{routeError}</p> : null}
         </form>
