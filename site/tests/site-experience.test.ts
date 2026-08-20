@@ -1833,6 +1833,16 @@ test("920px CSS transforms the same matrix into typed claim chapters with a comp
   assert.doesNotMatch(mobileRules, /width:\s*100vw/);
 });
 
+test("result actions and Map lens controls preserve practical target sizes", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.start-new-investigation-button \{[\s\S]*?min-height: 44px/);
+  assert.match(css, /\.export-toggle \{[\s\S]*?min-height: 44px/);
+  assert.match(css, /\.export-actions button \{[\s\S]*?min-height: 44px/);
+  assert.match(css, /\.lens-list \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.lens-list button \{[^}]*min-height: 44px/);
+});
+
 test("Map analytical typography preserves a readable primary and important hierarchy", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const mapStart = css.indexOf("/* Temporal Claim-Lineage Matrix v1 */");
@@ -1943,6 +1953,8 @@ test("matrix activates keyboard scrolling only for measured horizontal overflow"
   assert.match(matrixRules, /\.claim-matrix-stage \{[\s\S]*?min-width: max/);
   assert.match(matrixRules, /\.claim-relation-path \{[\s\S]*?stroke-width:/);
   assert.match(matrixRules, /\.question-evidence-tether \{[\s\S]*?stroke-dasharray:/);
+  assert.match(matrixRules, /\.question-evidence-tether \{[^}]*opacity: 0/);
+  assert.match(matrixRules, /\.question-evidence-tether\.is-selected \{[^}]*opacity: 1/);
   assert.match(matrixRules, /\.occurrence-claim-text \{[\s\S]*?-webkit-line-clamp: 4/);
   const mapSource = readFileSync(
     new URL("../app/components/InvestigationMapView.tsx", import.meta.url),
