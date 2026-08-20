@@ -1,102 +1,60 @@
+"use client";
+
 import {
-  Fragment,
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
 } from "react";
 import {
-  TIME_AXES,
-  TIME_AXIS_LABELS,
-  discoveryLaneLabel,
-  type TimeAxis,
-} from "../lib/experience";
-import {
+  COVERAGE_LENSES,
   COVERAGE_LENS_LABELS,
   deriveCoverageHighlight,
+  deriveRelationPresentation,
+  deriveRelationRoutes,
   deriveThreadTrace,
-  spatialRelationEdges,
   type CoverageLens,
+  type InvestigationClaimRow,
   type InvestigationMap,
+  type InvestigationNonClaimSourceRecord,
+  type InvestigationOccurrenceNode,
   type InvestigationQuestionNode,
-  type InvestigationRelationEdge,
-  type InvestigationSourceNode,
-  type MapHighlightState,
+  type InvestigationRelationLedgerEntry,
 } from "../lib/investigation-map";
+import {
+  TIME_AXES,
+  TIME_AXIS_LABELS,
+  sourceCoverageNote,
+  type TimeAxis,
+} from "../lib/experience";
 import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
 import { formatReviewTimestamp } from "../lib/temporal";
 import {
+  FOCUS_TRIGGER_ATTRIBUTE,
   focusTriggerId,
   type FocusHandler,
   type FocusSelection,
 } from "./investigation-types";
 
-interface SpatialPoint {
-  x: number;
-  y: number;
-}
-
-interface SpatialRelationGeometry {
-  edgeId: string;
-  path: string;
-  start: SpatialPoint;
-  end: SpatialPoint;
-  label: SpatialPoint;
-}
-
-interface SpatialQuestionGeometry {
-  edgeId: string;
-  path: string;
-  start: SpatialPoint;
-  end: SpatialPoint;
-}
-
-interface SpatialConnectionGeometry {
-  width: number;
-  height: number;
-  relations: SpatialRelationGeometry[];
-  questions: SpatialQuestionGeometry[];
-}
-
-const EMPTY_SPATIAL_GEOMETRY: SpatialConnectionGeometry = {
-  width: 0,
-  height: 0,
-  relations: [],
-  questions: [],
-};
-
-const HORIZONTAL_OVERFLOW_TOLERANCE_PX = 1;
+export const MAP_COMPACT_MEDIA_QUERY = "(max-width: 920px)" as const;
 
 export function mapCanvasHasHorizontalOverflow(
   scrollWidth: number,
   clientWidth: number,
 ): boolean {
-  return scrollWidth - clientWidth > HORIZONTAL_OVERFLOW_TOLERANCE_PX;
+  return scrollWidth - clientWidth > 1;
 }
 
-export function InvestigationMapView({
-  packet,
-  map,
-  timeAxis,
-  coverageLens,
-  selectedNodeId,
-  selectedEdgeId,
-  threadTraceActive,
-  liveEnabled,
-  runBlocked,
-  runStatusLabel,
-  onTimeAxisChange,
-  onCoverageLensChange,
-  onFocus,
-  onTraceThread,
-  onShowFullMap,
-  onExpandCoverage,
-}: {
+interface InvestigationMapViewProps {
   packet: SiteReadyCasePacket;
   map: InvestigationMap;
   timeAxis: TimeAxis;
   coverageLens: CoverageLens;
+  selectedKind: FocusSelection["kind"] | null;
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
   threadTraceActive: boolean;
@@ -109,103 +67,301 @@ export function InvestigationMapView({
   onTraceThread: () => void;
   onShowFullMap: () => void;
   onExpandCoverage: () => void;
-}) {
-  const lensHighlight = deriveCoverageHighlight(map, coverageLens);
-  const selectionHighlight = selectionHighlightState(map, selectedNodeId, selectedEdgeId);
-  const availableLenses = coverageLensesForMap(map);
-  const selectedSource = map.sources.find((source) => source.nodeId === selectedNodeId);
-  const selectedQuestion = map.questions.find((question) => question.nodeId === selectedNodeId);
-  const trace = selectedNodeId ? deriveThreadTrace(map, selectedNodeId) : null;
-  const preparedComparison = packet.coverage_summary.coverage_basis === "prepared_fixture";
-  const desktopMapRef = useRef<HTMLDivElement>(null);
-  const spatialStageRef = useRef<HTMLDivElement>(null);
-  const spatialNodeRefs = useRef(new Map<string, HTMLElement>());
-  const [desktopMapOverflowing, setDesktopMapOverflowing] = useState(false);
-  const [spatialGeometry, setSpatialGeometry] = useState<SpatialConnectionGeometry>(
-    EMPTY_SPATIAL_GEOMETRY,
+}
+
+interface RelationGeometry {
+  relationId: string;
+  path: string;
+  terminalTickPath: string;
+  labelX: number;
+  labelY: number;
+}
+
+interface QuestionGeometry {
+  tetherId: string;
+  path: string;
+}
+
+interface GeometryState {
+  width: number;
+  height: number;
+  relationPaths: RelationGeometry[];
+  questionPaths: QuestionGeometry[];
+  fullFieldCollisionCount: number;
+}
+
+const EMPTY_GEOMETRY: GeometryState = {
+  width: 0,
+  height: 0,
+  relationPaths: [],
+  questionPaths: [],
+  fullFieldCollisionCount: 0,
+};
+
+export function InvestigationMapView({
+  packet,
+  map,
+  timeAxis,
+  coverageLens,
+  selectedKind,
+  selectedNodeId,
+  selectedEdgeId,
+  threadTraceActive,
+  liveEnabled,
+  runBlocked,
+  runStatusLabel,
+  onTimeAxisChange,
+  onCoverageLensChange,
+  onFocus,
+  onTraceThread,
+  onShowFullMap,
+  onExpandCoverage,
+}: InvestigationMapViewProps) {
+  const compact = useSyncExternalStore(
+    subscribeCompactMap,
+    compactMapSnapshot,
+    () => false,
+  );
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const spatialShellRef = useRef<HTMLDivElement>(null);
+  const [matrixOverflowing, setMatrixOverflowing] = useState(false);
+  const [availableWidth, setAvailableWidth] = useState(1280);
+  const [geometry, setGeometry] = useState<GeometryState>(EMPTY_GEOMETRY);
+  const [collisionState, setCollisionState] = useState({ key: "", count: 0 });
+  const relationLayoutBand = compact
+    ? "compact"
+    : availableWidth > 1000
+      ? "wide"
+      : "tablet";
+  const collisionKey = `${map.packetRunId}:${map.selectedTimeAxis}:${relationLayoutBand}`;
+  const collisionPressure = collisionState.key === collisionKey
+    ? collisionState.count
+    : 0;
+
+  const drawableRelations = useMemo(
+    () => map.relationLedger.filter((entry) => entry.geometryEligible),
+    [map.relationLedger],
+  );
+  const crossRowRelationCount = useMemo(
+    () => drawableRelations.filter((entry) => !entry.sameRow).length,
+    [drawableRelations],
+  );
+  const relationPresentation = useMemo(
+    () => deriveRelationPresentation({
+      availableWidth,
+      drawableRelationCount: drawableRelations.length,
+      crossRowRelationCount,
+      measuredCollisionCount: collisionPressure,
+      compactResponsiveMode: compact,
+      totalRelationCount: map.relationLedger.length,
+    }),
+    [
+      availableWidth,
+      compact,
+      crossRowRelationCount,
+      drawableRelations.length,
+      collisionPressure,
+      map.relationLedger.length,
+    ],
+  );
+  const relationRoutes = useMemo(
+    () => deriveRelationRoutes(
+      map.relationLedger,
+      relationPresentation.mode,
+      selectedEdgeId,
+    ),
+    [map.relationLedger, relationPresentation.mode, selectedEdgeId],
+  );
+  const spatialRelationIds = useMemo(
+    () => new Set(relationRoutes.spatialRelationIds),
+    [relationRoutes.spatialRelationIds],
+  );
+  const portRelationIds = useMemo(
+    () => new Set(relationRoutes.portRelationIds),
+    [relationRoutes.portRelationIds],
   );
 
-  function registerSpatialNode(nodeId: string, node: HTMLElement | null) {
-    if (node) spatialNodeRefs.current.set(nodeId, node);
-    else spatialNodeRefs.current.delete(nodeId);
-  }
+  const coverageHighlight = useMemo(
+    () => deriveCoverageHighlight(map, coverageLens),
+    [coverageLens, map],
+  );
+  const selectedOccurrenceId = selectedKind === "claim_occurrence" ? selectedNodeId : null;
+  const selectedSourceId = selectedKind === "source" ? selectedNodeId : null;
+  const selectedQuestionId = selectedKind === "unresolved_question" ? selectedNodeId : null;
+  const selectedFamilyId = selectedKind === "claim_family" ? selectedNodeId : null;
+  const selectedFamilyRow = selectedFamilyId
+    ? map.rows.find((row) => row.familyId === selectedFamilyId) ?? null
+    : null;
+  const traceTargetNodeId = selectedFamilyRow?.occurrenceNodeIds[0]
+    ?? selectedOccurrenceId;
+  const traceHighlight = traceTargetNodeId && threadTraceActive
+    ? deriveThreadTrace(map, traceTargetNodeId)
+    : null;
+  const selectedRelation = selectedEdgeId
+    ? map.relationLedger.find((entry) => entry.relationId === selectedEdgeId) ?? null
+    : null;
+  const selectedQuestion = selectedQuestionId
+    ? map.questions.find((question) => question.nodeId === selectedQuestionId) ?? null
+    : null;
+  const selectionNodeIds = selectedRelation
+    ? [selectedRelation.leftOccurrenceId, selectedRelation.rightOccurrenceId]
+    : selectedQuestion
+      ? [selectedQuestion.nodeId, ...selectedQuestion.occurrenceAnchorIds]
+      : selectedFamilyRow
+        ? [...selectedFamilyRow.occurrenceNodeIds]
+      : null;
+  const selectionRelationIds = selectedRelation
+    ? [selectedRelation.relationId]
+    : selectedQuestion
+      ? []
+      : null;
+  const activeNodeIds = new Set(
+    traceHighlight?.nodeIds ?? selectionNodeIds ?? coverageHighlight.nodeIds,
+  );
+  const activeRelationIds = new Set(
+    traceHighlight?.relationIds ?? selectionRelationIds ?? coverageHighlight.relationIds,
+  );
+  const selectionQuestionTetherIds = selectedQuestion
+    ? map.questionTethers
+      .filter((tether) => tether.toQuestionId === selectedQuestion.questionId)
+      .map((tether) => tether.tetherId)
+    : selectedRelation || selectedFamilyRow
+      ? []
+      : null;
+  const activeQuestionTetherIds = new Set(
+    traceHighlight?.questionTetherIds
+      ?? selectionQuestionTetherIds
+      ?? coverageHighlight.questionTetherIds,
+  );
+  const selectedQuestionTetherIdSet = new Set(selectionQuestionTetherIds ?? []);
+
+  const measure = useCallback(() => {
+    const scrollContainer = scrollRef.current;
+    const shell = spatialShellRef.current;
+    if (!scrollContainer || !shell) return;
+    setMatrixOverflowing(
+      mapCanvasHasHorizontalOverflow(
+        scrollContainer.scrollWidth,
+        scrollContainer.clientWidth,
+      ),
+    );
+    setAvailableWidth(shell.clientWidth);
+    const shellRect = shell.getBoundingClientRect();
+    const occurrenceRects = new Map<string, DOMRect>();
+    shell.querySelectorAll<HTMLElement>("[data-occurrence-id]").forEach((element) => {
+      const id = element.dataset.occurrenceId;
+      if (id) occurrenceRects.set(id, element.getBoundingClientRect());
+    });
+    const questionRects = new Map<string, DOMRect>();
+    shell.querySelectorAll<HTMLElement>("[data-question-id]").forEach((element) => {
+      const id = element.dataset.questionId;
+      if (id) questionRects.set(id, element.getBoundingClientRect());
+    });
+    const allPotentialPaths = drawableRelations.flatMap((entry) => {
+      const left = occurrenceRects.get(entry.leftOccurrenceId);
+      const right = occurrenceRects.get(entry.rightOccurrenceId);
+      if (!left || !right) return [];
+      return [relationGeometry(entry, left, right, shellRect)];
+    });
+    const relationPaths = allPotentialPaths.filter((item) =>
+      spatialRelationIds.has(item.relationId)
+    );
+    const questionPaths = map.questionTethers.flatMap((tether) => {
+      const occurrence = occurrenceRects.get(tether.fromOccurrenceId);
+      const question = questionRects.get(tether.toQuestionId);
+      if (!occurrence || !question) return [];
+      return [{
+        tetherId: tether.tetherId,
+        path: questionPath(occurrence, question, shellRect),
+      }];
+    });
+    const fullFieldCollisionCount = countLabelCollisions(allPotentialPaths);
+    setCollisionState((current) => {
+      const nextCount = current.key === collisionKey
+        ? Math.max(current.count, fullFieldCollisionCount)
+        : fullFieldCollisionCount;
+      return current.key === collisionKey && current.count === nextCount
+        ? current
+        : { key: collisionKey, count: nextCount };
+    });
+    setGeometry({
+      width: shell.scrollWidth,
+      height: shell.scrollHeight,
+      relationPaths,
+      questionPaths,
+      fullFieldCollisionCount,
+    });
+  }, [collisionKey, drawableRelations, map.questionTethers, spatialRelationIds]);
 
   useEffect(() => {
-    const scrollContainer = desktopMapRef.current;
-    const stage = spatialStageRef.current;
-    if (!scrollContainer || !stage) return;
-    let frame = 0;
-    const measure = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        setSpatialGeometry(measureSpatialConnections(stage, spatialNodeRefs.current, map));
-        const nextOverflowing = mapCanvasHasHorizontalOverflow(
-          scrollContainer.scrollWidth,
-          scrollContainer.clientWidth,
-        );
-        setDesktopMapOverflowing((current) => (
-          current === nextOverflowing ? current : nextOverflowing
-        ));
-      });
-    };
+    const scrollContainer = scrollRef.current;
+    const shell = spatialShellRef.current;
+    if (!scrollContainer || !shell) return;
+    measure();
     const observer = new ResizeObserver(measure);
     observer.observe(scrollContainer);
-    observer.observe(stage);
-    measure();
+    observer.observe(shell);
+    scrollContainer.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
     return () => {
-      cancelAnimationFrame(frame);
       observer.disconnect();
+      scrollContainer.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
     };
-  }, [map]);
+  }, [measure]);
 
-  function nodeIsDimmed(nodeId: string): boolean {
-    const outsideLens = !lensHighlight.nodeIds.includes(nodeId);
-    const outsideSelection = selectionHighlight
-      ? !selectionHighlight.nodeIds.includes(nodeId)
-      : false;
-    return outsideLens || outsideSelection;
-  }
-
-  function relationIsDimmed(edgeId: string): boolean {
-    const outsideLens = !lensHighlight.relationEdgeIds.includes(edgeId);
-    const outsideSelection = selectionHighlight
-      ? !selectionHighlight.relationEdgeIds.includes(edgeId)
-      : false;
-    return outsideLens || outsideSelection;
-  }
-
-  function questionEdgeIsDimmed(edgeId: string): boolean {
-    const outsideLens = !lensHighlight.questionEdgeIds.includes(edgeId);
-    const outsideSelection = selectionHighlight
-      ? !selectionHighlight.questionEdgeIds.includes(edgeId)
-      : false;
-    return outsideLens || outsideSelection;
-  }
+  const occurrenceById = useMemo(
+    () => new Map(map.occurrences.map((occurrence) => [occurrence.occurrenceId, occurrence])),
+    [map.occurrences],
+  );
+  const relationById = useMemo(
+    () => new Map(map.relationLedger.map((entry) => [entry.relationId, entry])),
+    [map.relationLedger],
+  );
+  const portRelationsByOccurrence = useMemo(() => {
+    const result = new Map<string, InvestigationRelationLedgerEntry[]>();
+    for (const relationId of portRelationIds) {
+      const entry = relationById.get(relationId);
+      if (!entry) continue;
+      for (const occurrenceId of [entry.leftOccurrenceId, entry.rightOccurrenceId]) {
+        result.set(occurrenceId, [...(result.get(occurrenceId) ?? []), entry]);
+      }
+    }
+    return result;
+  }, [portRelationIds, relationById]);
+  const datedOccurrenceIds = new Set(
+    map.occurrences
+      .filter((occurrence) => occurrence.timeRegion === "dated")
+      .map((occurrence) => occurrence.occurrenceId),
+  );
+  const unplacedOccurrenceIds = new Set(map.unplacedOccurrenceIds);
+  const selectedOccurrence = map.occurrences.find(
+    (occurrence) => occurrence.occurrenceId === selectedOccurrenceId,
+  );
+  const selectedRow = selectedOccurrence
+    ? map.rows.find((row) => row.rowId === selectedOccurrence.rowId)
+    : selectedFamilyRow;
 
   return (
-    <div className="map-view view-stack">
-      <section
-        className="map-command-deck"
-        aria-label="Map controls and focus state"
-      >
+    <section className="claim-lineage-map" aria-labelledby="map-grammar-title">
+      <nav className="map-skip-links" aria-label="Map regions">
+        <a href="#candidate-relations">Skip to candidate relations</a>
+        <a href="#unresolved-evidence-questions">Skip to unresolved questions</a>
+      </nav>
+
+      <div className="map-command-deck">
         <div className="view-intro map-intro">
           <div>
-            <p className="eyebrow">Structured investigation map</p>
-            <h3>Follow sources, candidate changes, and open questions</h3>
+            <p className="eyebrow">Temporal claim-lineage matrix</p>
+            <h3 id="map-grammar-title">What changed in the public claims?</h3>
             <p>
-              <span className="map-orientation-copy map-orientation-desktop">
-                Calendar dates move left to right.
-              </span>
-              <span className="map-orientation-copy map-orientation-mobile">
-                Calendar dates run top to bottom on this screen.
-              </span>{" "}
-              Within a same-day mixed-precision
-              group, exact instants keep clock order and day-level records have no
-              implied within-day position. Source-role lanes stay fixed.
+              Follow source-local claim occurrences across the selected time axis.
+              Candidate connections need review; unresolved questions are evidence gaps,
+              not conclusions or chronological records.
             </p>
           </div>
           <label className="axis-control" htmlFor="map-time-axis">
-            Map time axis
+            <span>Selected time axis</span>
             <select
               id="map-time-axis"
               value={timeAxis}
@@ -217,1149 +373,1224 @@ export function InvestigationMapView({
             </select>
           </label>
         </div>
-
-        <section className="map-toolbar" aria-labelledby="coverage-lens-title">
-          <div>
-            <p className="eyebrow">Coverage lens</p>
-            <h4 id="coverage-lens-title">Highlight context without removing it</h4>
-          </div>
+        <div className="map-toolbar">
+          <h4>Coverage lens</h4>
           <div className="lens-list" role="group" aria-label="Map coverage lens">
-            {availableLenses.map((lens) => (
+            {COVERAGE_LENSES.map((lens) => (
               <button
                 key={lens}
                 type="button"
                 aria-pressed={coverageLens === lens}
                 onClick={() => onCoverageLensChange(lens)}
               >
-                {preparedLensLabel(lens, preparedComparison)}
+                {COVERAGE_LENS_LABELS[lens]}
               </button>
             ))}
           </div>
           <p className="lens-note">
-            {preparedComparison
-              ? "Prepared comparison only: baseline versus the complete curated fixture. No new search runs, and the packet never changes."
-              : "These controls highlight the selected discovery pass or source role. They do not combine, delete, or accept records."}
+            Lenses highlight and dim only. They never remove records or change families,
+            relations, accessibility membership, or canonical state.
           </p>
-          {packet.mode === "live" && packet.discovery_profile === "standard" ? (
+          {liveEnabled ? (
             <button
               className="expand-coverage-button"
               type="button"
-              disabled={!liveEnabled || runBlocked}
+              disabled={runBlocked}
               onClick={onExpandCoverage}
             >
               {runStatusLabel ?? "Expand source coverage"}
             </button>
           ) : null}
-        </section>
-
+        </div>
         {selectedNodeId || selectedEdgeId ? (
-          <div className="focus-toolbar" role="status" aria-live="polite">
+          <div className="focus-toolbar">
             <div>
-              <strong>{threadTraceActive ? "Thread trace active" : "Focused map context"}</strong>
+              <strong>{threadTraceActive ? "Trace active" : "Map selection"}</strong>
               <span>
-                {selectedSource?.title
-                  ?? selectedQuestion?.question
-                  ?? "Selected relation and both connected sources"}
+                {selectedRow?.label
+                  ?? (selectedEdgeId ? "Candidate relation selected" : "Focused record selected")}
               </span>
             </div>
-            <div className="focus-toolbar-actions" aria-hidden="true">
-              {selectedNodeId && !threadTraceActive ? (
-                <button type="button" tabIndex={-1} onClick={onTraceThread}>
-                  Trace this thread
+            <div className="focus-toolbar-actions">
+              {selectedRow ? (
+                <button
+                  type="button"
+                  aria-pressed={threadTraceActive}
+                  onClick={onTraceThread}
+                >
+                  {selectedRow.traceLabel}
                 </button>
               ) : null}
-              <button type="button" tabIndex={-1} onClick={onShowFullMap}>
-                Show full map
-              </button>
+              <button type="button" onClick={onShowFullMap}>Show full map</button>
             </div>
           </div>
         ) : (
-          <div className="focus-toolbar focus-toolbar-idle" aria-label="Inspector guidance">
-            <div>
-              <strong>Select a record to inspect</strong>
-              <span>Sources, candidate relations, and open questions open in the viewport inspector.</span>
-            </div>
-            <small>Closing returns focus and scroll position to the selected record.</small>
+          <div className="focus-toolbar focus-toolbar-idle">
+            <strong>Select a claim, provenance attachment, relation, or question to inspect.</strong>
+            <small>Closing the Inspector restores the visible trigger and scroll position.</small>
           </div>
         )}
-      </section>
+      </div>
 
-      {threadTraceActive && trace ? (
-        <ThreadTraceSummary map={map} trace={trace} selectedNodeId={selectedNodeId ?? ""} />
-      ) : null}
+      <CoverageStrip packet={packet} map={map} />
 
       <div
-        className="desktop-map"
-        ref={desktopMapRef}
-        role={desktopMapOverflowing ? "region" : undefined}
-        tabIndex={desktopMapOverflowing ? 0 : undefined}
-        aria-label={desktopMapOverflowing
-          ? "Investigation map ordered by source role and selected time axis"
-          : undefined}
-        aria-describedby={desktopMapOverflowing ? "map-canvas-scroll-hint" : undefined}
-        onKeyDown={desktopMapOverflowing ? ((event: KeyboardEvent<HTMLDivElement>) => {
-          if (event.target !== event.currentTarget) return;
-          if (!mapCanvasHasHorizontalOverflow(
-            event.currentTarget.scrollWidth,
-            event.currentTarget.clientWidth,
-          )) return;
-          const maxScrollLeft = event.currentTarget.scrollWidth - event.currentTarget.clientWidth;
-          const scrollStep = Math.max(180, Math.round(event.currentTarget.clientWidth * 0.7));
-          if (event.key === "ArrowLeft") event.currentTarget.scrollLeft -= scrollStep;
-          else if (event.key === "ArrowRight") event.currentTarget.scrollLeft += scrollStep;
-          else if (event.key === "Home") event.currentTarget.scrollLeft = 0;
-          else if (event.key === "End") event.currentTarget.scrollLeft = maxScrollLeft;
-          else return;
-          event.preventDefault();
-        }) : undefined}
+        className="map-spatial-shell"
+        ref={spatialShellRef}
+        data-relation-mode={relationPresentation.mode}
       >
-        {desktopMapOverflowing ? (
-          <p id="map-canvas-scroll-hint" className="map-canvas-scroll-hint">
-            Use the Left and Right Arrow keys or scroll horizontally to read every source column.
-            The page itself stays fixed.
-          </p>
-        ) : null}
-        <div className="spatial-map-stage" ref={spatialStageRef}>
-          <SpatialConnectionLayer
-            map={map}
-            geometry={spatialGeometry}
-            selectedEdgeId={selectedEdgeId}
-            relationIsDimmed={relationIsDimmed}
-            questionEdgeIsDimmed={questionEdgeIsDimmed}
-          />
+        <svg
+          className="claim-relation-layer"
+          width={geometry.width || undefined}
+          height={geometry.height || undefined}
+          aria-hidden="true"
+          focusable="false"
+        >
+          <defs>
+            <marker
+              id="candidate-relation-arrow-closed"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" />
+            </marker>
+            <marker
+              id="candidate-relation-arrow-open"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
+              <path className="open-arrow-marker" d="M 0 0 L 10 5 L 0 10" />
+            </marker>
+          </defs>
+          {geometry.relationPaths.map((geometryItem) => {
+            const entry = relationById.get(geometryItem.relationId);
+            if (!entry) return null;
+            const dimmed = !activeRelationIds.has(entry.relationId);
+            const stateClasses = `${selectedEdgeId === entry.relationId ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}`;
+            const markerEnd = entry.directionAsserted
+              ? entry.visualFamily === "responsive"
+                ? "url(#candidate-relation-arrow-open)"
+                : "url(#candidate-relation-arrow-closed)"
+              : undefined;
+            return (
+              <g key={entry.relationId}>
+                <path
+                  d={geometryItem.path}
+                  className={`claim-relation-path relation-${entry.visualFamily} line-${entry.lineStyle}${stateClasses}`}
+                  markerEnd={markerEnd}
+                  data-relation-id={entry.relationId}
+                  data-direction-asserted={String(entry.directionAsserted)}
+                />
+                {entry.visualFamily === "tension" ? (
+                  <path
+                    d={geometryItem.terminalTickPath}
+                    className={`relation-terminal-ticks${stateClasses}`}
+                  />
+                ) : null}
+              </g>
+            );
+          })}
+          {geometry.questionPaths.map((item) => {
+            const selected = selectedQuestionTetherIdSet.has(item.tetherId);
+            const dimmed = !activeQuestionTetherIds.has(item.tetherId);
+            return (
+              <path
+                key={item.tetherId}
+                d={item.path}
+                className={`question-evidence-tether${selected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}`}
+              />
+            );
+          })}
+        </svg>
 
-          <article
-            className="topic-node"
-            ref={(node) => registerSpatialNode(map.topic.nodeId, node)}
-          >
-            <span>Topic root</span>
-            <h4>{map.topic.title}</h4>
-            <p>
-              {map.sources.length} sources · {map.relationEdges.length} candidate relations · {map.questions.length} open questions
-            </p>
-          </article>
-
-          <div
-            className="map-time-group-strip"
-            style={{ "--map-columns": map.columnCount } as CSSProperties}
-            aria-label={`${map.selectedTimeAxisLabel} date and precision groups`}
-          >
-            {map.timeGroups.map((group) => (
-              <div
-                className={group.precision === "mixed" ? "is-mixed" : ""}
-                key={group.groupId}
-                style={{ gridColumn: `${group.startColumn} / ${group.endColumn + 1}` }}
-              >
-                <strong>{formatReviewTimestamp(
-                  `${group.calendarDate}T00:00:00.000Z`,
-                  "day",
-                )}</strong>
-                <small>{group.precision === "mixed"
-                  ? "Same-day mixed precision · day-level positions are not chronological"
-                  : group.precision === "day"
-                    ? "Day precision"
-                    : "Exact instants"}</small>
-              </div>
-            ))}
-          </div>
-
-          <div
-            className="map-time-scale"
-            style={{ "--map-columns": map.columnCount } as CSSProperties}
-            aria-label={`${map.selectedTimeAxisLabel} ordering`}
-          >
-            {map.sources.map((source) => (
-              <div key={source.nodeId} style={{ gridColumn: source.column }}>
-                <span>{source.selectedTime
-                  ? formatReviewTimestamp(source.selectedTime, source.selectedTimePrecision)
-                  : "Time unavailable"}</span>
-                <small>{source.timeGroupPrecision === "mixed"
-                  ? source.selectedTimePrecision === "day"
-                    ? `${source.selectedTimeAxisLabel} · day level, no within-day position`
-                    : `${source.selectedTimeAxisLabel} · exact instant in mixed group`
-                  : source.selectedTimeAxisLabel}</small>
-              </div>
-            ))}
-          </div>
-
-          <div className="map-lanes">
-            {map.laneOrder.map((lane) => {
-              const laneSources = map.sources.filter((source) => source.lane === lane);
-              return (
-                <section className="map-lane" key={lane} aria-labelledby={`lane-${lane}`}>
-                  <div className="lane-heading">
-                    <h4 id={`lane-${lane}`}>{discoveryLaneLabel(lane)}</h4>
-                    <span>{laneSources.length} source{laneSources.length === 1 ? "" : "s"}</span>
-                  </div>
+        <div className="map-primary-grid">
+          <div className="claim-matrix-column">
+            {relationPresentation.simplified ? (
+              <p className="relation-simplification-notice" role="status">
+                {relationPresentation.announcement}
+              </p>
+            ) : (
+              <p className="relation-mode-note">
+                Matrix mode · readable candidate relations remain spatial; every relation is listed below.
+              </p>
+            )}
+            {compact ? (
+              <CompactClaimChapters
+                map={map}
+                occurrenceById={occurrenceById}
+                portRelationsByOccurrence={portRelationsByOccurrence}
+                activeNodeIds={activeNodeIds}
+                selectedOccurrenceId={selectedOccurrenceId}
+                selectedSourceId={selectedSourceId}
+                selectedFamilyId={selectedFamilyId}
+                selectedEdgeId={selectedEdgeId}
+                onFocus={onFocus}
+              />
+            ) : (
+              <>
+                {matrixOverflowing ? (
+                  <p className="map-canvas-scroll-hint" id="map-canvas-scroll-hint">
+                    Analytical view scrolls horizontally. Use Left, Right, Home, or End while this region is focused.
+                  </p>
+                ) : null}
+                <div
+                  className="claim-matrix-scroll"
+                  ref={scrollRef}
+                  role={matrixOverflowing ? "region" : undefined}
+                  aria-label={matrixOverflowing ? "Scrollable temporal claim-lineage matrix" : undefined}
+                  aria-describedby={matrixOverflowing ? "map-canvas-scroll-hint" : undefined}
+                  tabIndex={matrixOverflowing ? 0 : undefined}
+                  onKeyDown={matrixOverflowing ? handleAnalyticalScrollKey : undefined}
+                >
                   <div
-                    className="lane-grid"
+                    className="claim-matrix-stage"
                     style={{ "--map-columns": map.columnCount } as CSSProperties}
                   >
-                    {laneSources.map((source) => (
-                      <SourceMapNode
-                        key={source.nodeId}
-                        source={source}
-                        selected={selectedNodeId === source.nodeId}
-                        dimmed={nodeIsDimmed(source.nodeId)}
-                        style={{ gridColumn: source.column }}
-                        nodeRef={(node) => registerSpatialNode(source.nodeId, node)}
-                        triggerSurface="desktop-map"
+                    <div className="claim-time-header" aria-label={`${map.selectedTimeAxisLabel} groups`}>
+                      <div className="claim-row-axis-heading">
+                        <strong>Claim rows</strong>
+                        <span>Stable while the axis changes</span>
+                      </div>
+                      <div className="claim-time-groups">
+                        {map.timeGroups.length ? map.timeGroups.map((group) => (
+                          <div
+                            key={group.groupId}
+                            className={`claim-time-group is-${group.precision}`}
+                          >
+                            <strong>{formatCalendarDate(group.calendarDate)}</strong>
+                            <small>{precisionGroupLabel(group.precision)}</small>
+                          </div>
+                        )) : (
+                          <div className="claim-time-group is-empty">
+                            <strong>No placed occurrences</strong>
+                            <small>The selected axis remains explicit.</small>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="claim-matrix-rows">
+                      {map.rows.map((row) => (
+                        <ClaimRow
+                          key={row.rowId}
+                          row={row}
+                          map={map}
+                          occurrenceById={occurrenceById}
+                          includedOccurrenceIds={datedOccurrenceIds}
+                          portRelationsByOccurrence={portRelationsByOccurrence}
+                          activeNodeIds={activeNodeIds}
+                          selectedOccurrenceId={selectedOccurrenceId}
+                          selectedSourceId={selectedSourceId}
+                          selectedFamilyId={selectedFamilyId}
+                          selectedEdgeId={selectedEdgeId}
+                          onFocus={onFocus}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <UnplacedBand
+                  map={map}
+                  occurrenceById={occurrenceById}
+                  includedOccurrenceIds={unplacedOccurrenceIds}
+                  portRelationsByOccurrence={portRelationsByOccurrence}
+                  activeNodeIds={activeNodeIds}
+                  selectedOccurrenceId={selectedOccurrenceId}
+                  selectedSourceId={selectedSourceId}
+                  selectedFamilyId={selectedFamilyId}
+                  selectedEdgeId={selectedEdgeId}
+                  onFocus={onFocus}
+                />
+              </>
+            )}
+          </div>
+
+          <NonClaimSourceSection
+            map={map}
+            activeNodeIds={activeNodeIds}
+            selectedSourceId={selectedSourceId}
+            onFocus={onFocus}
+          />
+
+          <CompleteRelationLedger
+            entries={map.relationLedger}
+            selectedEdgeId={selectedEdgeId}
+            activeRelationIds={activeRelationIds}
+            onFocus={onFocus}
+          />
+
+          <UnresolvedRegion
+            questions={map.questions}
+            activeNodeIds={activeNodeIds}
+            selectedQuestionId={selectedQuestionId}
+            onFocus={onFocus}
+          />
+        </div>
+
+        <div className="spatial-relation-shortcuts" aria-label="Visual relation shortcuts">
+          {geometry.relationPaths.map((geometryItem) => {
+            const entry = relationById.get(geometryItem.relationId);
+            if (!entry) return null;
+            return (
+              <button
+                key={entry.relationId}
+                type="button"
+                className={`relation-shortcut relation-${entry.visualFamily}${selectedEdgeId === entry.relationId ? " is-selected" : ""}${activeRelationIds.has(entry.relationId) ? "" : " is-dimmed"}`}
+                style={{ left: geometryItem.labelX, top: geometryItem.labelY }}
+                aria-label={relationAccessibleName(entry)}
+                aria-controls={`relation-ledger-${safeDomId(entry.relationId)}`}
+                data-relation-id={entry.relationId}
+                data-focus-kind="relation"
+                data-focus-id={entry.relationId}
+                {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId("spatial-relation", relationSelection(entry)) }}
+                onClick={(event) => onFocus(relationSelection(entry), event.currentTarget)}
+              >
+                <span>{entry.shortLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <p className="map-boundary-note">
+        All spatial relation labels are candidate relation types requiring review,
+        not accepted facts. Source inclusion is not endorsement or truth verification.
+        Browsing, focus, traces, and coverage lenses have canonical_mutation: none.
+      </p>
+    </section>
+  );
+}
+
+function CoverageStrip({
+  packet,
+  map,
+}: {
+  packet: SiteReadyCasePacket;
+  map: InvestigationMap;
+}) {
+  return (
+    <section className="map-coverage-strip" aria-labelledby="map-coverage-title">
+      <div>
+        <p className="eyebrow">Source-role coverage</p>
+        <h4 id="map-coverage-title">
+          {map.coverage.totalSources} sources · {map.coverage.representedRoleCount} of {map.coverage.targetRoleCount} target roles
+        </h4>
+      </div>
+      <dl>
+        {map.coverage.roles.map((role) => (
+          <div key={role.lane} className={role.zero ? "is-zero" : undefined}>
+            <dt>{role.label}</dt>
+            <dd>{role.count}{role.missingTarget ? " · missing" : ""}</dd>
+          </div>
+        ))}
+      </dl>
+      <p>{sourceCoverageNote(packet)}</p>
+    </section>
+  );
+}
+
+function CompactClaimChapters({
+  map,
+  occurrenceById,
+  portRelationsByOccurrence,
+  activeNodeIds,
+  selectedOccurrenceId,
+  selectedSourceId,
+  selectedFamilyId,
+  selectedEdgeId,
+  onFocus,
+}: {
+  map: InvestigationMap;
+  occurrenceById: ReadonlyMap<string, InvestigationOccurrenceNode>;
+  portRelationsByOccurrence: ReadonlyMap<string, InvestigationRelationLedgerEntry[]>;
+  activeNodeIds: ReadonlySet<string>;
+  selectedOccurrenceId: string | null;
+  selectedSourceId: string | null;
+  selectedFamilyId: string | null;
+  selectedEdgeId: string | null;
+  onFocus: FocusHandler;
+}) {
+  return (
+    <div className="claim-chapter-list" aria-label="Typed claim chapters">
+      <p className="claim-chapter-axis-note">
+        {map.selectedTimeAxisLabel} runs top to bottom inside each fixed row.
+        Unplaced records remain non-chronological.
+      </p>
+      {map.rows.map((row) => {
+        const occurrences = row.occurrenceNodeIds
+          .map((id) => occurrenceById.get(id))
+          .filter((occurrence): occurrence is InvestigationOccurrenceNode => Boolean(occurrence));
+        const dated = occurrences.filter((occurrence) => occurrence.timeRegion === "dated");
+        const unplaced = occurrences.filter((occurrence) => occurrence.timeRegion === "unplaced");
+        return (
+          <section
+            key={row.rowId}
+            className={`claim-chapter chapter-${row.rowKind}${row.familyId === selectedFamilyId ? " is-selected" : ""}`}
+            aria-label={row.accessibleName}
+            data-row-kind={row.rowKind}
+            data-row-ordinal={row.rowOrdinal}
+            data-row-id={row.rowId}
+          >
+            <RowHeading
+              row={row}
+              selected={row.familyId === selectedFamilyId}
+              onFocus={onFocus}
+            />
+            <div className="claim-chapter-content">
+              {map.timeGroups.map((group) => {
+                const groupedOccurrences = dated.filter(
+                  (occurrence) => occurrence.timeGroupId === group.groupId,
+                );
+                if (!groupedOccurrences.length) return null;
+                return (
+                  <section
+                    key={`${row.rowId}:${group.groupId}`}
+                    className={`claim-chapter-time-group is-${group.precision}`}
+                    aria-label={`${formatCalendarDate(group.calendarDate)} · ${precisionGroupLabel(group.precision)}`}
+                  >
+                    <header>
+                      <time dateTime={group.calendarDate}>{formatCalendarDate(group.calendarDate)}</time>
+                      <small>{precisionGroupLabel(group.precision)}</small>
+                    </header>
+                    <div className="claim-chapter-card-list">
+                      {groupedOccurrences.map((occurrence) => (
+                        <OccurrenceCard
+                          key={occurrence.occurrenceId}
+                          occurrence={occurrence}
+                          portRelations={portRelationsByOccurrence.get(occurrence.occurrenceId) ?? []}
+                          active={activeNodeIds.has(occurrence.nodeId)}
+                          selected={selectedOccurrenceId === occurrence.nodeId}
+                          sourceSelected={selectedSourceId === occurrence.source.sourceId}
+                          selectedEdgeId={selectedEdgeId}
+                          onFocus={onFocus}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+              {!dated.length ? (
+                <p className="claim-chapter-empty">No occurrence is dated on {map.selectedTimeAxisLabel}.</p>
+              ) : null}
+              {unplaced.length ? (
+                <section
+                  className="claim-chapter-unplaced"
+                  aria-label={`${row.accessibleName} · ${map.unplacedRegionLabel}`}
+                >
+                  <header>
+                    <strong>{map.unplacedRegionLabel}</strong>
+                    <small>Not a later chronological position · other timestamps remain inspectable</small>
+                  </header>
+                  <div className="claim-chapter-card-list">
+                    {unplaced.map((occurrence) => (
+                      <OccurrenceCard
+                        key={occurrence.occurrenceId}
+                        occurrence={occurrence}
+                        portRelations={portRelationsByOccurrence.get(occurrence.occurrenceId) ?? []}
+                        active={activeNodeIds.has(occurrence.nodeId)}
+                        selected={selectedOccurrenceId === occurrence.nodeId}
+                        sourceSelected={selectedSourceId === occurrence.source.sourceId}
+                        selectedEdgeId={selectedEdgeId}
                         onFocus={onFocus}
                       />
                     ))}
                   </div>
                 </section>
-              );
-            })}
-          </div>
-
-          <SpatialRelationControls
-            map={map}
-            geometry={spatialGeometry}
-            selectedEdgeId={selectedEdgeId}
-            relationIsDimmed={relationIsDimmed}
-            onFocus={onFocus}
-          />
-
-          <section className="question-lane" aria-labelledby="question-lane-title">
-            <div className="lane-heading">
-              <h4 id="question-lane-title">Open questions</h4>
-              <span>Visible endpoints · not conclusions</span>
+              ) : null}
             </div>
-            <div className="question-node-grid">
-              {map.questions.map((question, index) => (
-                <QuestionMapNode
-                  key={question.nodeId}
-                  question={question}
-                  index={index}
-                  selected={selectedNodeId === question.nodeId}
-                  dimmed={nodeIsDimmed(question.nodeId)}
-                  connectionDimmed={questionEdgesFor(map, question.nodeId).every(
-                    (edge) => questionEdgeIsDimmed(edge.edgeId),
-                  )}
-                  connectionLabel={questionConnectionLabel(map, question)}
-                  nodeRef={(node) => registerSpatialNode(question.nodeId, node)}
-                  triggerSurface="desktop-map"
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function ClaimRow({
+  row,
+  map,
+  occurrenceById,
+  includedOccurrenceIds,
+  portRelationsByOccurrence,
+  activeNodeIds,
+  selectedOccurrenceId,
+  selectedSourceId,
+  selectedFamilyId,
+  selectedEdgeId,
+  onFocus,
+}: {
+  row: InvestigationClaimRow;
+  map: InvestigationMap;
+  occurrenceById: ReadonlyMap<string, InvestigationOccurrenceNode>;
+  includedOccurrenceIds: ReadonlySet<string>;
+  portRelationsByOccurrence: ReadonlyMap<string, InvestigationRelationLedgerEntry[]>;
+  activeNodeIds: ReadonlySet<string>;
+  selectedOccurrenceId: string | null;
+  selectedSourceId: string | null;
+  selectedFamilyId: string | null;
+  selectedEdgeId: string | null;
+  onFocus: FocusHandler;
+}) {
+  const rowOccurrences = row.occurrenceNodeIds
+    .filter((id) => includedOccurrenceIds.has(id))
+    .map((id) => occurrenceById.get(id))
+    .filter((occurrence): occurrence is InvestigationOccurrenceNode => Boolean(occurrence));
+  return (
+    <section
+      className={`claim-row row-${row.rowKind}${row.familyId === selectedFamilyId ? " is-selected" : ""}`}
+      aria-label={row.accessibleName}
+      data-row-kind={row.rowKind}
+      data-row-ordinal={row.rowOrdinal}
+      data-row-id={row.rowId}
+    >
+      <RowHeading
+        row={row}
+        selected={row.familyId === selectedFamilyId}
+        onFocus={onFocus}
+      />
+      <div className="claim-row-track">
+        {map.timeGroups.map((group) => {
+          const occurrences = rowOccurrences.filter(
+            (occurrence) => occurrence.timeGroupId === group.groupId,
+          );
+          return (
+            <div className="claim-time-cell" key={`${row.rowId}:${group.groupId}`}>
+              {occurrences.map((occurrence) => (
+                <OccurrenceCard
+                  key={occurrence.occurrenceId}
+                  occurrence={occurrence}
+                  portRelations={portRelationsByOccurrence.get(occurrence.occurrenceId) ?? []}
+                  active={activeNodeIds.has(occurrence.nodeId)}
+                  selected={selectedOccurrenceId === occurrence.nodeId}
+                  sourceSelected={selectedSourceId === occurrence.source.sourceId}
+                  selectedEdgeId={selectedEdgeId}
                   onFocus={onFocus}
                 />
               ))}
             </div>
-          </section>
-        </div>
-
-        <RelationLedger
-          map={map}
-          selectedEdgeId={selectedEdgeId}
-          relationIsDimmed={relationIsDimmed}
-          onFocus={onFocus}
-        />
-      </div>
-
-      <MobileInvestigationPath
-        map={map}
-        selectedNodeId={selectedNodeId}
-        selectedEdgeId={selectedEdgeId}
-        nodeIsDimmed={nodeIsDimmed}
-        relationIsDimmed={relationIsDimmed}
-        onFocus={onFocus}
-      />
-
-      <p className="map-boundary-note">
-        Map edges come only from candidate relation records and their claim-lineage rows.
-        Findings and actions remain source detail; no evidence-to-claim edge is created.
-      </p>
-    </div>
-  );
-}
-
-function SourceMapNode({
-  source,
-  selected,
-  dimmed,
-  style,
-  nodeRef,
-  triggerSurface,
-  onFocus,
-}: {
-  source: InvestigationSourceNode;
-  selected: boolean;
-  dimmed: boolean;
-  style?: CSSProperties;
-  nodeRef?: (node: HTMLElement | null) => void;
-  triggerSurface: string;
-  onFocus: FocusHandler;
-}) {
-  const selection = { kind: "source" as const, id: source.sourceId, label: source.title };
-  return (
-    <article
-      className={`map-source-node${selected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}`}
-      data-map-state={selected ? "selected" : dimmed ? "dimmed" : "in context"}
-      style={style}
-      ref={nodeRef}
-    >
-      <button
-        type="button"
-        data-focus-trigger={focusTriggerId(triggerSurface, selection)}
-        aria-pressed={selected}
-        aria-label={`${source.sourceRole} source node: ${source.title}. ${source.selectedTimeAxisLabel}: ${source.selectedTime ? formatReviewTimestamp(source.selectedTime, source.selectedTimePrecision) : "Time unavailable"}. ${selected ? "Selected" : "Not selected"}.`}
-        onClick={(event) => onFocus(selection, event.currentTarget)}
-        onKeyDown={(event) => {
-          const trigger = event.currentTarget;
-          activateWithKeyboard(event, () => onFocus(selection, trigger));
-        }}
-      >
-        <span className="node-state-text">{selected ? "Selected source" : "Source node"}</span>
-        <span className="source-role-badge">{source.sourceRole}</span>
-        <strong>{source.title}</strong>
-        <span className="map-source-publisher">{source.publisher} · {source.domain}</span>
-        <span className={`map-node-time${source.timeRegion === "time_unavailable" ? " time-unavailable" : ""}`}>
-          {source.selectedTimeAxisLabel}: {source.selectedTime
-            ? formatReviewTimestamp(source.selectedTime, source.selectedTimePrecision)
-            : "Time unavailable"}
-        </span>
-        {source.timeGroupPrecision === "mixed" ? (
-          <span className="mixed-time-node-note">
-            {source.selectedTimePrecision === "day"
-              ? "Same-day mixed precision · no within-day position"
-              : "Same-day mixed precision · exact clock position retained"}
-          </span>
+          );
+        })}
+        {!rowOccurrences.length ? (
+          <p className="claim-row-empty">No occurrence is placed on this axis; see the Unplaced band below.</p>
         ) : null}
-        <span className="preview-label">{source.previewLabel}</span>
-        <span className="source-preview">{source.preview}</span>
-        <span className="node-counts">
-          {source.claimCount} claims · {source.findingCount} findings · {source.actionCount} actions
-        </span>
-        <span className="node-review-state">{source.recordBoundaryLabel}</span>
-      </button>
-      {source.citationUrl ? (
-        <a href={source.citationUrl} target="_blank" rel="noopener noreferrer">
-          Open cited source <span aria-hidden="true">↗</span>
-        </a>
-      ) : (
-        <span className="fixture-affordance">Prepared fixture · no external URL</span>
-      )}
-    </article>
+      </div>
+    </section>
   );
 }
 
-function QuestionMapNode({
-  question,
-  index,
+function RowHeading({
+  row,
   selected,
-  dimmed,
-  connectionDimmed,
-  connectionLabel,
-  nodeRef,
-  triggerSurface,
   onFocus,
 }: {
-  question: InvestigationQuestionNode;
-  index: number;
+  row: InvestigationClaimRow;
   selected: boolean;
-  dimmed: boolean;
-  connectionDimmed: boolean;
-  connectionLabel: string;
-  nodeRef?: (node: HTMLElement | null) => void;
-  triggerSurface: string;
   onFocus: FocusHandler;
 }) {
-  const selection = {
-    kind: "unresolved_question" as const,
-    id: question.questionId,
-    label: `Open question ${index + 1}`,
+  const selection: FocusSelection | null = row.familyId
+    ? { kind: "claim_family", id: row.familyId, label: row.label }
+    : null;
+  return (
+    <header className={`claim-row-heading${selected ? " is-selected" : ""}`}>
+      <span className="row-ordinal">{String(row.rowOrdinal).padStart(2, "0")}</span>
+      {selection ? (
+        <button
+          type="button"
+          data-focus-kind={selection.kind}
+          data-focus-id={selection.id}
+          aria-current={selected ? "true" : undefined}
+          {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId("claim-row", selection) }}
+          onClick={(event) => onFocus(selection, event.currentTarget)}
+        >
+          <strong>{row.displayThreadNumber ?? rowKindHeading(row.rowKind)}</strong>
+          <span>{row.displayThreadNumber
+            ? row.label.replace(`${row.displayThreadNumber} · `, "")
+            : row.label}</span>
+          <small>Inspect grouping evidence</small>
+          {selected ? <span className="a11y-only">Selected claim row.</span> : null}
+        </button>
+      ) : (
+        <div>
+          <strong>{rowKindHeading(row.rowKind)}</strong>
+          <span>{row.label}</span>
+          <small>No grouping asserted</small>
+        </div>
+      )}
+    </header>
+  );
+}
+
+function RowContinuationHeading({
+  row,
+  selected,
+}: {
+  row: InvestigationClaimRow;
+  selected: boolean;
+}) {
+  return (
+    <header
+      className={`claim-row-heading is-continuation${selected ? " is-selected" : ""}`}
+      aria-hidden="true"
+    >
+      <span className="row-ordinal">{String(row.rowOrdinal).padStart(2, "0")}</span>
+      <div>
+        <strong>{row.displayThreadNumber ?? rowKindHeading(row.rowKind)}</strong>
+        <span>{row.displayThreadNumber
+          ? row.label.replace(`${row.displayThreadNumber} · `, "")
+          : row.label}</span>
+        <small>Unplaced continuation · grouping detail is available in the claim row above</small>
+      </div>
+    </header>
+  );
+}
+
+function OccurrenceCard({
+  occurrence,
+  portRelations,
+  active,
+  selected,
+  sourceSelected,
+  selectedEdgeId,
+  onFocus,
+}: {
+  occurrence: InvestigationOccurrenceNode;
+  portRelations: readonly InvestigationRelationLedgerEntry[];
+  active: boolean;
+  selected: boolean;
+  sourceSelected: boolean;
+  selectedEdgeId: string | null;
+  onFocus: FocusHandler;
+}) {
+  const occurrenceSelection: FocusSelection = {
+    kind: "claim_occurrence",
+    id: occurrence.occurrenceId,
+    label: `${occurrence.actor ?? "Actor not separately identified"} claim occurrence`,
+  };
+  const sourceSelection: FocusSelection = {
+    kind: "source",
+    id: occurrence.source.sourceId,
+    label: occurrence.source.title,
   };
   return (
     <article
-      className={`map-question-node${selected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}`}
-      ref={nodeRef}
+      className={`claim-occurrence-card${selected ? " is-selected" : ""}${active ? "" : " is-dimmed"}`}
+      data-occurrence-id={occurrence.occurrenceId}
+      data-time-region={occurrence.timeRegion}
+      data-row-kind={occurrence.rowKind}
     >
-      <span className={`question-connector${connectionDimmed ? " is-dimmed" : ""}`}>
-        {connectionLabel}
-      </span>
+      <button
+        className="occurrence-body"
+        type="button"
+        data-focus-kind={occurrenceSelection.kind}
+        data-focus-id={occurrenceSelection.id}
+        {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId("claim-occurrence", occurrenceSelection) }}
+        onClick={(event) => onFocus(occurrenceSelection, event.currentTarget)}
+      >
+        <span className="a11y-only">{occurrenceRowTypeAccessibleName(occurrence.rowKind)}</span>
+        <span className="occurrence-state">{occurrence.occurrenceBoundaryLabel}</span>
+        <strong className="occurrence-actor">
+          {occurrence.actor ?? "Actor not separately identified"}
+        </strong>
+        <span className="occurrence-claim-text">{occurrence.originalClaimText}</span>
+        <span className={`occurrence-time is-${occurrence.timeRegion}`}>
+          {occurrence.selectedTime
+            ? `${formatReviewTimestamp(occurrence.selectedTime, occurrence.selectedTimePrecision)} · ${precisionLabel(occurrence.selectedTimePrecision)}`
+            : `Unplaced on ${occurrence.selectedTimeAxisLabel}`}
+        </span>
+        <span className="a11y-only">
+          Concise source provenance: {occurrence.source.sourceRole}; {occurrence.source.title}; {occurrence.source.publisher}; {occurrence.source.sourceBoundaryLabel}.
+        </span>
+        <span className="inspect-affordance">Inspect full claim and all timestamps</span>
+      </button>
+      <button
+        className={`occurrence-provenance${sourceSelected ? " is-selected" : ""}`}
+        type="button"
+        data-focus-kind={sourceSelection.kind}
+        data-focus-id={sourceSelection.id}
+        {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId(`occurrence-source-${occurrence.occurrenceId}`, sourceSelection) }}
+        onClick={(event) => onFocus(sourceSelection, event.currentTarget)}
+      >
+        <span className="a11y-only">
+          Source provenance for row {String(occurrence.rowOrdinal).padStart(2, "0")} occurrence,
+          {" "}{occurrence.selectedTime
+            ? formatReviewTimestamp(occurrence.selectedTime, occurrence.selectedTimePrecision)
+            : `Unplaced on ${occurrence.selectedTimeAxisLabel}`},
+          {" "}claim {boundedAccessibleClaim(occurrence.originalClaimText)}
+        </span>
+        <span className="source-role-badge">{occurrence.source.sourceRole}</span>
+        <strong>{occurrence.source.title}</strong>
+        <small>{occurrence.source.publisher} · {occurrence.source.sourceBoundaryLabel}</small>
+      </button>
+      {portRelations.length ? (
+        <div className="relation-port-list" aria-label="Cross-row relation shortcuts">
+          {portRelations.map((entry) => {
+            const selection = relationSelection(entry);
+            const other = entry.leftOccurrenceId === occurrence.occurrenceId
+              ? entry.rightEndpoint
+              : entry.leftEndpoint;
+            return (
+              <button
+                key={entry.relationId}
+                type="button"
+                className={selectedEdgeId === entry.relationId ? "is-selected" : undefined}
+                aria-label={`${relationAccessibleName(entry)}; other endpoint from this port: ${other.actor}, ${other.conciseClaim}; opens ${entry.publicNumber} in the Complete relation review ledger`}
+                aria-controls={`relation-ledger-${safeDomId(entry.relationId)}`}
+                data-relation-port={entry.relationId}
+                data-focus-kind={selection.kind}
+                data-focus-id={selection.id}
+                {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId(`relation-port-${occurrence.occurrenceId}`, selection) }}
+                onClick={(event) => onFocus(selection, event.currentTarget)}
+              >
+                <strong>{entry.publicNumber} · {entry.shortLabel}</strong>
+                <span>{entry.publicReviewLabel}</span>
+                <small>Other endpoint: {other.actor}</small>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function UnplacedBand({
+  map,
+  occurrenceById,
+  includedOccurrenceIds,
+  portRelationsByOccurrence,
+  activeNodeIds,
+  selectedOccurrenceId,
+  selectedSourceId,
+  selectedFamilyId,
+  selectedEdgeId,
+  onFocus,
+}: {
+  map: InvestigationMap;
+  occurrenceById: ReadonlyMap<string, InvestigationOccurrenceNode>;
+  includedOccurrenceIds: ReadonlySet<string>;
+  portRelationsByOccurrence: ReadonlyMap<string, InvestigationRelationLedgerEntry[]>;
+  activeNodeIds: ReadonlySet<string>;
+  selectedOccurrenceId: string | null;
+  selectedSourceId: string | null;
+  selectedFamilyId: string | null;
+  selectedEdgeId: string | null;
+  onFocus: FocusHandler;
+}) {
+  return (
+    <section className="unplaced-occurrence-band" aria-labelledby="unplaced-occurrences-title">
+      <header>
+        <p className="eyebrow">Non-chronological region</p>
+        <h4 id="unplaced-occurrences-title">{map.unplacedRegionLabel}</h4>
+        <p>
+          This is not a later chronological column. Other timestamps remain inspectable,
+          and no arrow direction is inferred through this region.
+        </p>
+      </header>
+      {map.unplacedOccurrenceIds.length ? (
+        <div className="unplaced-row-list">
+          {map.rows.map((row) => {
+            const occurrences = row.occurrenceNodeIds
+              .filter((id) => includedOccurrenceIds.has(id))
+              .map((id) => occurrenceById.get(id))
+              .filter((occurrence): occurrence is InvestigationOccurrenceNode => Boolean(occurrence));
+            if (!occurrences.length) return null;
+            return (
+              <section
+                key={row.rowId}
+                className="unplaced-row"
+                aria-label={`${row.accessibleName} · ${map.unplacedRegionLabel}`}
+                data-row-kind={row.rowKind}
+                data-row-ordinal={row.rowOrdinal}
+              >
+                <RowContinuationHeading
+                  row={row}
+                  selected={row.familyId === selectedFamilyId}
+                />
+                <div className="unplaced-card-list">
+                  {occurrences.map((occurrence) => (
+                    <OccurrenceCard
+                      key={occurrence.occurrenceId}
+                      occurrence={occurrence}
+                      portRelations={portRelationsByOccurrence.get(occurrence.occurrenceId) ?? []}
+                      active={activeNodeIds.has(occurrence.nodeId)}
+                      selected={selectedOccurrenceId === occurrence.nodeId}
+                      sourceSelected={selectedSourceId === occurrence.source.sourceId}
+                      selectedEdgeId={selectedEdgeId}
+                      onFocus={onFocus}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="unplaced-empty">Every claim occurrence has an explicit value on this axis.</p>
+      )}
+    </section>
+  );
+}
+
+function UnresolvedRegion({
+  questions,
+  activeNodeIds,
+  selectedQuestionId,
+  onFocus,
+}: {
+  questions: readonly InvestigationQuestionNode[];
+  activeNodeIds: ReadonlySet<string>;
+  selectedQuestionId: string | null;
+  onFocus: FocusHandler;
+}) {
+  return (
+    <section
+      className="unresolved-evidence-region"
+      id="unresolved-evidence-questions"
+      tabIndex={-1}
+      aria-labelledby="unresolved-evidence-title"
+    >
+      <header>
+        <p className="eyebrow">Evidence endpoint</p>
+        <h4 id="unresolved-evidence-title">Unresolved evidence questions</h4>
+        <p>Not conclusions · Not chronological records</p>
+      </header>
+      <div className="unresolved-question-list">
+        {questions.map((question) => {
+          const selection: FocusSelection = {
+            kind: "unresolved_question",
+            id: question.questionId,
+            label: question.question,
+          };
+          return (
+            <article
+              key={question.questionId}
+              className={`unresolved-question-card${selectedQuestionId === question.nodeId ? " is-selected" : ""}${activeNodeIds.has(question.nodeId) ? "" : " is-dimmed"}`}
+              data-question-id={question.questionId}
+            >
+              <button
+                type="button"
+                data-focus-kind={selection.kind}
+                data-focus-id={selection.id}
+                {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId("unresolved-question", selection) }}
+                onClick={(event) => onFocus(selection, event.currentTarget)}
+              >
+                <span className="question-boundary">{question.boundaryLabel}</span>
+                <strong>{question.question}</strong>
+                <span className="question-origin-list">
+                  {question.origins.map((origin) => (
+                    <span
+                      key={origin.originId}
+                      className={`question-origin-chip origin-${origin.originType}`}
+                      data-question-origin-type={origin.originType}
+                    >
+                      <b>{origin.label}</b>
+                      <small>{origin.conciseIdentity}</small>
+                    </span>
+                  ))}
+                </span>
+                <span className="inspect-affordance">Inspect typed origins and exact related IDs</span>
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function NonClaimSourceSection({
+  map,
+  activeNodeIds,
+  selectedSourceId,
+  onFocus,
+}: {
+  map: InvestigationMap;
+  activeNodeIds: ReadonlySet<string>;
+  selectedSourceId: string | null;
+  onFocus: FocusHandler;
+}) {
+  const dated = map.nonClaimSources.filter((source) => source.timeRegion === "dated");
+  const unplaced = map.nonClaimSources.filter((source) => source.timeRegion === "unplaced");
+  return (
+    <section className="non-claim-source-section" aria-labelledby="non-claim-source-title">
+      <header>
+        <p className="eyebrow">Annotations and supporting records</p>
+        <h4 id="non-claim-source-title">Non-claim source records</h4>
+        <p>
+          These records remain outside claim rows. Without a claim occurrence,
+          they are never claim-relation endpoints.
+        </p>
+      </header>
+      <NonClaimGroup
+        title={`Dated on ${map.selectedTimeAxisLabel}`}
+        records={dated}
+        groups={map.nonClaimDatedGroups}
+        activeNodeIds={activeNodeIds}
+        selectedSourceId={selectedSourceId}
+        onFocus={onFocus}
+      />
+      <NonClaimGroup
+        title={`Unplaced on ${map.selectedTimeAxisLabel}`}
+        records={unplaced}
+        groups={[]}
+        activeNodeIds={activeNodeIds}
+        selectedSourceId={selectedSourceId}
+        onFocus={onFocus}
+      />
+    </section>
+  );
+}
+
+function NonClaimGroup({
+  title,
+  records,
+  groups,
+  activeNodeIds,
+  selectedSourceId,
+  onFocus,
+}: {
+  title: string;
+  records: readonly InvestigationNonClaimSourceRecord[];
+  groups: InvestigationMap["nonClaimDatedGroups"];
+  activeNodeIds: ReadonlySet<string>;
+  selectedSourceId: string | null;
+  onFocus: FocusHandler;
+}) {
+  const recordByNodeId = new Map(records.map((record) => [record.nodeId, record]));
+  return (
+    <section className="non-claim-subgroup">
+      <h5>{title}</h5>
+      {records.length ? (
+        groups.length ? (
+          <div className="non-claim-date-group-list">
+            {groups.map((group) => (
+              <section
+                key={group.groupId}
+                className={`non-claim-date-group is-${group.precision}`}
+                aria-label={`${formatCalendarDate(group.calendarDate)} · ${precisionGroupLabel(group.precision)}`}
+              >
+                <header>
+                  <time dateTime={group.calendarDate}>{formatCalendarDate(group.calendarDate)}</time>
+                  <small>{precisionGroupLabel(group.precision)}</small>
+                </header>
+                <div className="non-claim-record-list">
+                  {group.sourceNodeIds.map((nodeId) => recordByNodeId.get(nodeId))
+                    .filter((source): source is InvestigationNonClaimSourceRecord => Boolean(source))
+                    .map((source) => (
+                      <NonClaimRecordCard
+                        key={source.nodeId}
+                        source={source}
+                        active={activeNodeIds.has(source.nodeId)}
+                        selected={selectedSourceId === source.sourceId}
+                        onFocus={onFocus}
+                      />
+                    ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="non-claim-record-list">
+            {records.map((source) => (
+              <NonClaimRecordCard
+                key={source.nodeId}
+                source={source}
+                active={activeNodeIds.has(source.nodeId)}
+                selected={selectedSourceId === source.sourceId}
+                onFocus={onFocus}
+              />
+            ))}
+          </div>
+        )
+      ) : <p className="non-claim-empty">No records in this selected-axis subgroup.</p>}
+    </section>
+  );
+}
+
+function NonClaimRecordCard({
+  source,
+  active,
+  selected,
+  onFocus,
+}: {
+  source: InvestigationNonClaimSourceRecord;
+  active: boolean;
+  selected: boolean;
+  onFocus: FocusHandler;
+}) {
+  const selection: FocusSelection = {
+    kind: "source",
+    id: source.sourceId,
+    label: source.title,
+  };
+  return (
+    <article
+      className={`non-claim-source-card${selected ? " is-selected" : ""}${active ? "" : " is-dimmed"}`}
+      data-nonclaim-subtype={source.subtype}
+      data-time-region={source.timeRegion}
+    >
       <button
         type="button"
-        data-focus-trigger={focusTriggerId(triggerSurface, selection)}
-        aria-pressed={selected}
-        aria-label={`Open question node ${index + 1}: ${question.question}. ${connectionLabel}. ${selected ? "Selected" : "Not selected"}.`}
+        data-focus-kind={selection.kind}
+        data-focus-id={selection.id}
+        {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId("non-claim-source", selection) }}
         onClick={(event) => onFocus(selection, event.currentTarget)}
-        onKeyDown={(event) => {
-          const trigger = event.currentTarget;
-          activateWithKeyboard(event, () => onFocus(selection, trigger));
-        }}
       >
-        <span className="question-mark" aria-hidden="true">?</span>
-        <span className="node-state-text">
-          {selected ? "Selected open question" : `Open question ${String(index + 1).padStart(2, "0")}`}
-        </span>
-        <strong>{question.question}</strong>
-        <small>
-          {question.resolvedReferences.some((reference) => reference.resolution === "unknown")
-            ? "Unknown reference attached only to topic root"
-            : `${question.targetNodeIds.length} conservatively resolved map connection${question.targetNodeIds.length === 1 ? "" : "s"}`}
-        </small>
+        <span className="source-role-badge">{source.sourceRole}</span>
+        <strong>{source.subtypeLabel}</strong>
+        <span>{source.title}</span>
+        <small>{source.publisher} · {source.sourceBoundaryLabel}</small>
+        <time>
+          {source.selectedTime
+            ? `${formatReviewTimestamp(source.selectedTime, source.selectedTimePrecision)} · ${precisionLabel(source.selectedTimePrecision)}`
+            : `Unplaced on ${source.selectedTimeAxisLabel}`}
+        </time>
+        <em>Not a claim occurrence · never a claim-relation endpoint</em>
       </button>
     </article>
   );
 }
 
-function SpatialConnectionLayer({
-  map,
-  geometry,
+function CompleteRelationLedger({
+  entries,
   selectedEdgeId,
-  relationIsDimmed,
-  questionEdgeIsDimmed,
+  activeRelationIds,
+  onFocus,
 }: {
-  map: InvestigationMap;
-  geometry: SpatialConnectionGeometry;
+  entries: readonly InvestigationRelationLedgerEntry[];
   selectedEdgeId: string | null;
-  relationIsDimmed: (edgeId: string) => boolean;
-  questionEdgeIsDimmed: (edgeId: string) => boolean;
+  activeRelationIds: ReadonlySet<string>;
+  onFocus: FocusHandler;
 }) {
-  const relationById = new Map(map.relationEdges.map((edge) => [edge.edgeId, edge]));
-  const questionById = new Map(map.questionEdges.map((edge) => [edge.edgeId, edge]));
   return (
-    <svg
-      className="spatial-connection-layer"
-      viewBox={`0 0 ${Math.max(geometry.width, 1)} ${Math.max(geometry.height, 1)}`}
-      preserveAspectRatio="none"
-      aria-hidden="true"
+    <section
+      className="complete-relation-ledger"
+      id="candidate-relations"
+      tabIndex={-1}
+      aria-labelledby="relation-ledger-title"
     >
-      <defs>
-        <marker id="candidate-relation-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
-          <path d="M 0 0 L 8 4 L 0 8 z" />
-        </marker>
-        <marker id="question-gap-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
-          <path d="M 0 0 L 8 4 L 0 8 z" />
-        </marker>
-      </defs>
-      {geometry.questions.map((connection) => {
-        const edge = questionById.get(connection.edgeId);
-        if (!edge) return null;
-        return (
-          <path
-            key={edge.edgeId}
-            className={`spatial-question-path${questionEdgeIsDimmed(edge.edgeId) ? " is-dimmed" : ""}`}
-            d={connection.path}
-            data-question-edge-id={edge.edgeId}
-            data-from-node-id={edge.fromNodeId}
-            data-to-node-id={edge.toNodeId}
-            data-resolution={edge.resolution}
-            markerEnd="url(#question-gap-arrow)"
-            vectorEffect="non-scaling-stroke"
-          />
-        );
-      })}
-      {geometry.relations.map((connection) => {
-        const edge = relationById.get(connection.edgeId);
-        if (!edge) return null;
-        return (
-          <path
-            key={edge.edgeId}
-            className={`spatial-relation-path${selectedEdgeId === edge.edgeId ? " is-selected" : ""}${relationIsDimmed(edge.edgeId) ? " is-dimmed" : ""}`}
-            d={connection.path}
-            data-relation-id={edge.relationId}
-            data-left-source-id={edge.leftSourceId}
-            data-right-source-id={edge.rightSourceId}
-            markerEnd={edge.endpointOrdering === "non_chronological_mixed_precision"
-              ? undefined
-              : "url(#candidate-relation-arrow)"}
-            data-endpoint-ordering={edge.endpointOrdering}
-            vectorEffect="non-scaling-stroke"
-          />
-        );
-      })}
-    </svg>
-  );
-}
-
-function SpatialRelationControls({
-  map,
-  geometry,
-  selectedEdgeId,
-  relationIsDimmed,
-  onFocus,
-}: {
-  map: InvestigationMap;
-  geometry: SpatialConnectionGeometry;
-  selectedEdgeId: string | null;
-  relationIsDimmed: (edgeId: string) => boolean;
-  onFocus: FocusHandler;
-}) {
-  const geometryById = new Map(geometry.relations.map((item) => [item.edgeId, item]));
-  return (
-    <div className="spatial-relation-controls" aria-label="Spatial candidate relation controls">
-      {spatialRelationEdges(map).map((edge) => {
-        const position = geometryById.get(edge.edgeId);
-        if (!position) return null;
-        const from = map.sources.find((source) => source.nodeId === edge.fromNodeId);
-        const to = map.sources.find((source) => source.nodeId === edge.toNodeId);
-        const selected = selectedEdgeId === edge.edgeId;
-        const selection: FocusSelection = {
-          kind: "relation",
-          id: edge.relationId,
-          label: edge.label,
-        };
-        return (
-          <button
-            key={edge.edgeId}
-            className={`${selected ? "is-selected " : ""}${relationIsDimmed(edge.edgeId) ? "is-dimmed" : ""}`}
-            type="button"
-            aria-pressed={selected}
-            aria-label={relationControlLabel(edge, from?.title, to?.title)}
-            data-focus-trigger={focusTriggerId("spatial-relation", selection)}
-            data-relation-id={edge.relationId}
-            data-left-occurrence-id={edge.leftOccurrenceId}
-            data-right-occurrence-id={edge.rightOccurrenceId}
-            data-left-source-id={edge.leftSourceId}
-            data-right-source-id={edge.rightSourceId}
-            data-endpoint-ordering={edge.endpointOrdering}
-            style={{ left: position.label.x, top: position.label.y }}
-            onClick={(event) => onFocus(selection, event.currentTarget)}
-            onKeyDown={(event) => {
-              const trigger = event.currentTarget;
-              activateWithKeyboard(event, () => onFocus(selection, trigger));
-            }}
-          >
-            <span>{edge.label}</span>
-            <small>
-              Needs review
-              {edge.parallelCount > 1
-                ? ` · ${edge.parallelIndex + 1} of ${edge.parallelCount}`
-                : ""}
-              {edge.endpointOrdering === "non_chronological_mixed_precision"
-                ? " · endpoint order is not chronological"
-                : ""}
-            </small>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function RelationLedger({
-  map,
-  selectedEdgeId,
-  relationIsDimmed,
-  onFocus,
-}: {
-  map: InvestigationMap;
-  selectedEdgeId: string | null;
-  relationIsDimmed: (edgeId: string) => boolean;
-  onFocus: FocusHandler;
-}) {
-  return (
-    <details className="relation-ledger">
-      <summary>
-        <strong>Accessible relation list</strong>
-        <span>{map.relationEdges.length} candidate connection{map.relationEdges.length === 1 ? "" : "s"}</span>
-      </summary>
-      <div className="relation-ledger-body">
-        <div className="lane-heading">
-          <h4>Candidate connections</h4>
-          <span>Exact endpoint and support inspection fallback</span>
-        </div>
-        {map.relationEdges.length ? (
-          <ol>
-            {map.relationEdges.map((edge) => {
-              const from = map.sources.find((source) => source.nodeId === edge.fromNodeId);
-              const to = map.sources.find((source) => source.nodeId === edge.toNodeId);
-              const selected = selectedEdgeId === edge.edgeId;
-              const selection: FocusSelection = {
-                kind: "relation",
-                id: edge.relationId,
-                label: edge.label,
-              };
-              return (
-                <li
-                  key={edge.edgeId}
-                  className={`${selected ? "is-selected " : ""}${relationIsDimmed(edge.edgeId) ? "is-dimmed" : ""}`}
-                >
-                  <span className="edge-endpoint">{from?.title ?? edge.leftSourceId}</span>
-                  <button
-                    type="button"
-                    aria-pressed={selected}
-                    aria-label={relationControlLabel(edge, from?.title, to?.title)}
-                    data-endpoint-ordering={edge.endpointOrdering}
-                    data-focus-trigger={focusTriggerId("relation-list", selection)}
-                    onClick={(event) => onFocus(selection, event.currentTarget)}
-                    onKeyDown={(event) => {
-                      const trigger = event.currentTarget;
-                      activateWithKeyboard(event, () => onFocus(selection, trigger));
-                    }}
-                  >
-                    <span>{edge.label}</span>
-                    <small>
-                      Needs review
-                      {edge.parallelCount > 1
-                        ? ` · relation ${edge.parallelIndex + 1} of ${edge.parallelCount} for this source pair`
-                        : ""}
-                      {edge.endpointOrdering === "non_chronological_mixed_precision"
-                        ? " · same-day mixed precision; endpoint order is not chronological"
-                        : ""}
-                    </small>
-                    <strong>Inspect support from both sides</strong>
-                  </button>
-                  <span className="edge-endpoint">{to?.title ?? edge.rightSourceId}</span>
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <div className="empty-state">
-            <strong>No source-to-source claim relations</strong>
-            <p>Findings and actions remain available inside source details. Their presence does not create an edge.</p>
-          </div>
-        )}
-      </div>
-    </details>
-  );
-}
-
-function MobileInvestigationPath({
-  map,
-  selectedNodeId,
-  selectedEdgeId,
-  nodeIsDimmed,
-  relationIsDimmed,
-  onFocus,
-}: {
-  map: InvestigationMap;
-  selectedNodeId: string | null;
-  selectedEdgeId: string | null;
-  nodeIsDimmed: (nodeId: string) => boolean;
-  relationIsDimmed: (edgeId: string) => boolean;
-  onFocus: FocusHandler;
-}) {
-  return (
-    <section className="mobile-investigation-path" aria-labelledby="mobile-path-title">
-      <div className="lane-heading">
-        <h4 id="mobile-path-title">Investigation path</h4>
-        <span>{map.selectedTimeAxisLabel} · date groups top to bottom</span>
-      </div>
-      <article className="mobile-topic-node">
-        <span>Topic root</span>
-        <strong>{map.topic.title}</strong>
-      </article>
+      <header>
+        <p className="eyebrow">Candidate connections</p>
+        <h4 id="relation-ledger-title">Complete relation review ledger</h4>
+        <p>
+          {entries.length} candidate relations · one authoritative semantic ledger entry per relation ID.
+          Spatial edges and numbered ports are synchronized shortcuts only.
+        </p>
+      </header>
       <ol>
-        {map.sources.map((source) => {
-          const outgoing = mobileEdgesAfterSource(map, source.nodeId);
-          const timeGroup = map.timeGroups.find((group) =>
-            group.sourceNodeIds.includes(source.nodeId),
-          );
-          const startsGroup = timeGroup?.sourceNodeIds[0] === source.nodeId;
+        {entries.map((entry) => {
+          const selection = relationSelection(entry);
           return (
-            <Fragment key={source.nodeId}>
-              {startsGroup && timeGroup ? (
-                <li className={`mobile-time-group${timeGroup.precision === "mixed" ? " is-mixed" : ""}`}>
-                  <strong>{formatReviewTimestamp(
-                    `${timeGroup.calendarDate}T00:00:00.000Z`,
-                    "day",
-                  )}</strong>
-                  <small>{timeGroup.precision === "mixed"
-                    ? "Same-day mixed precision · day-level records have no within-day position"
-                    : timeGroup.precision === "day" ? "Day precision" : "Exact instants"}</small>
-                </li>
-              ) : null}
-              <li>
-                <SourceMapNode
-                  source={source}
-                  selected={selectedNodeId === source.nodeId}
-                  dimmed={nodeIsDimmed(source.nodeId)}
-                  triggerSurface="mobile-map"
-                  onFocus={onFocus}
-                />
-                {outgoing.map((edge) => {
-                const otherId = edge.fromNodeId === source.nodeId
-                  ? edge.toNodeId
-                  : edge.fromNodeId;
-                const other = map.sources.find((item) => item.nodeId === otherId);
-                const selection: FocusSelection = {
-                  kind: "relation",
-                  id: edge.relationId,
-                  label: edge.label,
-                };
-                return (
-                  <button
-                    key={edge.edgeId}
-                    className={`mobile-relation-label${selectedEdgeId === edge.edgeId ? " is-selected" : ""}${relationIsDimmed(edge.edgeId) ? " is-dimmed" : ""}`}
-                    type="button"
-                    aria-pressed={selectedEdgeId === edge.edgeId}
-                    aria-label={edge.endpointOrdering === "non_chronological_mixed_precision"
-                      ? `${edge.label} between ${source.title} and ${other?.title ?? otherId}. Same-day mixed precision; endpoint order is not chronological. Needs review. Inspect support from both sides.`
-                      : `${edge.label} from ${source.title} to ${other?.title ?? otherId}. Needs review. Inspect support from both sides.`}
-                    data-focus-trigger={focusTriggerId("mobile-relation", selection)}
-                    onClick={(event) => onFocus(selection, event.currentTarget)}
-                    onKeyDown={(event) => {
-                      const trigger = event.currentTarget;
-                      activateWithKeyboard(event, () => onFocus(selection, trigger));
-                    }}
-                  >
-                    <span>{edge.label}</span>
-                    <small>{edge.endpointOrdering === "non_chronological_mixed_precision"
-                      ? `Connected with ${other?.title ?? otherId} · endpoint order is not chronological`
-                      : `To ${other?.title ?? otherId} · Needs review`}</small>
-                    <strong>Inspect support from both sides</strong>
-                  </button>
-                );
-                })}
-              </li>
-            </Fragment>
+            <li
+              key={entry.relationId}
+              id={`relation-ledger-${safeDomId(entry.relationId)}`}
+              className={`${selectedEdgeId === entry.relationId ? "is-selected" : ""}${activeRelationIds.has(entry.relationId) ? "" : " is-dimmed"}`}
+              data-ledger-entry="true"
+              data-relation-id={entry.relationId}
+              data-direction-asserted={String(entry.directionAsserted)}
+            >
+              <div className="ledger-endpoint">
+                <strong>{entry.leftEndpoint.actor}</strong>
+                <span>{entry.leftEndpoint.conciseClaim}</span>
+                <small>{entry.leftEndpoint.sourceIdentity}</small>
+                <time>{entry.leftEndpoint.selectedTimeState}</time>
+              </div>
+              <button
+                type="button"
+                aria-label={relationAccessibleName(entry)}
+                data-focus-kind={selection.kind}
+                data-focus-id={selection.id}
+                {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId("relation-ledger", selection) }}
+                onClick={(event) => onFocus(selection, event.currentTarget)}
+              >
+                <span>{entry.publicNumber}</span>
+                <strong>{entry.shortLabel}</strong>
+                <small>{entry.publicReviewLabel}</small>
+                <em>{entry.directionExplanation}</em>
+              </button>
+              <div className="ledger-endpoint is-right">
+                <strong>{entry.rightEndpoint.actor}</strong>
+                <span>{entry.rightEndpoint.conciseClaim}</span>
+                <small>{entry.rightEndpoint.sourceIdentity}</small>
+                <time>{entry.rightEndpoint.selectedTimeState}</time>
+              </div>
+              <details>
+                <summary>Relation reasoning and integrity</summary>
+                <p>{entry.reason}</p>
+                <small>
+                  {entry.integrityState === "valid"
+                    ? "One candidate relation record"
+                    : `${entry.recordCount} conflicting records share this relation ID; geometry is suppressed`}
+                </small>
+              </details>
+            </li>
           );
         })}
       </ol>
-      <div className="mobile-open-questions">
-        {map.questions.map((question, index) => (
-          <QuestionMapNode
-            key={question.nodeId}
-            question={question}
-            index={index}
-            selected={selectedNodeId === question.nodeId}
-            dimmed={nodeIsDimmed(question.nodeId)}
-            connectionDimmed={false}
-            connectionLabel={questionConnectionLabel(map, question)}
-            triggerSurface="mobile-map"
-            onFocus={onFocus}
-          />
-        ))}
-      </div>
     </section>
   );
 }
 
-interface SpatialNodeBox {
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-  centerX: number;
-  centerY: number;
+function relationGeometry(
+  entry: InvestigationRelationLedgerEntry,
+  left: DOMRect,
+  right: DOMRect,
+  shell: DOMRect,
+): RelationGeometry {
+  const leftCenterX = left.left - shell.left + left.width * 0.5;
+  const leftCenterY = left.top - shell.top + left.height * 0.5;
+  const rightCenterX = right.left - shell.left + right.width * 0.5;
+  const rightCenterY = right.top - shell.top + right.height * 0.5;
+  const horizontal = Math.abs(rightCenterX - leftCenterX)
+    >= Math.abs(rightCenterY - leftCenterY);
+  const startX = horizontal
+    ? (rightCenterX >= leftCenterX ? left.right : left.left) - shell.left
+    : leftCenterX;
+  const startY = horizontal
+    ? leftCenterY
+    : (rightCenterY >= leftCenterY ? left.bottom : left.top) - shell.top;
+  const endX = horizontal
+    ? (rightCenterX >= leftCenterX ? right.left : right.right) - shell.left
+    : rightCenterX;
+  const endY = horizontal
+    ? rightCenterY
+    : (rightCenterY >= leftCenterY ? right.top : right.bottom) - shell.top;
+  const bend = Math.max(38, Math.abs(endX - startX) * 0.24)
+    + entry.parallelIndex * 18;
+  const direction = endX >= startX ? 1 : -1;
+  const length = Math.hypot(endX - startX, endY - startY) || 1;
+  const tickX = (-(endY - startY) / length) * 6;
+  const tickY = ((endX - startX) / length) * 6;
+  return {
+    relationId: entry.relationId,
+    path: `M ${startX} ${startY} C ${startX + bend * direction} ${startY}, ${endX - bend * direction} ${endY}, ${endX} ${endY}`,
+    terminalTickPath: `M ${startX - tickX} ${startY - tickY} L ${startX + tickX} ${startY + tickY} M ${endX - tickX} ${endY - tickY} L ${endX + tickX} ${endY + tickY}`,
+    labelX: (startX + endX) / 2,
+    labelY: (startY + endY) / 2 - 12 - entry.parallelIndex * 22,
+  };
 }
 
-function measureSpatialConnections(
-  stage: HTMLElement,
-  nodes: Map<string, HTMLElement>,
-  map: InvestigationMap,
-): SpatialConnectionGeometry {
-  const stageRect = stage.getBoundingClientRect();
-  if (stageRect.width <= 0 || stageRect.height <= 0) return EMPTY_SPATIAL_GEOMETRY;
-  const boxes = new Map<string, SpatialNodeBox>();
-  for (const [nodeId, node] of nodes) {
-    const rect = node.getBoundingClientRect();
-    boxes.set(nodeId, {
-      left: rect.left - stageRect.left,
-      right: rect.right - stageRect.left,
-      top: rect.top - stageRect.top,
-      bottom: rect.bottom - stageRect.top,
-      centerX: rect.left - stageRect.left + rect.width / 2,
-      centerY: rect.top - stageRect.top + rect.height / 2,
-    });
+function questionPath(occurrence: DOMRect, question: DOMRect, shell: DOMRect): string {
+  const startX = occurrence.right - shell.left;
+  const startY = occurrence.top - shell.top + occurrence.height * 0.5;
+  const endX = question.left - shell.left;
+  const endY = question.top - shell.top + question.height * 0.5;
+  const middleX = startX + (endX - startX) * 0.54;
+  return `M ${startX} ${startY} C ${middleX} ${startY}, ${middleX} ${endY}, ${endX} ${endY}`;
+}
+
+function countLabelCollisions(paths: readonly RelationGeometry[]): number {
+  let collisions = 0;
+  for (let leftIndex = 0; leftIndex < paths.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < paths.length; rightIndex += 1) {
+      const left = paths[leftIndex];
+      const right = paths[rightIndex];
+      if (
+        Math.abs(left.labelX - right.labelX) < 116
+        && Math.abs(left.labelY - right.labelY) < 42
+      ) collisions += 1;
+    }
   }
-
-  const occupiedLabelBoxes: SpatialNodeBox[] = [];
-  const relations = spatialRelationEdges(map).flatMap((edge) => {
-    const from = boxes.get(edge.fromNodeId);
-    const to = boxes.get(edge.toNodeId);
-    if (!from || !to) return [];
-    const horizontal = Math.abs(to.centerX - from.centerX) >= 54;
-    const directionX = to.centerX >= from.centerX ? 1 : -1;
-    const directionY = to.centerY >= from.centerY ? 1 : -1;
-    const parallelOffset = (edge.parallelIndex - (edge.parallelCount - 1) / 2) * 22;
-    const start = horizontal
-      ? { x: directionX > 0 ? from.right : from.left, y: from.centerY }
-      : { x: from.centerX, y: directionY > 0 ? from.bottom : from.top };
-    const end = horizontal
-      ? { x: directionX > 0 ? to.left : to.right, y: to.centerY }
-      : { x: to.centerX, y: directionY > 0 ? to.top : to.bottom };
-    const path = horizontal
-      ? horizontalConnectionPath(start, end, parallelOffset)
-      : verticalConnectionPath(start, end, parallelOffset);
-    const label = relationLabelPoint(
-      start,
-      end,
-      horizontal,
-      parallelOffset,
-      [...boxes.values()],
-      occupiedLabelBoxes,
-      stageRect.width,
-      stageRect.height,
-    );
-    occupiedLabelBoxes.push(labelCollisionBox(label, relationLabelHalfWidth(stageRect.width)));
-    return [{ edgeId: edge.edgeId, path, start, end, label }];
-  });
-
-  const questions = map.questionEdges.flatMap((edge) => {
-    const from = boxes.get(edge.fromNodeId);
-    const to = boxes.get(edge.toNodeId);
-    if (!from || !to) return [];
-    const start = { x: from.centerX, y: from.bottom };
-    const end = { x: to.centerX, y: to.top };
-    return [{
-      edgeId: edge.edgeId,
-      path: verticalConnectionPath(start, end, 0),
-      start,
-      end,
-    }];
-  });
-
-  return {
-    width: Math.round(stageRect.width),
-    height: Math.round(stageRect.height),
-    relations,
-    questions,
-  };
+  return collisions;
 }
 
-function horizontalConnectionPath(
-  start: SpatialPoint,
-  end: SpatialPoint,
-  offset: number,
-): string {
-  const controlX = (start.x + end.x) / 2 + offset;
-  return `M ${rounded(start.x)} ${rounded(start.y)} C ${rounded(controlX)} ${rounded(start.y)}, ${rounded(controlX)} ${rounded(end.y)}, ${rounded(end.x)} ${rounded(end.y)}`;
-}
-
-function verticalConnectionPath(
-  start: SpatialPoint,
-  end: SpatialPoint,
-  offset: number,
-): string {
-  const controlY = (start.y + end.y) / 2 + offset;
-  return `M ${rounded(start.x)} ${rounded(start.y)} C ${rounded(start.x)} ${rounded(controlY)}, ${rounded(end.x)} ${rounded(controlY)}, ${rounded(end.x)} ${rounded(end.y)}`;
-}
-
-function relationLabelPoint(
-  start: SpatialPoint,
-  end: SpatialPoint,
-  horizontal: boolean,
-  offset: number,
-  sourceBoxes: SpatialNodeBox[],
-  occupiedLabelBoxes: SpatialNodeBox[],
-  stageWidth: number,
-  stageHeight: number,
-): SpatialPoint {
-  const labelHalfWidth = relationLabelHalfWidth(stageWidth);
-  const collisionBox = (point: SpatialPoint) => labelCollisionBox(point, labelHalfWidth);
-  const fractions = [
-    0.5,
-    0.35,
-    0.65,
-    0.25,
-    0.75,
-    0.15,
-    0.85,
-    0.45,
-    0.55,
-    0.05,
-    0.95,
-  ];
-  const perpendicularOffsets = [
-    0,
-    -72,
-    72,
-    -144,
-    144,
-    -216,
-    216,
-    -288,
-    288,
-    -432,
-    432,
-    -576,
-    576,
-    -720,
-    720,
-    -864,
-    864,
-  ];
-  const candidates = fractions.flatMap((fraction) => {
-    const point = horizontal
-      ? pointOnHorizontalConnection(start, end, offset, fraction)
-      : pointOnVerticalConnection(start, end, offset, fraction);
-    return perpendicularOffsets.map((perpendicularOffset) => ({
-      x: clamp(
-        point.x + (horizontal ? 0 : 74 + offset + perpendicularOffset),
-        92,
-        stageWidth - 92,
-      ),
-      y: clamp(
-        point.y + (horizontal ? perpendicularOffset : 0),
-        42,
-        stageHeight - 42,
-      ),
-    }));
-  });
-  const sourceFreeCandidates = candidates.filter((candidate) => (
-    sourceBoxes.every((box) => !spatialBoxesOverlap(collisionBox(candidate), box, 6))
-  ));
-  const collisionFree = sourceFreeCandidates.find((candidate) => (
-    occupiedLabelBoxes.every(
-      (box) => !spatialBoxesOverlap(collisionBox(candidate), box, 6),
-    )
-  ));
-  if (collisionFree) return collisionFree;
-
-  const fallbackCandidates = sourceFreeCandidates.length
-    ? sourceFreeCandidates
-    : candidates;
-  return fallbackCandidates.reduce((best, candidate) => {
-    const candidateScore = [
-      spatialOverlapTotal(candidate, sourceBoxes, labelHalfWidth),
-      spatialOverlapTotal(candidate, occupiedLabelBoxes, labelHalfWidth),
-    ];
-    const bestScore = [
-      spatialOverlapTotal(best, sourceBoxes, labelHalfWidth),
-      spatialOverlapTotal(best, occupiedLabelBoxes, labelHalfWidth),
-    ];
-    return candidateScore[0] < bestScore[0]
-      || (candidateScore[0] === bestScore[0] && candidateScore[1] < bestScore[1])
-      ? candidate
-      : best;
-  }, fallbackCandidates[0]);
-}
-
-function pointOnHorizontalConnection(
-  start: SpatialPoint,
-  end: SpatialPoint,
-  offset: number,
-  fraction: number,
-): SpatialPoint {
-  const controlX = (start.x + end.x) / 2 + offset;
-  return cubicPoint(
-    start,
-    { x: controlX, y: start.y },
-    { x: controlX, y: end.y },
-    end,
-    fraction,
-  );
-}
-
-function pointOnVerticalConnection(
-  start: SpatialPoint,
-  end: SpatialPoint,
-  offset: number,
-  fraction: number,
-): SpatialPoint {
-  const controlY = (start.y + end.y) / 2 + offset;
-  return cubicPoint(
-    start,
-    { x: start.x, y: controlY },
-    { x: end.x, y: controlY },
-    end,
-    fraction,
-  );
-}
-
-function cubicPoint(
-  start: SpatialPoint,
-  firstControl: SpatialPoint,
-  secondControl: SpatialPoint,
-  end: SpatialPoint,
-  fraction: number,
-): SpatialPoint {
-  const inverse = 1 - fraction;
-  return {
-    x: inverse ** 3 * start.x
-      + 3 * inverse ** 2 * fraction * firstControl.x
-      + 3 * inverse * fraction ** 2 * secondControl.x
-      + fraction ** 3 * end.x,
-    y: inverse ** 3 * start.y
-      + 3 * inverse ** 2 * fraction * firstControl.y
-      + 3 * inverse * fraction ** 2 * secondControl.y
-      + fraction ** 3 * end.y,
-  };
-}
-
-function labelCollisionBox(
-  point: SpatialPoint,
-  halfWidth: number,
-): SpatialNodeBox {
-  const halfHeight = 40;
-  return {
-    left: point.x - halfWidth,
-    right: point.x + halfWidth,
-    top: point.y - halfHeight,
-    bottom: point.y + halfHeight,
-    centerX: point.x,
-    centerY: point.y,
-  };
-}
-
-function relationLabelHalfWidth(stageWidth: number): number {
-  return Math.min(84, stageWidth * 0.105);
-}
-
-function spatialBoxesOverlap(
-  left: SpatialNodeBox,
-  right: SpatialNodeBox,
-  gap: number,
-): boolean {
-  return left.left < right.right + gap
-    && left.right > right.left - gap
-    && left.top < right.bottom + gap
-    && left.bottom > right.top - gap;
-}
-
-function spatialOverlapArea(
-  left: SpatialNodeBox,
-  right: SpatialNodeBox,
-  gap: number,
-): number {
-  const width = Math.max(
-    0,
-    Math.min(left.right, right.right + gap) - Math.max(left.left, right.left - gap),
-  );
-  const height = Math.max(
-    0,
-    Math.min(left.bottom, right.bottom + gap) - Math.max(left.top, right.top - gap),
-  );
-  return width * height;
-}
-
-function spatialOverlapTotal(
-  point: SpatialPoint,
-  boxes: SpatialNodeBox[],
-  labelHalfWidth: number,
-): number {
-  return boxes.reduce(
-    (total, box) => total + spatialOverlapArea(
-      labelCollisionBox(point, labelHalfWidth),
-      box,
-      6,
-    ),
-    0,
-  );
-}
-
-function questionConnectionLabel(
-  map: InvestigationMap,
-  question: InvestigationQuestionNode,
-): string {
-  const labels = question.targetNodeIds.map((nodeId) => {
-    if (nodeId === map.topic.nodeId) return "topic root (unknown reference)";
-    return map.sources.find((source) => source.nodeId === nodeId)?.title ?? nodeId;
-  });
-  return `Evidence gap from ${labels.join(" · ")}`;
-}
-
-function rounded(value: number): number {
-  return Math.round(value * 10) / 10;
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(Math.max(value, minimum), maximum);
-}
-
-function ThreadTraceSummary({
-  map,
-  trace,
-  selectedNodeId,
-}: {
-  map: InvestigationMap;
-  trace: MapHighlightState;
-  selectedNodeId: string;
-}) {
-  const sourceTitles = map.sources
-    .filter((source) => trace.nodeIds.includes(source.nodeId))
-    .map((source) => source.title);
-  const questions = map.questions.filter((question) => trace.nodeIds.includes(question.nodeId));
-  return (
-    <section className="thread-trace-summary" aria-labelledby="thread-trace-title">
-      <p className="eyebrow">Viewing operation only</p>
-      <h4 id="thread-trace-title">Thread trace</h4>
-      <p>Selected node: {mapNodeLabel(map, selectedNodeId)}</p>
-      <dl>
-        <div><dt>Connected source nodes</dt><dd>{sourceTitles.length}</dd></div>
-        <div><dt>Direct relation edges</dt><dd>{trace.relationEdgeIds.length}</dd></div>
-        <div><dt>Related open questions</dt><dd>{questions.length}</dd></div>
-      </dl>
-      <p className="trace-detail">{sourceTitles.join(" · ") || "No connected source node"}</p>
-      <small>The prepared and review-candidate records are unchanged; unrelated context remains visible but dimmed.</small>
-    </section>
-  );
-}
-
-function selectionHighlightState(
-  map: InvestigationMap,
-  selectedNodeId: string | null,
-  selectedEdgeId: string | null,
-): MapHighlightState | null {
-  if (selectedNodeId) return deriveThreadTrace(map, selectedNodeId);
-  if (!selectedEdgeId) return null;
-  const edge = map.relationEdges.find((item) => item.edgeId === selectedEdgeId);
-  if (!edge) return null;
-  const nodeIds = [edge.fromNodeId, edge.toNodeId];
-  const questionEdges = map.questionEdges.filter((item) => nodeIds.includes(item.fromNodeId));
-  return {
-    nodeIds: [...nodeIds, ...questionEdges.map((item) => item.toNodeId)],
-    relationEdgeIds: [edge.edgeId],
-    questionEdgeIds: questionEdges.map((item) => item.edgeId),
-  };
-}
-
-function coverageLensesForMap(map: InvestigationMap): CoverageLens[] {
-  const lenses: CoverageLens[] = ["all", "baseline"];
-  if (map.sources.some((source) => source.discoveryPass === "coverage_expansion")) {
-    lenses.push("coverage_expansion");
+function handleAnalyticalScrollKey(event: KeyboardEvent<HTMLDivElement>) {
+  if (event.target !== event.currentTarget) return;
+  const container = event.currentTarget;
+  if (!mapCanvasHasHorizontalOverflow(container.scrollWidth, container.clientWidth)) return;
+  const maxScrollLeft = container.scrollWidth - container.clientWidth;
+  const scrollStep = Math.max(220, Math.round(container.clientWidth * 0.7));
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    container.scrollLeft += scrollStep;
+  } else if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    container.scrollLeft -= scrollStep;
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    container.scrollLeft = 0;
+  } else if (event.key === "End") {
+    event.preventDefault();
+    container.scrollLeft = maxScrollLeft;
   }
-  lenses.push(
-    "official_established",
-    "local_firsthand",
-    "challenges_corrections",
-    "open_questions",
-  );
-  return lenses;
 }
 
-function preparedLensLabel(lens: CoverageLens, prepared: boolean): string {
-  if (!prepared) return COVERAGE_LENS_LABELS[lens];
-  if (lens === "all") return "Complete prepared set";
-  if (lens === "baseline") return "Prepared baseline";
-  if (lens === "coverage_expansion") return "Prepared expanded set";
-  return COVERAGE_LENS_LABELS[lens];
+function relationSelection(entry: InvestigationRelationLedgerEntry): FocusSelection {
+  return {
+    kind: "relation",
+    id: entry.relationId,
+    label: `${entry.publicNumber} · ${entry.shortLabel} · ${entry.publicReviewLabel}`,
+  };
 }
 
-function mobileEdgesAfterSource(
-  map: InvestigationMap,
-  sourceId: string,
-): InvestigationRelationEdge[] {
-  const columnById = new Map(map.sources.map((source) => [source.nodeId, source.column]));
-  return spatialRelationEdges(map).filter((edge) => {
-    const fromColumn = columnById.get(edge.fromNodeId) ?? Number.MAX_SAFE_INTEGER;
-    const toColumn = columnById.get(edge.toNodeId) ?? Number.MAX_SAFE_INTEGER;
-    const earlierId = fromColumn <= toColumn ? edge.fromNodeId : edge.toNodeId;
-    return earlierId === sourceId;
-  });
+function relationAccessibleName(entry: InvestigationRelationLedgerEntry): string {
+  return `${entry.publicNumber}, candidate relation ${entry.shortLabel}, ${entry.publicReviewLabel}; first occurrence: ${relationEndpointAccessibleName(entry.leftEndpoint)}; second occurrence: ${relationEndpointAccessibleName(entry.rightEndpoint)}; ${entry.directionExplanation}; opens the same relation detail as the Complete relation review ledger`;
 }
 
-function questionEdgesFor(map: InvestigationMap, questionNodeId: string) {
-  return map.questionEdges.filter((edge) => edge.toNodeId === questionNodeId);
-}
-
-function mapNodeLabel(map: InvestigationMap, nodeId: string): string {
-  if (map.topic.nodeId === nodeId) return map.topic.title;
-  return map.sources.find((source) => source.nodeId === nodeId)?.title
-    ?? map.questions.find((question) => question.nodeId === nodeId)?.question
-    ?? nodeId;
-}
-
-function relationControlLabel(
-  edge: InvestigationRelationEdge,
-  fromTitle: string | undefined,
-  toTitle: string | undefined,
+function relationEndpointAccessibleName(
+  endpoint: InvestigationRelationLedgerEntry["leftEndpoint"],
 ): string {
-  const from = fromTitle ?? edge.leftSourceId;
-  const to = toTitle ?? edge.rightSourceId;
-  return edge.endpointOrdering === "non_chronological_mixed_precision"
-    ? `${edge.label} between ${from} and ${to}. Same-day mixed precision; endpoint order is not chronological. Needs review. Inspect support from both sides.`
-    : `${edge.label} from ${from} to ${to}. Needs review. Inspect support from both sides.`;
+  return `${endpoint.actor}, claim ${endpoint.conciseClaim}, source ${endpoint.sourceIdentity}, selected-axis time ${endpoint.selectedTimeState}`;
 }
 
-function activateWithKeyboard(
-  event: KeyboardEvent<HTMLButtonElement>,
-  action: () => void,
-) {
-  if (event.key !== "Enter" && event.key !== " ") return;
-  event.preventDefault();
-  action();
+function occurrenceRowTypeAccessibleName(
+  rowKind: InvestigationClaimRow["rowKind"],
+): string {
+  if (rowKind === "candidate_thread") {
+    return "Candidate thread claim occurrence, grouping needs review.";
+  }
+  if (rowKind === "standalone_occurrence") {
+    return "Standalone claim occurrence, grouping unresolved.";
+  }
+  return "Ungrouped claim occurrence.";
+}
+
+function rowKindHeading(kind: InvestigationClaimRow["rowKind"]): string {
+  if (kind === "candidate_thread") return "Candidate thread";
+  if (kind === "standalone_occurrence") return "Standalone occurrence";
+  return "Ungrouped occurrence";
+}
+
+function precisionGroupLabel(
+  precision: InvestigationMap["timeGroups"][number]["precision"],
+): string {
+  if (precision === "mixed") return "Mixed precision · no artificial order";
+  if (precision === "day") return "Day-level unordered peers";
+  return "Exact instants retain clock order";
+}
+
+function precisionLabel(precision: InvestigationOccurrenceNode["selectedTimePrecision"]): string {
+  return precision === "day" ? "day precision · unordered peer" : "exact instant";
+}
+
+function boundedAccessibleClaim(value: string, limit = 96): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, Math.max(1, limit - 1)).trimEnd()}…`;
+}
+
+function formatCalendarDate(calendarDate: string): string {
+  return formatReviewTimestamp(`${calendarDate}T00:00:00.000Z`, "day");
+}
+
+function safeDomId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
+function subscribeCompactMap(callback: () => void): () => void {
+  const media = window.matchMedia(MAP_COMPACT_MEDIA_QUERY);
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
+}
+
+function compactMapSnapshot(): boolean {
+  return window.matchMedia(MAP_COMPACT_MEDIA_QUERY).matches;
 }

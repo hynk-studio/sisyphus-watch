@@ -1,0 +1,111 @@
+.map-qa-shell {
+  padding: 30px 0 56px;
+}
+
+.map-qa-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 22px clamp(20px, 3vw, 34px);
+  border-top: 4px solid var(--navy);
+  border-bottom: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+
+.map-qa-header h1 {
+  margin-bottom: 8px;
+  font-family: var(--font-editorial);
+  font-size: clamp(1.65rem, 3vw, 2.4rem);
+  font-weight: 600;
+  letter-spacing: -.035em;
+}
+
+.map-qa-header p:last-child {
+  max-width: 760px;
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: .86rem;
+  line-height: 1.55;
+}
+
+.map-qa-header label {
+  display: grid;
+  min-width: 260px;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: .8rem;
+  font-weight: 740;
+}
+
+.map-qa-header select {
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--surface-strong);
+  color: var(--ink);
+}
+
+.map-qa-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px clamp(20px, 3vw, 34px);
+  border-bottom: 1px solid var(--line);
+  background: var(--navy-soft);
+  color: var(--ink-soft);
+  font-size: .75rem;
+}
+
+.map-qa-facts strong,
+.map-qa-facts span {
+  padding: 5px 8px;
+  border: 1px solid rgba(20, 33, 61, .16);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .48);
+}
+
+.map-qa-view-panel {
+  background: var(--surface-strong);
+}
+
+.map-qa-boundary {
+  margin: 0;
+  padding: 14px clamp(20px, 3vw, 34px);
+  border-top: 1px solid var(--line-strong);
+  background: var(--surface-inset);
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.map-qa-boundary code {
+  color: var(--navy);
+  font-family: var(--font-ledger);
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .map-qa-shell {
+    width: 100%;
+    padding-top: 0;
+  }
+
+  .map-qa-header {
+    display: grid;
+    gap: 18px;
+    padding: 18px 13px;
+  }
+
+  .map-qa-header label {
+    min-width: 0;
+  }
+
+  .map-qa-facts {
+    padding: 10px 13px;
+  }
+
+  .map-qa-boundary {
+    padding: 13px;
+  }
+}

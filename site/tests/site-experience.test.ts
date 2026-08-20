@@ -48,7 +48,10 @@ import {
   focusedRecordStatusLabel,
 } from "../app/components/FocusedDetailPanel";
 import { mapCanvasHasHorizontalOverflow } from "../app/components/InvestigationMapView";
-import { focusTriggerId } from "../app/components/investigation-types";
+import {
+  focusTriggerId,
+  type FocusSelection,
+} from "../app/components/investigation-types";
 import {
   PUBLIC_LIVE_COOLDOWN_MS,
   PublicLiveRunGuard,
@@ -392,6 +395,12 @@ test("timeline, map, and detail expose mixed day/instant groups without losing e
   packet.event_timeline_rows[1].publication_time_precision = "instant";
   packet.event_timeline_rows[2].publication_time = "2025-07-15T08:00:00.000Z";
   packet.event_timeline_rows[2].publication_time_precision = "instant";
+  packet.claim_occurrences[0].source_publication_time = normalizedMidnight;
+  packet.claim_occurrences[0].source_publication_time_precision = "day";
+  packet.claim_occurrences[1].source_publication_time = normalizedMidnight;
+  packet.claim_occurrences[1].source_publication_time_precision = "instant";
+  packet.claim_occurrences[2].source_publication_time = "2025-07-15T08:00:00.000Z";
+  packet.claim_occurrences[2].source_publication_time_precision = "instant";
 
   const timeline = renderToStaticMarkup(createElement(TimelineView, {
     packet,
@@ -447,6 +456,7 @@ test("timeline, map, and detail expose mixed day/instant groups without losing e
     map,
     timeAxis: "publication_time",
     coverageLens: "all",
+    selectedKind: null,
     selectedNodeId: null,
     selectedEdgeId: null,
     threadTraceActive: false,
@@ -460,12 +470,9 @@ test("timeline, map, and detail expose mixed day/instant groups without losing e
     onShowFullMap: noop,
     onExpandCoverage: noop,
   }));
-  assert.match(mapHtml, /day-level positions are not chronological/);
-  assert.match(mapHtml, /endpoint order is not chronological/);
-  assert.match(
-    mapHtml,
-    /data-endpoint-ordering="non_chronological_mixed_precision"/,
-  );
+  assert.match(mapHtml, /Mixed precision · no artificial order/);
+  assert.match(mapHtml, /Direction not asserted on the selected axis/);
+  assert.match(mapHtml, /data-direction-asserted="false"/);
   assert.doesNotMatch(`${timeline}${sources}${mapHtml}`, /Jul 14/);
 });
 
@@ -563,20 +570,26 @@ test("inspector uses responsive desktop-nonmodal and mobile-modal semantics with
   assert.match(explorerSource, /window\.scrollTo\(\{ top: scrollY, left: window\.scrollX, behavior: "instant" \}\)/);
 });
 
-test("desktop inspector keeps one nonmutating map-action surface for source, relation, and question focus while mobile exposes none", () => {
+test("desktop inspector offers typed, nonmutating trace actions only for claim rows while mobile exposes none", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const before = JSON.stringify(packet);
-  const source = packet.source_snapshot_summaries[0];
+  const occurrence = packet.claim_occurrences[0];
   const relation = packet.relation_candidates[0];
   const question = packet.unresolved_questions[0];
   const selections = [
     {
-      selection: { kind: "source" as const, id: source.source_id, label: source.title },
+      selection: {
+        kind: "claim_occurrence" as const,
+        id: occurrence.occurrence_id,
+        label: "Prepared claim occurrence",
+      },
       canTraceThread: true,
+      traceLabel: "Candidate thread trace",
     },
     {
       selection: { kind: "relation" as const, id: relation.relation_id, label: "Candidate relation" },
       canTraceThread: false,
+      traceLabel: null,
     },
     {
       selection: {
@@ -584,17 +597,19 @@ test("desktop inspector keeps one nonmutating map-action surface for source, rel
         id: question.question_id,
         label: "Open question 1",
       },
-      canTraceThread: true,
+      canTraceThread: false,
+      traceLabel: null,
     },
   ];
   let traceCalls = 0;
   let showFullMapCalls = 0;
 
-  for (const { selection, canTraceThread } of selections) {
+  for (const { selection, canTraceThread, traceLabel } of selections) {
     const payload = getSiteReadyCaseDetail(packet, selection.kind, selection.id);
     assert.ok(payload);
     const mapViewActions = {
       canTraceThread,
+      traceLabel: traceLabel ?? "Candidate thread trace",
       threadTraceActive: false,
       onTraceThread: () => { traceCalls += 1; },
       onShowFullMap: () => { showFullMapCalls += 1; },
@@ -610,8 +625,8 @@ test("desktop inspector keeps one nonmutating map-action surface for source, rel
     }));
     assert.match(desktopHtml, /aria-label="Focused map viewing actions"/);
     assert.match(desktopHtml, /Show full map/);
-    if (canTraceThread) assert.match(desktopHtml, /Trace this thread/);
-    else assert.doesNotMatch(desktopHtml, /Trace this thread/);
+    if (canTraceThread) assert.match(desktopHtml, /Candidate thread trace/);
+    else assert.doesNotMatch(desktopHtml, /Candidate thread trace/);
 
     const mobileHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
       packet,
@@ -623,14 +638,14 @@ test("desktop inspector keeps one nonmutating map-action surface for source, rel
       modelOverride: INSPECTOR_ACCESSIBILITY_MODELS.mobile,
     }));
     assert.doesNotMatch(mobileHtml, /Focused map viewing actions/);
-    assert.doesNotMatch(mobileHtml, /Trace this thread/);
+    assert.doesNotMatch(mobileHtml, /Candidate thread trace/);
     assert.doesNotMatch(mobileHtml, /Show full map/);
 
     if (canTraceThread) mapViewActions.onTraceThread();
     mapViewActions.onShowFullMap();
   }
 
-  assert.equal(traceCalls, 2);
+  assert.equal(traceCalls, 1);
   assert.equal(showFullMapCalls, 3);
   assert.equal(JSON.stringify(packet), before);
 
@@ -639,7 +654,8 @@ test("desktop inspector keeps one nonmutating map-action surface for source, rel
     map: deriveInvestigationMap(packet, "event_time"),
     timeAxis: "event_time",
     coverageLens: "all",
-    selectedNodeId: source.source_id,
+    selectedKind: "claim_occurrence",
+    selectedNodeId: occurrence.occurrence_id,
     selectedEdgeId: null,
     threadTraceActive: false,
     liveEnabled: false,
@@ -652,7 +668,9 @@ test("desktop inspector keeps one nonmutating map-action surface for source, rel
     onShowFullMap: noop,
     onExpandCoverage: noop,
   }));
-  assert.match(selectedMapHtml, /class="focus-toolbar-actions" aria-hidden="true"/);
+  assert.match(selectedMapHtml, /Candidate thread · 2 occurrences · needs review/);
+  assert.match(selectedMapHtml, /Candidate thread trace/);
+  assert.match(selectedMapHtml, /class="focus-toolbar-actions"/);
   assert.equal((selectedMapHtml.match(/tabindex="-1"/g) ?? []).length, 2);
 
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -671,7 +689,7 @@ test("desktop inspector keeps one nonmutating map-action surface for source, rel
   assert.match(explorerSource, /onShowFullMap: closeDetail/);
 });
 
-test("map is the primary result model with four top-level views and visible question nodes", () => {
+test("map uses occurrence-primary claim rows with complete candidate relations and separate evidence gaps", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const map = deriveInvestigationMap(packet, "event_time");
   const html = renderToStaticMarkup(createElement(InvestigationMapView, {
@@ -679,6 +697,7 @@ test("map is the primary result model with four top-level views and visible ques
     map,
     timeAxis: "event_time",
     coverageLens: "all",
+    selectedKind: null,
     selectedNodeId: null,
     selectedEdgeId: null,
     threadTraceActive: false,
@@ -700,31 +719,38 @@ test("map is the primary result model with four top-level views and visible ques
     "Sources",
     "Method",
   ]);
-  assert.match(html, /Structured investigation map/);
-  assert.match(html, /Calendar dates move left to right/);
-  assert.match(html, /Topic root/);
-  assert.match(html, /spatial-map-stage/);
-  assert.match(html, /spatial-connection-layer/);
-  assert.match(html, /Spatial candidate relation controls/);
+  assert.match(html, /Temporal claim-lineage matrix/);
+  assert.match(html, /What changed in the public claims/);
+  assert.match(html, /claim-matrix-stage/);
+  assert.match(html, /claim-relation-layer/);
+  assert.match(html, /Candidate thread · 2 occurrences · needs review/);
+  assert.match(html, /Standalone claim occurrence · grouping unresolved/);
   assert.match(html, /Candidate connections/);
-  assert.match(html, /Accessible relation list/);
-  assert.match(html, /Open questions/);
-  assert.match(html, /Visible endpoints · not conclusions/);
-  assert.match(html, /Evidence gap from/);
-  assert.match(html, /Fictional city updates cooling center list and adds transport support/);
-  assert.match(html, /Inspect support from both sides/);
-  assert.match(html, /Prepared comparison only/);
-  assert.match(html, /Prepared baseline/);
-  assert.match(html, /Complete prepared set/);
-  assert.match(html, /Select a record to inspect/);
-  assert.match(html, /Closing returns focus and scroll position/);
-  assert.match(html, /mobile-investigation-path/);
+  assert.match(html, /Complete relation review ledger/);
+  assert.match(html, /Unresolved evidence questions/);
+  assert.match(html, /Not conclusions · Not chronological records/);
+  assert.match(html, /Non-claim source records/);
+  assert.match(html, /Context \/ interpretation/);
+  assert.match(html, /Prepared source record/);
+  assert.match(html, /Via matching claim occurrences/);
+  assert.match(html, /Via action record/);
+  assert.match(html, /Source-role coverage/);
+  assert.match(html, /4 sources · 4 of 5 target roles/);
+  assert.match(html, /Original records/);
+  assert.match(html, /0 · missing/);
+  assert.equal((html.match(/data-occurrence-id=/g) ?? []).length, 3);
+  assert.equal((html.match(/data-ledger-entry="true"/g) ?? []).length, 3);
+  assert.doesNotMatch(html, /Topic root/);
+  assert.doesNotMatch(html, /mobile-investigation-path/);
   for (const question of packet.unresolved_questions) {
-    assert.match(html, new RegExp(escapeRegex(question.question)));
+    assert.equal(
+      (html.match(new RegExp(escapeRegex(question.question), "g")) ?? []).length,
+      1,
+    );
   }
 });
 
-test("same-source relations stay in the accessible ledger and inspector but not spatial paths", () => {
+test("same-source relations remain occurrence-to-occurrence in spatial eligibility, ledger, and inspector", () => {
   const packet = buildSameSourceRelationFixture();
   const relationId = "relation_candidate_fixture_same_source_review";
   const map = deriveInvestigationMap(packet, "publication_time");
@@ -733,6 +759,7 @@ test("same-source relations stay in the accessible ledger and inspector but not 
     map,
     timeAxis: "publication_time",
     coverageLens: "all",
+    selectedKind: null,
     selectedNodeId: null,
     selectedEdgeId: null,
     threadTraceActive: false,
@@ -747,10 +774,12 @@ test("same-source relations stay in the accessible ledger and inspector but not 
     onExpandCoverage: noop,
   }));
 
-  assert.match(html, new RegExp(`${map.relationEdges.length} candidate relations`));
-  assert.match(html, new RegExp(`relation-list:relation:${relationId}`));
-  assert.doesNotMatch(html, new RegExp(`spatial-relation:relation:${relationId}`));
-  assert.doesNotMatch(html, new RegExp(`mobile-relation:relation:${relationId}`));
+  assert.match(html, new RegExp(`${map.relationLedger.length} candidate relations`));
+  assert.match(html, new RegExp(`relation-ledger:relation:${relationId}`));
+  assert.equal((html.match(new RegExp(`data-relation-id="${relationId}"`, "g")) ?? []).length, 1);
+  assert.ok(spatialRelationEdges(map).some(
+    (edge) => edge.relationId === relationId,
+  ));
   const crossSourceRelationId = packet.relation_candidates.find(
     (relation) => relation.left_source_id !== relation.right_source_id,
   )?.relation_id;
@@ -758,10 +787,11 @@ test("same-source relations stay in the accessible ledger and inspector but not 
   assert.ok(spatialRelationEdges(map).some(
     (edge) => edge.relationId === crossSourceRelationId,
   ));
-  assert.match(
-    html,
-    new RegExp(`mobile-relation:relation:${crossSourceRelationId}`),
-  );
+  assert.match(html, new RegExp(`relation-ledger:relation:${crossSourceRelationId}`));
+  const provenanceTriggers = [...html.matchAll(/data-focus-trigger="(occurrence-source-[^"]+)"/g)]
+    .map((match) => match[1]);
+  assert.equal(provenanceTriggers.length, map.occurrences.length);
+  assert.equal(new Set(provenanceTriggers).size, provenanceTriggers.length);
 
   const detail = getSiteReadyCaseDetail(packet, "relation", relationId);
   assert.ok(detail);
@@ -776,16 +806,17 @@ test("same-source relations stay in the accessible ledger and inspector but not 
   assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
 });
 
-test("source selection and relation inspection expose text states and exact support affordances", () => {
+test("occurrence trace and relation inspection expose typed text states and exact support affordances", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const map = deriveInvestigationMap(packet, "event_time");
-  const selectedSourceId = map.sources[0].sourceId;
+  const selectedOccurrenceId = map.occurrences[0].occurrenceId;
   const selectedHtml = renderToStaticMarkup(createElement(InvestigationMapView, {
     packet,
     map,
     timeAxis: "event_time",
     coverageLens: "all",
-    selectedNodeId: selectedSourceId,
+    selectedKind: "claim_occurrence",
+    selectedNodeId: selectedOccurrenceId,
     selectedEdgeId: null,
     threadTraceActive: true,
     liveEnabled: false,
@@ -798,12 +829,11 @@ test("source selection and relation inspection expose text states and exact supp
     onShowFullMap: noop,
     onExpandCoverage: noop,
   }));
-  assert.match(selectedHtml, /Thread trace active/);
-  assert.match(selectedHtml, /Selected source/);
-  assert.match(selectedHtml, /Trace this thread|Thread trace/);
+  assert.match(selectedHtml, /Trace active/);
+  assert.match(selectedHtml, /Candidate thread · 2 occurrences · needs review/);
+  assert.match(selectedHtml, /Candidate thread trace/);
   assert.match(selectedHtml, /Show full map/);
-  assert.match(selectedHtml, /unrelated context remains visible but dimmed/);
-  assert.match(selectedHtml, /data-map-state="dimmed"/);
+  assert.match(selectedHtml, /is-dimmed/);
 
   const relation = packet.relation_candidates[0];
   const relationDetail = {
@@ -831,6 +861,156 @@ test("source selection and relation inspection expose text states and exact supp
   assert.match(detailHtml, new RegExp(relation.right_occurrence_id));
   assert.match(detailHtml, new RegExp(escapeRegex(relation.left_support_reference.evidence_reference)));
   assert.match(detailHtml, new RegExp(escapeRegex(relation.right_support_reference.evidence_reference)));
+});
+
+test("relation, question, and family selection preserve exact Map entity ownership", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const map = deriveInvestigationMap(packet, "event_time");
+  const relation = map.relationLedger[0];
+  assert.ok(relation);
+
+  const renderMap = (
+    selectedKind: FocusSelection["kind"] | null,
+    selectedNodeId: string | null,
+    selectedEdgeId: string | null,
+  ) =>
+    renderToStaticMarkup(createElement(InvestigationMapView, {
+      packet,
+      map,
+      timeAxis: "event_time",
+      coverageLens: "all",
+      selectedKind,
+      selectedNodeId,
+      selectedEdgeId,
+      threadTraceActive: false,
+      liveEnabled: false,
+      runBlocked: false,
+      runStatusLabel: null,
+      onTimeAxisChange: noop,
+      onCoverageLensChange: noop,
+      onFocus: noop,
+      onTraceThread: noop,
+      onShowFullMap: noop,
+      onExpandCoverage: noop,
+    }));
+  const occurrenceArticle = (html: string, occurrenceId: string) => {
+    const escapedId = escapeRegex(occurrenceId);
+    const tag = html.match(new RegExp(`<article class="[^"]*" data-occurrence-id="${escapedId}"`))?.[0];
+    assert.ok(tag);
+    return tag;
+  };
+
+  const relationHtml = renderMap("relation", null, relation.relationId);
+  assert.doesNotMatch(occurrenceArticle(relationHtml, relation.leftOccurrenceId), /is-dimmed/);
+  assert.doesNotMatch(occurrenceArticle(relationHtml, relation.rightOccurrenceId), /is-dimmed/);
+  const unrelatedOccurrence = map.occurrences.find((occurrence) =>
+    occurrence.occurrenceId !== relation.leftOccurrenceId
+      && occurrence.occurrenceId !== relation.rightOccurrenceId
+  );
+  assert.ok(unrelatedOccurrence);
+  assert.match(occurrenceArticle(relationHtml, unrelatedOccurrence.occurrenceId), /is-dimmed/);
+
+  const anchoredQuestion = map.questions.find((question) => question.occurrenceAnchorIds.length > 0);
+  assert.ok(anchoredQuestion);
+  const questionHtml = renderMap("unresolved_question", anchoredQuestion.nodeId, null);
+  for (const occurrence of map.occurrences) {
+    const tag = occurrenceArticle(questionHtml, occurrence.occurrenceId);
+    if (anchoredQuestion.occurrenceAnchorIds.includes(occurrence.occurrenceId)) {
+      assert.doesNotMatch(tag, /is-dimmed/);
+    } else {
+      assert.match(tag, /is-dimmed/);
+    }
+  }
+
+  const familyRow = map.rows.find((row) => row.familyId);
+  assert.ok(familyRow?.familyId);
+  const familyHtml = renderMap("claim_family", familyRow.familyId, null);
+  assert.doesNotMatch(familyHtml, /claim-occurrence-card is-selected/);
+  assert.match(familyHtml, /claim-row row-candidate_thread is-selected/);
+  assert.match(familyHtml, /claim-row-heading is-selected/);
+  assert.match(familyHtml, new RegExp(`data-focus-id="${escapeRegex(familyRow.familyId)}"`));
+});
+
+test("the desktop Unplaced continuation does not duplicate a family inspection control", () => {
+  const packet = structuredClone(buildPreparedSiteReadyCasePacket());
+  const family = packet.candidate_claim_families.find((candidate) =>
+    candidate.occurrence_ids.length > 1
+  );
+  assert.ok(family);
+  const unplacedOccurrence = packet.claim_occurrences.find((occurrence) =>
+    occurrence.occurrence_id === family.occurrence_ids[1]
+  );
+  assert.ok(unplacedOccurrence);
+  unplacedOccurrence.event_time_candidate = null;
+  unplacedOccurrence.event_time_candidate_precision = null;
+  const map = deriveInvestigationMap(packet, "event_time");
+  const html = renderToStaticMarkup(createElement(InvestigationMapView, {
+    packet,
+    map,
+    timeAxis: "event_time",
+    coverageLens: "all",
+    selectedKind: null,
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    threadTraceActive: false,
+    liveEnabled: false,
+    runBlocked: false,
+    runStatusLabel: null,
+    onTimeAxisChange: noop,
+    onCoverageLensChange: noop,
+    onFocus: noop,
+    onTraceThread: noop,
+    onShowFullMap: noop,
+    onExpandCoverage: noop,
+  }));
+  assert.equal(
+    (html.match(new RegExp(`data-focus-trigger="claim-row:claim_family:${escapeRegex(family.family_id)}"`, "g")) ?? []).length,
+    1,
+  );
+  assert.match(html, /claim-row-heading is-continuation/);
+  assert.match(html, /Unplaced continuation/);
+});
+
+test("typed Map selection prevents packet-valid cross-kind ID collisions", () => {
+  const packet = structuredClone(buildPreparedSiteReadyCasePacket());
+  const familyId = packet.candidate_claim_families.find((family) =>
+    family.occurrence_ids.length > 1
+  )?.family_id;
+  const question = packet.unresolved_questions[0];
+  assert.ok(familyId);
+  assert.ok(question);
+  question.question_id = familyId;
+  const map = deriveInvestigationMap(packet, "event_time");
+
+  const renderCollision = (selectedKind: FocusSelection["kind"]) =>
+    renderToStaticMarkup(createElement(InvestigationMapView, {
+      packet,
+      map,
+      timeAxis: "event_time",
+      coverageLens: "all",
+      selectedKind,
+      selectedNodeId: familyId,
+      selectedEdgeId: null,
+      threadTraceActive: false,
+      liveEnabled: false,
+      runBlocked: false,
+      runStatusLabel: null,
+      onTimeAxisChange: noop,
+      onCoverageLensChange: noop,
+      onFocus: noop,
+      onTraceThread: noop,
+      onShowFullMap: noop,
+      onExpandCoverage: noop,
+    }));
+
+  const questionSelection = renderCollision("unresolved_question");
+  assert.match(questionSelection, /unresolved-question-card is-selected/);
+  assert.doesNotMatch(questionSelection, /claim-row row-candidate_thread is-selected/);
+  assert.doesNotMatch(questionSelection, /claim-row-heading is-selected/);
+
+  const familySelection = renderCollision("claim_family");
+  assert.match(familySelection, /claim-row row-candidate_thread is-selected/);
+  assert.doesNotMatch(familySelection, /unresolved-question-card is-selected/);
 });
 
 test("source inspector prioritizes role, evidence, claims, changes, questions, and progressive provenance", () => {
@@ -1098,6 +1278,7 @@ test("inspection actions have distinguishable accessible names on every repeated
     map: deriveInvestigationMap(packet, "event_time"),
     timeAxis: "event_time",
     coverageLens: "all",
+    selectedKind: null,
     selectedNodeId: null,
     selectedEdgeId: null,
     threadTraceActive: false,
@@ -1111,17 +1292,24 @@ test("inspection actions have distinguishable accessible names on every repeated
     onShowFullMap: noop,
     onExpandCoverage: noop,
   }));
-  assert.match(mapHtml, /data-focus-trigger="mobile-relation:relation:/);
-  assert.match(mapHtml, /data-focus-trigger="relation-list:relation:/);
-  assert.match(mapHtml, /aria-label="Open question node 1:/);
+  assert.match(mapHtml, /data-focus-trigger="claim-occurrence:claim_occurrence:/);
+  assert.match(mapHtml, /data-focus-trigger="occurrence-source-[^"]+:source:/);
+  assert.match(mapHtml, /data-focus-trigger="relation-ledger:relation:/);
+  assert.match(mapHtml, /data-focus-trigger="unresolved-question:unresolved_question:/);
+  assert.match(mapHtml, /aria-label="R1, candidate relation/);
+  assert.match(mapHtml, new RegExp(escapeRegex(packet.claim_occurrences[0].original_claim_text)));
+  const occurrenceButtonTag = mapHtml.match(/<button class="occurrence-body"[^>]*>/)?.[0];
+  assert.ok(occurrenceButtonTag);
+  assert.doesNotMatch(occurrenceButtonTag, /aria-label=/);
   const mapSource = readFileSync(
     new URL("../app/components/InvestigationMapView.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(mapSource, /focusTriggerId\("spatial-relation", selection\)/);
+  assert.match(mapSource, /focusTriggerId\("spatial-relation", relationSelection\(entry\)\)/);
+  assert.match(mapSource, /aria-hidden="true"/);
 });
 
-test("open-question inspector shows only conservatively resolved evidence origins and topic-root unknowns", () => {
+test("unresolved-question inspector exposes typed conservative origins and topic-level unknowns", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const question = packet.unresolved_questions[0];
   const payload = getSiteReadyCaseDetail(packet, "unresolved_question", question.question_id);
@@ -1134,6 +1322,8 @@ test("open-question inspector shows only conservatively resolved evidence origin
     onClose: noop,
   }));
   assert.match(html, /Related evidence origin/);
+  assert.match(html, /Via matching claim occurrences/);
+  assert.match(html, /actor claim resolves to every matching source-local occurrence/);
   assert.match(html, /Record status<\/strong><p>Prepared case record/);
   assert.doesNotMatch(html, /Record status<\/strong><p>canonical/);
   assert.match(html, /Conservative resolution details[\s\S]*Record status enum[\s\S]*canonical/);
@@ -1155,7 +1345,9 @@ test("open-question inspector shows only conservatively resolved evidence origin
     state: "idle",
     onClose: noop,
   }));
-  assert.match(unknownHtml, /resolution stops at the investigation topic; no source edge is added/);
+  assert.match(unknownHtml, /Topic-level evidence gap/);
+  assert.match(unknownHtml, /No claim-occurrence tether is added/);
+  assert.match(unknownHtml, /topic_unknown/);
 });
 
 test("focused record statuses use public boundary labels while exact enums stay in technical disclosure", () => {
@@ -1325,36 +1517,37 @@ test("server-only live flag defaults closed and the disabled route returns a bou
   }
 });
 
-test("measured tablet CSS switches at 920px to the existing vertical investigation path", () => {
+test("920px CSS transforms the same matrix into typed claim chapters with a complete ledger", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const tabletStart = css.indexOf("@media (max-width: 920px)");
   const mobileStart = css.indexOf("@media (max-width: 720px)");
   assert.ok(tabletStart > 0);
   assert.ok(mobileStart > tabletStart);
   const tabletRules = css.slice(tabletStart, mobileStart);
-  assert.match(tabletRules, /\.desktop-map \{ display: none; \}/);
-  assert.match(tabletRules, /\.mobile-investigation-path \{ display: grid/);
-  assert.match(tabletRules, /\.map-orientation-desktop \{ display: none; \}/);
-  assert.match(tabletRules, /\.map-orientation-mobile \{ display: inline; \}/);
-  assert.match(tabletRules, /\.mobile-relation-label \{/);
-  assert.match(tabletRules, /\.mobile-open-questions \{/);
-  assert.match(tabletRules, /\.map-source-node \{ width: 100%; \}/);
+  assert.match(tabletRules, /\.claim-matrix-scroll \{ overflow: visible/);
+  assert.match(tabletRules, /\.claim-time-header \{ display: none; \}/);
+  assert.match(tabletRules, /\.claim-row \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(tabletRules, /\.claim-relation-layer,[\s\S]*?\.spatial-relation-shortcuts \{ display: none; \}/);
+  assert.match(tabletRules, /\.relation-port-list \{/);
+  assert.match(tabletRules, /\.complete-relation-ledger li \{/);
+  assert.match(tabletRules, /\.non-claim-source-section \{ grid-template-columns: minmax\(0, 1fr\)/);
 
   const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
-  assert.match(mobileRules, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(mobileRules, /min-height: 42px/);
+  assert.match(mobileRules, /\.complete-relation-ledger li \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(mobileRules, /\.relation-port-list \{ display: grid/);
   assert.match(mobileRules, /\.focus-toolbar \{ min-height: 0/);
   assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto; height: calc\(100dvh - 16px\)/);
   assert.doesNotMatch(mobileRules, /width:\s*100vw/);
 });
 
-test("Map ships distinct desktop and mobile orientation copy with CSS-only visibility", () => {
+test("Map ships one semantic tree whose row identities survive the responsive transformation", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const html = renderToStaticMarkup(createElement(InvestigationMapView, {
     packet,
     map: deriveInvestigationMap(packet, "event_time"),
     timeAxis: "event_time",
     coverageLens: "all",
+    selectedKind: null,
     selectedNodeId: null,
     selectedEdgeId: null,
     threadTraceActive: false,
@@ -1368,52 +1561,58 @@ test("Map ships distinct desktop and mobile orientation copy with CSS-only visib
     onShowFullMap: noop,
     onExpandCoverage: noop,
   }));
-  assert.match(html, /map-orientation-desktop[^>]*>\s*Calendar dates move left to right/);
-  assert.match(html, /map-orientation-mobile[^>]*>\s*Calendar dates run top to bottom on this screen/);
-  assert.doesNotMatch(html, /class="desktop-map"[^>]*(?:role="region"|tabindex="0")/);
+  assert.equal((html.match(/data-occurrence-id=/g) ?? []).length, 3);
+  assert.equal((html.match(/<section class="claim-row [^"]*"[^>]*data-row-kind="candidate_thread"/g) ?? []).length, 1);
+  assert.equal((html.match(/<section class="claim-row [^"]*"[^>]*data-row-kind="standalone_occurrence"/g) ?? []).length, 1);
+  assert.match(html, /Candidate thread · 2 occurrences · needs review/);
+  assert.match(html, /Standalone claim occurrence · grouping unresolved/);
+  assert.match(html, /href="#candidate-relations"/);
+  assert.match(html, /href="#unresolved-evidence-questions"/);
+  assert.doesNotMatch(html, /mobile-investigation-path/);
   assert.doesNotMatch(html, /aria-describedby="map-canvas-scroll-hint"/);
   assert.doesNotMatch(html, /id="map-canvas-scroll-hint"/);
 
-  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  const defaultRules = css.slice(0, css.indexOf("@media (max-width: 920px)"));
-  assert.match(defaultRules, /\.map-orientation-mobile \{ display: none; \}/);
+  const mapSource = readFileSync(
+    new URL("../app/components/InvestigationMapView.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.equal((mapSource.match(/<ClaimRow/g) ?? []).length, 1);
+  assert.doesNotMatch(mapSource, /mobile-investigation-path|desktop-map/);
 });
 
-test("desktop map activates keyboard scrolling only for measured horizontal overflow", () => {
+test("matrix activates keyboard scrolling only for measured horizontal overflow", () => {
   assert.equal(mapCanvasHasHorizontalOverflow(1150, 1150), false);
   assert.equal(mapCanvasHasHorizontalOverflow(1151, 1150), false);
   assert.equal(mapCanvasHasHorizontalOverflow(1152, 1150), true);
   assert.equal(mapCanvasHasHorizontalOverflow(1112, 773), true);
 
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  const desktopRules = css.slice(
-    css.indexOf(".desktop-map"),
-    css.indexOf(".mobile-investigation-path { display: none; }") + 46,
+  const matrixRules = css.slice(
+    css.indexOf("/* Temporal Claim-Lineage Matrix v1 */"),
+    css.indexOf("@media (max-width: 1200px)"),
   );
-  assert.match(desktopRules, /\.spatial-connection-layer \{/);
-  assert.match(desktopRules, /\.desktop-map \{[\s\S]*?overflow-x: auto/);
-  assert.match(desktopRules, /\.spatial-map-stage \{[\s\S]*?min-width: 1080px/);
-  assert.match(desktopRules, /\.spatial-relation-path \{[\s\S]*?stroke-width: 2\.4/);
-  assert.match(desktopRules, /\.spatial-question-path \{[\s\S]*?stroke-dasharray: 7 6/);
-  assert.match(desktopRules, /\.spatial-relation-controls button span,[\s\S]*?font-size: \.8rem/);
-  assert.match(desktopRules, /\.map-time-scale small \{[\s\S]*?font-size: \.78rem/);
-  assert.match(desktopRules, /\.node-state-text,[\s\S]*?font-size: \.78rem/);
-  assert.match(desktopRules, /\.map-source-publisher \{[\s\S]*?font-size: \.84rem/);
-  assert.match(desktopRules, /\.map-node-time \{[\s\S]*?font-size: \.8rem/);
-  assert.match(desktopRules, /\.question-connector \{[\s\S]*?font-size: \.78rem/);
+  assert.match(matrixRules, /\.claim-relation-layer \{/);
+  assert.match(matrixRules, /\.map-primary-grid \{[\s\S]*?z-index: auto/);
+  assert.match(matrixRules, /\.claim-relation-layer \{[\s\S]*?z-index: 2/);
+  assert.match(matrixRules, /\.claim-occurrence-card \{[\s\S]*?z-index: 3/);
+  assert.match(matrixRules, /\.claim-matrix-scroll \{[\s\S]*?overflow-x: auto/);
+  assert.match(matrixRules, /\.claim-matrix-stage \{[\s\S]*?min-width: max/);
+  assert.match(matrixRules, /\.claim-relation-path \{[\s\S]*?stroke-width:/);
+  assert.match(matrixRules, /\.question-evidence-tether \{[\s\S]*?stroke-dasharray:/);
+  assert.match(matrixRules, /\.occurrence-claim-text \{[\s\S]*?-webkit-line-clamp: 4/);
   const mapSource = readFileSync(
     new URL("../app/components/InvestigationMapView.tsx", import.meta.url),
     "utf8",
   );
   assert.match(mapSource, /observer\.observe\(scrollContainer\)/);
-  assert.match(mapSource, /role=\{desktopMapOverflowing \? "region" : undefined\}/);
-  assert.match(mapSource, /tabIndex=\{desktopMapOverflowing \? 0 : undefined\}/);
-  assert.match(mapSource, /aria-describedby=\{desktopMapOverflowing \? "map-canvas-scroll-hint" : undefined\}/);
-  assert.match(mapSource, /onKeyDown=\{desktopMapOverflowing \? \(\(event/);
+  assert.match(mapSource, /role=\{matrixOverflowing \? "region" : undefined\}/);
+  assert.match(mapSource, /tabIndex=\{matrixOverflowing \? 0 : undefined\}/);
+  assert.match(mapSource, /aria-describedby=\{matrixOverflowing \? "map-canvas-scroll-hint" : undefined\}/);
+  assert.match(mapSource, /onKeyDown=\{matrixOverflowing \? handleAnalyticalScrollKey : undefined\}/);
   assert.match(mapSource, /if \(!mapCanvasHasHorizontalOverflow\([\s\S]*?\)\) return;/);
-  assert.match(mapSource, /event\.currentTarget\.scrollLeft \+= scrollStep/);
-  assert.match(mapSource, /event\.currentTarget\.scrollLeft = maxScrollLeft/);
-  assert.match(mapSource, /desktopMapOverflowing \? \([\s\S]*?id="map-canvas-scroll-hint"/);
+  assert.match(mapSource, /container\.scrollLeft \+= scrollStep/);
+  assert.match(mapSource, /container\.scrollLeft = maxScrollLeft/);
+  assert.match(mapSource, /matrixOverflowing \? \([\s\S]*?id="map-canvas-scroll-hint"/);
 });
 
 function escapeRegex(value: string): string {
