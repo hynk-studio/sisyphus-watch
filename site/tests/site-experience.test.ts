@@ -1540,6 +1540,47 @@ test("920px CSS transforms the same matrix into typed claim chapters with a comp
   assert.doesNotMatch(mobileRules, /width:\s*100vw/);
 });
 
+test("Map analytical typography preserves a readable primary and important hierarchy", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const mapStart = css.indexOf("/* Temporal Claim-Lineage Matrix v1 */");
+  const responsiveStart = css.indexOf("@media (max-width: 1200px)");
+  assert.ok(mapStart > 0);
+  assert.ok(responsiveStart > mapStart);
+  const mapRules = css.slice(mapStart, responsiveStart);
+
+  assert.match(mapRules, /--map-font-primary-claim: 1rem/);
+  assert.match(mapRules, /--map-font-primary-question: \.94rem/);
+  assert.match(mapRules, /--map-font-prominent: \.875rem/);
+  assert.match(mapRules, /--map-font-important: \.84rem/);
+  assert.match(mapRules, /--map-font-supporting: \.8rem/);
+  assert.match(mapRules, /--map-font-technical: \.75rem/);
+
+  assert.match(mapRules, /\.occurrence-claim-text \{[\s\S]*?font-size: var\(--map-font-primary-claim\)/);
+  assert.match(mapRules, /\.unresolved-question-card strong \{[^}]*font-size: var\(--map-font-primary-question\)/);
+  assert.match(mapRules, /\.occurrence-actor \{[^}]*font-size: var\(--map-font-prominent\)/);
+  assert.match(mapRules, /\.occurrence-time \{[^}]*font-size: var\(--map-font-important\)/);
+  assert.match(mapRules, /\.occurrence-provenance \.source-role-badge \{[^}]*font-size: var\(--map-font-supporting\)/);
+  assert.match(mapRules, /\.occurrence-provenance strong \{[^}]*font-size: var\(--map-font-important\)/);
+  assert.match(mapRules, /\.relation-shortcut span \{[^}]*font-size: var\(--map-font-important\)/);
+  assert.match(mapRules, /\.relation-port-list span,[\s\S]*?font-size: var\(--map-font-supporting\)/);
+  assert.match(mapRules, /\.question-origin-chip b \{[^}]*font-size: var\(--map-font-important\)/);
+  assert.match(mapRules, /\.question-origin-chip small \{[^}]*font-size: var\(--map-font-supporting\)/);
+  assert.match(mapRules, /\.ledger-endpoint strong \{[^}]*font-size: var\(--map-font-prominent\)/);
+  assert.match(mapRules, /\.ledger-endpoint span \{[^}]*font-size: var\(--map-font-important\)/);
+  assert.match(mapRules, /\.ledger-endpoint time \{[^}]*font-size: var\(--map-font-supporting\)/);
+  assert.match(mapRules, /\.complete-relation-ledger li > button strong \{[^}]*font-size: var\(--map-font-important\)/);
+  assert.match(mapRules, /\.non-claim-source-card span:not\(\.source-role-badge\) \{[^}]*font-size: var\(--map-font-prominent\)/);
+  assert.match(mapRules, /\.non-claim-source-card time,[\s\S]*?font-size: var\(--map-font-supporting\)/);
+  assert.match(mapRules, /\.map-coverage-strip dt \{[^}]*font-size: var\(--map-font-supporting\)/);
+  assert.match(mapRules, /\.unplaced-occurrence-band > header p:last-child \{[^}]*font-size: var\(--map-font-supporting\)/);
+
+  const compactRules = css.slice(css.indexOf("@media (max-width: 920px)"));
+  assert.doesNotMatch(compactRules, /\.occurrence-claim-text \{[^}]*font-size:\s*\.(?:6|7)\d*rem/);
+  assert.doesNotMatch(compactRules, /\.occurrence-provenance[^}]*font-size:\s*\.(?:6|7[0-4])\d*rem/);
+  assert.doesNotMatch(compactRules, /\.ledger-endpoint[^}]*font-size:\s*\.(?:6|7[0-4])\d*rem/);
+  assert.doesNotMatch(compactRules, /\.question-origin-chip[^}]*font-size:\s*\.(?:6|7[0-4])\d*rem/);
+});
+
 test("Map ships one semantic tree whose row identities survive the responsive transformation", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const html = renderToStaticMarkup(createElement(InvestigationMapView, {
