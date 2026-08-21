@@ -80,7 +80,9 @@ export function SearchComposer({
               <p id="live-input-privacy" className="live-input-privacy">
                 Your question is sent to OpenAI to discover and analyze public sources.
                 Do not enter personal, confidential, sensitive, or identifying information.
-                This release does not persist visitor questions or results. Results may be
+                By default, Sisyphus Watch does not persist visitor questions or results.
+                Selecting Track this topic on this device explicitly stores one compact
+                question-and-evidence snapshot in this browser profile. Results may be
                 incomplete or wrong; records and relations remain review candidates.
               </p>
               <details className="live-privacy-disclosure">
@@ -99,8 +101,16 @@ export function SearchComposer({
                 </p>
                 <p>
                   Server-side aggregate capacity limits bound concurrent, hourly, and
-                  daily work. They do not store visitor identity and therefore do not
-                  guarantee fairness between signed-out visitors.
+                  daily work. D1 admission storage contains aggregate reservation data
+                  only; it does not store visitor questions, results, or identity and
+                  therefore does not guarantee fairness between signed-out visitors.
+                </p>
+                <p>
+                  A Saved Watch is explicit browser-local storage, not D1 or a Sisyphus
+                  account. It remains until you select Forget or clear site data, and
+                  anyone with access to this browser profile may be able to access its
+                  site data. No background checks occur; Check for changes runs only
+                  when you select it.
                 </p>
                 <p>
                   Results can be live, partial, or a clearly labeled prepared fallback.

@@ -1,0 +1,144 @@
+import type {
+  LocalWatchCandidate,
+  LocalWatchRelation,
+  LocalWatchSource,
+} from "./local-watch";
+import { validateLocalWatchSnapshot } from "./local-watch";
+
+export const DELTA_SIGNAL_RELATION_TYPES = [
+  "contradicts",
+  "correction",
+  "supersedes",
+] as const;
+
+export type DeltaSignalRelationType =
+  (typeof DELTA_SIGNAL_RELATION_TYPES)[number];
+
+export interface ChangedCandidateRecord {
+  identity: string;
+  previous: LocalWatchCandidate;
+  current: LocalWatchCandidate;
+  changed_dimensions: Array<
+    | "supporting sources"
+    | "confidence"
+    | "assertion time"
+    | "event time"
+    | "publication time"
+  >;
+}
+
+export interface InvestigationDelta {
+  new_sources: LocalWatchSource[];
+  sources_not_returned: LocalWatchSource[];
+  new_candidates: LocalWatchCandidate[];
+  candidates_not_returned: LocalWatchCandidate[];
+  changed_candidates: ChangedCandidateRecord[];
+  new_contradiction_signals: LocalWatchRelation[];
+  new_correction_signals: LocalWatchRelation[];
+  new_supersession_signals: LocalWatchRelation[];
+  has_deterministic_differences: boolean;
+}
+
+export function compareInvestigationSnapshots(
+  previousInput: unknown,
+  currentInput: unknown,
+): InvestigationDelta {
+  const previous = validateLocalWatchSnapshot(previousInput);
+  const current = validateLocalWatchSnapshot(currentInput);
+
+  const previousSources = keyed(previous.sources);
+  const currentSources = keyed(current.sources);
+  const previousCandidates = keyed(previous.candidates);
+  const currentCandidates = keyed(current.candidates);
+  const previousRelations = keyed(previous.relations);
+
+  const newSources = missingFrom(previousSources, current.sources);
+  const sourcesNotReturned = missingFrom(currentSources, previous.sources);
+  const newCandidates = missingFrom(previousCandidates, current.candidates);
+  const candidatesNotReturned = missingFrom(currentCandidates, previous.candidates);
+  const changedCandidates = current.candidates.flatMap((candidate) => {
+    const prior = previousCandidates.get(candidate.identity);
+    if (!prior) return [];
+    const changedDimensions: ChangedCandidateRecord["changed_dimensions"] = [];
+    if (!sameArray(prior.supporting_source_identities, candidate.supporting_source_identities)) {
+      changedDimensions.push("supporting sources");
+    }
+    if (!sameArray(prior.confidences, candidate.confidences)) {
+      changedDimensions.push("confidence");
+    }
+    if (!sameJson(prior.assertion_times, candidate.assertion_times)) {
+      changedDimensions.push("assertion time");
+    }
+    if (!sameJson(prior.event_times, candidate.event_times)) {
+      changedDimensions.push("event time");
+    }
+    if (!sameJson(prior.publication_times, candidate.publication_times)) {
+      changedDimensions.push("publication time");
+    }
+    return changedDimensions.length > 0
+      ? [{
+          identity: candidate.identity,
+          previous: prior,
+          current: candidate,
+          changed_dimensions: changedDimensions,
+        }]
+      : [];
+  });
+
+  const newRelations = current.relations.filter(
+    (relation) => !previousRelations.has(relation.identity),
+  );
+  const newContradictionSignals = relationSignals(newRelations, "contradicts");
+  const newCorrectionSignals = relationSignals(newRelations, "correction");
+  const newSupersessionSignals = relationSignals(newRelations, "supersedes");
+
+  const categories = [
+    newSources,
+    sourcesNotReturned,
+    newCandidates,
+    candidatesNotReturned,
+    changedCandidates,
+    newContradictionSignals,
+    newCorrectionSignals,
+    newSupersessionSignals,
+  ];
+
+  return {
+    new_sources: newSources,
+    sources_not_returned: sourcesNotReturned,
+    new_candidates: newCandidates,
+    candidates_not_returned: candidatesNotReturned,
+    changed_candidates: changedCandidates,
+    new_contradiction_signals: newContradictionSignals,
+    new_correction_signals: newCorrectionSignals,
+    new_supersession_signals: newSupersessionSignals,
+    has_deterministic_differences: categories.some((category) => category.length > 0),
+  };
+}
+
+function keyed<T extends { identity: string }>(items: T[]): Map<string, T> {
+  return new Map(items.map((item) => [item.identity, item]));
+}
+
+function missingFrom<T extends { identity: string }>(
+  previous: Map<string, T>,
+  current: T[],
+): T[] {
+  return current.filter((item) => !previous.has(item.identity));
+}
+
+function relationSignals(
+  relations: LocalWatchRelation[],
+  relationType: DeltaSignalRelationType,
+): LocalWatchRelation[] {
+  return relations.filter((relation) => relation.relation_type === relationType);
+}
+
+function sameArray(left: string[], right: string[]): boolean {
+  return left.length === right.length
+    && left.every((value, index) => value === right[index]);
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}

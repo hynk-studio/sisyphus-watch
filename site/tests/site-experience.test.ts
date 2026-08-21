@@ -562,11 +562,11 @@ test("memory-only cooldown starts after success and failure and expires on a fak
   now += PUBLIC_LIVE_COOLDOWN_MS;
   assert.ok(guard.begin());
 
-  const implementation = [
-    readFileSync(new URL("../app/lib/public-live.ts", import.meta.url), "utf8"),
-    readFileSync(new URL("../app/components/InvestigationExplorer.tsx", import.meta.url), "utf8"),
-  ].join("\n");
-  assert.doesNotMatch(implementation, /localStorage|sessionStorage|document\.cookie|indexedDB/);
+  const guardImplementation = readFileSync(
+    new URL("../app/lib/public-live.ts", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(guardImplementation, /localStorage|sessionStorage|document\.cookie|indexedDB/);
 });
 
 test("composer disables live starts during cooldown while keeping the prepared example usable", () => {
