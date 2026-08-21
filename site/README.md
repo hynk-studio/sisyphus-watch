@@ -318,6 +318,65 @@ stage does not add another OpenAI client or make a relation-classification API
 call; `model_classified_count` is deterministically zero. The initial packet
 contains no full fixture source text or raw provider response.
 
+## Browser-local Saved Watch and bounded delta
+
+Sisyphus Watch can turn one bounded live investigation into a browser-local
+saved Watch and show deterministic differences when the user explicitly checks
+again. The v1 contract is deliberately limited to one Watch, explicit opt-in,
+and manual rechecks. Completing or viewing a live result does not write browser
+storage; the write occurs only after **Track this topic on this device**. A
+different topic requires an explicit Replace confirmation, and **Forget**
+removes only `sisyphus.local-watch.v1`.
+
+The versioned `sisyphus_local_watch.v1` value stores the normalized question,
+the run's source limit and discovery profile, saved/last-checked timestamps, and
+a validated compact public-source-derived snapshot. It does not store the full
+`SiteReadyCasePacket`, run/provider/search/admission/work-unit IDs, raw provider
+responses, evidence excerpts, supporting-summary spans, source-page text,
+warnings copied wholesale, credentials, headers, cookies, identity, or
+fingerprinting data. Reads occur only after client hydration. The complete
+shape, HTTP(S) URLs, timestamps, enums, cross-references, deterministic ordering,
+and 128 KiB serialized bound are independently validated; malformed,
+unsupported, oversized, tampered, disabled, or quota-failing storage fails
+closed without submitting a question or crashing the page. Snapshots are never
+silently truncated.
+
+Cross-run source identity uses a validated normalized HTTP(S) URL with only the
+fragment removed; query differences remain distinct. Only URL-less sources use
+a normalized domain/publisher/title fallback. Claim identity is exact normalized
+actor (including an explicit unknown state) plus the existing
+`normalized_claim_representation`; there is no fuzzy, model, embedding, or
+run-ID match. Symmetric relation types sort their stable claim endpoints, while
+directional correction/follow-up/narrowing/supersession types retain endpoint
+order.
+
+**Check for changes** reuses the saved question, source bound, discovery profile,
+`POST /api/lineage`, one-in-flight guard, cooldown, validation, and existing
+response-preservation path. Only an explicitly initiated successful live Watch
+recheck can advance the baseline. Normal investigations, coverage-expansion
+runs, prepared examples, fallbacks, capacity denials, malformed responses,
+timeouts, and route failures cannot advance it. If comparison succeeds but the
+new browser write fails, the session can show the delta while clearly retaining
+the prior stored baseline.
+
+The pure comparison reports new sources, sources not returned in this bounded
+run, new/exactly absent/changed claim candidates, and new contradiction,
+correction, and supersession signals. A stable candidate is changed only when
+its support-source set, confidence, or explicit assertion/event/publication time
+and precision changes. Packet order, object order, uncertainty wording, and
+run-local IDs do not create noise. Records and relations remain review
+candidates: absence from a bounded recheck is not deletion, retraction, or
+resolution, and no-difference output does not prove that nothing changed.
+
+This opt-in value is stored in the current browser profile, not D1 or a
+Sisyphus account. It remains until **Forget** or site-data clearing, and anyone
+with access to that browser profile may be able to access its site data. There
+are no background checks, scheduled jobs, notifications, cookies, cross-tab
+synchronization, or account synchronization; a check occurs only after the user
+selects **Check for changes**. Live questions still go to OpenAI through the
+existing public-source workflow. D1 admission continues to contain aggregate
+reservation data only and no visitor question or result packet.
+
 ## Portable public evidence and agent contact
 
 `SiteReadyCasePacket` remains the internal browser/Site read model. BFG8H adds a
@@ -421,11 +480,14 @@ in a later owner-controlled Sites environment step.
 The public route retains the 12–500 normalized-question bound, 4 KB request-body
 bound, public five-source maximum, internal eight-source hard maximum, 64-pair
 relation-work maximum, bounded response structures, provider timeout, no
-arbitrary URL input, no recursive crawling, and no visitor/result persistence.
+arbitrary URL input, no recursive crawling, and no server-side visitor-question
+or result persistence. The separately explicit Saved Watch described above is
+browser-local only and is not written to D1 or a Sisyphus account.
 The browser uses a synchronous one-in-flight request identity guard and a
 30-second in-memory cooldown after success or failure. The cooldown prevents
 accidental repeats in one page session; it is not strong abuse prevention and
-uses no local storage, session storage, cookie, or R2 state. D1 holds only the
+uses no local storage, session storage, cookie, or R2 state. That cooldown is
+independent of the explicit browser-local Watch value. D1 holds only the
 aggregate admission leases described above; it is not a visitor state store.
 
 The installed SDK exposes structured provider error codes. Exact

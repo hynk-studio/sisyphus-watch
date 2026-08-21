@@ -34,11 +34,27 @@ import {
   projectInvestigationMap,
   type CoverageLens,
 } from "../lib/investigation-map";
+import {
+  compareInvestigationSnapshots,
+  type InvestigationDelta,
+} from "../lib/investigation-delta";
 import type {
   SiteReadyCaseDetail,
   SiteReadyCasePacket,
 } from "../lib/lineage/contracts";
 import { getSiteReadyCaseDetail } from "../lib/lineage/details";
+import {
+  LocalWatchContractError,
+  advanceLocalWatch,
+  createLocalWatch,
+  forgetLocalWatch,
+  isSameTrackedTopic,
+  readLocalWatch,
+  watchRecheckInput,
+  writeLocalWatch,
+  type LocalWatch,
+  type LocalWatchStorage,
+} from "../lib/local-watch";
 import type { DiscoveryProfile } from "../lib/source-profile";
 import {
   PublicLiveRunGuard,
@@ -49,6 +65,7 @@ import {
 import { FocusedDetailPanel } from "./FocusedDetailPanel";
 import { ExportInvestigation } from "./ExportInvestigation";
 import { FirstPayoff } from "./FirstPayoff";
+import { InvestigationDeltaPanel } from "./InvestigationDeltaPanel";
 import { InvestigationMapView } from "./InvestigationMapView";
 import {
   MethodView,
@@ -56,6 +73,7 @@ import {
   TimelineView,
 } from "./InvestigationResultViews";
 import { SearchComposer } from "./SearchComposer";
+import { SavedWatchCard } from "./SavedWatchCard";
 import {
   FOCUS_TRIGGER_ATTRIBUTE,
   type FocusHandler,
@@ -137,9 +155,13 @@ function activateButtonFromKeyboard(
 export function CaseExplorer({
   preparedCase,
   liveEnabled = false,
+  runGuardCooldownMs,
+  localWatchStorage,
 }: {
   preparedCase: SiteReadyCasePacket;
   liveEnabled?: boolean;
+  runGuardCooldownMs?: number;
+  localWatchStorage?: LocalWatchStorage | null;
 }) {
   const [packet, setPacket] = useState(preparedCase);
   const [investigationStarted, setInvestigationStarted] = useState(false);
@@ -162,8 +184,15 @@ export function CaseExplorer({
   const [threadTraceActive, setThreadTraceActive] = useState(false);
   const [focusedDetail, setFocusedDetail] = useState<SiteReadyCaseDetail | null>(null);
   const [detailState, setDetailState] = useState<"idle" | "loading" | "error">("idle");
+  const [watchHydrated, setWatchHydrated] = useState(false);
+  const [savedWatch, setSavedWatch] = useState<LocalWatch | null>(null);
+  const [watchNotice, setWatchNotice] = useState<string | null>(null);
+  const [replacementWatch, setReplacementWatch] = useState<LocalWatch | null>(null);
+  const [activeRunKind, setActiveRunKind] = useState<PublicRunKind | null>(null);
+  const [watchDelta, setWatchDelta] = useState<DisplayedWatchDelta | null>(null);
   const detailCache = useRef(new FocusedDetailSupplementCache());
-  const runGuard = useRef(new PublicLiveRunGuard());
+  const runGuard = useRef(new PublicLiveRunGuard({ cooldownMs: runGuardCooldownMs }));
+  const savedWatchRef = useRef<LocalWatch | null>(null);
   const activeDetailKey = useRef<string | null>(null);
   const activatingElement = useRef<HTMLElement | null>(null);
   const activatingTriggerId = useRef<string | null>(null);
@@ -177,6 +206,30 @@ export function CaseExplorer({
     () => projectInvestigationMap(mapBase, timeAxis),
     [mapBase, timeAxis],
   );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const storage = localWatchStorage === undefined
+        ? browserLocalStorage()
+        : localWatchStorage;
+      if (!storage) {
+        setWatchNotice("Browser-local storage is unavailable. Saved Watch controls remain off.");
+        setWatchHydrated(true);
+        return;
+      }
+      const result = readLocalWatch(storage);
+      if (result.status === "valid") {
+        savedWatchRef.current = result.watch;
+        setSavedWatch(result.watch);
+      } else if (result.status === "unavailable") {
+        setWatchNotice("Browser-local storage is unavailable. Saved Watch controls remain off.");
+      } else if (result.status === "invalid") {
+        setWatchNotice("An invalid browser-local Watch was ignored. It was not submitted or opened.");
+      }
+      setWatchHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [localWatchStorage]);
 
   useEffect(() => {
     if (cooldownUntilMs === 0) return;
@@ -257,7 +310,7 @@ export function CaseExplorer({
     question: string;
     sourceLimit: number;
     discoveryProfile: DiscoveryProfile;
-  }) {
+  }, runKind: PublicRunKind = "normal", recheckBaseline?: LocalWatch) {
     if (!liveEnabled) return;
     const requestId = runGuard.current.begin();
     if (requestId === null) return;
@@ -266,6 +319,8 @@ export function CaseExplorer({
     let serverRetryAfterSeconds = 0;
     setRouteError(null);
     setIsLoading(true);
+    setActiveRunKind(runKind);
+    setReplacementWatch(null);
     try {
       const response = await fetch("/api/lineage", {
         method: "POST",
@@ -281,7 +336,7 @@ export function CaseExplorer({
       );
       const decision = decidePublicRunResponse(payload, {
         responseOk: response.ok,
-        hadDisplayedInvestigation,
+        hadDisplayedInvestigation: hadDisplayedInvestigation || runKind === "watch_recheck",
         retryAfterSeconds: serverRetryAfterSeconds,
       });
       if (decision.kind === "preserve") {
@@ -289,12 +344,64 @@ export function CaseExplorer({
         return;
       }
       const nextPacket = decision.packet;
+      let pendingWatchUpdate: {
+        baseline: LocalWatch;
+        updated: LocalWatch;
+        delta: InvestigationDelta;
+      } | null = null;
+      if (runKind === "watch_recheck" && nextPacket.mode === "live" && recheckBaseline) {
+        const currentWatch = savedWatchRef.current;
+        const sameStillSaved = currentWatch?.saved_at === recheckBaseline.saved_at
+          && currentWatch.normalized_public_interest_question
+            === recheckBaseline.normalized_public_interest_question;
+        if (sameStillSaved) {
+          try {
+            const updated = advanceLocalWatch(recheckBaseline, nextPacket, new Date());
+            pendingWatchUpdate = {
+              baseline: recheckBaseline,
+              updated,
+              delta: compareInvestigationSnapshots(
+                recheckBaseline.snapshot,
+                updated.snapshot,
+              ),
+            };
+          } catch (error) {
+            setRouteError(localWatchBuildFailureMessage(error));
+            return;
+          }
+        }
+      }
       setPacket(nextPacket);
       dispatchTimeAxis({ type: "display_packet", packet: nextPacket });
       setInvestigationStarted(true);
       setActiveView("map");
       setCoverageLens("all");
       clearDetail();
+      if (runKind !== "watch_recheck") setWatchDelta(null);
+      if (pendingWatchUpdate) {
+        const storage = localWatchStorage === undefined
+          ? browserLocalStorage()
+          : localWatchStorage;
+        const writeResult = storage
+          ? writeLocalWatch(storage, pendingWatchUpdate.updated)
+          : { ok: false as const, reason: "unavailable" as const };
+        if (writeResult.ok) {
+          savedWatchRef.current = pendingWatchUpdate.updated;
+          setSavedWatch(pendingWatchUpdate.updated);
+          setWatchNotice("Saved Watch checked and browser baseline updated.");
+        } else {
+          setWatchNotice(
+            "The comparison completed, but the prior browser baseline remains because the update could not be stored.",
+          );
+        }
+        setWatchDelta({
+          delta: pendingWatchUpdate.delta,
+          previousSnapshot: pendingWatchUpdate.baseline.snapshot,
+          currentSnapshot: pendingWatchUpdate.updated.snapshot,
+          previousCheckedAt: pendingWatchUpdate.baseline.last_checked_at,
+          baselineUpdateState: writeResult.ok ? "updated" : "failed",
+        });
+      }
       outcome = nextPacket.mode === "live" ? "success" : "failure";
     } catch {
       if (runGuard.current.acceptsResponse(requestId)) {
@@ -308,6 +415,7 @@ export function CaseExplorer({
       )) {
         const state = runGuard.current.state();
         setIsLoading(false);
+        setActiveRunKind(null);
         setCooldownUntilMs(state.cooldownUntilMs);
         setCooldownRemainingSeconds(state.cooldownRemainingSeconds);
       }
@@ -327,6 +435,8 @@ export function CaseExplorer({
     dispatchTimeAxis({ type: "display_packet", packet: preparedCase });
     setCoverageLens("all");
     setRouteError(null);
+    setWatchDelta(null);
+    setReplacementWatch(null);
     clearDetail();
   }
 
@@ -337,6 +447,8 @@ export function CaseExplorer({
     setActiveView("map");
     setCoverageLens("all");
     setRouteError(null);
+    setWatchDelta(null);
+    setReplacementWatch(null);
     clearDetail();
     requestAnimationFrame(() => {
       document.getElementById(
@@ -403,6 +515,81 @@ export function CaseExplorer({
     clearDetail();
   }
 
+  function trackDisplayedPacket() {
+    if (packet.mode !== "live") return;
+    let candidate: LocalWatch;
+    try {
+      candidate = createLocalWatch(packet, new Date());
+    } catch (error) {
+      setWatchNotice(localWatchBuildFailureMessage(error));
+      return;
+    }
+    const current = savedWatchRef.current;
+    if (current && !isSameTrackedTopic(current, packet)) {
+      setReplacementWatch(candidate);
+      setWatchNotice(null);
+      return;
+    }
+    if (current) {
+      setWatchNotice(
+        "This topic is already tracked. Use Check for changes to compare and advance its baseline.",
+      );
+      return;
+    }
+    persistTrackedWatch(candidate, false);
+  }
+
+  function persistTrackedWatch(candidate: LocalWatch, replacing: boolean) {
+    const storage = localWatchStorage === undefined
+      ? browserLocalStorage()
+      : localWatchStorage;
+    const result = storage
+      ? writeLocalWatch(storage, candidate)
+      : { ok: false as const, reason: "unavailable" as const };
+    if (!result.ok) {
+      setWatchNotice(
+        result.reason === "oversized"
+          ? "This result is too large for the bounded browser-local snapshot and was not saved."
+          : "This browser could not store the Saved Watch. The current investigation remains unchanged.",
+      );
+      return;
+    }
+    savedWatchRef.current = candidate;
+    setSavedWatch(candidate);
+    setReplacementWatch(null);
+    if (replacing) setWatchDelta(null);
+    setWatchNotice(
+      replacing
+        ? "Saved Watch replaced after explicit confirmation. No comparison was synthesized."
+        : "Saved Watch stored in this browser profile. No background check was started.",
+    );
+  }
+
+  function checkSavedWatch() {
+    const watch = savedWatchRef.current;
+    if (!watch) return;
+    setReplacementWatch(null);
+    void runAnalysis(watchRecheckInput(watch), "watch_recheck", watch);
+  }
+
+  function forgetSavedWatchFromDevice() {
+    const storage = localWatchStorage === undefined
+      ? browserLocalStorage()
+      : localWatchStorage;
+    const result = storage
+      ? forgetLocalWatch(storage)
+      : { ok: false as const, reason: "unavailable" as const };
+    if (!result.ok) {
+      setWatchNotice("The Saved Watch could not be forgotten because browser storage is unavailable.");
+      return;
+    }
+    savedWatchRef.current = null;
+    setSavedWatch(null);
+    setReplacementWatch(null);
+    setWatchDelta(null);
+    setWatchNotice("Saved Watch forgotten from this browser profile.");
+  }
+
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let nextIndex: number | null = null;
     if (event.key === "ArrowRight") nextIndex = (index + 1) % EXPERIENCE_VIEWS.length;
@@ -451,6 +638,24 @@ export function CaseExplorer({
         />
         <span className="header-note">A version map for changing public information</span>
       </header>
+
+      {watchHydrated && savedWatch ? (
+        <SavedWatchCard
+          watch={savedWatch}
+          liveEnabled={liveEnabled}
+          isLoading={isLoading}
+          isWatchRechecking={isLoading && activeRunKind === "watch_recheck"}
+          cooldownRemainingSeconds={cooldownRemainingSeconds}
+          onCheck={checkSavedWatch}
+          onForget={forgetSavedWatchFromDevice}
+        />
+      ) : null}
+
+      {watchHydrated && watchNotice ? (
+        <p className="local-watch-notice" role="status" aria-live="polite">
+          {watchNotice}
+        </p>
+      ) : null}
 
       <SearchComposer
         question={question}
@@ -502,6 +707,61 @@ export function CaseExplorer({
             <strong>{runNotice.title}</strong>
             <span>{runNotice.message}</span>
           </div>
+
+          {watchDelta ? (
+            <InvestigationDeltaPanel
+              delta={watchDelta.delta}
+              previousSnapshot={watchDelta.previousSnapshot}
+              currentSnapshot={watchDelta.currentSnapshot}
+              previousCheckedAt={watchDelta.previousCheckedAt}
+              baselineUpdateState={watchDelta.baselineUpdateState}
+            />
+          ) : null}
+
+          {packet.mode === "live" ? (
+            <section className="track-watch-panel" aria-label="Track this live investigation">
+              {savedWatch && isSameTrackedTopic(savedWatch, packet) ? (
+                <div className="track-watch-status">
+                  <strong>Tracked on this device</strong>
+                  <span>
+                    Ordinary runs do not reset the baseline. Use Check for changes from
+                    Saved watch to compare and advance it.
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <strong>Continue this investigation later</strong>
+                    <span>
+                      Save one compact public-source snapshot in this browser profile.
+                    </span>
+                  </div>
+                  <button type="button" onClick={trackDisplayedPacket}>
+                    Track this topic on this device
+                  </button>
+                </>
+              )}
+              {replacementWatch ? (
+                <div className="track-watch-replace" role="alert">
+                  <p>
+                    A different Saved Watch already exists. Replace it with {" “"}
+                    {replacementWatch.normalized_public_interest_question}”?
+                  </p>
+                  <div>
+                    <button type="button" onClick={() => setReplacementWatch(null)}>
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => persistTrackedWatch(replacementWatch, true)}
+                    >
+                      Replace saved Watch
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           <FirstPayoff packet={packet} onFocus={openPayoffSource} />
 
@@ -565,7 +825,7 @@ export function CaseExplorer({
                     question: packet.normalized_public_interest_question,
                     sourceLimit: publicRerunSourceLimit(packet.requested_source_limit),
                     discoveryProfile: "coverage_expansion",
-                  })}
+                  }, "coverage_expansion")}
                 />
               ) : null}
               {activeView === "timeline" ? (
@@ -750,4 +1010,29 @@ export function AnalysisResult({ run }: { run: AnalysisRunPacket }) {
       </ul>
     </section>
   );
+}
+
+type PublicRunKind = "normal" | "coverage_expansion" | "watch_recheck";
+
+interface DisplayedWatchDelta {
+  delta: InvestigationDelta;
+  previousSnapshot: LocalWatch["snapshot"];
+  currentSnapshot: LocalWatch["snapshot"];
+  previousCheckedAt: string;
+  baselineUpdateState: "updated" | "failed";
+}
+
+function browserLocalStorage(): LocalWatchStorage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function localWatchBuildFailureMessage(error: unknown): string {
+  if (error instanceof LocalWatchContractError && error.reason === "oversized") {
+    return "The compact browser snapshot would exceed its explicit size bound. The displayed investigation and prior Saved Watch remain unchanged.";
+  }
+  return "The compact browser snapshot could not be validated safely. The displayed investigation and prior Saved Watch remain unchanged.";
 }

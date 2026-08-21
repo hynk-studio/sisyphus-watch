@@ -8,6 +8,16 @@ The local ChatGPT Sites foundation lives in [`site/`](site/README.md). It adapts
 one existing deterministic community-impact fixture into a Sites-compatible
 TypeScript project without depending on the Python notebook as a hosted backend.
 
+The Site can turn one bounded live investigation into a browser-local Saved
+Watch when the user explicitly selects **Track this topic on this device**.
+Selecting **Check for changes** manually reruns the same saved question and
+bounded configuration, then compares a compact prior snapshot with the new live
+result. The v1 feature stores exactly one Watch in that browser profile; it has
+no background polling, notification, account sync, or server-side visitor-state
+persistence. Candidate records and relations remain review-only, and material
+not returned by a later bounded run is not described as deleted or resolved.
+Selecting **Forget** removes the owned browser-local Watch key.
+
 This first build is a Kaggle Code-native vertical slice for the Kaggle 5-Day AI Agents Intensive Vibe Coding Course with Google. It is not a production news platform.
 
 ## What It Is

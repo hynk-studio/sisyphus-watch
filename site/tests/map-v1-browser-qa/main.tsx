@@ -20,12 +20,29 @@ import {
 import { buildPreparedSiteReadyCasePacket } from "../../app/lib/lineage/builder";
 import type { SiteReadyCasePacket } from "../../app/lib/lineage/contracts";
 import { getSiteReadyCaseDetail } from "../../app/lib/lineage/details";
+import {
+  buildLocalWatchSnapshot,
+  readLocalWatch,
+  type LocalWatchStorage,
+} from "../../app/lib/local-watch";
 import type { TimeAxis } from "../../app/lib/experience";
 import {
   buildMapDensityFixture,
   buildUnplacedOccurrenceFixture,
 } from "../fixtures/map-density";
 import { buildTemporalAcceptanceFixture } from "../fixtures/temporal-acceptance";
+import {
+  buildSavedWatchFallbackPacket,
+  buildSavedWatchPacketA,
+  buildSavedWatchPacketB,
+} from "../fixtures/saved-watch";
+
+const REQUESTED_SURFACE = new URLSearchParams(window.location.search).get("surface");
+const STORAGE_UNAVAILABLE_SURFACE = "watch-storage-unavailable";
+
+if (REQUESTED_SURFACE === "watch" || REQUESTED_SURFACE === STORAGE_UNAVAILABLE_SURFACE) {
+  installSavedWatchFetchMock(REQUESTED_SURFACE === STORAGE_UNAVAILABLE_SURFACE);
+}
 
 const FIXTURE_BUILDERS = {
   prepared: buildPreparedSiteReadyCasePacket,
@@ -48,7 +65,7 @@ const FIXTURE_LABELS: Record<FixtureName, string> = {
 };
 
 function MapQaApp() {
-  const surface = new URLSearchParams(window.location.search).get("surface");
+  const surface = REQUESTED_SURFACE;
   const [fixtureName, setFixtureName] = useState<FixtureName>("prepared");
   const packet = useMemo(
     () => FIXTURE_BUILDERS[fixtureName](),
@@ -99,6 +116,19 @@ function MapQaApp() {
 
   if (surface === "loading") return <LoadingComposerHarness />;
 
+  if (surface === "watch" || surface === STORAGE_UNAVAILABLE_SURFACE) {
+    return (
+      <CaseExplorer
+        preparedCase={buildPreparedSiteReadyCasePacket()}
+        liveEnabled={true}
+        runGuardCooldownMs={0}
+        localWatchStorage={surface === STORAGE_UNAVAILABLE_SURFACE
+          ? unavailableStorage
+          : undefined}
+      />
+    );
+  }
+
   if (surface === "experience" || surface === "temporal") {
     return (
       <CaseExplorer
@@ -141,6 +171,70 @@ function MapQaApp() {
       <MountedMap key={fixtureName} packet={packet} fixtureName={fixtureName} />
     </main>
   );
+}
+
+const unavailableStorage: LocalWatchStorage = {
+  getItem() {
+    throw new Error("Deterministic QA storage read unavailable");
+  },
+  setItem() {
+    throw new Error("Deterministic QA storage write unavailable");
+  },
+  removeItem() {
+    throw new Error("Deterministic QA storage remove unavailable");
+  },
+};
+
+function installSavedWatchFetchMock(storageUnavailable: boolean) {
+  const packetA = buildSavedWatchPacketA();
+  const packetB = buildSavedWatchPacketB();
+  const fallback = buildSavedWatchFallbackPacket();
+  const packetASnapshot = JSON.stringify(buildLocalWatchSnapshot(packetA));
+  const packetBSnapshot = JSON.stringify(buildLocalWatchSnapshot(packetB));
+
+  window.fetch = async (input, init) => {
+    const requestUrl = new URL(
+      typeof input === "string" || input instanceof URL ? String(input) : input.url,
+      window.location.href,
+    );
+    if (requestUrl.pathname !== "/api/lineage" || init?.method !== "POST") {
+      throw new Error(`Browser QA blocks non-mock request: ${requestUrl.pathname}`);
+    }
+    const body = typeof init.body === "string"
+      ? JSON.parse(init.body) as { question?: unknown }
+      : {};
+    let packet: SiteReadyCasePacket = packetA;
+    if (!storageUnavailable) {
+      const stored = readLocalWatch(window.localStorage);
+      if (
+        stored.status === "valid"
+        && typeof body.question === "string"
+        && body.question !== stored.watch.normalized_public_interest_question
+      ) {
+        packet = structuredClone(packetA);
+        packet.run_id = "watch_fixture_different_topic";
+        packet.normalized_public_interest_question = body.question;
+        packet.title = `Candidate lineage: ${body.question}`;
+      } else if (stored.status === "valid") {
+        const storedSnapshot = JSON.stringify(stored.watch.snapshot);
+        packet = storedSnapshot === packetASnapshot
+          ? packetB
+          : storedSnapshot === packetBSnapshot
+            ? fallback
+            : packetA;
+      }
+    }
+    console.info("Saved Watch browser-QA mock response", {
+      run: packet.run_id,
+      mode: packet.mode,
+      localOnly: true,
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
+    return new Response(JSON.stringify(packet), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
 }
 
 function LoadingComposerHarness() {

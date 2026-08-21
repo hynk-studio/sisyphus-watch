@@ -33,6 +33,22 @@ http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=temporal
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=loading
 ```
 
+For the browser-local Saved Watch loop and the storage-unavailable state, use:
+
+```text
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-storage-unavailable
+```
+
+The Watch surface mounts the production `CaseExplorer` and replaces only its
+test-page `fetch` function with a deterministic same-page sequence: packet A,
+packet B, then one fallback. The sequence is selected from the validated owned
+Watch key, so a real reload exercises restoration without adding another
+browser-storage key. Requests that are not the mocked `/api/lineage` POST throw
+locally before any network traffic. The unavailable surface injects a storage
+adapter whose read, write, and remove operations throw, while keeping the same
+local packet-A response.
+
 The temporal surface starts only the local synthetic packet when the prepared
 example control is activated. The loading surface passes `isLoading=true`
 directly to the production composer; neither surface submits `/api/lineage`.
