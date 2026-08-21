@@ -360,7 +360,7 @@ export function normalizedRelationEndpoints(
 ): { left: string; right: string } {
   if (
     SYMMETRIC_RELATION_TYPES.has(relationType)
-    && rightClaimIdentity.localeCompare(leftClaimIdentity) < 0
+    && compareCanonicalWatchStrings(rightClaimIdentity, leftClaimIdentity) < 0
   ) {
     return { left: rightClaimIdentity, right: leftClaimIdentity };
   }
@@ -405,7 +405,10 @@ export function buildLocalWatchSnapshot(input: unknown): LocalWatchSnapshot {
     };
     sourceIdentityByRunId.set(packetSource.source_id, source.identity);
     const existing = sourceByIdentity.get(source.identity);
-    if (!existing || stableJson(source).localeCompare(stableJson(existing)) < 0) {
+    if (
+      !existing
+      || compareCanonicalWatchStrings(stableJson(source), stableJson(existing)) < 0
+    ) {
       sourceByIdentity.set(source.identity, source);
     }
   }
@@ -481,16 +484,20 @@ export function buildLocalWatchSnapshot(input: unknown): LocalWatchSnapshot {
       identity: candidate.identity,
       actor: candidate.actorWasNull
         ? null
-        : [...candidate.actorValues].sort()[0] ?? null,
-      text: [...candidate.texts].sort()[0],
-      normalized_claim_representation: [...candidate.normalizedValues].sort()[0],
-      supporting_source_identities: [...candidate.supportingSourceIdentities].sort(),
-      confidences: [...candidate.confidences].sort(),
+        : [...candidate.actorValues].sort(compareCanonicalWatchStrings)[0] ?? null,
+      text: [...candidate.texts].sort(compareCanonicalWatchStrings)[0],
+      normalized_claim_representation:
+        [...candidate.normalizedValues].sort(compareCanonicalWatchStrings)[0],
+      supporting_source_identities:
+        [...candidate.supportingSourceIdentities].sort(compareCanonicalWatchStrings),
+      confidences: [...candidate.confidences].sort(compareCanonicalWatchStrings),
       assertion_times: [...candidate.assertionTimes.values()].sort(compareTimestamp),
       event_times: [...candidate.eventTimes.values()].sort(compareTimestamp),
       publication_times: [...candidate.publicationTimes.values()].sort(compareTimestamp),
     }))
-    .sort((left, right) => left.identity.localeCompare(right.identity));
+    .sort((left, right) =>
+      compareCanonicalWatchStrings(left.identity, right.identity)
+    );
 
   const relationByIdentity = new Map<string, LocalWatchRelation>();
   for (const packetRelation of packet.relation_candidates) {
@@ -522,11 +529,11 @@ export function buildLocalWatchSnapshot(input: unknown): LocalWatchSnapshot {
 
   return validateLocalWatchSnapshot({
     sources: [...sourceByIdentity.values()].sort((left, right) =>
-      left.identity.localeCompare(right.identity)
+      compareCanonicalWatchStrings(left.identity, right.identity)
     ),
     candidates: compactCandidates,
     relations: [...relationByIdentity.values()].sort((left, right) =>
-      left.identity.localeCompare(right.identity)
+      compareCanonicalWatchStrings(left.identity, right.identity)
     ),
   });
 }
@@ -752,7 +759,13 @@ function compareTimestamp(
   left: LocalWatchTimestamp,
   right: LocalWatchTimestamp,
 ): number {
-  return timestampKey(left).localeCompare(timestampKey(right));
+  return compareCanonicalWatchStrings(timestampKey(left), timestampKey(right));
+}
+
+function compareCanonicalWatchStrings(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
 
 function stableJson(value: unknown): string {
@@ -770,7 +783,7 @@ function requireSortedUnique<T>(
   key: (value: T) => string = (value) => String(value),
 ): void {
   const keys = values.map(key);
-  const expected = [...new Set(keys)].sort();
+  const expected = [...new Set(keys)].sort(compareCanonicalWatchStrings);
   if (keys.length === expected.length && keys.every((value, index) => value === expected[index])) {
     return;
   }

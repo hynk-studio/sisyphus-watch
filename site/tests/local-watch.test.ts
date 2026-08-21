@@ -33,6 +33,10 @@ import {
   type LocalWatchStorage,
 } from "../app/lib/local-watch";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
+import {
+  buildSavedWatchPacketA,
+  buildSavedWatchPacketB,
+} from "./fixtures/saved-watch";
 import { buildTemporalAcceptanceFixture } from "./fixtures/temporal-acceptance";
 
 const SAVED_AT = "2030-09-21T10:00:00.000Z";
@@ -256,6 +260,75 @@ test("snapshot identity ignores run-local IDs, source snapshot IDs, and packet a
   assert.equal(delta.has_deterministic_differences, false);
 });
 
+test("Unicode source and claim identities use one locale-independent canonical order", () => {
+  const packet = buildUnicodeOrderingPacket();
+  const snapshot = buildLocalWatchSnapshot(packet);
+  assert.deepEqual(validateLocalWatchSnapshot(snapshot), snapshot);
+
+  const unicodeSources = snapshot.sources.filter((source) =>
+    source.domain === "z" || source.domain === "å"
+  );
+  assert.deepEqual(unicodeSources.map((source) => source.domain), ["z", "å"]);
+  assert.equal(unicodeSources[0].identity < unicodeSources[1].identity, true);
+
+  const zClaim = snapshot.candidates.find((candidate) => candidate.actor === "z");
+  const aaClaim = snapshot.candidates.find((candidate) => candidate.actor === "å");
+  assert.ok(zClaim);
+  assert.ok(aaClaim);
+  assert.equal(zClaim.identity < aaClaim.identity, true);
+  assert.deepEqual(
+    snapshot.candidates.map((candidate) => candidate.identity),
+    [zClaim.identity, aaClaim.identity],
+  );
+
+  const contradiction = snapshot.relations.find(
+    (relation) => relation.relation_type === "contradicts",
+  );
+  assert.ok(contradiction);
+  assert.deepEqual(
+    {
+      left: contradiction.left_claim_identity,
+      right: contradiction.right_claim_identity,
+    },
+    { left: zClaim.identity, right: aaClaim.identity },
+  );
+  assert.equal(
+    relationIdentity("contradicts", zClaim.identity, aaClaim.identity),
+    relationIdentity("contradicts", aaClaim.identity, zClaim.identity),
+  );
+
+  const correction = snapshot.relations.find(
+    (relation) => relation.relation_type === "correction",
+  );
+  assert.ok(correction);
+  assert.deepEqual(
+    {
+      left: correction.left_claim_identity,
+      right: correction.right_claim_identity,
+    },
+    { left: zClaim.identity, right: aaClaim.identity },
+  );
+  assert.deepEqual(
+    normalizedRelationEndpoints("supersedes", aaClaim.identity, zClaim.identity),
+    { left: aaClaim.identity, right: zClaim.identity },
+  );
+
+  const reorderedPacket = structuredClone(packet);
+  reorderedPacket.source_snapshot_summaries.reverse();
+  reorderedPacket.actor_claims.reverse();
+  reorderedPacket.claim_occurrences.reverse();
+  reorderedPacket.relation_candidates.reverse();
+  const reorderedSnapshot = buildLocalWatchSnapshot(reorderedPacket);
+  assert.deepEqual(reorderedSnapshot, snapshot);
+  assert.equal(JSON.stringify(reorderedSnapshot), JSON.stringify(snapshot));
+
+  const implementation = readFileSync(
+    new URL("../app/lib/local-watch.ts", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(implementation, /\.localeCompare\(/);
+});
+
 test("claim identity uses exact normalized actor plus representation without fuzzy matching", () => {
   assert.equal(
     claimCandidateIdentity(" Regional  Agency ", "A schedule CHANGED"),
@@ -334,6 +407,21 @@ test("delta counts sources, exact candidates, supported state changes, and revie
   assert.equal(delta.new_correction_signals.length, 1);
   assert.equal(delta.new_supersession_signals.length, 1);
   assert.equal(delta.has_deterministic_differences, true);
+});
+
+test("Saved Watch packet A to B delta counts remain unchanged", () => {
+  const delta = compareInvestigationSnapshots(
+    buildLocalWatchSnapshot(buildSavedWatchPacketA()),
+    buildLocalWatchSnapshot(buildSavedWatchPacketB()),
+  );
+  assert.equal(delta.new_sources.length, 1);
+  assert.equal(delta.sources_not_returned.length, 1);
+  assert.equal(delta.new_candidates.length, 1);
+  assert.equal(delta.candidates_not_returned.length, 0);
+  assert.equal(delta.changed_candidates.length, 1);
+  assert.equal(delta.new_contradiction_signals.length, 1);
+  assert.equal(delta.new_correction_signals.length, 1);
+  assert.equal(delta.new_supersession_signals.length, 1);
 });
 
 test("explicit time value and precision changes are deterministic candidate changes", () => {
@@ -524,6 +612,51 @@ function relationRecord(
   };
 }
 
+function buildUnicodeOrderingPacket() {
+  const packet = structuredClone(buildSavedWatchPacketB());
+  const [zSource, aaSource] = packet.source_snapshot_summaries;
+  Object.assign(zSource, {
+    url: null,
+    domain: "z",
+    publisher: "z",
+    title: "z",
+  });
+  Object.assign(aaSource, {
+    url: null,
+    domain: "å",
+    publisher: "å",
+    title: "å",
+  });
+
+  const firstClaimId = packet.claim_occurrences[0].claim_id;
+  const secondClaimId = packet.claim_occurrences.find(
+    (occurrence) => occurrence.claim_id !== firstClaimId,
+  )?.claim_id;
+  assert.ok(secondClaimId);
+  for (const claim of packet.actor_claims) {
+    if (claim.claim_id === firstClaimId) claim.actor = "z";
+    if (claim.claim_id === secondClaimId) claim.actor = "å";
+  }
+  for (const occurrence of packet.claim_occurrences) {
+    if (occurrence.claim_id === firstClaimId) occurrence.actor = "z";
+    if (occurrence.claim_id === secondClaimId) occurrence.actor = "å";
+    occurrence.support_reference.citation_url = packet.source_snapshot_summaries.find(
+      (source) => source.source_id === occurrence.source_id,
+    )?.url ?? null;
+  }
+  for (const relation of packet.relation_candidates) {
+    relation.left_support_reference.citation_url = packet.source_snapshot_summaries.find(
+      (source) => source.source_id === relation.left_source_id,
+    )?.url ?? null;
+    relation.right_support_reference.citation_url = packet.source_snapshot_summaries.find(
+      (source) => source.source_id === relation.right_source_id,
+    )?.url ?? null;
+  }
+  return packet;
+}
+
 function byIdentity<T extends { identity: string }>(left: T, right: T): number {
-  return left.identity.localeCompare(right.identity);
+  if (left.identity < right.identity) return -1;
+  if (left.identity > right.identity) return 1;
+  return 0;
 }
