@@ -708,10 +708,9 @@ export function InvestigationMapView({
           <div>
             <h4 id="broader-investigation-title">Run a broader investigation</h4>
             <p>
-              Starts a new bounded provider request. The current investigation remains
-              unchanged while the new result is being created.
+              Broader coverage starts a new bounded provider request. The current
+              investigation stays visible until a new result is ready.
             </p>
-            <small>Do not blindly retry while delivery status is unknown.</small>
           </div>
           <button
             className="expand-coverage-button"
@@ -995,8 +994,12 @@ function RowHeading({
       ) : (
         <div>
           <strong>{rowKindHeading(row.rowKind)}</strong>
-          <span>{row.label}</span>
-          <small>No grouping asserted</small>
+          {row.rowKind === "standalone_occurrence" ? null : (
+            <>
+              <span>{row.label}</span>
+              <small>No grouping asserted</small>
+            </>
+          )}
         </div>
       )}
     </header>
@@ -1102,7 +1105,10 @@ function OccurrenceCard({
         </span>
         <span className="source-role-badge">{occurrence.source.sourceRole}</span>
         <strong>{occurrence.source.title}</strong>
-        <small>{occurrence.source.publisher} · {occurrence.source.sourceBoundaryLabel}</small>
+        <small>{occurrence.source.publisher}</small>
+        <span className="a11y-only">
+          Source record status: {occurrence.source.sourceBoundaryLabel}.
+        </span>
       </button>
       {portRelations.length ? (
         <div className="relation-port-list" aria-label="Cross-row relation shortcuts">
@@ -1460,6 +1466,21 @@ function CompleteRelationLedger({
   activeRelationIds: ReadonlySet<string>;
   onFocus: FocusHandler;
 }) {
+  if (entries.length === 0) {
+    return (
+      <section
+        className="complete-relation-ledger is-empty"
+        id="candidate-relations"
+        tabIndex={-1}
+        aria-labelledby="relation-empty-title"
+      >
+        <p id="relation-empty-title">
+          No candidate relations found in this bounded investigation.
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section
       className="complete-relation-ledger"
@@ -1788,7 +1809,7 @@ function occurrenceRowTypeAccessibleName(
 
 function rowKindHeading(kind: InvestigationClaimRow["rowKind"]): string {
   if (kind === "candidate_thread") return "Candidate thread";
-  if (kind === "standalone_occurrence") return "Standalone occurrence";
+  if (kind === "standalone_occurrence") return "Standalone claim";
   return "Ungrouped occurrence";
 }
 
@@ -1801,7 +1822,7 @@ function precisionGroupLabel(
 }
 
 function precisionLabel(precision: InvestigationOccurrenceNode["selectedTimePrecision"]): string {
-  return precision === "day" ? "day precision · unordered peer" : "exact instant";
+  return precision === "day" ? "Day precision" : "Exact instant";
 }
 
 function boundedAccessibleClaim(value: string, limit = 96): string {

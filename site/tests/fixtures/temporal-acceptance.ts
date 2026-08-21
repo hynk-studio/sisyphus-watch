@@ -73,6 +73,7 @@ export function buildTemporalAcceptanceFixture(): SiteReadyCasePacket {
 
   const claimId = "candidate_live_claim_separate_follow_up";
   const occurrenceId = "occurrence_live_separate_follow_up";
+  const familyId = "family_candidate_live_separate_follow_up";
   const timelineRowId = "timeline_row_separate_follow_up";
   const changeActionId = "candidate_live_action_schedule_change";
 
@@ -81,7 +82,7 @@ export function buildTemporalAcceptanceFixture(): SiteReadyCasePacket {
     run_id: "synthetic_temporal_acceptance_run",
     mode: "live",
     status: "live",
-    title: "Candidate lineage: Regional Operations Agency maintenance exercise 97",
+    title: "Candidate lineage review",
     normalized_public_interest_question:
       "How did the Regional Operations Agency's schedule and explanation for maintenance exercise 97 change between September 1 and September 18, 2030?",
     requested_source_limit: 3,
@@ -184,7 +185,7 @@ export function buildTemporalAcceptanceFixture(): SiteReadyCasePacket {
         source_record_status: "candidate",
         claim_id: claimId,
         claim_kind: "actor_claim",
-        candidate_claim_family_id: null,
+        candidate_claim_family_id: familyId,
         actor: "Regional Operations Agency",
         original_claim_text: "The agency said a separate September 25 inspection remained scheduled.",
         normalized_claim_representation: "separate september 25 inspection remained scheduled",
@@ -213,7 +214,18 @@ export function buildTemporalAcceptanceFixture(): SiteReadyCasePacket {
         origin: "live_api",
       },
     ],
-    candidate_claim_families: [],
+    candidate_claim_families: [
+      {
+        family_id: familyId,
+        occurrence_ids: [occurrenceId],
+        grouping_reason: "One source-linked claim remains standalone.",
+        grouping_signals: ["single_occurrence"],
+        unresolved: true,
+        review_status: "pending_review",
+        status: "candidate",
+        origin: "live_api",
+      },
+    ],
     relation_candidates: [],
     event_timeline_rows: [
       {
@@ -278,6 +290,7 @@ export function buildTemporalAcceptanceFixture(): SiteReadyCasePacket {
         key: `source:${source.source_id}`,
       })),
       { kind: "claim_occurrence" as const, id: occurrenceId, key: `claim_occurrence:${occurrenceId}` },
+      { kind: "claim_family" as const, id: familyId, key: `claim_family:${familyId}` },
       { kind: "timeline_row" as const, id: timelineRowId, key: `timeline_row:${timelineRowId}` },
       {
         kind: "unresolved_question" as const,

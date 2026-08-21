@@ -7,10 +7,27 @@ import {
   type FocusSelection,
 } from "./investigation-types";
 
-export interface FirstPayoffRecord {
-  finding: SiteReadyCasePacket["source_bound_findings"][number];
-  source: SiteReadyCasePacket["source_snapshot_summaries"][number];
-}
+type PayoffSource = SiteReadyCasePacket["source_snapshot_summaries"][number];
+
+export type FirstPayoffRecord =
+  | {
+      kind: "finding";
+      record: SiteReadyCasePacket["source_bound_findings"][number];
+      source: PayoffSource;
+      text: string;
+    }
+  | {
+      kind: "actor_claim";
+      record: SiteReadyCasePacket["actor_claims"][number];
+      source: PayoffSource;
+      text: string;
+    }
+  | {
+      kind: "action";
+      record: SiteReadyCasePacket["actions"][number];
+      source: PayoffSource;
+      text: string;
+    };
 
 const QUESTION_STOPWORDS = new Set([
   "a", "about", "and", "as", "at", "be", "between", "by", "did", "do",
@@ -60,11 +77,14 @@ const DATE_TOKENS = new Set([
   "september", "october", "november", "december",
 ]);
 
-interface PayoffCandidate extends FirstPayoffRecord {
-  findingIndex: number;
+type WithoutSource<T> = T extends unknown ? Omit<T, "source"> : never;
+type PayoffRecordWithoutSource = WithoutSource<FirstPayoffRecord>;
+
+type PayoffCandidate = FirstPayoffRecord & {
+  packetIndex: number;
   sourceIndex: number;
   relevance: number;
-}
+};
 
 export function firstPayoffForPacket(
   packet: SiteReadyCasePacket,
@@ -74,20 +94,37 @@ export function firstPayoffForPacket(
   const sources = new Map(
     packet.source_snapshot_summaries.map((source) => [source.source_id, source]),
   );
+  const records: PayoffRecordWithoutSource[] = [
+    ...packet.source_bound_findings.map((record) => ({
+      kind: "finding" as const,
+      record,
+      text: record.text,
+    })),
+    ...packet.actor_claims.map((record) => ({
+      kind: "actor_claim" as const,
+      record,
+      text: record.claim_text,
+    })),
+    ...packet.actions.map((record) => ({
+      kind: "action" as const,
+      record,
+      text: record.action_text,
+    })),
+  ];
   const candidates: PayoffCandidate[] = [];
-  for (const [findingIndex, finding] of packet.source_bound_findings.entries()) {
-    if (!finding.text.trim()) continue;
-    for (const [sourceIndex, sourceId] of finding.source_ids.entries()) {
+  for (const [packetIndex, payoffRecord] of records.entries()) {
+    if (!payoffRecord.text.trim()) continue;
+    for (const [sourceIndex, sourceId] of payoffRecord.record.source_ids.entries()) {
       const source = sources.get(sourceId);
       if (!source?.title.trim()) continue;
       candidates.push({
-        finding,
+        ...payoffRecord,
         source,
-        findingIndex,
+        packetIndex,
         sourceIndex,
         relevance: payoffRelevance(
           packet.normalized_public_interest_question,
-          finding.text,
+          payoffRecord.text,
           source,
         ),
       });
@@ -99,17 +136,37 @@ export function firstPayoffForPacket(
   const best = candidates.reduce((selected, candidate) => {
     if (candidate.relevance > selected.relevance) return candidate;
     if (candidate.relevance < selected.relevance) return selected;
-    if (candidate.findingIndex < selected.findingIndex) return candidate;
-    if (candidate.findingIndex > selected.findingIndex) return selected;
+    if (candidate.packetIndex < selected.packetIndex) return candidate;
+    if (candidate.packetIndex > selected.packetIndex) return selected;
     return candidate.sourceIndex < selected.sourceIndex ? candidate : selected;
   }, first);
 
   // A weak token coincidence is not enough to reorder the packet. When no
   // candidate has meaningful question overlap, retain the first-valid behavior
   // that preceded the relevance selector.
-  return best.relevance >= 6
-    ? { finding: best.finding, source: best.source }
-    : { finding: first.finding, source: first.source };
+  const selected = best.relevance >= 6 ? best : first;
+  if (selected.kind === "finding") {
+    return {
+      kind: selected.kind,
+      record: selected.record,
+      source: selected.source,
+      text: selected.text,
+    };
+  }
+  if (selected.kind === "actor_claim") {
+    return {
+      kind: selected.kind,
+      record: selected.record,
+      source: selected.source,
+      text: selected.text,
+    };
+  }
+  return {
+    kind: selected.kind,
+    record: selected.record,
+    source: selected.source,
+    text: selected.text,
+  };
 }
 
 function payoffRelevance(
@@ -188,18 +245,20 @@ export function FirstPayoff({
   const modelGeneratedLiveSummary = packet.mode === "live"
     && payoff.source.content_kind === "model_generated_web_search_summary"
     && !payoff.source.source_text_captured;
+  const typeLabel = payoff.kind === "finding"
+    ? "Finding"
+    : payoff.kind === "actor_claim"
+      ? "Actor claim"
+      : "Action record";
 
   return (
     <section className="first-payoff" aria-labelledby="first-payoff-title">
       <div className="first-payoff-heading">
         <p className="eyebrow">Start here</p>
-        <strong id="first-payoff-title">
-          {synthetic
-            ? "Synthetic fixture · prepared example"
-            : "Candidate finding · review only"}
-        </strong>
+        <strong id="first-payoff-title">{typeLabel}</strong>
+        {synthetic ? <small>Prepared example</small> : null}
       </div>
-      <p className="first-payoff-finding">{payoff.finding.text}</p>
+      <p className="first-payoff-text">{payoff.text}</p>
       <p className="first-payoff-source">
         Source: {" "}
         <button
@@ -216,8 +275,7 @@ export function FirstPayoff({
         </p>
       ) : null}
       <p className="first-payoff-boundary">
-        Source inclusion is not endorsement or truth verification. Browsing does
-        not change the record.
+        Source inclusion is not endorsement or truth verification.
       </p>
     </section>
   );
