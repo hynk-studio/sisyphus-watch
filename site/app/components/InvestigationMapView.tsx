@@ -737,15 +737,25 @@ function CoverageStrip({
   const missingRoles = map.coverage.roles
     .filter((role) => role.missingTarget)
     .map((role) => role.label);
+  const absentRoleCount = map.coverage.roles.filter((role) => role.zero).length;
+  const standardLiveReview = packet.coverage_summary.coverage_basis === "live_discovery"
+    && packet.coverage_summary.discovery_profile === "standard";
+  const targetGapStatus = standardLiveReview
+    ? absentRoleCount > 0
+      ? `${absentRoleCount} role ${absentRoleCount === 1 ? "category is" : "categories are"} not represented · Standard does not target every category`
+      : "All 5 role categories represented · Standard does not target every category"
+    : missingRoles.length
+      ? `Target-role gaps: ${missingRoles.join(", ")}`
+      : "All target role categories represented";
   return (
     <section className="map-coverage-strip" aria-labelledby="map-coverage-title">
       <details>
         <summary>
           <span className="eyebrow">Source-role coverage</span>
           <strong id="map-coverage-title">
-            {map.coverage.totalSources} sources · {map.coverage.representedRoleCount} of {map.coverage.targetRoleCount} roles
+            {map.coverage.totalSources} sources · {map.coverage.representedRoleCount} of {map.coverage.targetRoleCount} role categories represented
           </strong>
-          <span>{missingRoles.length ? `${missingRoles.join(", ")} missing` : "All target roles represented"}</span>
+          <span>{targetGapStatus}</span>
         </summary>
         <div className="map-coverage-breakdown">
           <dl>

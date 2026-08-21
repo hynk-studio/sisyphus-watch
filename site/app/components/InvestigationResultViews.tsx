@@ -3,10 +3,12 @@ import {
   TIME_AXIS_LABELS,
   actorLabel,
   discoveryLaneLabel,
+  groupSupportingDatedEvidenceRowsByPrecision,
   groupTimelineRowsByPrecision,
   orderTimelineRows,
   publicMethodLimitations,
   recordBoundaryLabel,
+  supportingDatedEvidenceRows,
   sourceContentLabel,
   sourceCoverageLabel,
   sourceCoverageNote,
@@ -14,6 +16,7 @@ import {
   timePrecision,
   timeAxisSemanticNote,
   timeValue,
+  type SupportingDatedEvidenceRow,
   type TimeAxis,
 } from "../lib/experience";
 import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
@@ -39,12 +42,19 @@ export function TimelineView({
   const availableRows = rows.filter((row) => timeValue(row, timeAxis));
   const unavailableRows = rows.filter((row) => !timeValue(row, timeAxis));
   const availableGroups = groupTimelineRowsByPrecision(availableRows, timeAxis);
+  const supportingRows = supportingDatedEvidenceRows(packet, timeAxis);
+  const supportingAvailableGroups = groupSupportingDatedEvidenceRowsByPrecision(
+    supportingRows,
+  );
+  const supportingUnavailableRows = supportingRows.filter(
+    (row) => !row.selectedTime,
+  );
   return (
     <div className="timeline-view view-stack">
       <div className="view-intro">
         <div>
           <p className="eyebrow">Temporal view</p>
-          <h3>Claims found in sources over time</h3>
+          <h3>Claims and supporting evidence over time</h3>
           <p className="timeline-axis-note">{timeAxisSemanticNote(timeAxis)}</p>
           <p>
             Same-day mixed precision is grouped: exact instants keep clock
@@ -64,38 +74,157 @@ export function TimelineView({
           </select>
         </label>
       </div>
-      {rows.length ? (
-        <>
-          <TimelinePrecisionGroups
-            packet={packet}
-            groups={availableGroups}
-            timeAxis={timeAxis}
-            onFocus={onFocus}
+      <section className="claim-timeline-region" aria-labelledby="claim-timeline-title">
+        <div className="timeline-section-heading">
+          <p className="eyebrow">Attributed claims</p>
+          <h3 id="claim-timeline-title">Actor-claim timeline</h3>
+          <p>Only statements attributed to an actor appear in this section.</p>
+        </div>
+        {rows.length ? (
+          <>
+            <TimelinePrecisionGroups
+              packet={packet}
+              groups={availableGroups}
+              timeAxis={timeAxis}
+              onFocus={onFocus}
+            />
+            {unavailableRows.length ? (
+              <section className="time-unavailable-region" aria-labelledby="claim-time-unavailable-title">
+                <h4 id="claim-time-unavailable-title">Time unavailable for claims</h4>
+                <p>
+                  {unavailableRows.length} row{unavailableRows.length === 1 ? " has" : "s have"}
+                  {" "}no explicit {TIME_AXIS_LABELS[timeAxis].toLowerCase()} value.
+                </p>
+                <TimelineRows
+                  packet={packet}
+                  rows={unavailableRows}
+                  timeAxis={timeAxis}
+                  onFocus={onFocus}
+                  ordered={false}
+                />
+              </section>
+            ) : null}
+          </>
+        ) : (
+          <EmptyState
+            title="No claim timeline"
+            message="This packet contains no actor-claim occurrences, so no claim timeline rows were created."
           />
-          {unavailableRows.length ? (
-            <section className="time-unavailable-region" aria-labelledby="time-unavailable-title">
-              <h4 id="time-unavailable-title">Time unavailable</h4>
-              <p>
-                {unavailableRows.length} row{unavailableRows.length === 1 ? " has" : "s have"}
-                {" "}no explicit {TIME_AXIS_LABELS[timeAxis].toLowerCase()} value.
-              </p>
-              <TimelineRows
-                packet={packet}
-                rows={unavailableRows}
-                timeAxis={timeAxis}
-                onFocus={onFocus}
-                ordered={false}
-              />
-            </section>
-          ) : null}
-        </>
-      ) : (
-        <EmptyState
-          title="No claim timeline"
-          message="This packet contains no actor-claim occurrences, so no timeline rows were created."
+        )}
+      </section>
+      {supportingRows.length ? (
+        <SupportingEvidenceRegion
+          groups={supportingAvailableGroups}
+          unavailableRows={supportingUnavailableRows}
+          timeAxis={timeAxis}
+          onFocus={onFocus}
         />
-      )}
+      ) : null}
     </div>
+  );
+}
+
+function SupportingEvidenceRegion({
+  groups,
+  unavailableRows,
+  timeAxis,
+  onFocus,
+}: {
+  groups: ReturnType<typeof groupSupportingDatedEvidenceRowsByPrecision>;
+  unavailableRows: SupportingDatedEvidenceRow[];
+  timeAxis: TimeAxis;
+  onFocus: FocusHandler;
+}) {
+  return (
+    <section className="supporting-evidence-region" aria-labelledby="supporting-evidence-title">
+      <div className="timeline-section-heading supporting-evidence-heading">
+        <div>
+          <p className="eyebrow">Other dated evidence</p>
+          <h3 id="supporting-evidence-title">Source-bound actions and findings</h3>
+        </div>
+        <span className="supporting-evidence-boundary">Not actor claims</span>
+        <p>
+          These records stay separate from attributed claims. Event time is used
+          only when explicit; publication and retrieval values belong to the
+          linked source and are labeled as such.
+        </p>
+      </div>
+      {groups.map((group) => (
+        <section
+          className="supporting-evidence-time-group"
+          aria-label={`${group.calendarDate} supporting evidence`}
+          key={group.calendarDate}
+        >
+          <div className="supporting-evidence-date">
+            <h4>{formatReviewTimestamp(`${group.calendarDate}T00:00:00.000Z`, "day")}</h4>
+            {group.precision === "mixed" ? (
+              <p>Same-day day-level and instant values are peers; no within-day order is inferred.</p>
+            ) : null}
+          </div>
+          <SupportingEvidenceRows rows={group.items} onFocus={onFocus} />
+        </section>
+      ))}
+      {unavailableRows.length ? (
+        <section className="supporting-evidence-unavailable" aria-labelledby="supporting-time-unavailable-title">
+          <h4 id="supporting-time-unavailable-title">Supporting evidence time unavailable</h4>
+          <p>
+            {unavailableRows.length} supporting record{unavailableRows.length === 1 ? " has" : "s have"}
+            {" "}no explicit {TIME_AXIS_LABELS[timeAxis].toLowerCase()} value. No publication or retrieval time is substituted.
+          </p>
+          <SupportingEvidenceRows rows={unavailableRows} onFocus={onFocus} />
+        </section>
+      ) : null}
+    </section>
+  );
+}
+
+function SupportingEvidenceRows({
+  rows,
+  onFocus,
+}: {
+  rows: SupportingDatedEvidenceRow[];
+  onFocus: FocusHandler;
+}) {
+  return (
+    <ul className="supporting-evidence-list">
+      {rows.map((row) => {
+        const sourceSelection = row.sourceId && row.sourceTitle ? {
+          kind: "source" as const,
+          id: row.sourceId,
+          label: row.sourceTitle,
+        } : null;
+        return (
+          <li key={row.evidenceRowId} className="supporting-evidence-row">
+            <div className="row-meta">
+              <span>{row.recordKind === "action" ? "Action record" : "Source-bound finding"}</span>
+              <span>Not an actor claim</span>
+              <span>{row.selectedTimeLabel}</span>
+              <time dateTime={row.selectedTime ?? undefined}>
+                {formatReviewTimestamp(row.selectedTime, row.selectedTimePrecision)}
+              </time>
+              <span className={`record-state record-${row.status}`}>
+                {recordBoundaryLabel(row.status)}
+              </span>
+            </div>
+            {row.actor ? <h4>{actorLabel(row.actor)}</h4> : null}
+            <p>{row.text}</p>
+            {sourceSelection ? (
+              <button
+                className="detail-button"
+                type="button"
+                aria-label={`Inspect linked source: ${row.sourceTitle}`}
+                data-focus-trigger={focusTriggerId("supporting-evidence-source", sourceSelection)}
+                onClick={(event) => onFocus(sourceSelection, event.currentTarget)}
+              >
+                Source: {row.sourceTitle} <span aria-hidden="true">→</span>
+              </button>
+            ) : (
+              <span className="supporting-evidence-source-unavailable">Linked source unavailable</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

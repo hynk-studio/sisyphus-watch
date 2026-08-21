@@ -178,6 +178,7 @@ export function SearchComposer({
             <button
               className="prepared-example-button"
               type="button"
+              disabled={isLoading}
               onClick={onPreparedExample}
             >
               Try the cooling-center example
