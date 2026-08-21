@@ -11,6 +11,7 @@ import type { NormalizedAnalysisRequest } from "./analysis/request";
 import { buildLineageResponseFromAnalysis } from "./lineage/handler";
 import {
   liveAnalysisDisabledResponse,
+  operatorSponsoredLiveDisabledResponse,
   reportPublicLiveRuntimePrerequisiteFailure,
   type PublicLiveRuntime,
 } from "./live-mode";
@@ -59,6 +60,10 @@ export async function handlePublicLiveLineageRequest(
   diagnostics = dependencies.diagnostics
     ?? runtime.diagnostics?.sink
     ?? noopPublicLiveDiagnosticSink;
+  if (!runtime.operatorLiveEnabled) {
+    reportPublicLiveRuntimePrerequisiteFailure(runtime, diagnostics);
+    return operatorSponsoredLiveDisabledResponse();
+  }
   if (!runtime.liveEnabled) {
     reportPublicLiveRuntimePrerequisiteFailure(runtime, diagnostics);
     return liveAnalysisDisabledResponse();
@@ -89,7 +94,7 @@ export async function handlePublicLiveLineageRequest(
     return jsonError(
       429,
       "capacity_exhausted",
-      "Public live investigation capacity is currently exhausted. No investigation was replaced; the prepared example remains a separate choice.",
+      "Operator-sponsored investigation capacity is currently exhausted. No investigation was replaced; the prepared example and relay path remain separate choices.",
       { "Retry-After": String(decision.retryAfterSeconds) },
     );
   }
@@ -148,6 +153,6 @@ function admissionUnavailableResponse(): Response {
   return jsonError(
     503,
     "service_admission_unavailable",
-    "Public live admission is unavailable. The prepared example remains available as a separate choice.",
+    "Operator-sponsored admission is unavailable. The prepared example and relay path remain available as separate choices.",
   );
 }

@@ -58,6 +58,7 @@ async function requestNoKeyLineage(runtimeEnv, expectedStatus) {
 
 const originalFetch = globalThis.fetch;
 const originalLiveFlag = process.env.SISYPHUS_LIVE_ENABLED;
+const originalOperatorLiveFlag = process.env.SISYPHUS_OPERATOR_LIVE_ENABLED;
 let outboundRequests = 0;
 globalThis.fetch = async () => {
   outboundRequests += 1;
@@ -65,6 +66,16 @@ globalThis.fetch = async () => {
 };
 
 try {
+  delete process.env.SISYPHUS_OPERATOR_LIVE_ENABLED;
+  process.env.SISYPHUS_LIVE_ENABLED = "true";
+  const operatorDisabledLineage = await requestNoKeyLineage(env, 503);
+  assert.equal(
+    operatorDisabledLineage.error.code,
+    "operator_sponsored_live_disabled",
+  );
+  assert.equal(outboundRequests, 0);
+
+  process.env.SISYPHUS_OPERATOR_LIVE_ENABLED = "true";
   process.env.SISYPHUS_LIVE_ENABLED = "false";
   const first = await readCases();
   const second = await readCases();
@@ -99,5 +110,10 @@ try {
 } finally {
   if (originalLiveFlag === undefined) delete process.env.SISYPHUS_LIVE_ENABLED;
   else process.env.SISYPHUS_LIVE_ENABLED = originalLiveFlag;
+  if (originalOperatorLiveFlag === undefined) {
+    delete process.env.SISYPHUS_OPERATOR_LIVE_ENABLED;
+  } else {
+    process.env.SISYPHUS_OPERATOR_LIVE_ENABLED = originalOperatorLiveFlag;
+  }
   globalThis.fetch = originalFetch;
 }

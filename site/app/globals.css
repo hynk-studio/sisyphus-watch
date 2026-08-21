@@ -59,11 +59,12 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   text-rendering: optimizeLegibility;
 }
-button, select, textarea { font: inherit; }
-button, a, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; }
 a:focus-visible,
 button:focus-visible,
+input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible,
@@ -219,6 +220,35 @@ p, li, blockquote { text-wrap: pretty; }
   border-top: 4px solid var(--navy);
   background: var(--surface-strong);
 }
+.execution-mode-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px clamp(22px, 3vw, 32px);
+  border-bottom: 1px solid var(--line);
+  background: var(--navy-soft);
+}
+.execution-mode-banner > div { display: grid; min-width: 0; gap: 4px; }
+.execution-mode-banner strong { color: var(--navy); font-size: .92rem; }
+.execution-mode-banner span { color: var(--muted); font-size: .78rem; line-height: 1.5; }
+.execution-mode-kicker { margin: 0; color: var(--review); font-size: .72rem; font-weight: 760; text-transform: uppercase; letter-spacing: .04em; }
+.execution-mode-operator_sponsored { background: var(--gold-soft); }
+.execution-mode-exit,
+.execution-switches button {
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--navy);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--navy);
+  cursor: pointer;
+  font-size: .78rem;
+  font-weight: 720;
+}
+.execution-mode-exit { flex: 0 0 auto; }
+.execution-mode-exit:disabled,
+.execution-switches button:disabled { cursor: not-allowed; opacity: .55; }
 .investigation-brief {
   display: grid;
   gap: 11px;
@@ -252,6 +282,9 @@ p, li, blockquote { text-wrap: pretty; }
 .investigation-form > .form-error {
   margin-right: clamp(22px, 3vw, 32px);
   margin-left: clamp(22px, 3vw, 32px);
+}
+.investigation-form > .execution-switches {
+  margin: 0 clamp(22px, 3vw, 32px) 20px;
 }
 .investigation-form > label,
 .source-limit-control,
@@ -411,6 +444,70 @@ p, li, blockquote { text-wrap: pretty; }
   font-size: .88rem;
   font-weight: 760;
 }
+.public-default-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.connect-relay-button {
+  min-height: 52px;
+  padding: 0 18px;
+  border: 1px solid var(--navy);
+  border-radius: 3px;
+  background: var(--surface-strong);
+  color: var(--navy);
+  cursor: pointer;
+  font-size: .88rem;
+  font-weight: 760;
+}
+.public-api-key-boundary {
+  padding: 11px 13px;
+  border-left: 4px solid var(--gold-ink);
+  background: var(--gold-soft);
+  color: var(--ink-soft) !important;
+  font-weight: 720;
+}
+.relay-explanation { font-size: .82rem !important; }
+.relay-connect-form {
+  display: grid;
+  gap: 9px;
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+.investigation-form > .sponsored-relay-connect {
+  margin: 0 clamp(22px, 3vw, 32px) 20px;
+}
+.relay-connect-form > label { color: var(--ink-soft); font-size: .8rem; font-weight: 740; }
+.relay-connect-form > input { min-width: 0; min-height: 46px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--surface-strong); color: var(--ink); }
+.relay-connect-form > p { margin: 0; color: var(--muted); font-size: .76rem; line-height: 1.5; }
+.relay-connect-form > div { display: flex; gap: 8px; }
+.relay-connect-form button,
+.sponsored-option button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--navy);
+  border-radius: 3px;
+  background: var(--navy);
+  color: white;
+  cursor: pointer;
+  font-size: .8rem;
+  font-weight: 720;
+}
+.relay-connect-form button[type="button"] { background: transparent; color: var(--navy); }
+.relay-connect-form button:disabled { cursor: not-allowed; opacity: .55; }
+.relay-connect-form .relay-error { color: var(--red); font-weight: 680; }
+.relay-status { padding: 10px 12px; border-left: 3px solid var(--review); background: var(--review-soft); font-size: .78rem !important; }
+.sponsored-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+.sponsored-option > div { display: grid; gap: 3px; }
+.sponsored-option p { margin: 0; color: var(--review); font-size: .7rem; font-weight: 740; text-transform: uppercase; letter-spacing: .035em; }
+.sponsored-option h3 { margin: 0; color: var(--ink); font-family: var(--font-editorial); font-size: 1rem; }
+.sponsored-option span { color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.sponsored-option button { flex: 0 0 auto; background: transparent; color: var(--navy); }
+.execution-switches { display: flex; flex-wrap: wrap; gap: 8px; }
 .live-workflow-disclosure { border-top: 1px solid var(--line); }
 .live-workflow-disclosure summary { padding-top: 12px; color: var(--navy); cursor: pointer; font-size: .8rem; font-weight: 720; }
 .live-workflow-disclosure p { margin: 9px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.55; }
@@ -1890,11 +1987,20 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
   .prepared-launch-heading { align-items: flex-start; flex-direction: column; gap: 3px; }
   .investigation-form > .composer-actions,
   .investigation-form > .availability-note,
-  .investigation-form > .form-error { margin-right: 15px; margin-left: 15px; }
+  .investigation-form > .form-error,
+  .investigation-form > .execution-switches,
+  .investigation-form > .sponsored-relay-connect { margin-right: 15px; margin-left: 15px; }
   .prepared-launch-panel { padding: 21px 17px; }
   .composer-options,
   .profile-fieldset,
-  .composer-actions { grid-template-columns: 1fr; }
+  .composer-actions,
+  .public-default-actions { grid-template-columns: 1fr; }
+  .execution-mode-banner,
+  .sponsored-option { align-items: stretch; flex-direction: column; }
+  .execution-mode-exit,
+  .sponsored-option button { width: 100%; }
+  .relay-connect-form > div { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .relay-connect-form button { width: 100%; min-height: 48px; }
   .source-limit-control select { min-height: 48px; }
   .workspace { margin: 24px -1px 44px; border-radius: 0; }
   .case-heading { align-items: stretch; flex-direction: column; gap: 18px; padding: 20px 18px 18px; }

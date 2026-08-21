@@ -10,10 +10,14 @@ import {
   type KeyboardEvent,
 } from "react";
 import type {
-  AnalysisRoutePayload,
   AnalysisRunPacket,
 } from "../lib/analysis/contracts";
 import { PUBLIC_DEFAULT_SOURCE_LIMIT } from "../lib/analysis/contracts";
+import {
+  ExecutionTransportError,
+  executeInvestigationTransport,
+  type ExecutionTransport,
+} from "../lib/execution-transport";
 import {
   EXPERIENCE_VIEWS,
   VIEW_LABELS,
@@ -27,7 +31,6 @@ import {
   needsPreparedDetailSupplement,
 } from "../lib/focused-detail";
 import {
-  buildLineageRequest,
   chooseInitialTimeAxis,
   deriveInvestigationMapBase,
   investigationTimeAxisReducer,
@@ -62,6 +65,15 @@ import {
   fallbackFailureCode,
   publicRerunSourceLimit,
 } from "../lib/public-live";
+import {
+  RelayContractError,
+  forgetRelayConnection,
+  negotiateRelayConnection,
+  readRelayConnection,
+  writeRelayConnection,
+  type RelayConnection,
+  type RelayStorage,
+} from "../lib/relay";
 import { FocusedDetailPanel } from "./FocusedDetailPanel";
 import { ExportInvestigation } from "./ExportInvestigation";
 import { FirstPayoff } from "./FirstPayoff";
@@ -154,14 +166,16 @@ function activateButtonFromKeyboard(
 
 export function CaseExplorer({
   preparedCase,
-  liveEnabled = false,
+  operatorSponsoredReady = false,
   runGuardCooldownMs,
   localWatchStorage,
+  relayStorage,
 }: {
   preparedCase: SiteReadyCasePacket;
-  liveEnabled?: boolean;
+  operatorSponsoredReady?: boolean;
   runGuardCooldownMs?: number;
   localWatchStorage?: LocalWatchStorage | null;
+  relayStorage?: RelayStorage | null;
 }) {
   const [packet, setPacket] = useState(preparedCase);
   const [investigationStarted, setInvestigationStarted] = useState(false);
@@ -190,6 +204,16 @@ export function CaseExplorer({
   const [replacementWatch, setReplacementWatch] = useState<LocalWatch | null>(null);
   const [activeRunKind, setActiveRunKind] = useState<PublicRunKind | null>(null);
   const [watchDelta, setWatchDelta] = useState<DisplayedWatchDelta | null>(null);
+  const [relayHydrated, setRelayHydrated] = useState(false);
+  const [storedRelay, setStoredRelay] = useState<RelayConnection | null>(null);
+  const [activeRelay, setActiveRelay] = useState<RelayConnection | null>(null);
+  const [relayUrlInput, setRelayUrlInput] = useState("");
+  const [relayFormOpen, setRelayFormOpen] = useState(false);
+  const [relayConnecting, setRelayConnecting] = useState(false);
+  const [relayNotice, setRelayNotice] = useState<string | null>(null);
+  const [relayError, setRelayError] = useState<string | null>(null);
+  const [selectedExecutionKind, setSelectedExecutionKind] =
+    useState<ExecutionTransport["kind"] | null>(null);
   const detailCache = useRef(new FocusedDetailSupplementCache());
   const runGuard = useRef(new PublicLiveRunGuard({ cooldownMs: runGuardCooldownMs }));
   const savedWatchRef = useRef<LocalWatch | null>(null);
@@ -206,6 +230,16 @@ export function CaseExplorer({
     () => projectInvestigationMap(mapBase, timeAxis),
     [mapBase, timeAxis],
   );
+  const executionTransport = useMemo<ExecutionTransport | null>(() => {
+    if (selectedExecutionKind === "relay" && activeRelay) {
+      return { kind: "relay", connection: activeRelay };
+    }
+    if (selectedExecutionKind === "operator_sponsored" && operatorSponsoredReady) {
+      return { kind: "operator_sponsored" };
+    }
+    return null;
+  }, [activeRelay, operatorSponsoredReady, selectedExecutionKind]);
+  const liveEnabled = executionTransport !== null;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -230,6 +264,31 @@ export function CaseExplorer({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [localWatchStorage]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const storage = relayStorage === undefined
+        ? browserLocalStorage()
+        : relayStorage;
+      if (!storage) {
+        setRelayNotice("Browser-local relay storage is unavailable. You can still use the prepared investigation.");
+        setRelayHydrated(true);
+        return;
+      }
+      const result = readRelayConnection(storage);
+      if (result.status === "valid") {
+        setStoredRelay(result.connection);
+        setRelayUrlInput(result.connection.relay_base_url);
+        setRelayNotice("Saved relay — reconnect to use. No network request was made automatically.");
+      } else if (result.status === "unavailable") {
+        setRelayNotice("Browser-local relay storage is unavailable. You can still use the prepared investigation.");
+      } else if (result.status === "invalid") {
+        setRelayNotice("An invalid saved relay entry was ignored without contacting it.");
+      }
+      setRelayHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [relayStorage]);
 
   useEffect(() => {
     if (cooldownUntilMs === 0) return;
@@ -306,12 +365,86 @@ export function CaseExplorer({
     });
   }
 
+  function openRelayConnection() {
+    setRelayError(null);
+    setRelayFormOpen(true);
+    requestAnimationFrame(() => {
+      document.getElementById("relay-url")?.focus();
+    });
+  }
+
+  async function connectRelay() {
+    if (relayConnecting) return;
+    setRelayConnecting(true);
+    setRelayError(null);
+    try {
+      const connection = await negotiateRelayConnection(relayUrlInput);
+      const storage = relayStorage === undefined
+        ? browserLocalStorage()
+        : relayStorage;
+      const writeResult = storage
+        ? writeRelayConnection(storage, connection)
+        : { ok: false as const, reason: "unavailable" as const };
+      setActiveRelay(connection);
+      setSelectedExecutionKind("relay");
+      setStoredRelay(writeResult.ok ? connection : null);
+      setRelayUrlInput(connection.relay_base_url);
+      setRelayFormOpen(false);
+      setRelayNotice(
+        writeResult.ok
+          ? "Connected to your relay. The verified endpoint was saved in this browser."
+          : "Connected to your relay for this page, but the endpoint could not be saved in this browser.",
+      );
+    } catch (error) {
+      setRelayError(
+        error instanceof RelayContractError
+          ? error.message
+          : "The relay capability check could not be completed.",
+      );
+    } finally {
+      setRelayConnecting(false);
+    }
+  }
+
+  function disconnectRelay() {
+    const storage = relayStorage === undefined
+      ? browserLocalStorage()
+      : relayStorage;
+    const forgetResult = storage
+      ? forgetRelayConnection(storage)
+      : { ok: false as const, reason: "unavailable" as const };
+    setActiveRelay(null);
+    setStoredRelay(null);
+    setRelayUrlInput("");
+    setRelayFormOpen(false);
+    setRelayError(null);
+    if (selectedExecutionKind === "relay") setSelectedExecutionKind(null);
+    setRelayNotice(
+      forgetResult.ok
+        ? "Relay forgotten from this browser. Saved Watch data was not changed."
+        : "The relay was disconnected for this page, but browser storage was unavailable.",
+    );
+  }
+
+  function selectOperatorSponsored() {
+    if (!operatorSponsoredReady) return;
+    setSelectedExecutionKind("operator_sponsored");
+    setRelayError(null);
+  }
+
+  function leaveOperatorSponsored() {
+    if (selectedExecutionKind === "operator_sponsored") {
+      setSelectedExecutionKind(null);
+    }
+  }
+
   async function runAnalysis(input: {
     question: string;
     sourceLimit: number;
     discoveryProfile: DiscoveryProfile;
   }, runKind: PublicRunKind = "normal", recheckBaseline?: LocalWatch) {
-    if (!liveEnabled) return;
+    const activeTransport = executionTransport;
+    if (!activeTransport) return;
     const requestId = runGuard.current.begin();
     if (requestId === null) return;
     const hadDisplayedInvestigation = investigationStarted;
@@ -322,20 +455,13 @@ export function CaseExplorer({
     setActiveRunKind(runKind);
     setReplacementWatch(null);
     try {
-      const response = await fetch("/api/lineage", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildLineageRequest(input)),
-      });
-      const payload = (await response.json()) as
-        | SiteReadyCasePacket
-        | Extract<AnalysisRoutePayload, { status: "error" }>;
+      const result = await executeInvestigationTransport(activeTransport, input);
       if (!runGuard.current.acceptsResponse(requestId)) return;
       serverRetryAfterSeconds = parseRetryAfterSeconds(
-        response.headers.get("Retry-After"),
+        result.retryAfter,
       );
-      const decision = decidePublicRunResponse(payload, {
-        responseOk: response.ok,
+      const decision = decidePublicRunResponse(result.payload, {
+        responseOk: result.responseOk,
         hadDisplayedInvestigation: hadDisplayedInvestigation || runKind === "watch_recheck",
         retryAfterSeconds: serverRetryAfterSeconds,
       });
@@ -403,9 +529,15 @@ export function CaseExplorer({
         });
       }
       outcome = nextPacket.mode === "live" ? "success" : "failure";
-    } catch {
+    } catch (error) {
       if (runGuard.current.acceptsResponse(requestId)) {
-        setRouteError("The same-Site investigation route is unavailable.");
+        setRouteError(
+          error instanceof ExecutionTransportError
+            ? error.message
+            : activeTransport.kind === "relay"
+              ? "Your relay is unavailable. No sponsored request was attempted."
+              : "The sponsored investigation route is unavailable.",
+        );
       }
     } finally {
       if (runGuard.current.complete(
@@ -642,7 +774,7 @@ export function CaseExplorer({
       {watchHydrated && savedWatch ? (
         <SavedWatchCard
           watch={savedWatch}
-          liveEnabled={liveEnabled}
+          executionAvailable={liveEnabled}
           isLoading={isLoading}
           isWatchRechecking={isLoading && activeRunKind === "watch_recheck"}
           cooldownRemainingSeconds={cooldownRemainingSeconds}
@@ -662,6 +794,16 @@ export function CaseExplorer({
         sourceLimit={sourceLimit}
         discoveryProfile={discoveryProfile}
         liveEnabled={liveEnabled}
+        executionMode={executionTransport?.kind ?? null}
+        operatorSponsoredReady={operatorSponsoredReady}
+        relayHydrated={relayHydrated}
+        activeRelay={activeRelay}
+        storedRelay={storedRelay}
+        relayUrlInput={relayUrlInput}
+        relayFormOpen={relayFormOpen}
+        relayConnecting={relayConnecting}
+        relayNotice={relayNotice}
+        relayError={relayError}
         isLoading={isLoading}
         cooldownRemainingSeconds={cooldownRemainingSeconds}
         routeError={routeError}
@@ -671,6 +813,16 @@ export function CaseExplorer({
         onDiscoveryProfileChange={setDiscoveryProfile}
         onSubmit={submitAnalysis}
         onPreparedExample={startPreparedExample}
+        onRelayUrlChange={setRelayUrlInput}
+        onOpenRelay={openRelayConnection}
+        onCancelRelay={() => {
+          setRelayFormOpen(false);
+          setRelayError(null);
+        }}
+        onConnectRelay={() => void connectRelay()}
+        onDisconnectRelay={disconnectRelay}
+        onSelectOperatorSponsored={selectOperatorSponsored}
+        onLeaveOperatorSponsored={leaveOperatorSponsored}
       />
 
       {investigationStarted ? (

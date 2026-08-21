@@ -8,6 +8,26 @@ The local ChatGPT Sites foundation lives in [`site/`](site/README.md). It adapts
 one existing deterministic community-impact fixture into a Sites-compatible
 TypeScript project without depending on the Python notebook as a hosted backend.
 
+## Public execution boundary
+
+Public Sisyphus Watch never asks for or stores a user's OpenAI API key. Its
+public default is **Prepared demo + Connect your relay**:
+
+- **Prepared** performs no provider work and needs no provider credential.
+- **Relay live** sends the bounded request directly from the browser to a
+  user-configured Sisyphus Relay. Provider credentials remain on that user's
+  backend; the public Sisyphus server never receives them.
+- **Operator-sponsored live** uses the existing server provider and D1
+  admission boundary only when separately enabled. It is explicitly
+  operator-funded, capacity bounded, may be unavailable, and is never selected
+  automatically.
+
+There is no automatic relay-to-operator or operator-to-relay fallback. Relay
+v1 stores only a validated endpoint and negotiated non-secret capability
+metadata after an explicit successful connection; it stores or transmits no
+generic relay authentication secret. Relay operators remain responsible for
+backend and network access control.
+
 The Site can turn one bounded live investigation into a browser-local Saved
 Watch when the user explicitly selects **Track this topic on this device**.
 Selecting **Check for changes** manually reruns the same saved question and

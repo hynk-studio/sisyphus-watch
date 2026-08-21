@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CaseExplorer } from "./components/CaseExplorer";
-import { isPublicLiveReadyOnServer } from "./lib/live-mode";
+import { isOperatorSponsoredLiveReadyOnServer } from "./lib/live-mode";
 import { buildPreparedSiteReadyCasePacket } from "./lib/lineage/builder";
 
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ export default async function Home() {
   return (
     <CaseExplorer
       preparedCase={preparedCase}
-      liveEnabled={await isPublicLiveReadyOnServer()}
+      operatorSponsoredReady={await isOperatorSponsoredLiveReadyOnServer()}
     />
   );
 }

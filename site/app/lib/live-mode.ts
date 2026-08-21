@@ -12,6 +12,8 @@ import {
 } from "./public-live-diagnostics";
 
 export const LIVE_MODE_ENVIRONMENT_FLAG = "SISYPHUS_LIVE_ENABLED";
+export const OPERATOR_LIVE_ENVIRONMENT_FLAG =
+  "SISYPHUS_OPERATOR_LIVE_ENABLED";
 export const OPENAI_KEY_ENVIRONMENT_NAME = "OPENAI_API_KEY";
 
 export function isLiveAnalysisEnabled(
@@ -68,6 +70,7 @@ export async function isLiveAnalysisEnabledOnServer(): Promise<boolean> {
 }
 
 export interface PublicLiveRuntime {
+  operatorLiveEnabled: boolean;
   liveEnabled: boolean;
   apiKey: string | undefined;
   admission: PublicAdmissionStore | null;
@@ -99,11 +102,30 @@ export async function getPublicLiveRuntime(
     dependencies.readEnvironmentValue ?? getServerEnvironmentValue;
   const resolveEnvironmentBinding =
     dependencies.resolveEnvironmentBinding ?? resolveServerEnvironmentBinding;
+  const operatorLiveEnabled = isLiveAnalysisEnabled(
+    await readEnvironmentValue(OPERATOR_LIVE_ENVIRONMENT_FLAG),
+  );
+  if (!operatorLiveEnabled) {
+    return {
+      operatorLiveEnabled: false,
+      liveEnabled: false,
+      apiKey: undefined,
+      admission: null,
+      diagnostics: {
+        sink: diagnostics,
+        workerEnvironmentImportSucceeded: false,
+        dbBindingPresent: false,
+        prepareCallable: false,
+        batchCallable: false,
+      },
+    };
+  }
   const liveEnabled = isLiveAnalysisEnabled(
     await readEnvironmentValue(LIVE_MODE_ENVIRONMENT_FLAG),
   );
   if (!liveEnabled) {
     return {
+      operatorLiveEnabled: true,
       liveEnabled: false,
       apiKey: undefined,
       admission: null,
@@ -123,6 +145,7 @@ export async function getPublicLiveRuntime(
   );
   const bindingShape = inspectD1DatabaseBinding(bindingResolution.value);
   return {
+    operatorLiveEnabled,
     liveEnabled,
     apiKey,
     admission: bindingShape.database
@@ -161,6 +184,10 @@ export async function isPublicLiveReady(
 }
 
 export async function isPublicLiveReadyOnServer(): Promise<boolean> {
+  return isOperatorSponsoredLiveReadyOnServer();
+}
+
+export async function isOperatorSponsoredLiveReadyOnServer(): Promise<boolean> {
   return isPublicLiveReady(await getPublicLiveRuntime());
 }
 
@@ -169,14 +196,22 @@ export function reportPublicLiveRuntimePrerequisiteFailure(
   diagnostics: PublicLiveDiagnosticSink =
     runtime.diagnostics?.sink ?? noopPublicLiveDiagnosticSink,
 ): boolean {
+  if (!runtime.operatorLiveEnabled) {
+    reportPublicLiveDiagnostic(diagnostics, "operator_live_flag_disabled", {
+      operatorLiveEnabled: false,
+    });
+    return true;
+  }
   if (!runtime.liveEnabled) {
     reportPublicLiveDiagnostic(diagnostics, "live_flag_disabled", {
+      operatorLiveEnabled: true,
       liveFlagEnabled: false,
     });
     return true;
   }
   if (!runtime.apiKey?.trim()) {
     reportPublicLiveDiagnostic(diagnostics, "api_key_missing", {
+      operatorLiveEnabled: true,
       liveFlagEnabled: true,
       apiKeyPresent: false,
     });
@@ -199,6 +234,7 @@ export function reportPublicLiveRuntimePrerequisiteFailure(
 
 function runtimeDiagnosticFacts(runtime: PublicLiveRuntime) {
   return {
+    operatorLiveEnabled: runtime.operatorLiveEnabled,
     liveFlagEnabled: runtime.liveEnabled,
     apiKeyPresent: Boolean(runtime.apiKey?.trim()),
     workerEnvironmentImportSucceeded:
@@ -207,6 +243,22 @@ function runtimeDiagnosticFacts(runtime: PublicLiveRuntime) {
     prepareCallable: runtime.diagnostics?.prepareCallable,
     batchCallable: runtime.diagnostics?.batchCallable,
   };
+}
+
+export function operatorSponsoredLiveDisabledResponse(): Response {
+  return Response.json(
+    {
+      mode: "unavailable",
+      status: "error",
+      error: {
+        code: "operator_sponsored_live_disabled",
+        message:
+          "Operator-sponsored live investigation is not enabled. The prepared investigation and user relay path remain available.",
+      },
+      canonical_mutation: "none",
+    },
+    { status: 503 },
+  );
 }
 
 export function liveAnalysisDisabledResponse(): Response {

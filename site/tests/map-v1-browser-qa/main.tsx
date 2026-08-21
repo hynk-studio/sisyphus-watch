@@ -39,9 +39,22 @@ import {
 
 const REQUESTED_SURFACE = new URLSearchParams(window.location.search).get("surface");
 const STORAGE_UNAVAILABLE_SURFACE = "watch-storage-unavailable";
+const EXECUTION_BOUNDARY_SURFACE_NAMES = [
+  "public-default",
+  "relay",
+  "relay-failure",
+  "watch",
+  "sponsored",
+] as const;
+type ExecutionBoundarySurface = (typeof EXECUTION_BOUNDARY_SURFACE_NAMES)[number];
+const EXECUTION_BOUNDARY_SURFACES = new Set<string>(
+  EXECUTION_BOUNDARY_SURFACE_NAMES,
+);
 
-if (REQUESTED_SURFACE === "watch" || REQUESTED_SURFACE === STORAGE_UNAVAILABLE_SURFACE) {
-  installSavedWatchFetchMock(REQUESTED_SURFACE === STORAGE_UNAVAILABLE_SURFACE);
+if (REQUESTED_SURFACE && EXECUTION_BOUNDARY_SURFACES.has(REQUESTED_SURFACE)) {
+  installExecutionBoundaryFetchMock(REQUESTED_SURFACE as ExecutionBoundarySurface);
+} else if (REQUESTED_SURFACE === STORAGE_UNAVAILABLE_SURFACE) {
+  installSavedWatchFetchMock(true);
 }
 
 const FIXTURE_BUILDERS = {
@@ -116,11 +129,18 @@ function MapQaApp() {
 
   if (surface === "loading") return <LoadingComposerHarness />;
 
-  if (surface === "watch" || surface === STORAGE_UNAVAILABLE_SURFACE) {
+  if (
+    surface === "public-default"
+    || surface === "relay"
+    || surface === "relay-failure"
+    || surface === "watch"
+    || surface === "sponsored"
+    || surface === STORAGE_UNAVAILABLE_SURFACE
+  ) {
     return (
       <CaseExplorer
         preparedCase={buildPreparedSiteReadyCasePacket()}
-        liveEnabled={true}
+        operatorSponsoredReady={surface === "sponsored"}
         runGuardCooldownMs={0}
         localWatchStorage={surface === STORAGE_UNAVAILABLE_SURFACE
           ? unavailableStorage
@@ -135,7 +155,7 @@ function MapQaApp() {
         preparedCase={surface === "temporal"
           ? buildTemporalAcceptanceFixture()
           : buildPreparedSiteReadyCasePacket()}
-        liveEnabled={true}
+        operatorSponsoredReady={true}
       />
     );
   }
@@ -171,6 +191,79 @@ function MapQaApp() {
       <MountedMap key={fixtureName} packet={packet} fixtureName={fixtureName} />
     </main>
   );
+}
+
+function installExecutionBoundaryFetchMock(
+  surface: ExecutionBoundarySurface,
+) {
+  const packetA = buildSavedWatchPacketA();
+  const packetB = buildSavedWatchPacketB();
+  const packetASnapshot = JSON.stringify(buildLocalWatchSnapshot(packetA));
+  const root = document.documentElement;
+  const counts = { capability: 0, relay: 0, operator: 0 };
+  const record = (
+    kind: keyof typeof counts,
+    requestUrl: URL,
+    init?: RequestInit,
+  ) => {
+    counts[kind] += 1;
+    root.dataset.qaCapabilityCalls = String(counts.capability);
+    root.dataset.qaRelayCalls = String(counts.relay);
+    root.dataset.qaOperatorCalls = String(counts.operator);
+    root.dataset.qaLastTarget = requestUrl.toString();
+    root.dataset.qaLastCredentials = String(init?.credentials ?? "default");
+    root.dataset.qaLastRedirect = String(init?.redirect ?? "default");
+  };
+  root.dataset.qaCapabilityCalls = "0";
+  root.dataset.qaRelayCalls = "0";
+  root.dataset.qaOperatorCalls = "0";
+
+  window.fetch = async (input, init) => {
+    const requestUrl = new URL(
+      typeof input === "string" || input instanceof URL ? String(input) : input.url,
+      window.location.href,
+    );
+    if (
+      requestUrl.origin === "https://relay.example"
+      && requestUrl.pathname === "/v1/capabilities"
+      && init?.method === "GET"
+    ) {
+      record("capability", requestUrl, init);
+      return Response.json({
+        contract_version: "sisyphus_relay_capabilities.v1",
+        lineage_response_contract: "site_ready_case_packet.v1",
+        supported_source_limits: [3, 5],
+        supported_discovery_profiles: ["standard", "coverage_expansion"],
+        relay_display_name: "Browser QA relay",
+      });
+    }
+    if (
+      requestUrl.origin === "https://relay.example"
+      && requestUrl.pathname === "/v1/lineage"
+      && init?.method === "POST"
+    ) {
+      record("relay", requestUrl, init);
+      if (surface === "relay-failure" && counts.relay > 1) {
+        return Response.json({ malformed: true });
+      }
+      const stored = readLocalWatch(window.localStorage);
+      const packet = stored.status === "valid"
+        && JSON.stringify(stored.watch.snapshot) === packetASnapshot
+        ? packetB
+        : packetA;
+      return Response.json(packet);
+    }
+    if (
+      requestUrl.origin === window.location.origin
+      && requestUrl.pathname === "/api/lineage"
+      && init?.method === "POST"
+      && surface === "sponsored"
+    ) {
+      record("operator", requestUrl, init);
+      return Response.json(packetA);
+    }
+    throw new Error(`Browser QA blocks non-mock request: ${requestUrl.toString()}`);
+  };
 }
 
 const unavailableStorage: LocalWatchStorage = {

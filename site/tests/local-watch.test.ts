@@ -74,9 +74,8 @@ test("server render and initial Watch read perform no browser-local write", () =
   const storage = new MemoryStorage();
   const html = renderToStaticMarkup(createElement(CaseExplorer, {
     preparedCase: packet,
-    liveEnabled: true,
   }));
-  assert.match(html, /What do you want to investigate/);
+  assert.match(html, /Prepared demo \+ Connect your relay/);
   assert.equal(storage.setCount, 0);
   assert.deepEqual(readLocalWatch(storage), { status: "empty" });
   assert.equal(storage.getCount, 1);
@@ -522,7 +521,7 @@ test("Saved Watch and Since-last-check UI expose manual, bounded, review-only se
   assert.match(card, /Check for changes<\/button>/);
   assert.match(card, /disabled=""/);
   assert.match(card, />Forget<\/button>/);
-  assert.match(card, /checking is disabled/);
+  assert.match(card, /Connect your relay or explicitly select sponsored live/);
 
   const delta = compareInvestigationSnapshots(watch.snapshot, watch.snapshot);
   const panel = renderToStaticMarkup(createElement(InvestigationDeltaPanel, {
