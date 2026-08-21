@@ -40,12 +40,29 @@ http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-storage-unavailable
 ```
 
-The Watch surface mounts the production `CaseExplorer` and replaces only its
-test-page `fetch` function with a deterministic same-page sequence: packet A,
-packet B, then one fallback. The sequence is selected from the validated owned
-Watch key, so a real reload exercises restoration without adding another
-browser-storage key. Requests that are not the mocked `/api/lineage` POST throw
-locally before any network traffic. The unavailable surface injects a storage
+For the relay-first execution boundary, use:
+
+```text
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=public-default
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=relay
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=relay-failure
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=sponsored
+```
+
+These surfaces mount the production `CaseExplorer` and install a test-page-only
+fetch mock before render. Relay capability and lineage requests are accepted
+only at `https://relay.example/v1/capabilities` and
+`https://relay.example/v1/lineage`; sponsored lineage is accepted only at the
+same-origin `/api/lineage` path. The harness records capability, relay, and
+operator call counts plus the last target, credentials mode, and redirect mode
+on the document element as `data-qa-*` attributes. Any other fetch throws before
+network traffic. No provider, hosted route, or D1 request is made.
+
+The Watch surface uses the same browser-direct relay mock with a deterministic
+packet A then packet B sequence selected from the validated owned Watch key, so
+a real reload exercises Watch and relay-metadata restoration without adding
+another browser-storage key. The restored relay endpoint makes zero automatic
+requests and requires explicit Reconnect. The unavailable surface injects a storage
 adapter whose read, write, and remove operations throw, while keeping the same
 local packet-A response.
 

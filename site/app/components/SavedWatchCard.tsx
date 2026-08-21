@@ -2,6 +2,7 @@ import type { LocalWatch } from "../lib/local-watch";
 
 export function SavedWatchCard({
   watch,
+  executionAvailable,
   liveEnabled,
   isLoading,
   isWatchRechecking,
@@ -10,14 +11,16 @@ export function SavedWatchCard({
   onForget,
 }: {
   watch: LocalWatch;
-  liveEnabled: boolean;
+  executionAvailable?: boolean;
+  liveEnabled?: boolean;
   isLoading: boolean;
   isWatchRechecking: boolean;
   cooldownRemainingSeconds: number;
   onCheck: () => void;
   onForget: () => void;
 }) {
-  const checkDisabled = !liveEnabled || isLoading || cooldownRemainingSeconds > 0;
+  const canExecute = executionAvailable ?? liveEnabled ?? false;
+  const checkDisabled = !canExecute || isLoading || cooldownRemainingSeconds > 0;
   const checkLabel = isWatchRechecking
     ? "Checking for changes…"
     : cooldownRemainingSeconds > 0
@@ -71,8 +74,8 @@ export function SavedWatchCard({
         </button>
       </div>
       <p className="saved-watch-status" role="status" aria-live="polite">
-        {!liveEnabled
-          ? "Live discovery is unavailable, so checking is disabled. Forget remains available."
+        {!canExecute
+          ? "Connect your relay or explicitly select sponsored live to check this Watch again. Forget remains available."
           : isWatchRechecking
             ? "Running one manual bounded recheck. The displayed investigation and saved baseline stay intact until a valid live result is available."
             : isLoading

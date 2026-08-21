@@ -23,6 +23,7 @@ export default defineConfig({
         ],
         ...buildLocalWorkerRuntimeBindings(
           process.env.SISYPHUS_LIVE_ENABLED,
+          process.env.SISYPHUS_OPERATOR_LIVE_ENABLED,
         ),
       },
     }),

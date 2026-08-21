@@ -42,6 +42,7 @@ import {
 import {
   isLiveAnalysisEnabled,
   liveAnalysisDisabledResponse,
+  OPERATOR_LIVE_ENVIRONMENT_FLAG,
 } from "../app/lib/live-mode";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
 import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
@@ -88,15 +89,14 @@ test("live-disabled landing makes the prepared investigation the primary usable 
   const before = JSON.stringify(packet);
   const html = renderToStaticMarkup(createElement(CaseExplorer, {
     preparedCase: packet,
-    liveEnabled: false,
   }));
 
   assert.match(html, /Explore how public information changes/);
   assert.match(html, /class="prepared-primary-button"/);
   assert.match(html, /Explore the prepared investigation/);
-  assert.match(html, /Public live investigations are unavailable right now/);
-  assert.match(html, /available working path/);
-  assert.match(html, /How live investigations work/);
+  assert.match(html, /Prepared demo \+ Connect your relay/);
+  assert.match(html, /Connect your relay/);
+  assert.match(html, /never asks for or stores your OpenAI API key/);
   assert.doesNotMatch(html, /<textarea/);
   assert.doesNotMatch(html, /type="radio"/);
   assert.doesNotMatch(html, /<select/);
@@ -203,19 +203,21 @@ test("live composer exposes the existing bounded request controls without claimi
   assert.match(html, /3 sources/);
   assert.match(html, /5 sources · broader and slower/);
   assert.doesNotMatch(html, /8 sources/);
-  assert.match(html, /Live discovery available/);
+  assert.match(html, /Sponsored capacity ready/);
+  assert.match(html, /Explicitly operator-funded/);
+  assert.match(html, /subject to strict capacity limits/);
   assert.match(html, /bounded limits apply/);
   assert.match(html, /availability-note availability-idle-ready/);
   assert.match(html, /data-live-capability="available"/);
   assert.match(html, /Privacy &amp; limits/);
-  assert.match(html, /Server-side aggregate capacity limits/);
-  assert.match(html, /live, partial, or a clearly labeled prepared fallback/);
-  assert.match(html, /every inferred record remains a review candidate/);
+  assert.match(html, /D1-backed aggregate capacity limits/);
+  assert.match(html, /failed relay request never falls back to sponsored compute/);
+  assert.match(html, /records and relations remain review candidates/);
   assert.doesNotMatch(html, /Bounded live discovery is available/);
   assert.doesNotMatch(html, /availability-note live-ready/);
   assert.doesNotMatch(html, /\bvalidated\b/i);
   assert.doesNotMatch(html, /disabled=""/);
-  assert.ok(html.indexOf("Build investigation map") < html.indexOf("Try the cooling-center example"));
+  assert.ok(html.indexOf("Build investigation map") < html.indexOf("Explore the prepared investigation"));
 });
 
 test("loading and cooldown retain their distinct availability treatments", () => {
@@ -487,15 +489,17 @@ test("live composer presents concise privacy, review, persistence, and cost-dens
     onPreparedExample: noop,
   }));
 
-  assert.match(html, /question is sent to OpenAI to discover and analyze public sources/i);
+  assert.match(html, /separately enabled operator-sponsored route/i);
+  assert.match(html, /operator funds provider work under bounded admission limits/i);
   assert.match(html, /personal, confidential, sensitive, or identifying information/i);
   assert.match(html, /does not persist visitor questions or results/i);
   assert.match(html, /Results may be incomplete or wrong/i);
   assert.match(html, /records and relations remain review candidates/i);
   assert.match(html, /Privacy &amp; limits/);
   assert.match(html, /Source inclusion is not endorsement or truth verification/i);
-  assert.match(html, /20-second timeout applies to each provider request/i);
-  assert.match(html, /not strong abuse prevention/i);
+  assert.match(html, /20-second per-request timeout/i);
+  assert.match(html, /in-memory accidental-repeat cooldown/i);
+  assert.match(html, /never asks for or stores your OpenAI API key/i);
   assert.doesNotMatch(html, /anonymous|independently verified|fact.checked|no network activity/i);
   assert.doesNotMatch(html, /OPENAI_API_KEY|SISYPHUS_LIVE_ENABLED/);
 });
@@ -531,7 +535,7 @@ test("synchronous run guard blocks rapid and overlapping actions and rejects sta
     new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
     "utf8",
   );
-  assert.ok(explorerSource.indexOf("runGuard.current.begin()") < explorerSource.indexOf("fetch(\"/api/lineage\""));
+  assert.ok(explorerSource.indexOf("runGuard.current.begin()") < explorerSource.indexOf("executeInvestigationTransport(activeTransport"));
   assert.match(explorerSource, /runGuard\.current\.acceptsResponse\(requestId\)/);
 });
 
@@ -1894,7 +1898,6 @@ test("public copy avoids project shorthand and inaccurate no-network claims whil
   const packet = buildPreparedSiteReadyCasePacket();
   const html = renderToStaticMarkup(createElement(CaseExplorer, {
     preparedCase: packet,
-    liveEnabled: false,
   }));
   assert.doesNotMatch(html, /#43/);
   assert.doesNotMatch(html, /No network request/);
@@ -1964,7 +1967,7 @@ test("fallback, partial, loading, and error notices never mislabel the displayed
   assert.match(cooldown.message, /not strong abuse prevention/i);
 });
 
-test("server-only live flag defaults closed and the disabled route returns a bounded safe error", async () => {
+test("operator and lower-level live flags default closed with distinct bounded route errors", async () => {
   assert.equal(isLiveAnalysisEnabled(undefined), false);
   assert.equal(isLiveAnalysisEnabled("false"), false);
   assert.equal(isLiveAnalysisEnabled("1"), false);
@@ -1980,6 +1983,8 @@ test("server-only live flag defaults closed and the disabled route returns a bou
   assert.equal(directBody.canonical_mutation, "none");
 
   const originalFlag = process.env.SISYPHUS_LIVE_ENABLED;
+  const originalOperatorFlag = process.env[OPERATOR_LIVE_ENVIRONMENT_FLAG];
+  process.env[OPERATOR_LIVE_ENVIRONMENT_FLAG] = "true";
   process.env.SISYPHUS_LIVE_ENABLED = "false";
   try {
     const response = await postLineage(new Request("http://site.local/api/lineage", {
@@ -2000,6 +2005,11 @@ test("server-only live flag defaults closed and the disabled route returns a bou
   } finally {
     if (originalFlag === undefined) delete process.env.SISYPHUS_LIVE_ENABLED;
     else process.env.SISYPHUS_LIVE_ENABLED = originalFlag;
+    if (originalOperatorFlag === undefined) {
+      delete process.env[OPERATOR_LIVE_ENVIRONMENT_FLAG];
+    } else {
+      process.env[OPERATOR_LIVE_ENVIRONMENT_FLAG] = originalOperatorFlag;
+    }
   }
 });
 

@@ -2,6 +2,7 @@ export const PUBLIC_LIVE_DIAGNOSTIC_NAMESPACE =
   "sisyphus_public_live_runtime";
 
 export const PUBLIC_LIVE_DIAGNOSTIC_STAGES = [
+  "operator_live_flag_disabled",
   "live_flag_disabled",
   "api_key_missing",
   "db_binding_missing",
@@ -21,6 +22,7 @@ export type PublicLiveDiagnosticStage =
 export interface PublicLiveDiagnosticEvent {
   event: typeof PUBLIC_LIVE_DIAGNOSTIC_NAMESPACE;
   stage: PublicLiveDiagnosticStage;
+  operator_live_enabled?: boolean;
   live_flag_enabled?: boolean;
   api_key_present?: boolean;
   worker_environment_import_succeeded?: boolean;
@@ -37,6 +39,7 @@ export type PublicLiveDiagnosticSink = (
 ) => void;
 
 export interface PublicLiveDiagnosticFacts {
+  operatorLiveEnabled?: boolean;
   liveFlagEnabled?: boolean;
   apiKeyPresent?: boolean;
   workerEnvironmentImportSucceeded?: boolean;
@@ -63,6 +66,11 @@ export function createPublicLiveDiagnosticEvent(
     stage,
   };
 
+  copyBoolean(
+    event,
+    "operator_live_enabled",
+    facts.operatorLiveEnabled,
+  );
   copyBoolean(event, "live_flag_enabled", facts.liveFlagEnabled);
   copyBoolean(event, "api_key_present", facts.apiKeyPresent);
   copyBoolean(

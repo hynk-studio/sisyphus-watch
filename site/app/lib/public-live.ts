@@ -163,8 +163,8 @@ export function safePublicRouteErrorMessage(
 ): string {
   if (code === "capacity_exhausted") {
     return retryAfterSeconds > 0
-      ? `Public live capacity is currently full. Try again in about ${retryAfterSeconds} seconds.`
-      : "Public live capacity is currently full. Try again later.";
+      ? `Operator-sponsored capacity is currently full. Try again in about ${retryAfterSeconds} seconds.`
+      : "Operator-sponsored capacity is currently full. Try again later.";
   }
   if (code === "service_spend_limit_reached") {
     return "The live service budget boundary has been reached.";

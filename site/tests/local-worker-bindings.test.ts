@@ -8,6 +8,7 @@ import { handleAnalysisRequest } from "../app/lib/analysis/handler";
 import {
   liveAnalysisDisabledResponse,
   LIVE_MODE_ENVIRONMENT_FLAG,
+  OPERATOR_LIVE_ENVIRONMENT_FLAG,
   OPENAI_KEY_ENVIRONMENT_NAME,
 } from "../app/lib/live-mode";
 import { buildLocalWorkerRuntimeBindings } from "../build/local-worker-bindings";
@@ -37,6 +38,17 @@ test("live-enabled local bindings require only OPENAI_API_KEY", () => {
     assert.deepEqual(Object.keys(bindings.vars), [LIVE_MODE_ENVIRONMENT_FLAG]);
     assert.equal(OPENAI_KEY_ENVIRONMENT_NAME in bindings.vars, false);
   }
+});
+
+test("operator sponsorship is forwarded only as an explicit non-secret boolean flag", () => {
+  const bindings = buildLocalWorkerRuntimeBindings("true", "true");
+  assert.deepEqual(bindings.vars, {
+    [LIVE_MODE_ENVIRONMENT_FLAG]: "true",
+    [OPERATOR_LIVE_ENVIRONMENT_FLAG]: "true",
+  });
+  assert.deepEqual(bindings.secrets, {
+    required: [OPENAI_KEY_ENVIRONMENT_NAME],
+  });
 });
 
 test("secret values stay out of generated bindings, config source, and client assets", async () => {

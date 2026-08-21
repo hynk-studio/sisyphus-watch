@@ -59,6 +59,76 @@ separate owner authorization.
 The default development URL is printed by vinext (normally
 `http://localhost:3000`).
 
+## Relay-first public execution architecture
+
+Public Sisyphus Watch never asks for or stores a user's OpenAI API key. The
+public first-load default is **Prepared demo + Connect your relay**.
+
+Execution ownership is explicit:
+
+- Prepared -> deterministic data, no provider, no credential.
+- Relay -> the user's backend and provider responsibility. The browser contacts
+  the relay directly; the public Sisyphus backend is not a proxy and never
+  receives the relay's provider credential.
+- Sponsored -> the operator backend and provider responsibility. This path is
+  separately enabled, operator-funded, D1 bounded, and opt-in in the UI.
+
+No transport silently falls back to another. A relay failure cannot consume
+operator funds, and a sponsored failure cannot contact a relay.
+
+### Sisyphus Relay v1
+
+The browser-local storage key `sisyphus.relay.v1` uses
+`sisyphus_relay_connection.v1`. It stores only the normalized relay base URL,
+negotiated protocol/response contract, an optional bounded display name, and a
+save timestamp. It is independent from `sisyphus.local-watch.v1`. Typing an
+endpoint stores nothing; persistence occurs only after an explicit successful
+capability check. Reload restores a saved endpoint without network traffic and
+requires an explicit Reconnect. Disconnect removes only the relay key.
+
+Relay v1 uses fixed browser-direct endpoints relative to the validated base
+URL:
+
+```text
+GET  /v1/capabilities
+POST /v1/lineage
+```
+
+The non-billable capability document has contract
+`sisyphus_relay_capabilities.v1`, advertises response contract
+`site_ready_case_packet.v1`, source limits `[3, 5]`, and discovery profiles
+`["standard", "coverage_expansion"]`. Lineage requests contain only
+`question`, `sourceLimit`, and `discoveryProfile`. The browser uses
+`credentials: "omit"`, rejects redirects, sends no Authorization header, and
+sends no API-key field. Successful responses must strictly validate as a live
+`site_ready_case_packet.v1`; prepared/fallback or malformed relay responses do
+not replace the displayed investigation or Saved Watch baseline.
+
+Production relay bases require HTTPS; HTTP is allowed only for loopback
+development. The relay must allow the public Site origin through its own CORS
+policy. Relay authentication and network protection are the relay operator's
+responsibility in v1. The public Sisyphus client stores no generic relay
+credential. BFG8R intentionally does not ship an anonymous turnkey
+provider-spend relay.
+
+### Operator-sponsored live
+
+Operator-sponsored execution requires all four conditions:
+
+```text
+SISYPHUS_OPERATOR_LIVE_ENABLED=true
+SISYPHUS_LIVE_ENABLED=true
+OPENAI_API_KEY is present on the server
+D1 admission is healthy
+```
+
+The new sponsorship flag is false when absent, empty, malformed, or not exactly
+`true`. When false, `POST /api/lineage` returns the typed
+`operator_sponsored_live_disabled` state before D1 reservation or provider
+work. Key presence alone does not authorize public execution. Sponsored mode is
+shown only when ready and still requires explicit selection; it never becomes
+the public default.
+
 ## Deterministic data boundary
 
 `app/lib/prepared-case.ts` adapts the existing synthetic cooling-center case
@@ -77,16 +147,18 @@ Only a single bounded fixture record is returned through that detail path.
 Source text is rendered through React or serialized as JSON; it is never
 executed as HTML or instructions.
 
-## Bounded server-side OpenAI analysis
+## Bounded operator-sponsored OpenAI analysis
 
-`POST /api/lineage` is the sole public billable boundary. The browser-facing
+`POST /api/lineage` is the operator-sponsored billable boundary, not the public
+default. The browser-facing
 `POST /api/analysis` route is disabled and cannot invoke provider work. The
 lineage route accepts only a normalized public-interest question, an optional source limit
 (public default 3, public maximum 5), and an optional discovery profile. The
 profile defaults to `standard`. Requests above 5 are rejected before adapter or
 provider work. The analysis adapter retains a separate internal hard maximum of
 8 for direct unit/stress use; 8 is not a public browser-route option. Only after
-validation and admission does the route use `OPENAI_API_KEY` from the server
+the explicit sponsorship gate, request validation, and admission does the route
+use `OPENAI_API_KEY` from the server
 runtime. The client never imports the OpenAI adapter and receives no raw
 provider response or unbounded source text.
 
@@ -351,8 +423,9 @@ directional correction/follow-up/narrowing/supersession types retain endpoint
 order.
 
 **Check for changes** reuses the saved question, source bound, discovery profile,
-`POST /api/lineage`, one-in-flight guard, cooldown, validation, and existing
-response-preservation path. Only an explicitly initiated successful live Watch
+the currently explicitly selected relay or sponsored transport, one-in-flight
+guard, cooldown, validation, and existing response-preservation path. It never
+falls back between transports. Only an explicitly initiated successful live Watch
 recheck can advance the baseline. Normal investigations, coverage-expansion
 runs, prepared examples, fallbacks, capacity denials, malformed responses,
 timeouts, and route failures cannot advance it. If comparison succeeds but the
@@ -455,7 +528,7 @@ project, hosted versions, audience access, analytics, and production address
 are managed from ChatGPT web or the desktop app. None of those hosted operations
 is performed or represented in this implementation.
 
-## Public experience and live-mode flag
+## Public experience and sponsored-live flags
 
 The first-load experience uses the deterministic cooling-center case and the
 schema-checked `site_ready_case_packet.v1` contract. Overview, Timeline, Claim
@@ -463,16 +536,20 @@ lineage, Sources, and Unresolved views consume that contract without rebuilding
 relation, family, provenance, or canonical-state rules in React. Focused
 prepared-case details use the stable `/api/lineage/:caseId` detail route.
 
-Live analysis is closed by default. Set the non-secret server flag below only
-when a reviewed environment should expose the bounded live route:
+Operator-sponsored live analysis is closed by default. Both non-secret server
+flags below are required before the operator route can be advertised or used:
 
 ```text
+SISYPHUS_OPERATOR_LIVE_ENABLED=true
 SISYPHUS_LIVE_ENABLED=true
 ```
 
-The rendered interface advertises self-service live work only when the flag is
-true, the server API key is present, and the D1 admission table passes a safe
-readiness query. Only that composite boolean reaches browser code. No secret
+`SISYPHUS_LIVE_ENABLED` remains the lower-level provider runtime flag.
+`SISYPHUS_OPERATOR_LIVE_ENABLED` is the distinct economic-authority gate and
+defaults false for absent, empty, malformed, and false values. The rendered
+interface advertises sponsored live only when both flags are true, the server
+API key is present, and the D1 admission table passes a safe readiness query.
+It still requires explicit user selection. Only that composite boolean reaches browser code. No secret
 name/value, binding detail, counter, or spend information is serialized.
 `OPENAI_API_KEY` remains a server-only secret and must be configured separately
 in a later owner-controlled Sites environment step.

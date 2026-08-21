@@ -439,6 +439,7 @@ test("vendor representation runs one accepted investigation once, then projects 
   const request = publicRequest();
   const internalResponse = await handlePublicLiveLineageRequest(request, {
     getRuntime: async () => ({
+      operatorLiveEnabled: true,
       liveEnabled: true,
       apiKey: "test-only-not-a-real-key",
       admission: {
@@ -479,6 +480,7 @@ test("known provider failure still runs once and public response is no-result", 
   let settlements = 0;
   const internalResponse = await handlePublicLiveLineageRequest(publicRequest(), {
     getRuntime: async () => ({
+      operatorLiveEnabled: true,
       liveEnabled: true,
       apiKey: "test-only-not-a-real-key",
       admission: {

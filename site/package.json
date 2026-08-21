@@ -15,6 +15,7 @@
     "test:lineage": "node --import tsx --test tests/claim-lineage.test.ts tests/public-evidence.test.ts",
     "test:experience": "node --import tsx --test tests/site-experience.test.ts tests/local-watch.test.ts",
     "test:map": "node --import tsx --test tests/investigation-map.test.ts",
+    "test:boundary": "node --import tsx --test tests/relay.test.ts tests/public-live-admission.test.ts tests/public-live-diagnostics.test.ts",
     "smoke:deterministic": "npm run build && env -u OPENAI_API_KEY node scripts/deterministic-smoke.mjs",
     "check:local-worker-bindings": "node scripts/check-local-worker-bindings.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",

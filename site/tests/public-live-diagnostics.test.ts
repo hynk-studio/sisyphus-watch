@@ -6,6 +6,7 @@ import {
   getPublicLiveRuntime,
   isPublicLiveReady,
   LIVE_MODE_ENVIRONMENT_FLAG,
+  OPERATOR_LIVE_ENVIRONMENT_FLAG,
   OPENAI_KEY_ENVIRONMENT_NAME,
   type PublicLiveRuntime,
 } from "../app/lib/live-mode";
@@ -66,6 +67,7 @@ async function resolveRuntime(
   return getPublicLiveRuntime({
     diagnostics: sink,
     readEnvironmentValue: async (name) => {
+      if (name === OPERATOR_LIVE_ENVIRONMENT_FLAG) return "true";
       if (name === LIVE_MODE_ENVIRONMENT_FLAG) return "true";
       if (name === OPENAI_KEY_ENVIRONMENT_NAME) return options.apiKey;
       return undefined;
@@ -83,6 +85,7 @@ function runtimeWithAdmission(
   sink: PublicLiveDiagnosticSink,
 ): PublicLiveRuntime {
   return {
+    operatorLiveEnabled: true,
     liveEnabled: true,
     apiKey: FORBIDDEN_API_KEY,
     admission,
@@ -131,6 +134,7 @@ function validPublicRequest(): Request {
 
 test("public-live diagnostics expose a fixed infrastructure-only stage schema", () => {
   assert.deepEqual(PUBLIC_LIVE_DIAGNOSTIC_STAGES, [
+    "operator_live_flag_disabled",
     "live_flag_disabled",
     "api_key_missing",
     "db_binding_missing",
@@ -182,10 +186,46 @@ test("missing API key reports only presence state", async () => {
   assert.deepEqual(capture.events, [{
     event: PUBLIC_LIVE_DIAGNOSTIC_NAMESPACE,
     stage: "api_key_missing",
+    operator_live_enabled: true,
     live_flag_enabled: true,
     api_key_present: false,
   }]);
   assertInfrastructureOnly(JSON.stringify(capture.events));
+});
+
+test("operator sponsorship absent, malformed, or false skips lower runtime and D1 resolution", async () => {
+  for (const flag of [undefined, "", "false", "1", " enabled "]) {
+    const capture = captureDiagnostics();
+    const environmentReads: string[] = [];
+    let bindingReads = 0;
+    const runtime = await getPublicLiveRuntime({
+      diagnostics: capture.sink,
+      readEnvironmentValue: async (name) => {
+        environmentReads.push(name);
+        return name === OPERATOR_LIVE_ENVIRONMENT_FLAG
+          ? flag
+          : FORBIDDEN_API_KEY;
+      },
+      resolveEnvironmentBinding: async () => {
+        bindingReads += 1;
+        return {
+          value: databaseBinding(),
+          workerEnvironmentImportSucceeded: true,
+        };
+      },
+    });
+    assert.deepEqual(environmentReads, [OPERATOR_LIVE_ENVIRONMENT_FLAG]);
+    assert.equal(bindingReads, 0);
+    assert.equal(runtime.operatorLiveEnabled, false);
+    assert.equal(runtime.apiKey, undefined);
+    assert.equal(runtime.admission, null);
+    assert.equal(await isPublicLiveReady(runtime), false);
+    assert.deepEqual(capture.events, [{
+      event: PUBLIC_LIVE_DIAGNOSTIC_NAMESPACE,
+      stage: "operator_live_flag_disabled",
+      operator_live_enabled: false,
+    }]);
+  }
 });
 
 test("disabled live flag reports the normalized boolean without reading bindings", async () => {
@@ -194,7 +234,11 @@ test("disabled live flag reports the normalized boolean without reading bindings
   const runtime = await getPublicLiveRuntime({
     diagnostics: capture.sink,
     readEnvironmentValue: async (name) =>
-      name === LIVE_MODE_ENVIRONMENT_FLAG ? " disabled " : FORBIDDEN_API_KEY,
+      name === OPERATOR_LIVE_ENVIRONMENT_FLAG
+        ? "true"
+        : name === LIVE_MODE_ENVIRONMENT_FLAG
+          ? " disabled "
+          : FORBIDDEN_API_KEY,
     resolveEnvironmentBinding: async () => {
       bindingReads += 1;
       return {
@@ -208,6 +252,7 @@ test("disabled live flag reports the normalized boolean without reading bindings
   assert.deepEqual(capture.events, [{
     event: PUBLIC_LIVE_DIAGNOSTIC_NAMESPACE,
     stage: "live_flag_disabled",
+    operator_live_enabled: true,
     live_flag_enabled: false,
   }]);
 });
@@ -223,6 +268,7 @@ test("missing DB binding reports import and binding presence booleans", async ()
   assert.deepEqual(capture.events, [{
     event: PUBLIC_LIVE_DIAGNOSTIC_NAMESPACE,
     stage: "db_binding_missing",
+    operator_live_enabled: true,
     live_flag_enabled: true,
     api_key_present: true,
     worker_environment_import_succeeded: false,
@@ -280,6 +326,7 @@ test("successful readiness remains true and reports bounded component state", as
   assert.deepEqual(capture.events, [{
     event: PUBLIC_LIVE_DIAGNOSTIC_NAMESPACE,
     stage: "runtime_ready",
+    operator_live_enabled: true,
     live_flag_enabled: true,
     api_key_present: true,
     worker_environment_import_succeeded: true,
@@ -322,11 +369,11 @@ test("reserve failure keeps the generic 503 and logs no request data", async () 
   assert.deepEqual(body, {
     mode: "unavailable",
     status: "error",
-    error: {
-      code: "service_admission_unavailable",
-      message:
-        "Public live admission is unavailable. The prepared example remains available as a separate choice.",
-    },
+      error: {
+        code: "service_admission_unavailable",
+        message:
+          "Operator-sponsored admission is unavailable. The prepared example and relay path remain available as separate choices.",
+      },
     canonical_mutation: "none",
   });
   assert.deepEqual(reserveInputs, [{ workUnits: 6, nowMs: NOW_MS }]);

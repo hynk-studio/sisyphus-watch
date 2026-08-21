@@ -151,6 +151,7 @@ function publicRequest(body: unknown): Request {
 
 function runtime(admission: PublicAdmissionStore | null): PublicLiveRuntime {
   return {
+    operatorLiveEnabled: true,
     liveEnabled: true,
     apiKey: "test-only-provider-key-material",
     admission,
@@ -260,6 +261,61 @@ test("invalid public input is rejected before runtime, admission, or provider wo
   assert.equal(response.status, 400);
   assert.equal(runtimeReads, 0);
   assert.match(JSON.stringify(await response.json()), /invalid_question/);
+});
+
+test("same-origin lineage never accepts a relay URL to proxy", async () => {
+  let runtimeReads = 0;
+  const response = await handlePublicLiveLineageRequest(
+    publicRequest({
+      question: "How is public access changing for residents?",
+      sourceLimit: 3,
+      discoveryProfile: "standard",
+      relayUrl: "https://relay.example",
+    }),
+    {
+      getRuntime: async () => {
+        runtimeReads += 1;
+        return runtime(new FakeAdmissionStore());
+      },
+      runLive: async () => {
+        throw new Error("provider must not run");
+      },
+    },
+  );
+  assert.equal(response.status, 400);
+  assert.equal(runtimeReads, 0);
+  assert.match(JSON.stringify(await response.json()), /invalid_request/);
+});
+
+test("operator sponsorship defaults closed before D1 reservation or provider work", async () => {
+  const admission = new FakeAdmissionStore();
+  let providerCalls = 0;
+  const response = await handlePublicLiveLineageRequest(
+    publicRequest({
+      question: "How is public access changing for residents?",
+      sourceLimit: 3,
+      discoveryProfile: "standard",
+    }),
+    {
+      getRuntime: async () => ({
+        operatorLiveEnabled: false,
+        liveEnabled: true,
+        apiKey: "present-but-not-authorizing",
+        admission,
+      }),
+      runLive: async () => {
+        providerCalls += 1;
+        throw new Error("provider must not run");
+      },
+    },
+  );
+  assert.equal(response.status, 503);
+  const body = await response.json() as AnalysisErrorPacket;
+  assert.equal(body.error.code, "operator_sponsored_live_disabled");
+  assert.equal(body.canonical_mutation, "none");
+  assert.equal(admission.reserveInputs.length, 0);
+  assert.equal(admission.settlements.length, 0);
+  assert.equal(providerCalls, 0);
 });
 
 test("capacity denial is a safe 429 before provider work and stores no visitor data", async () => {
@@ -431,28 +487,39 @@ test("composite readiness requires the flag, key, and a healthy admission backen
     },
   };
   assert.equal(await isPublicLiveReady({
+    operatorLiveEnabled: false,
+    liveEnabled: true,
+    apiKey: "test-key",
+    admission: readyAdmission,
+  }), false);
+  assert.equal(await isPublicLiveReady({
+    operatorLiveEnabled: true,
     liveEnabled: false,
     apiKey: "test-key",
     admission: readyAdmission,
   }), false);
   assert.equal(await isPublicLiveReady({
+    operatorLiveEnabled: true,
     liveEnabled: true,
     apiKey: undefined,
     admission: readyAdmission,
   }), false);
   assert.equal(await isPublicLiveReady({
+    operatorLiveEnabled: true,
     liveEnabled: true,
     apiKey: "test-key",
     admission: null,
   }), false);
   assert.equal(readinessCalls, 0);
   assert.equal(await isPublicLiveReady({
+    operatorLiveEnabled: true,
     liveEnabled: true,
     apiKey: "test-key",
     admission: readyAdmission,
   }), true);
   assert.equal(readinessCalls, 1);
   assert.equal(await isPublicLiveReady({
+    operatorLiveEnabled: true,
     liveEnabled: true,
     apiKey: "test-key",
     admission: new FakeAdmissionStore(undefined, false),
