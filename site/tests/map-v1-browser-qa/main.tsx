@@ -18,7 +18,10 @@ import {
   type CoverageLens,
 } from "../../app/lib/investigation-map";
 import { buildPreparedSiteReadyCasePacket } from "../../app/lib/lineage/builder";
-import type { SiteReadyCasePacket } from "../../app/lib/lineage/contracts";
+import {
+  validateSiteReadyCasePacket,
+  type SiteReadyCasePacket,
+} from "../../app/lib/lineage/contracts";
 import { getSiteReadyCaseDetail } from "../../app/lib/lineage/details";
 import {
   buildLocalWatchSnapshot,
@@ -55,6 +58,13 @@ if (REQUESTED_SURFACE && EXECUTION_BOUNDARY_SURFACES.has(REQUESTED_SURFACE)) {
   installExecutionBoundaryFetchMock(REQUESTED_SURFACE as ExecutionBoundarySurface);
 } else if (REQUESTED_SURFACE === STORAGE_UNAVAILABLE_SURFACE) {
   installSavedWatchFetchMock(true);
+} else if (
+  REQUESTED_SURFACE === "experience"
+  || REQUESTED_SURFACE === "temporal"
+  || REQUESTED_SURFACE === "live-relations"
+  || REQUESTED_SURFACE === "loading"
+) {
+  installNoRequestFetchGuard();
 }
 
 const FIXTURE_BUILDERS = {
@@ -149,12 +159,18 @@ function MapQaApp() {
     );
   }
 
-  if (surface === "experience" || surface === "temporal") {
+  if (
+    surface === "experience"
+    || surface === "temporal"
+    || surface === "live-relations"
+  ) {
     return (
       <CaseExplorer
         preparedCase={surface === "temporal"
           ? buildTemporalAcceptanceFixture()
-          : buildPreparedSiteReadyCasePacket()}
+          : surface === "live-relations"
+            ? buildLiveRelationPresentationFixture()
+            : buildPreparedSiteReadyCasePacket()}
         operatorSponsoredReady={true}
       />
     );
@@ -191,6 +207,110 @@ function MapQaApp() {
       <MountedMap key={fixtureName} packet={packet} fixtureName={fixtureName} />
     </main>
   );
+}
+
+function installNoRequestFetchGuard() {
+  const root = document.documentElement;
+  root.dataset.qaFetchCalls = "0";
+  window.fetch = async (input) => {
+    const count = Number(root.dataset.qaFetchCalls ?? "0") + 1;
+    root.dataset.qaFetchCalls = String(count);
+    const requestUrl = typeof input === "string" || input instanceof URL
+      ? String(input)
+      : input.url;
+    throw new Error(`Browser QA blocks request: ${requestUrl}`);
+  };
+}
+
+function buildLiveRelationPresentationFixture(): SiteReadyCasePacket {
+  const packet = structuredClone(buildPreparedSiteReadyCasePacket());
+  packet.mode = "live";
+  packet.status = "live";
+  packet.title = "Candidate lineage review";
+  packet.discovery_profile = "standard";
+  packet.coverage_summary = {
+    coverage_basis: "live_discovery",
+    discovery_profile: "standard",
+    baseline_requested: packet.actual_source_count,
+    baseline_returned: packet.actual_source_count,
+    expansion_requested: 0,
+    expansion_returned: 0,
+    lane_counts: { ...packet.coverage_summary.lane_counts },
+    missing_target_lanes: [...packet.coverage_summary.missing_target_lanes],
+    unique_domain_count: packet.actual_source_count,
+    duplicate_url_count: 0,
+    source_limit_reached: true,
+    expansion_attempted: false,
+    expansion_completed_successfully: false,
+  };
+  for (const source of packet.source_snapshot_summaries) {
+    source.snapshot_status = "partial";
+    source.retrieval_mode = "openai_web_search";
+    source.content_kind = "model_generated_web_search_summary";
+    source.source_text_captured = false;
+    source.content_sha256 = null;
+    source.candidate_summary_sha256 = null;
+    source.record_status = "candidate";
+    source.web_search_grounded_candidate_summary = source.evidence_excerpt ?? source.title;
+    source.evidence_excerpt = null;
+    source.limitations = [
+      "Live source pages were not captured; model-generated web-search summaries remain partial review material.",
+    ];
+    source.source_selection.classification_basis =
+      "model_generated_web_search_classification";
+    source.source_selection.classification_status = "candidate_review_only";
+  }
+  packet.source_bound_findings.forEach((record) => {
+    record.status = "candidate";
+    record.origin = "live_api";
+  });
+  packet.actor_claims.forEach((record) => {
+    record.status = "candidate";
+    record.origin = "live_api";
+  });
+  packet.actions.forEach((record) => {
+    record.status = "candidate";
+    record.origin = "live_api";
+  });
+  packet.claim_occurrences.forEach((occurrence) => {
+    occurrence.source_record_status = "candidate";
+    occurrence.claim_kind = "actor_claim";
+    occurrence.support_kind = "model_generated_web_search_summary_span";
+    occurrence.support_reference.support_kind =
+      "model_generated_web_search_summary_span";
+    occurrence.support_reference.evidence_reference =
+      "Synthetic live-relation browser QA summary span";
+    occurrence.support_reference.proves = "model_summary_containment_only";
+    occurrence.status = "candidate";
+    occurrence.origin = "live_api";
+  });
+  packet.candidate_claim_families.forEach((family) => {
+    family.origin = "live_api";
+  });
+  packet.relation_candidates.forEach((relation) => {
+    relation.generated_by = "deterministic_rule";
+    for (const support of [relation.left_support_reference, relation.right_support_reference]) {
+      support.support_kind = "model_generated_web_search_summary_span";
+      support.evidence_reference = "Synthetic live-relation browser QA summary span";
+      support.proves = "model_summary_containment_only";
+    }
+    relation.left_support_kind = "model_generated_web_search_summary_span";
+    relation.right_support_kind = "model_generated_web_search_summary_span";
+  });
+  packet.event_timeline_rows.forEach((row) => {
+    row.status = "candidate";
+  });
+  packet.unresolved_questions.forEach((question) => {
+    question.record_status = "candidate";
+    question.origin = "live_api";
+  });
+  packet.warnings = [];
+  packet.limitations = [
+    "Live source pages were not captured; model-generated web-search summaries remain partial review material.",
+    "Cross-source temporal relationships were not analyzed in this bounded run.",
+    "Source inclusion is not endorsement.",
+  ];
+  return validateSiteReadyCasePacket(packet);
 }
 
 function installExecutionBoundaryFetchMock(
@@ -307,7 +427,7 @@ function installSavedWatchFetchMock(storageUnavailable: boolean) {
         packet = structuredClone(packetA);
         packet.run_id = "watch_fixture_different_topic";
         packet.normalized_public_interest_question = body.question;
-        packet.title = `Candidate lineage: ${body.question}`;
+        packet.title = "Candidate lineage review";
       } else if (stored.status === "valid") {
         const storedSnapshot = JSON.stringify(stored.watch.snapshot);
         packet = storedSnapshot === packetASnapshot

@@ -22,6 +22,7 @@ import {
   VIEW_LABELS,
   actorLabel,
   groupSupportingDatedEvidenceRowsByPrecision,
+  modeLabel,
   publicMethodLimitations,
   recordBoundaryLabel,
   sourceContentLabel,
@@ -254,19 +255,25 @@ test("first payoff resolves one existing source-bound finding without fabricatin
   packet.source_bound_findings[0].text = "One existing source-bound finding.";
   packet.source_bound_findings[0].source_ids = [intendedSource.source_id];
   packet.source_bound_findings = [packet.source_bound_findings[0]];
+  packet.actor_claims = [];
+  packet.actions = [];
 
   const payoff = firstPayoffForPacket(packet);
+  assert.equal(payoff?.kind, "finding");
   assert.equal(payoff?.source.source_id, intendedSource.source_id);
-  assert.equal(payoff?.finding.text, "One existing source-bound finding.");
+  assert.equal(payoff?.text, "One existing source-bound finding.");
+  assert.ok(payoff?.kind === "finding");
+  assert.equal(payoff.record, packet.source_bound_findings[0]);
 
   const html = renderToStaticMarkup(createElement(FirstPayoff, {
     packet,
     onFocus: noop,
   }));
   assert.match(html, /Start here/);
-  assert.match(html, /Synthetic fixture · prepared example/);
+  assert.match(html, /Finding/);
+  assert.match(html, /Prepared example/);
   assert.match(html, /One existing source-bound finding/);
-  assert.match(html, /<p class="first-payoff-finding">One existing source-bound finding\.<\/p>/);
+  assert.match(html, /<p class="first-payoff-text">One existing source-bound finding\.<\/p>/);
   assert.doesNotMatch(html, /<blockquote/);
   assert.match(html, new RegExp(escapeRegex(intendedSource.title)));
   assert.doesNotMatch(html, new RegExp(escapeRegex(otherSource.title)));
@@ -288,14 +295,15 @@ test("first payoff resolves one existing source-bound finding without fabricatin
     packet: live,
     onFocus: noop,
   }));
-  assert.match(liveHtml, /Candidate finding · review only/);
+  assert.match(liveHtml, /Finding/);
   assert.match(
     liveHtml,
     /Based on a model-generated web-search summary · not captured page text/,
   );
-  assert.match(liveHtml, /<p class="first-payoff-finding">/);
+  assert.match(liveHtml, /<p class="first-payoff-text">/);
   assert.doesNotMatch(liveHtml, /<blockquote/);
-  assert.doesNotMatch(liveHtml, /Synthetic fixture/);
+  assert.doesNotMatch(liveHtml, /Prepared example/);
+  assert.doesNotMatch(liveHtml, /Browsing does not change the record/);
 
   const fallback = structuredClone(packet);
   fallback.mode = "fallback";
@@ -309,6 +317,8 @@ test("first payoff resolves one existing source-bound finding without fabricatin
   const unsupported = structuredClone(packet);
   unsupported.source_bound_findings[0].source_ids = ["src_missing"];
   unsupported.source_bound_findings = [unsupported.source_bound_findings[0]];
+  unsupported.actor_claims = [];
+  unsupported.actions = [];
   assert.equal(firstPayoffForPacket(unsupported), null);
 
   const source = readFileSync(
@@ -322,14 +332,14 @@ test("first payoff deterministically prefers a question-relevant existing findin
   const packet = buildTemporalAcceptanceFixture();
   const before = JSON.stringify(packet);
   const payoff = firstPayoffForPacket(packet);
-  assert.ok(payoff);
-  assert.equal(payoff.finding.finding_id, "candidate_live_finding_schedule_change");
+  assert.ok(payoff?.kind === "finding");
+  assert.equal(payoff.record.finding_id, "candidate_live_finding_schedule_change");
   assert.equal(
-    payoff.finding.text,
+    payoff.text,
     "The agency moved maintenance exercise 97 from September 13 to September 18 after an unexpected suit sensor reading prompted a safety review.",
   );
-  assert.ok(packet.source_bound_findings.includes(payoff.finding));
-  assert.equal(firstPayoffForPacket(packet)?.finding.finding_id, payoff.finding.finding_id);
+  assert.ok(packet.source_bound_findings.includes(payoff.record));
+  assert.equal(firstPayoffForPacket(packet)?.record, payoff.record);
   assert.equal(JSON.stringify(packet), before);
 
   const tied = structuredClone(packet);
@@ -338,20 +348,104 @@ test("first payoff deterministically prefers a question-relevant existing findin
   tied.source_bound_findings[0].text = "Agency exercise record changed.";
   tied.source_bound_findings[1].text = "Agency exercise record changed.";
   tied.source_bound_findings[1].source_ids = [...tied.source_bound_findings[0].source_ids];
-  assert.equal(
-    firstPayoffForPacket(tied)?.finding.finding_id,
-    tied.source_bound_findings[0].finding_id,
-  );
+  tied.actor_claims = [];
+  tied.actions = [];
+  const tiedPayoff = firstPayoffForPacket(tied);
+  assert.ok(tiedPayoff?.kind === "finding");
+  assert.equal(tiedPayoff.record.finding_id, tied.source_bound_findings[0].finding_id);
+
+  const linkedSourceTie = structuredClone(tied);
+  const [firstSource, secondSource] = linkedSourceTie.source_snapshot_summaries;
+  secondSource.title = firstSource.title;
+  secondSource.publisher = firstSource.publisher;
+  secondSource.domain = firstSource.domain;
+  secondSource.source_selection.why_included = firstSource.source_selection.why_included;
+  linkedSourceTie.source_bound_findings = [linkedSourceTie.source_bound_findings[0]];
+  linkedSourceTie.source_bound_findings[0].source_ids = [
+    secondSource.source_id,
+    firstSource.source_id,
+  ];
+  assert.equal(firstPayoffForPacket(linkedSourceTie)?.source.source_id, secondSource.source_id);
 
   const noOverlap = structuredClone(packet);
   noOverlap.normalized_public_interest_question = "Why are harbor permits delayed?";
   noOverlap.source_bound_findings = noOverlap.source_bound_findings.slice(0, 2);
   noOverlap.source_bound_findings[0].text = "Orchids bloom indoors.";
   noOverlap.source_bound_findings[1].text = "Copper roofs weather slowly.";
-  assert.equal(
-    firstPayoffForPacket(noOverlap)?.finding.finding_id,
-    noOverlap.source_bound_findings[0].finding_id,
-  );
+  noOverlap.actor_claims = [];
+  noOverlap.actions = [];
+  const noOverlapPayoff = firstPayoffForPacket(noOverlap);
+  assert.ok(noOverlapPayoff?.kind === "finding");
+  assert.equal(noOverlapPayoff.record.finding_id, noOverlap.source_bound_findings[0].finding_id);
+});
+
+test("first payoff lets existing actor claims and actions win without rewriting or promoting them", () => {
+  const claimPacket = buildTemporalAcceptanceFixture();
+  claimPacket.source_bound_findings.forEach((finding) => {
+    finding.text = "The September 18 schedule is current.";
+  });
+  claimPacket.actions.forEach((action) => {
+    action.action_text = "The agency published a maintenance notice.";
+  });
+  const claim = claimPacket.actor_claims[0];
+  claim.claim_text = "The agency moved the schedule from September 13 to September 18 because a safety review was required.";
+  const claimBefore = JSON.stringify(claimPacket);
+  const claimPayoff = firstPayoffForPacket(claimPacket);
+  assert.ok(claimPayoff?.kind === "actor_claim");
+  assert.equal(claimPayoff.record, claim);
+  assert.equal(claimPayoff.text, claim.claim_text);
+  assert.ok(claim.source_ids.includes(claimPayoff.source.source_id));
+  assert.equal(JSON.stringify(claimPacket), claimBefore);
+  assert.equal(firstPayoffForPacket(claimPacket)?.record, claim);
+
+  const claimHtml = renderToStaticMarkup(createElement(FirstPayoff, {
+    packet: claimPacket,
+    onFocus: noop,
+  }));
+  assert.match(claimHtml, /Actor claim/);
+  assert.match(claimHtml, new RegExp(escapeRegex(claim.claim_text)));
+
+  const actionPacket = buildTemporalAcceptanceFixture();
+  actionPacket.source_bound_findings.forEach((finding) => {
+    finding.text = "The September 18 schedule is current.";
+  });
+  actionPacket.actor_claims.forEach((actorClaim) => {
+    actorClaim.claim_text = "The agency published a maintenance notice.";
+  });
+  actionPacket.actions[0].action_text = "The agency published a maintenance notice.";
+  const action = actionPacket.actions[1];
+  action.action_text = "The agency moved the schedule from September 13 to September 18 because a safety review was required.";
+  action.source_ids = ["missing_source", actionPacket.source_snapshot_summaries[1].source_id];
+  const actionBefore = JSON.stringify(actionPacket);
+  const actionPayoff = firstPayoffForPacket(actionPacket);
+  assert.ok(actionPayoff?.kind === "action");
+  assert.equal(actionPayoff.record, action);
+  assert.equal(actionPayoff.text, action.action_text);
+  assert.equal(actionPayoff.source.source_id, action.source_ids[1]);
+  assert.ok(actionPacket.actions.includes(actionPayoff.record));
+  assert.equal(JSON.stringify(actionPacket), actionBefore);
+  assert.equal(firstPayoffForPacket(actionPacket)?.record, action);
+
+  const actionHtml = renderToStaticMarkup(createElement(FirstPayoff, {
+    packet: actionPacket,
+    onFocus: noop,
+  }));
+  assert.match(actionHtml, /Action record/);
+  assert.match(actionHtml, new RegExp(escapeRegex(action.action_text)));
+
+  const crossTypeTie = structuredClone(actionPacket);
+  const sharedSourceId = crossTypeTie.source_snapshot_summaries[0].source_id;
+  crossTypeTie.normalized_public_interest_question = "Which agency record changed?";
+  crossTypeTie.source_bound_findings = [crossTypeTie.source_bound_findings[0]];
+  crossTypeTie.actor_claims = [crossTypeTie.actor_claims[0]];
+  crossTypeTie.actions = [crossTypeTie.actions[0]];
+  crossTypeTie.source_bound_findings[0].text = "Agency record changed.";
+  crossTypeTie.actor_claims[0].claim_text = "Agency record changed.";
+  crossTypeTie.actions[0].action_text = "Agency record changed.";
+  crossTypeTie.source_bound_findings[0].source_ids = [sharedSourceId];
+  crossTypeTie.actor_claims[0].source_ids = [sharedSourceId];
+  crossTypeTie.actions[0].source_ids = [sharedSourceId];
+  assert.equal(firstPayoffForPacket(crossTypeTie)?.kind, "finding");
 });
 
 test("Timeline surfaces typed source-bound actions and findings without promoting them to claims", () => {
@@ -979,9 +1073,11 @@ test("map uses occurrence-primary claim rows with complete candidate relations a
   assert.match(html, /claim-matrix-stage/);
   assert.match(html, /claim-relation-layer/);
   assert.match(html, /Candidate thread · 2 occurrences · needs review/);
-  assert.match(html, /Standalone claim occurrence · grouping unresolved/);
+  assert.match(html, /<strong>Standalone claim<\/strong>/);
+  assert.doesNotMatch(html, /<small>No grouping asserted<\/small>/);
   assert.match(html, /Candidate connections/);
   assert.match(html, /Complete relation review ledger/);
+  assert.match(html, /Full claims, sources, times, and reasoning/);
   assert.match(html, /Unresolved evidence questions/);
   assert.match(html, /Not conclusions · Not chronological records/);
   assert.match(html, /Non-claim source records/);
@@ -1003,6 +1099,19 @@ test("map uses occurrence-primary claim rows with complete candidate relations a
       1,
     );
   }
+});
+
+test("Map keeps the relation region addressable while rendering a compact zero-relation state", () => {
+  const packet = buildTemporalAcceptanceFixture();
+  assert.deepEqual(packet.relation_candidates, []);
+  const html = renderMapMarkup(packet, "publication_time");
+  assert.match(html, /id="candidate-relations"/);
+  assert.match(html, /tabindex="-1"/);
+  assert.match(html, /No candidate relations found in this bounded investigation/);
+  assert.doesNotMatch(html, /Complete relation review ledger/);
+  assert.doesNotMatch(html, /Every candidate relation is listed once below/);
+  assert.doesNotMatch(html, /Full claims, sources, times, and reasoning/);
+  assert.match(html, /href="#candidate-relations"/);
 });
 
 test("Map relation language reads earlier to later without changing candidate semantics", () => {
@@ -1070,9 +1179,9 @@ test("Map viewing lenses and broader provider work are separate public control r
   assert.match(lensGroup, />Open questions</);
   assert.doesNotMatch(lensGroup, /broader investigation|bounded provider/i);
   assert.match(html, /Run a broader investigation/);
-  assert.match(html, /Starts a new bounded provider request/);
-  assert.match(html, /current investigation remains unchanged/);
-  assert.match(html, /Do not blindly retry while delivery status is unknown/);
+  assert.match(html, /Broader coverage starts a new bounded provider request/);
+  assert.match(html, /current investigation stays visible until a new result is ready/);
+  assert.doesNotMatch(html, /Do not blindly retry while delivery status is unknown/);
   assert.match(html, /Filters only change what is emphasized/);
   assert.match(html, /never remove or alter the displayed investigation/);
   assert.doesNotMatch(html, /saved investigation/i);
@@ -1947,8 +2056,8 @@ test("fallback, partial, loading, and error notices never mislabel the displayed
   live.mode = "live";
   live.status = "live";
   live.warnings = [];
-  assert.match(getRunNotice(live, false, null).message, /live result is a review draft/i);
-  assert.match(getRunNotice(live, false, null).message, /does not accept or change any candidate record/i);
+  assert.equal(getRunNotice(live, false, null).message, "The bounded result is ready.");
+  assert.doesNotMatch(getRunNotice(live, false, null).message, /review draft/i);
   assert.doesNotMatch(getRunNotice(live, false, null).message, /schema-checked review packet|prepared record|\bserver\b/i);
   assert.doesNotMatch(getRunNotice(live, false, null).message, /\bvalidated\b/i);
 
@@ -1965,6 +2074,37 @@ test("fallback, partial, loading, and error notices never mislabel the displayed
   assert.equal(cooldown.title, "Live request cooldown");
   assert.match(cooldown.message, /17s/);
   assert.match(cooldown.message, /not strong abuse prevention/i);
+});
+
+test("live primary presentation keeps one global review boundary without repeating local warnings", () => {
+  const live = buildTemporalAcceptanceFixture();
+  const payoffHtml = renderToStaticMarkup(createElement(FirstPayoff, {
+    packet: live,
+    onFocus: noop,
+  }));
+  const notice = getRunNotice(live, false, null);
+  const primaryPresentation = [
+    modeLabel(live),
+    "Viewing does not accept candidate records",
+    notice.title,
+    notice.message,
+    payoffHtml,
+  ].join(" ");
+
+  assert.match(primaryPresentation, /Live · review only/);
+  assert.match(primaryPresentation, /Viewing does not accept candidate records/);
+  assert.match(primaryPresentation, /Source inclusion is not endorsement or truth verification/);
+  assert.doesNotMatch(primaryPresentation, /Relations need review/);
+  assert.doesNotMatch(primaryPresentation, /This live result is a review draft/);
+  assert.doesNotMatch(primaryPresentation, /Candidate finding · review only/);
+  assert.doesNotMatch(primaryPresentation, /Browsing does not change the record/);
+
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(explorerSource, /Viewing does not accept candidate records/);
+  assert.doesNotMatch(explorerSource, /Relations need review · Browsing never changes the record/);
 });
 
 test("operator and lower-level live flags default closed with distinct bounded route errors", async () => {
@@ -2122,12 +2262,29 @@ test("Map ships one semantic tree whose row identities survive the responsive tr
   assert.equal((html.match(/<section class="claim-row [^"]*"[^>]*data-row-kind="candidate_thread"/g) ?? []).length, 1);
   assert.equal((html.match(/<section class="claim-row [^"]*"[^>]*data-row-kind="standalone_occurrence"/g) ?? []).length, 1);
   assert.match(html, /Candidate thread · 2 occurrences · needs review/);
-  assert.match(html, /Standalone claim occurrence · grouping unresolved/);
+  assert.match(html, /<strong>Standalone claim<\/strong>/);
+  assert.doesNotMatch(html, /<small>No grouping asserted<\/small>/);
   assert.match(html, /href="#candidate-relations"/);
   assert.match(html, /href="#unresolved-evidence-questions"/);
   assert.doesNotMatch(html, /mobile-investigation-path/);
   assert.doesNotMatch(html, /aria-describedby="map-canvas-scroll-hint"/);
   assert.doesNotMatch(html, /id="map-canvas-scroll-hint"/);
+
+  const liveStandaloneHtml = renderMapMarkup(
+    buildTemporalAcceptanceFixture(),
+    "publication_time",
+  );
+  assert.match(liveStandaloneHtml, /Regional Operations Agency/);
+  assert.match(liveStandaloneHtml, /separate September 25 inspection remained scheduled/);
+  assert.match(liveStandaloneHtml, /Sep 7, 2030 · Day precision/);
+  assert.match(liveStandaloneHtml, /Source record status: Needs review/);
+  const occurrenceCard = liveStandaloneHtml.match(
+    /<article class="claim-occurrence-card"[\s\S]*?<\/article>/,
+  )?.[0];
+  assert.ok(occurrenceCard);
+  assert.match(occurrenceCard, /<small>Regional Operations Agency<\/small>/);
+  assert.doesNotMatch(occurrenceCard, /Regional Operations Agency · Needs review/);
+  assert.doesNotMatch(occurrenceCard, /unordered peer/i);
 
   const mapSource = readFileSync(
     new URL("../app/components/InvestigationMapView.tsx", import.meta.url),

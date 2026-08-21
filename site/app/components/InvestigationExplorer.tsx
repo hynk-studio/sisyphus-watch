@@ -838,7 +838,7 @@ export function CaseExplorer({
                   {modeLabel(packet)}
                 </span>
                 <span className="boundary-badge">
-                  Relations need review · Browsing never changes the record
+                  Viewing does not accept candidate records
                 </span>
               </div>
               <p className="eyebrow">Investigation map</p>
@@ -1105,7 +1105,7 @@ export function getRunNotice(
     return {
       tone: "live",
       title: "Bounded live investigation",
-      message: `This live result is a review draft. Exploring it does not accept or change any candidate record.${cooldownMessage}`,
+      message: `The bounded result is ready.${cooldownMessage}`,
     };
   }
   if (cooldownRemainingSeconds > 0) {

@@ -233,7 +233,7 @@ export function buildSiteReadyCasePacketFromAnalysis(
     run_id: run.run_id,
     mode: "live",
     status: "live",
-    title: `Candidate lineage: ${run.normalized_question}`,
+    title: "Candidate lineage review",
     normalized_public_interest_question: run.normalized_question,
     requested_source_limit: run.requested_source_limit,
     actual_source_count: run.actual_source_count,

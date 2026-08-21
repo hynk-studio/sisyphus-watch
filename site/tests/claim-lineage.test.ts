@@ -621,6 +621,8 @@ test("prepared and live records use the same contract without upgrading live pro
   const prepared = buildPreparedSiteReadyCasePacket();
   const live = buildSiteReadyCasePacketFromAnalysis(liveRun());
   assert.equal(prepared.contract_version, live.contract_version);
+  assert.equal(live.title, "Candidate lineage review");
+  assert.notEqual(live.title, `Candidate lineage: ${live.normalized_public_interest_question}`);
   assert.equal(siteReadyCasePacketSchema.safeParse(live).success, true);
   assert.ok(live.claim_occurrences.length > 0);
   assert.ok(live.claim_occurrences.every((item) => item.status === "candidate"));

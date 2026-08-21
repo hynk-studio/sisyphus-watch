@@ -775,7 +775,8 @@ p, li, blockquote { text-wrap: pretty; }
 .first-payoff-heading { grid-row: span 2; }
 .first-payoff-heading .eyebrow { margin-bottom: 5px; }
 .first-payoff-heading strong { color: var(--review); font-size: .82rem; line-height: 1.4; }
-.first-payoff-finding { margin: 0; color: var(--ink); font-family: var(--font-editorial); font-size: 1.14rem; font-weight: 600; line-height: 1.45; }
+.first-payoff-heading small { display: block; margin-top: 4px; color: var(--muted); font-size: .76rem; line-height: 1.4; }
+.first-payoff-text { margin: 0; color: var(--ink); font-family: var(--font-editorial); font-size: 1.14rem; font-weight: 600; line-height: 1.45; }
 .first-payoff-source, .first-payoff-provenance, .first-payoff-boundary { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.45; }
 .first-payoff-provenance { grid-column: 2; }
 .first-payoff-source button { padding: 0; border: 0; background: none; color: var(--navy); cursor: pointer; font: inherit; font-weight: 720; text-align: left; text-decoration: underline; text-decoration-color: var(--gold-ink); text-underline-offset: 3px; }
@@ -1641,6 +1642,8 @@ p, li, blockquote { text-wrap: pretty; }
 .complete-relation-ledger > header { padding: 16px 18px; border-bottom: 1px solid var(--line); }
 .complete-relation-ledger > header h4 { margin: 0 0 5px; }
 .complete-relation-ledger > header p:last-child { margin: 0; color: var(--muted); font-size: var(--map-font-supporting); line-height: 1.5; }
+.complete-relation-ledger.is-empty { border-top-width: 1px; }
+.complete-relation-ledger.is-empty > p { margin: 0; padding: 13px 18px; color: var(--muted); font-size: var(--map-font-supporting); line-height: 1.5; }
 .complete-relation-ledger ol { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 .complete-relation-ledger li {
   display: block;
