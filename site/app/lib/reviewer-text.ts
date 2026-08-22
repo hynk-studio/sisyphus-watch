@@ -63,23 +63,25 @@ export function hasClearlyIncompleteTail(value: string): boolean {
     || /[([{]\s*$/u.test(normalized);
 }
 
-export interface RetainedModelSummary {
+export interface RetainedBoundedModelProse {
   text: string;
   trailingFragmentDiscarded: boolean;
 }
 
+export type RetainedModelSummary = RetainedBoundedModelProse;
+
 /**
- * Treats a summary at the structured-output ceiling without closing sentence
- * punctuation as a likely hard-bound fragment. The helper never repairs or
- * completes the text: it retains the largest already-produced complete
- * sentence, or applies a visible word-boundary ellipsis when no sentence
- * boundary exists. Summaries below the near-bound threshold are unchanged,
- * including ordinary short punctuation-free summaries.
+ * Treats reviewer prose at a structured-output ceiling without closing
+ * sentence punctuation as a likely hard-bound fragment. The helper never
+ * repairs or completes the text: it retains the largest already-produced
+ * complete sentence, or applies a visible word-boundary ellipsis when no
+ * sentence boundary exists. Values below the near-bound threshold are
+ * unchanged, including ordinary short punctuation-free prose.
  */
-export function retainBoundedModelSummary(
+export function retainBoundedModelProse(
   value: string,
   maximumLength: number,
-): RetainedModelSummary {
+): RetainedBoundedModelProse {
   if (!Number.isInteger(maximumLength) || maximumLength < 2) {
     throw new RangeError("maximumLength must be an integer of at least 2");
   }
@@ -108,6 +110,13 @@ export function retainBoundedModelSummary(
     ),
     trailingFragmentDiscarded: true,
   };
+}
+
+export function retainBoundedModelSummary(
+  value: string,
+  maximumLength: number,
+): RetainedModelSummary {
+  return retainBoundedModelProse(value, maximumLength);
 }
 
 /**

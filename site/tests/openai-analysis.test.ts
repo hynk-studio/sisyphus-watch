@@ -4,6 +4,7 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AnalysisResult } from "../app/components/CaseExplorer";
+import { FocusedDetailPanel } from "../app/components/FocusedDetailPanel";
 import { SourcesView } from "../app/components/InvestigationResultViews";
 import { getPreparedCase } from "../app/lib/read-model";
 import type { AnalysisRunPacket } from "../app/lib/analysis/contracts";
@@ -30,7 +31,11 @@ import {
   type ResponsesPort,
 } from "../app/lib/analysis/openai-adapter";
 import { parseAnalysisRequest, RequestValidationError } from "../app/lib/analysis/request";
-import type { DiscoverySource } from "../app/lib/analysis/schemas";
+import {
+  DiscoverySourceSchema,
+  SOURCE_SELECTION_RATIONALE_MAX_LENGTH,
+  type DiscoverySource,
+} from "../app/lib/analysis/schemas";
 import {
   allocateCoverageExpansionBudget,
   type LiveDiscoveryCoverageSummary,
@@ -48,8 +53,13 @@ import {
   hasClearlyIncompleteTail,
 } from "../app/lib/reviewer-text";
 import { buildSiteReadyCasePacketFromAnalysis } from "../app/lib/lineage/builder";
+import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
 
 const GENERATED_AT = "2026-08-12T10:00:00.000Z";
+const RECOVERED_VERSION_16_WHY_INCLUDED =
+  "This official announcement identifies the latest legislative change behind the revised timetable and explains how the Commission’s implementation guidance has shifted from fixed deadlines toward phased deadlines plus administrative and test";
+const RETAINED_VERSION_16_WHY_INCLUDED =
+  "This official announcement identifies the latest legislative change behind the revised timetable and explains how the Commission’s implementation guidance has shifted from fixed deadlines toward phased deadlines plus administrative and…";
 const NOT_APPLICABLE_SEMANTIC_REVIEW = {
   actor_role: "not_applicable",
   statement_semantics: "not_applicable",
@@ -529,7 +539,9 @@ test("hard-bound source summary retention drives extraction, containment, and ha
   const supportingSpan =
     "Saskatoon Transit announced that smart-card sales and reloads had resumed";
   const port = new FakeResponsesPort([
-    discoveryResponse([source(1, hardBoundSummary)]),
+    discoveryResponse([source(1, hardBoundSummary, {
+      why_included: RECOVERED_VERSION_16_WHY_INCLUDED,
+    })]),
     extractionResponse(1, supportingSpan),
   ]);
 
@@ -555,6 +567,14 @@ test("hard-bound source summary retention drives extraction, containment, and ha
     sourceSummary.limitations.join(" "),
     /trailing model-summary fragment was discarded without repair or completion/i,
   );
+  assert.match(
+    sourceSummary.limitations.join(" "),
+    /source-selection rationale fragment in model-generated selection metadata was bounded without repair or completion/i,
+  );
+  assert.equal(
+    sourceSummary.source_selection.why_included,
+    RETAINED_VERSION_16_WHY_INCLUDED,
+  );
   assert.ok(run.candidates.length > 0);
   assert.ok(run.candidates.every((candidate) =>
     retainedSummary.toLowerCase().includes(
@@ -563,7 +583,139 @@ test("hard-bound source summary retention drives extraction, containment, and ha
   assert.doesNotMatch(JSON.stringify(run), /activation fee waived for a/);
 });
 
+test("recovered Version 16 source-selection rationale is bounded once for packet and reviewer surfaces", async () => {
+  const candidateSummary = "The AI Omnibus entered into force and revised the implementation timetable.";
+  const affectedSource = source(1, candidateSummary, {
+    title: "AI Omnibus enters into force",
+    url: "https://digital-strategy.ec.europa.eu/en/news/ai-omnibus-enters-force",
+    publisher: "European Commission",
+    source_context: "official",
+    information_proximity: "direct_document",
+    why_included: RECOVERED_VERSION_16_WHY_INCLUDED,
+    limitations: ["It summarizes the Omnibus rather than reproducing the full legislative text."],
+  });
+  const baseline = [affectedSource, source(2)];
+  const expansion = [
+    source(3, undefined, {
+      discovery_lane: "primary_or_origin",
+      source_context: "official",
+      information_proximity: "direct_document",
+      why_included: "Adds the primary origin record.",
+    }),
+    source(4, undefined, {
+      discovery_lane: "specialist_context",
+      source_context: "specialist_publication",
+      information_proximity: "analysis_or_commentary",
+      why_included: "Adds specialist implementation context.",
+    }),
+    source(5, undefined, {
+      discovery_lane: "specialist_context",
+      source_context: "established_editorial",
+      information_proximity: "secondary_reporting",
+      why_included: "Adds independent specialist context.",
+    }),
+  ];
+  const port = new FakeResponsesPort([
+    discoveryResponse(baseline),
+    discoveryResponse(expansion),
+    ...[1, 2, 3, 4, 5].map((index) => extractionResponse(index)),
+  ]);
+
+  const run = await runOpenAIAnalysis({
+    question: "How did the AI Act implementation timetable change?",
+    sourceLimit: 5,
+    discoveryProfile: "coverage_expansion",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+  const affected = run.source_snapshot_summaries.find(
+    (item) => item.title === affectedSource.title,
+  );
+  assert.ok(affected);
+
+  assert.equal(
+    RECOVERED_VERSION_16_WHY_INCLUDED.length,
+    SOURCE_SELECTION_RATIONALE_MAX_LENGTH,
+  );
+  assert.equal(affected.source_id, "src_candidate_live_b904110e863b7224");
+  assert.equal(affected.url, affectedSource.url);
+  assert.deepEqual(affected.source_selection, {
+    discovery_pass: "baseline",
+    discovery_lane: "baseline_authority",
+    source_context: "official",
+    information_proximity: "direct_document",
+    why_included: RETAINED_VERSION_16_WHY_INCLUDED,
+    classification_basis: "model_generated_web_search_classification",
+    classification_status: "candidate_review_only",
+    comparison_target_source_ids: [],
+  });
+  assert.equal(
+    RECOVERED_VERSION_16_WHY_INCLUDED.startsWith(
+      RETAINED_VERSION_16_WHY_INCLUDED.slice(0, -1),
+    ),
+    true,
+  );
+  assert.doesNotMatch(affected.source_selection.why_included, /administrative and test/u);
+  assert.match(
+    affected.limitations.join(" "),
+    /source-selection rationale fragment in model-generated selection metadata was bounded without repair or completion/i,
+  );
+  assert.doesNotMatch(affected.limitations.join(" "), /administrative and test/u);
+  assert.equal(
+    affected.candidate_summary_sha256,
+    await shortStableHash(candidateSummary, 64),
+  );
+
+  const coverage = liveCoverage(run);
+  assert.deepEqual(coverage, {
+    coverage_basis: "live_discovery",
+    discovery_profile: "coverage_expansion",
+    baseline_requested: 2,
+    baseline_returned: 2,
+    expansion_requested: 3,
+    expansion_returned: 3,
+    lane_counts: {
+      baseline_authority: 2,
+      primary_or_origin: 1,
+      local_or_firsthand: 0,
+      specialist_context: 2,
+      challenge_or_correction: 0,
+    },
+    missing_target_lanes: ["local_or_firsthand", "challenge_or_correction"],
+    unique_domain_count: 5,
+    duplicate_url_count: 0,
+    source_limit_reached: true,
+    expansion_attempted: true,
+    expansion_completed_successfully: true,
+  });
+
+  const packet = buildSiteReadyCasePacketFromAnalysis(run);
+  const detail = getSiteReadyCaseDetail(packet, "source", affected.source_id);
+  assert.ok(detail);
+  const sourcesHtml = renderToStaticMarkup(createElement(SourcesView, {
+    packet,
+    onFocus: () => undefined,
+  }));
+  const inspectorHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: { kind: "source", id: affected.source_id, label: affected.title },
+    payload: detail,
+    state: "idle",
+    onClose: () => undefined,
+  }));
+  for (const html of [sourcesHtml, inspectorHtml]) {
+    assert.ok(html.includes(RETAINED_VERSION_16_WHY_INCLUDED));
+    assert.doesNotMatch(html, /administrative and test/u);
+  }
+  assert.match(inspectorHtml, /model-generated selection metadata was bounded without repair or completion/i);
+});
+
 test("generation instructions require complete natural boundaries before field limits", () => {
+  assert.equal(SOURCE_SELECTION_RATIONALE_MAX_LENGTH, 240);
+  assert.match(
+    DiscoverySourceSchema.shape.why_included.description ?? "",
+    /concise reviewer-facing rationale.*complete natural phrase or sentence.*stop before the hard character bound.*never fill the field by cutting a clause or token/i,
+  );
   assert.match(
     DISCOVERY_INSTRUCTIONS,
     /stop before the 500-character field bound.*never fill the bound by cutting a clause or token/i,
@@ -572,6 +724,15 @@ test("generation instructions require complete natural boundaries before field l
     COVERAGE_EXPANSION_DISCOVERY_INSTRUCTIONS,
     /stop before the 500-character field bound.*never fill the bound by cutting a clause or token/i,
   );
+  for (const instructions of [
+    DISCOVERY_INSTRUCTIONS,
+    COVERAGE_EXPANSION_DISCOVERY_INSTRUCTIONS,
+  ]) {
+    assert.match(
+      instructions,
+      /why_included.*concise reviewer-facing rationale.*stop before its 240-character bound.*complete natural phrase or sentence boundary.*never fill the field by cutting a clause or token/i,
+    );
+  }
   assert.match(
     EXTRACTION_INSTRUCTIONS,
     /candidate text concise and complete.*never cut a clause or token/i,
