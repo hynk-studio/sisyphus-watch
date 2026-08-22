@@ -56,7 +56,7 @@ function withSource(
   };
 }
 
-test("NASA regression adds separate review-only links without changing claim relations", () => {
+test("NASA regression preserves review-only links while shared evidence admits one unresolved claim pair", () => {
   const packet = nasaPacket();
   assert.equal(packet.source_bound_findings.length, 9);
   assert.equal(packet.actor_claims.length, 2);
@@ -64,8 +64,12 @@ test("NASA regression adds separate review-only links without changing claim rel
   assert.equal(packet.claim_occurrences.length, 2);
   assert.ok(packet.claim_occurrences.every((item) => item.claim_kind === "actor_claim"));
   assert.equal(packet.bounded_work_summary.theoretical_pair_count, 1);
-  assert.equal(packet.bounded_work_summary.prefilter_candidate_count, 0);
-  assert.equal(packet.relation_candidates.length, 0);
+  assert.equal(packet.bounded_work_summary.prefilter_candidate_count, 1);
+  assert.equal(packet.relation_candidates.length, 1);
+  assert.equal(packet.relation_candidates[0].relation_type, "unresolved");
+  assert.equal(packet.relation_candidates[0].insufficient_evidence, true);
+  assert.ok(packet.relation_candidates[0].confidence_score <= 0.35);
+  assert.match(packet.relation_candidates[0].reason, /shared-evidence bridge/i);
   assert.equal(packet.evidence_claim_review_links.length, 8);
   assert.deepEqual(packet.evidence_claim_link_work_summary, {
     evidence_record_count: 10,

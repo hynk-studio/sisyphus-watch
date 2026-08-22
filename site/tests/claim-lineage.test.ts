@@ -15,7 +15,6 @@ import type { ClaimOccurrence, RelationType } from "../app/lib/lineage/contracts
 import {
   buildBoundedRelations,
   buildClaimFamilies,
-  MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR,
   MAX_RELATION_PAIR_WORKLOAD,
   normalizeClaimText,
   relationEndpointOrderingBasis,
@@ -358,7 +357,7 @@ test("a source comparison hint cannot admit semantically unrelated claims", () =
   assert.equal(hinted.summary.filtered_out_count, 1);
 });
 
-test("a weak coverage comparison hint admits only a topic-linked unresolved review pair", () => {
+test("a weak coverage comparison hint cannot independently admit a topic-linked pair", () => {
   const baseline = occurrence("coverage_topic_baseline", "City service hours expanded.", {
     source_id: "src_baseline",
     actor: "City office",
@@ -383,15 +382,12 @@ test("a weak coverage comparison hint admits only a topic-linked unresolved revi
       comparison_target_source_ids: ["src_baseline"],
     }],
   );
-  assert.equal(hinted.relations.length, 1);
-  assert.equal(hinted.relations[0].relation_type, "unresolved");
-  assert.equal(hinted.relations[0].insufficient_evidence, true);
-  assert.ok(hinted.relations[0].confidence_score <= 0.35);
-  assert.equal(hinted.relations[0].review_status, "pending_review");
-  assert.match(hinted.relations[0].reason, /does not imply corroboration/i);
+  assert.equal(hinted.relations.length, 0);
+  assert.equal(hinted.summary.prefilter_candidate_count, 0);
+  assert.equal(hinted.summary.filtered_out_count, 1);
 });
 
-test("source hints cap three-by-three claim fan-out before the global workload bound", () => {
+test("source hints do not create three-by-three relation fan-out", () => {
   const baselineTexts = [
     "Service alpha hours expanded.",
     "Service beta sites opened.",
@@ -420,21 +416,14 @@ test("source hints cap three-by-three claim fan-out before the global workload b
   );
 
   assert.equal(result.summary.theoretical_pair_count, 15);
-  assert.equal(
-    result.summary.prefilter_candidate_count,
-    MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR,
-  );
-  assert.equal(result.relations.length, MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR);
-  assert.equal(result.summary.filtered_out_count, 13);
+  assert.equal(result.summary.prefilter_candidate_count, 0);
+  assert.equal(result.relations.length, 0);
+  assert.equal(result.summary.filtered_out_count, 15);
   assert.equal(result.summary.deferred_pair_count, 0);
   assert.equal(
     result.summary.prefilter_candidate_count + result.summary.filtered_out_count,
     result.summary.theoretical_pair_count,
   );
-  assert.ok(result.relations.every((relation) => relation.relation_type === "unresolved"));
-  assert.ok(result.relations.every((relation) => relation.insufficient_evidence));
-  assert.ok(result.relations.every((relation) => relation.review_status === "pending_review"));
-  assert.ok(result.relations.every((relation) => relation.confidence_score <= 0.35));
 });
 
 test("packet validation rejects mixed prepared and live coverage provenance", () => {

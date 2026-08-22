@@ -42,6 +42,7 @@ import {
   MAX_EVIDENCE_CLAIM_REVIEW_LINKS,
   MAX_REVIEW_LINKS_PER_EVIDENCE_RECORD,
 } from "./evidence-links";
+import { buildRelationAdmissionHints } from "./relation-admission";
 
 const PREPARED_CASE_ID = "city_heatwave_cooling_centers";
 const PREPARED_QUESTION =
@@ -215,16 +216,6 @@ export function buildSiteReadyCasePacketFromAnalysis(
     .map((candidate) => liveOccurrence(candidate, sourceById));
   const families = buildClaimFamilies(occurrences);
   const occurrencesWithFamilies = applyFamilyReferences(occurrences, families);
-  const relationResult = buildBoundedRelations(
-    occurrencesWithFamilies,
-    [],
-    MAX_RELATION_PAIR_WORKLOAD,
-    run.source_snapshot_summaries.map((source) => ({
-      source_id: source.source_id,
-      comparison_target_source_ids:
-        source.source_selection.comparison_target_source_ids,
-    })),
-  );
   const findings = run.candidates.filter((item) => item.candidate_type === "finding");
   const claims = run.candidates.filter((item) => item.candidate_type === "actor_claim");
   const actions = run.candidates.filter((item) => item.candidate_type === "action");
@@ -247,6 +238,20 @@ export function buildSiteReadyCasePacketFromAnalysis(
     sourceComparisonHints,
     MAX_EVIDENCE_CLAIM_REVIEW_LINKS,
     MAX_REVIEW_LINKS_PER_EVIDENCE_RECORD,
+  );
+  const relationAdmissionHints = buildRelationAdmissionHints({
+    claimOccurrences: occurrencesWithFamilies,
+    evidenceCandidates: [...findings, ...actions],
+    reviewLinks: evidenceLinkResult.links,
+    sources: run.source_snapshot_summaries,
+    sourceComparisonHints,
+  });
+  const relationResult = buildBoundedRelations(
+    occurrencesWithFamilies,
+    [],
+    MAX_RELATION_PAIR_WORKLOAD,
+    sourceComparisonHints,
+    relationAdmissionHints,
   );
 
   return assembleAndValidate({

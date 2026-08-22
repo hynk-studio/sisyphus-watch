@@ -6,59 +6,19 @@ import type {
   EvidenceClaimLinkWorkSummary,
   EvidenceClaimReviewLinkCandidate,
 } from "./contracts";
+import { stableLineageId } from "./engine";
+import type { SourceComparisonHint } from "./relation-admission";
 import {
-  normalizeClaimText,
-  stableLineageId,
-  type SourceComparisonHint,
-} from "./engine";
+  compareCodePoint,
+  normalizeLineageText,
+  topicTokenSet,
+} from "./topic-tokens";
 
 export const MAX_EVIDENCE_CLAIM_REVIEW_LINKS = 32;
 export const MAX_REVIEW_LINKS_PER_EVIDENCE_RECORD = 2;
 
 const MIN_CONTEXTUAL_SHARED_TOPIC_TOKENS = 2;
 const MIN_CROSS_SOURCE_SHARED_TOPIC_TOKENS = 4;
-
-const TOPIC_STOP_WORDS = new Set([
-  "about", "after", "also", "and", "are", "been", "before", "being",
-  "between", "both", "but", "can", "did", "does", "each", "for", "from",
-  "had", "has", "have", "into", "its", "may", "more", "not", "only",
-  "other", "our", "public", "record", "said", "says", "source", "states",
-  "summary", "than", "that", "the", "their", "them", "then", "there",
-  "these", "they", "this", "through", "under", "was", "were", "will",
-  "with", "would",
-]);
-
-const TOPIC_TOKEN_ALIASES: Record<string, string> = {
-  changed: "change",
-  changes: "change",
-  changing: "change",
-  explained: "explain",
-  explaining: "explain",
-  explanation: "explain",
-  explanations: "explain",
-  lander: "landing",
-  landers: "landing",
-  missions: "mission",
-  moved: "move",
-  moves: "move",
-  moving: "move",
-  planned: "plan",
-  plans: "plan",
-  planning: "plan",
-  reduced: "reduce",
-  reduces: "reduce",
-  reducing: "reduce",
-  reduction: "reduce",
-  scheduled: "schedule",
-  schedules: "schedule",
-  scheduling: "schedule",
-  tested: "test",
-  testing: "test",
-  tests: "test",
-  updated: "update",
-  updates: "update",
-  updating: "update",
-};
 
 type EvidenceCandidate = AnalysisCandidate & {
   candidate_type: "finding" | "action";
@@ -245,25 +205,20 @@ function sharedMeaningfulTopicTokens(
   claimText: string,
   actors: Array<string | null>,
 ): string[] {
-  const evidenceTokens = topicTokens(evidenceText);
-  const claimTokens = topicTokens(claimText);
-  const actorTokens = new Set(actors.flatMap((actor) => actor ? [...topicTokens(actor)] : []));
+  const evidenceTokens = topicTokenSet(evidenceText);
+  const claimTokens = topicTokenSet(claimText);
+  const actorTokens = new Set(
+    actors.flatMap((actor) => actor ? [...topicTokenSet(actor)] : []),
+  );
   return [...evidenceTokens]
     .filter((token) => claimTokens.has(token) && !actorTokens.has(token))
     .sort(compareCodePoint);
 }
 
-function topicTokens(value: string): Set<string> {
-  return new Set(
-    normalizeClaimText(value)
-      .split(" ")
-      .map((token) => TOPIC_TOKEN_ALIASES[token] ?? token)
-      .filter((token) => token.length >= 3 && !TOPIC_STOP_WORDS.has(token)),
-  );
-}
-
 function sameKnownActor(left: string | null, right: string | null): boolean {
-  return Boolean(left && right && normalizeClaimText(left) === normalizeClaimText(right));
+  return Boolean(
+    left && right && normalizeLineageText(left) === normalizeLineageText(right),
+  );
 }
 
 function hasCoverageComparisonHint(
@@ -347,8 +302,4 @@ function isHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
-}
-
-function compareCodePoint(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

@@ -10,11 +10,23 @@ import {
   isMixedPrecisionSameCalendarDay,
   type ReviewTimestampValue,
 } from "../temporal";
+import type {
+  RelationAdmissionHint,
+  SourceComparisonHint,
+} from "./relation-admission";
+import {
+  compareCodePoint,
+  directLexicalTokenSet,
+  normalizeLineageText,
+  tokenOverlap as calculateTokenOverlap,
+  topicTokenSet,
+} from "./topic-tokens";
+
+export type { SourceComparisonHint } from "./relation-admission";
 
 export const MAX_RELATION_PAIR_WORKLOAD = 64;
-export const MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR = 2;
 
-const STOP_WORDS = new Set([
+const LEGACY_FAMILY_STOP_WORDS = new Set([
   "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has",
   "in", "is", "it", "of", "on", "or", "that", "the", "this", "to", "was",
   "were", "will", "with",
@@ -38,11 +50,6 @@ export interface RelationBuildResult {
   warnings: string[];
 }
 
-export interface SourceComparisonHint {
-  source_id: string;
-  comparison_target_source_ids: string[];
-}
-
 interface PairSignals {
   shared_actor: boolean;
   shared_topic_tokens: string[];
@@ -51,7 +58,9 @@ interface PairSignals {
   compatible_claim_types: boolean;
   explicit_fixture_rule: FixtureRelationRule | null;
   coverage_gap_hint: boolean;
-  coverage_hint_admission: boolean;
+  clean_direct_lexical: boolean;
+  shared_evidence_bridge: boolean;
+  strict_evidence_neighborhood_bridge: boolean;
   plausible: boolean;
   score: number;
 }
@@ -68,12 +77,7 @@ export type RelationEndpointOrderingBasis =
   | "record_order";
 
 export function normalizeClaimText(value: string): string {
-  return value
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return normalizeLineageText(value);
 }
 
 export function stableLineageId(prefix: string, ...parts: string[]): string {
@@ -174,7 +178,7 @@ export function buildClaimFamilies(
     });
   }
 
-  return families.sort((left, right) => left.family_id.localeCompare(right.family_id));
+  return families.sort((left, right) => compareCodePoint(left.family_id, right.family_id));
 }
 
 export function applyFamilyReferences(
@@ -199,11 +203,18 @@ export function buildBoundedRelations(
   fixtureRules: FixtureRelationRule[] = [],
   maximumPairWorkload = MAX_RELATION_PAIR_WORKLOAD,
   sourceComparisonHints: SourceComparisonHint[] = [],
+  relationAdmissionHints: RelationAdmissionHint[] = [],
 ): RelationBuildResult {
   if (!Number.isInteger(maximumPairWorkload) || maximumPairWorkload < 1) {
     throw new Error("maximumPairWorkload must be a positive integer");
   }
 
+  const admissionHintByPair = new Map(
+    relationAdmissionHints.map((hint) => [
+      occurrencePairKey(hint.left_occurrence_id, hint.right_occurrence_id),
+      hint,
+    ]),
+  );
   const rankedPairs: RankedPair[] = [];
   for (let leftIndex = 0; leftIndex < occurrences.length; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < occurrences.length; rightIndex += 1) {
@@ -212,7 +223,14 @@ export function buildBoundedRelations(
       rankedPairs.push({
         left,
         right,
-        signals: inspectPair(left, right, fixtureRules, sourceComparisonHints),
+        signals: inspectPair(
+          left,
+          right,
+          fixtureRules,
+          sourceComparisonHints,
+          admissionHintByPair.get(occurrencePairKey(left.occurrence_id, right.occurrence_id))
+            ?? null,
+        ),
       });
     }
   }
@@ -222,17 +240,9 @@ export function buildBoundedRelations(
     .filter((pair) => pair.signals.plausible)
     .sort((left, right) =>
       right.signals.score - left.signals.score ||
-      pairKey(left).localeCompare(pairKey(right)),
+      compareCodePoint(pairKey(left), pairKey(right)),
     );
-  const hintAdmissionCounts = new Map<string, number>();
-  const plausiblePairs = claimRelevantPairs.filter((pair) => {
-    if (!pair.signals.coverage_hint_admission) return true;
-    const key = sourcePairKey(pair);
-    const admitted = hintAdmissionCounts.get(key) ?? 0;
-    if (admitted >= MAX_HINT_DERIVED_PAIRS_PER_SOURCE_PAIR) return false;
-    hintAdmissionCounts.set(key, admitted + 1);
-    return true;
-  });
+  const plausiblePairs = claimRelevantPairs;
   const selectedPairs = plausiblePairs.slice(0, maximumPairWorkload);
   const deferredPairCount = Math.max(0, plausiblePairs.length - selectedPairs.length);
   const relations = selectedPairs.map(classifyPair);
@@ -267,11 +277,22 @@ function inspectPair(
   right: ClaimOccurrence,
   fixtureRules: FixtureRelationRule[],
   sourceComparisonHints: SourceComparisonHint[],
+  admissionHint: RelationAdmissionHint | null,
 ): PairSignals {
-  const overlap = tokenOverlap(
-    left.normalized_claim_representation,
-    right.normalized_claim_representation,
+  const fallbackExcludedTokens = new Set([
+    ...(left.actor ? topicTokenSet(left.actor) : []),
+    ...(right.actor ? topicTokenSet(right.actor) : []),
+  ]);
+  const fallbackOverlap = calculateTokenOverlap(
+    directLexicalTokenSet(left.original_claim_text, fallbackExcludedTokens),
+    directLexicalTokenSet(right.original_claim_text, fallbackExcludedTokens),
   );
+  const overlap = admissionHint
+    ? {
+        score: admissionHint.clean_direct_token_overlap,
+        shared: admissionHint.clean_direct_shared_topic_tokens,
+      }
+    : fallbackOverlap;
   const explicitFixtureRule = fixtureRules.find(
     (rule) =>
       (rule.left_claim_id === left.claim_id && rule.right_claim_id === right.claim_id) ||
@@ -293,19 +314,20 @@ function inspectPair(
       (hint.source_id === right.source_id &&
         hint.comparison_target_source_ids.includes(left.source_id)),
   );
-  const multiSignalPlausible =
-    overlap.shared.length >= 2 &&
-    overlap.score >= 0.22 &&
-    (sharedActor || nearbyDates) &&
-    compatibleClaimTypes;
-  const coverageHintAdmission =
-    coverageGapHint &&
-    compatibleClaimTypes &&
-    overlap.shared.length >= 1 &&
-    !explicitFixtureRule &&
-    !multiSignalPlausible;
+  const cleanDirectLexical = admissionHint?.clean_direct_lexical ?? (
+    overlap.shared.length >= 2
+    && overlap.score >= 0.22
+    && (sharedActor || nearbyDates)
+    && compatibleClaimTypes
+  );
+  const sharedEvidenceBridge = admissionHint?.shared_evidence_bridge ?? false;
+  const strictEvidenceNeighborhoodBridge =
+    admissionHint?.strict_evidence_neighborhood_bridge ?? false;
   const score =
-    (explicitFixtureRule ? 10 : 0) +
+    (explicitFixtureRule ? 100 : 0) +
+    (sharedEvidenceBridge ? 30 : 0) +
+    (cleanDirectLexical ? 20 : 0) +
+    (strictEvidenceNeighborhoodBridge ? 10 : 0) +
     (sharedActor ? 1.5 : 0) +
     (nearbyDates ? 0.8 : 0) +
     (compatibleClaimTypes ? 0.5 : 0) +
@@ -321,8 +343,14 @@ function inspectPair(
     compatible_claim_types: compatibleClaimTypes,
     explicit_fixture_rule: explicitFixtureRule,
     coverage_gap_hint: coverageGapHint,
-    coverage_hint_admission: coverageHintAdmission,
-    plausible: Boolean(explicitFixtureRule) || multiSignalPlausible || coverageHintAdmission,
+    clean_direct_lexical: cleanDirectLexical,
+    shared_evidence_bridge: sharedEvidenceBridge,
+    strict_evidence_neighborhood_bridge: strictEvidenceNeighborhoodBridge,
+    plausible:
+      Boolean(explicitFixtureRule)
+      || sharedEvidenceBridge
+      || cleanDirectLexical
+      || strictEvidenceNeighborhoodBridge,
     score,
   };
 }
@@ -334,7 +362,7 @@ function classifyPair(pair: RankedPair): RelationCandidate {
   const ordered = endpointOrder.occurrences;
   let relationType: RelationType = "unresolved";
   let reason =
-    "Deterministic signals make this pair reviewable, but they are insufficient to adjudicate truth or a stronger temporal relation.";
+    "Cleaned direct topical overlap plus actor or date context makes this pair reviewable, but it is insufficient to establish corroboration, contradiction, correction, supersession, follow-up, the same event, truth, or falsity.";
   let confidenceScore = Math.min(0.69, 0.25 + signals.token_overlap * 0.4);
   let insufficientEvidence = true;
   let generatedBy: RelationCandidate["generated_by"] = "deterministic_rule";
@@ -346,10 +374,17 @@ function classifyPair(pair: RankedPair): RelationCandidate {
     insufficientEvidence =
       rule.evidence_basis === "insufficient_evidence" || relationType === "unresolved";
     generatedBy = "deterministic_fixture";
-  } else if (signals.coverage_hint_admission) {
+  } else if (signals.shared_evidence_bridge) {
     reason =
-      "These sources were selected for bounded comparison around a coverage gap, and the claims share a normalized topic token. The bounded hint admission makes the pair reviewable but does not imply corroboration, contradiction, correction, supersession, truth, or falsity.";
-    confidenceScore = Math.min(0.35, 0.2 + signals.token_overlap * 0.2);
+      "One typed evidence record was independently linked for bounded review to both actor-claim occurrences. This shared-evidence bridge makes the pair reviewable but does not establish corroboration, contradiction, correction, supersession, follow-up, the same event, truth, or falsity.";
+    confidenceScore = Math.min(0.35, 0.3 + signals.token_overlap * 0.1);
+  } else if (
+    signals.strict_evidence_neighborhood_bridge
+    && !signals.clean_direct_lexical
+  ) {
+    reason =
+      "The bounded evidence neighborhoods pass the strict bidirectional topic, entity-anchor, high-context-link, cross-source-evidence, and pair-context checks. This evidence-neighborhood bridge makes the actor-claim pair reviewable but does not establish corroboration, contradiction, correction, supersession, follow-up, the same event, truth, or falsity.";
+    confidenceScore = Math.min(0.35, 0.3 + signals.token_overlap * 0.1);
   }
   if (endpointOrder.basis === "non_chronological_mixed_precision") {
     reason = `${reason} The same-day day/instant endpoints use stable record order only; their left/right placement is not chronological.`;
@@ -421,7 +456,7 @@ function tokenSet(value: string): Set<string> {
   return new Set(
     normalizeClaimText(value)
       .split(" ")
-      .filter((token) => token.length >= 3 && !STOP_WORDS.has(token)),
+      .filter((token) => token.length >= 3 && !LEGACY_FAMILY_STOP_WORDS.has(token)),
   );
 }
 
@@ -508,11 +543,14 @@ function orderByTime(
 }
 
 function pairKey(pair: RankedPair): string {
-  return [pair.left.occurrence_id, pair.right.occurrence_id].sort().join("|");
+  return occurrencePairKey(pair.left.occurrence_id, pair.right.occurrence_id);
 }
 
-function sourcePairKey(pair: RankedPair): string {
-  return [pair.left.source_id, pair.right.source_id].sort().join("|");
+function occurrencePairKey(
+  leftOccurrenceId: string,
+  rightOccurrenceId: string,
+): string {
+  return [leftOccurrenceId, rightOccurrenceId].sort(compareCodePoint).join("|");
 }
 
 function clampScore(value: number): number {
