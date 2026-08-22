@@ -16,6 +16,7 @@ import {
 
 export const WEB_SEARCH_CANDIDATE_SUMMARY_MAX_LENGTH = 500;
 export const SOURCE_SELECTION_RATIONALE_MAX_LENGTH = 240;
+export const PROVIDER_COMPARISON_REFERENCE_MAX_LENGTH = 2048;
 
 export const AnalysisRequestSchema = z
   .object({
@@ -73,7 +74,13 @@ export const DiscoverySourceSchema = z
       .describe(
         "A concise reviewer-facing rationale written as a complete natural phrase or sentence. Stop before the hard character bound at a natural boundary; never fill the field by cutting a clause or token.",
       ),
-    comparison_target_source_ids: z.array(z.string().min(1).max(160)).max(8),
+    comparison_target_source_ids: z
+      .array(
+        z.string().min(1).max(PROVIDER_COMPARISON_REFERENCE_MAX_LENGTH).describe(
+          "A provider-returned comparison reference. This tolerance bound allows malformed URL or prose output to be parsed and discarded; it does not widen accepted comparison source-ID semantics.",
+        ),
+      )
+      .max(8),
     limitations: z.array(z.string().min(1).max(240)).max(4),
   })
   .strict();
