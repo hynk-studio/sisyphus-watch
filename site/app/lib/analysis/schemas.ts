@@ -14,6 +14,8 @@ import {
   SOURCE_CONTEXTS,
 } from "../source-profile";
 
+export const WEB_SEARCH_CANDIDATE_SUMMARY_MAX_LENGTH = 500;
+
 export const AnalysisRequestSchema = z
   .object({
     question: z.string(),
@@ -56,7 +58,7 @@ export const DiscoverySourceSchema = z
     web_search_grounded_candidate_summary: z
       .string()
       .min(1)
-      .max(500)
+      .max(WEB_SEARCH_CANDIDATE_SUMMARY_MAX_LENGTH)
       .describe(
         "A concise source-specific reviewer summary written in complete sentences. Stop at a natural sentence boundary before the hard limit; never end with an unfinished clause or cut-off token.",
       ),
