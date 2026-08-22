@@ -1,7 +1,7 @@
 import type { AnalysisRoutePayload } from "./analysis/contracts";
 import { AnalysisFailure } from "./analysis/errors";
 import {
-  executeAnalysisRequest,
+  executeAnalysisRequestInternal,
   invalidAnalysisRequestResponse,
   jsonError,
   parseBoundedAnalysisRequest,
@@ -9,6 +9,8 @@ import {
 } from "./analysis/handler";
 import type { NormalizedAnalysisRequest } from "./analysis/request";
 import { buildLineageResponseFromAnalysis } from "./lineage/handler";
+import { runLineageInternal } from "./lineage/internal";
+import type { CaptureDependencies } from "./lineage/source-capture";
 import {
   liveAnalysisDisabledResponse,
   operatorSponsoredLiveDisabledResponse,
@@ -30,6 +32,8 @@ export interface PublicLiveHandlerDependencies {
   nowMs?: () => number;
   nowISO?: () => string;
   runLive?: AnalysisHandlerDependencies["runLive"];
+  runLiveInternal?: AnalysisHandlerDependencies["runLiveInternal"];
+  capture?: CaptureDependencies;
   diagnostics?: PublicLiveDiagnosticSink;
 }
 
@@ -102,12 +106,29 @@ export async function handlePublicLiveLineageRequest(
   let response: Response;
   let outcome: AdmissionSettlement = "failed";
   try {
-    const analysisResponse = await executeAnalysisRequest(normalized, {
+    const analysisExecution = await executeAnalysisRequestInternal(normalized, {
       apiKey,
       now: dependencies.nowISO,
       runLive: dependencies.runLive,
+      runLiveInternal: dependencies.runLiveInternal,
     });
-    response = await buildLineageResponseFromAnalysis(analysisResponse);
+    if (analysisExecution.internal_envelope) {
+      try {
+        const internal = await runLineageInternal(
+          analysisExecution.internal_envelope,
+          dependencies.capture,
+        );
+        response = Response.json(internal.site_ready_case_packet);
+      } catch {
+        response = await buildLineageResponseFromAnalysis(
+          analysisExecution.response,
+        );
+      }
+    } else {
+      response = await buildLineageResponseFromAnalysis(
+        analysisExecution.response,
+      );
+    }
     outcome = await settlementForResponse(response);
   } catch (error) {
     outcome = error instanceof AnalysisFailure

@@ -8,6 +8,10 @@ import type {
   AnalysisRunPacket,
 } from "../app/lib/analysis/contracts";
 import { AnalysisFailure } from "../app/lib/analysis/errors";
+import type {
+  InternalAnalysisRunEnvelope,
+  RelationCueDiagnostic,
+} from "../app/lib/analysis/relation-cues";
 import {
   runOpenAIAnalysis,
   type ProviderResponse,
@@ -18,7 +22,11 @@ import {
   isPublicLiveReady,
   type PublicLiveRuntime,
 } from "../app/lib/live-mode";
-import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
+import {
+  buildPreparedSiteReadyCasePacket,
+  buildSiteReadyCasePacketFromAnalysis,
+} from "../app/lib/lineage/builder";
+import type { SiteReadyCasePacket } from "../app/lib/lineage/contracts";
 import {
   calculatePublicWorkUnits,
   PUBLIC_ADMISSION_LIMITS,
@@ -37,6 +45,7 @@ import {
   compareReviewTimestamps,
   groupReviewTimestampItems,
 } from "../app/lib/temporal";
+import { version18RelationAdmissionRun } from "./fixtures/version18-relation-admission";
 
 const NOW_MS = Date.UTC(2026, 7, 17, 12, 0, 0);
 const NOW_ISO = "2026-08-17T12:00:00.000Z";
@@ -155,6 +164,62 @@ function runtime(admission: PublicAdmissionStore | null): PublicLiveRuntime {
     liveEnabled: true,
     apiKey: "test-only-provider-key-material",
     admission,
+  };
+}
+
+function publicLiveInternalFixture(): {
+  envelope: InternalAnalysisRunEnvelope;
+  expectedPacket: SiteReadyCasePacket;
+  targetTitle: string;
+} {
+  const analysisRun = version18RelationAdmissionRun();
+  const expectedPacket = buildSiteReadyCasePacketFromAnalysis(analysisRun);
+  const relation = expectedPacket.relation_candidates[0];
+  const owner = expectedPacket.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === relation.left_occurrence_id,
+  )!;
+  const target = expectedPacket.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === relation.right_occurrence_id,
+  )!;
+  const targetTitle = analysisRun.source_snapshot_summaries.find(
+    (source) => source.source_id === target.source_id,
+  )!.title;
+  const diagnostic: RelationCueDiagnostic = {
+    provenance: "model_extracted_from_model_summary",
+    cue_kind: "supersession_candidate",
+    operative_actor: "NASA",
+    operative_verb: "supersedes",
+    target_reference_text: targetTitle,
+    target_kind: "document_title",
+    target_identifier: targetTitle,
+    negated: false,
+    modal_or_intent: false,
+    question_or_uncertain: false,
+    quoted_or_attributed: false,
+    conditional_or_hypothetical: false,
+    scope: "whole_document",
+    affected_field: null,
+    prior_value: null,
+    corrected_value: null,
+    replacement_effect: "supersedes",
+    effective_time: null,
+    effective_time_precision: null,
+    cue_supporting_summary_span:
+      `NASA supersedes ${targetTitle}.`,
+  };
+  return {
+    envelope: {
+      analysis_run: analysisRun,
+      relation_cue_diagnostics: [{
+        candidate_id: owner.claim_id,
+        source_id: owner.source_id,
+        snapshot_id: owner.snapshot_id,
+        diagnostic,
+      }],
+      workflow_deadline_at_ms: NOW_MS + 20_000,
+    },
+    expectedPacket,
+    targetTitle,
   };
 }
 
@@ -392,6 +457,128 @@ test("successful provider work settles one reservation exactly once", async () =
     outcome: "settled",
     nowMs: NOW_MS,
   }]);
+});
+
+test("public live internal-envelope success captures bounded pages without changing public semantics", async () => {
+  const admission = new FakeAdmissionStore();
+  const fixture = publicLiveInternalFixture();
+  let internalRuns = 0;
+  let legacyRunCalls = 0;
+  let captureCalls = 0;
+  const response = await handlePublicLiveLineageRequest(
+    publicRequest({
+      question: "How is NASA's public mission plan changing across official updates?",
+      sourceLimit: 3,
+      discoveryProfile: "standard",
+    }),
+    {
+      getRuntime: async () => runtime(admission),
+      nowMs: () => NOW_MS,
+      nowISO: () => NOW_ISO,
+      runLive: async () => {
+        legacyRunCalls += 1;
+        throw new Error("legacy provider path must not run");
+      },
+      runLiveInternal: async () => {
+        internalRuns += 1;
+        return fixture.envelope;
+      },
+      capture: {
+        nowMs: () => NOW_MS,
+        nowISO: () => NOW_ISO,
+        fetcher: (async (_input, init) => {
+          captureCalls += 1;
+          const headers = new Headers(init?.headers);
+          assert.equal(init?.credentials, "omit");
+          assert.equal(headers.has("authorization"), false);
+          assert.equal(headers.has("cookie"), false);
+          return new Response(`NASA supersedes ${fixture.targetTitle}.`, {
+            status: 200,
+            headers: { "content-type": "text/plain; charset=utf-8" },
+          });
+        }) as typeof fetch,
+      },
+    },
+  );
+  const body = await response.json() as SiteReadyCasePacket;
+  assert.equal(response.status, 200);
+  assert.deepEqual(body, fixture.expectedPacket);
+  assert.equal(internalRuns, 1);
+  assert.equal(legacyRunCalls, 0);
+  assert.equal(captureCalls, 1);
+  assert.deepEqual(admission.reserveInputs, [{ workUnits: 6, nowMs: NOW_MS }]);
+  assert.deepEqual(admission.settlements, [{
+    reservationId: "aggregate-reservation-1",
+    outcome: "settled",
+    nowMs: NOW_MS,
+  }]);
+  assert.equal(body.contract_version, "site_ready_case_packet.v1");
+  assert.equal(body.bounded_work_summary.model_classified_count, 0);
+  assert.equal(
+    body.relation_candidates.filter((item) => item.relation_type === "supersedes").length,
+    0,
+  );
+  assert.equal(
+    body.relation_candidates.filter((item) => item.relation_type === "correction").length,
+    0,
+  );
+  assert.equal(body.candidate_canonical_boundary.canonical_mutation, "none");
+  assert.doesNotMatch(
+    JSON.stringify(body),
+    /captured_live_source_text_span|captured_source_text_containment_only|captured_body_sha256|normalized_text_sha256|normalized_text/,
+  );
+});
+
+test("public live internal-envelope capture failure preserves the live investigation and settlement", async () => {
+  const admission = new FakeAdmissionStore();
+  const fixture = publicLiveInternalFixture();
+  let internalRuns = 0;
+  let captureCalls = 0;
+  const response = await handlePublicLiveLineageRequest(
+    publicRequest({
+      question: "How is NASA's public mission plan changing across official updates?",
+      sourceLimit: 3,
+      discoveryProfile: "standard",
+    }),
+    {
+      getRuntime: async () => runtime(admission),
+      nowMs: () => NOW_MS,
+      nowISO: () => NOW_ISO,
+      runLiveInternal: async () => {
+        internalRuns += 1;
+        return fixture.envelope;
+      },
+      capture: {
+        nowMs: () => NOW_MS,
+        nowISO: () => NOW_ISO,
+        fetcher: (async () => {
+          captureCalls += 1;
+          return new Response("private capture failure body", {
+            status: 500,
+            headers: { "content-type": "text/plain; charset=utf-8" },
+          });
+        }) as typeof fetch,
+      },
+    },
+  );
+  const body = await response.json() as SiteReadyCasePacket;
+  assert.equal(response.status, 200);
+  assert.deepEqual(body, fixture.expectedPacket);
+  assert.equal(body.mode, "live");
+  assert.equal(body.status, "live");
+  assert.equal(internalRuns, 1);
+  assert.equal(captureCalls, 1);
+  assert.deepEqual(admission.reserveInputs, [{ workUnits: 6, nowMs: NOW_MS }]);
+  assert.deepEqual(admission.settlements, [{
+    reservationId: "aggregate-reservation-1",
+    outcome: "settled",
+    nowMs: NOW_MS,
+  }]);
+  const serialized = JSON.stringify(body);
+  assert.doesNotMatch(serialized, /private capture failure body/);
+  assert.doesNotMatch(serialized, /captured_|normalized_text/);
+  assert.equal(body.bounded_work_summary.model_classified_count, 0);
+  assert.equal(body.candidate_canonical_boundary.canonical_mutation, "none");
 });
 
 test("provider failure, deadline, spend boundary, and unexpected exception all release admission", async () => {

@@ -1,16 +1,33 @@
 import type { AnalysisRunPacket, AnalysisRoutePayload } from "../analysis/contracts";
 import {
-  handleAnalysisRequest,
+  handleAnalysisRequestInternal,
   type AnalysisHandlerDependencies,
 } from "../analysis/handler";
 import { buildSiteReadyCasePacketFromAnalysis } from "./builder";
+import { runLineageInternal } from "./internal";
+import type { CaptureDependencies } from "./source-capture";
+
+export interface LineageHandlerDependencies extends AnalysisHandlerDependencies {
+  capture?: CaptureDependencies;
+}
 
 export async function handleLineageRequest(
   request: Request,
-  dependencies: AnalysisHandlerDependencies,
+  dependencies: LineageHandlerDependencies,
 ): Promise<Response> {
-  const analysisResponse = await handleAnalysisRequest(request, dependencies);
-  return buildLineageResponseFromAnalysis(analysisResponse);
+  const execution = await handleAnalysisRequestInternal(request, dependencies);
+  if (execution.internal_envelope) {
+    try {
+      const internal = await runLineageInternal(
+        execution.internal_envelope,
+        dependencies.capture,
+      );
+      return Response.json(internal.site_ready_case_packet);
+    } catch {
+      return buildLineageResponseFromAnalysis(execution.response);
+    }
+  }
+  return buildLineageResponseFromAnalysis(execution.response);
 }
 
 export async function buildLineageResponseFromAnalysis(

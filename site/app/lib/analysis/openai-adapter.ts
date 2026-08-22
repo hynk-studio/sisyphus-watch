@@ -209,7 +209,17 @@ export async function runOpenAIAnalysisWithKey(input: {
   discoveryProfile?: DiscoveryProfile;
   generatedAt: string;
 }): Promise<AnalysisRunPacket> {
-  return runOpenAIAnalysis({
+  return (await runOpenAIAnalysisWithKeyInternal(input)).analysis_run;
+}
+
+export async function runOpenAIAnalysisWithKeyInternal(input: {
+  apiKey: string;
+  question: string;
+  sourceLimit: number;
+  discoveryProfile?: DiscoveryProfile;
+  generatedAt: string;
+}): Promise<InternalAnalysisRunEnvelope> {
+  return runOpenAIAnalysisInternal({
     ...input,
     responses: createOpenAIResponsesPort(input.apiKey),
   });
@@ -364,6 +374,7 @@ async function runWithinWorkflow(
   return {
     analysis_run: analysisRun,
     relation_cue_diagnostics: relationCueDiagnostics,
+    workflow_deadline_at_ms: input.workflow.deadlineAtMs,
   };
 }
 
