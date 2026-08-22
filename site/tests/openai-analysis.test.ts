@@ -14,6 +14,7 @@ import {
 } from "../app/lib/analysis/contracts";
 import { AnalysisFailure, classifyProviderError } from "../app/lib/analysis/errors";
 import { handleAnalysisRequest } from "../app/lib/analysis/handler";
+import { shortStableHash } from "../app/lib/analysis/ids";
 import {
   COVERAGE_EXPANSION_DISCOVERY_INSTRUCTIONS,
   DISCOVERY_INSTRUCTIONS,
@@ -519,6 +520,61 @@ test("builds a compact live packet from API-provenanced partial snapshots", asyn
   assert.doesNotMatch(
     serialized,
     /"source_text":|output_parsed|raw_response_id/,
+  );
+});
+
+test("hard-bound source summary retention drives extraction, containment, and hashing", async () => {
+  const hardBoundSummary = "On August 11, Saskatoon Transit announced that smart-card sales and reloads had resumed at participating vendors and the Customer Service Centre. The exceptional permission to board because reloading was unavailable was no longer presented; instead, the notice returned to the requirement for valid fare payment, while reiterating that active cards, mobile tickets, and cash remained available. It also reminded riders to exchange old cards before September 1, with the $5 activation fee waived for a";
+  const retainedSummary = "On August 11, Saskatoon Transit announced that smart-card sales and reloads had resumed at participating vendors and the Customer Service Centre. The exceptional permission to board because reloading was unavailable was no longer presented; instead, the notice returned to the requirement for valid fare payment, while reiterating that active cards, mobile tickets, and cash remained available.";
+  const supportingSpan =
+    "Saskatoon Transit announced that smart-card sales and reloads had resumed";
+  const port = new FakeResponsesPort([
+    discoveryResponse([source(1, hardBoundSummary)]),
+    extractionResponse(1, supportingSpan),
+  ]);
+
+  const run = await runOpenAIAnalysis({
+    question: "How did Saskatoon Transit guidance change?",
+    sourceLimit: 1,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+  const sourceSummary = run.source_snapshot_summaries[0];
+  const extractionInput = JSON.parse(String(port.calls[1].input)) as {
+    web_search_grounded_candidate_summary: string;
+  };
+
+  assert.equal(Array.from(hardBoundSummary).length, 500);
+  assert.equal(sourceSummary.web_search_grounded_candidate_summary, retainedSummary);
+  assert.equal(extractionInput.web_search_grounded_candidate_summary, retainedSummary);
+  assert.equal(
+    sourceSummary.candidate_summary_sha256,
+    await shortStableHash(retainedSummary, 64),
+  );
+  assert.match(
+    sourceSummary.limitations.join(" "),
+    /trailing model-summary fragment was discarded without repair or completion/i,
+  );
+  assert.ok(run.candidates.length > 0);
+  assert.ok(run.candidates.every((candidate) =>
+    retainedSummary.toLowerCase().includes(
+      candidate.supporting_summary_span.trim().toLowerCase(),
+    )));
+  assert.doesNotMatch(JSON.stringify(run), /activation fee waived for a/);
+});
+
+test("generation instructions require complete natural boundaries before field limits", () => {
+  assert.match(
+    DISCOVERY_INSTRUCTIONS,
+    /stop before the 500-character field bound.*never fill the bound by cutting a clause or token/i,
+  );
+  assert.match(
+    COVERAGE_EXPANSION_DISCOVERY_INSTRUCTIONS,
+    /stop before the 500-character field bound.*never fill the bound by cutting a clause or token/i,
+  );
+  assert.match(
+    EXTRACTION_INSTRUCTIONS,
+    /candidate text concise and complete.*never cut a clause or token/i,
   );
 });
 
@@ -1176,6 +1232,7 @@ test("clearly incomplete actor-claim and action text is skipped without repairin
     "CDC recommended distancing, hygiene, or vaccination when appropriate.",
     "The agency announced a vaccination campaign.",
     "CDC recommends layered precautions.",
+    "The agency opened review offices.",
   ].join(" ");
   const preservedSupport = "  CDC   recommends layered precautions.  ";
   const port = new FakeResponsesPort([
@@ -1195,6 +1252,20 @@ test("clearly incomplete actor-claim and action text is skipped without repairin
             semantic_review: {
               actor_role: "speaker_or_claimant",
               statement_semantics: "claim_or_guidance",
+              actor_specificity: "specifically_identifiable",
+            },
+          },
+          {
+            candidate_type: "action",
+            actor: "The agency",
+            text: "The agency opened review offices.",
+            supporting_summary_span: "The agency opened review offices.",
+            time_candidate: null,
+            confidence: "medium",
+            uncertainty: "Concise complete action candidate.",
+            semantic_review: {
+              actor_role: "performer_or_responsible_actor",
+              statement_semantics: "concrete_performed_or_announced_action",
               actor_specificity: "specifically_identifiable",
             },
           },
@@ -1240,9 +1311,15 @@ test("clearly incomplete actor-claim and action text is skipped without repairin
     generatedAt: GENERATED_AT,
     responses: port,
   });
-  assert.equal(run.candidates.length, 1);
-  assert.equal(run.candidates[0].text, "CDC recommends layered precautions");
-  assert.equal(run.candidates[0].supporting_summary_span, preservedSupport);
+  assert.equal(run.candidates.length, 2);
+  assert.deepEqual(
+    run.candidates.map((candidate) => candidate.text).sort(),
+    ["CDC recommends layered precautions", "The agency opened review offices."].sort(),
+  );
+  const retainedClaim = run.candidates.find(
+    (candidate) => candidate.candidate_type === "actor_claim",
+  );
+  assert.equal(retainedClaim?.supporting_summary_span, preservedSupport);
   assert.match(
     run.limitations.join(" "),
     /clearly_incomplete_structured_candidates_skipped:2/,
@@ -1256,9 +1333,112 @@ test("clearly incomplete actor-claim and action text is skipped without repairin
 
   const packet = buildSiteReadyCasePacketFromAnalysis(run);
   assert.equal(packet.actor_claims.length, 1);
-  assert.equal(packet.actions.length, 0);
+  assert.equal(packet.actions.length, 1);
   assert.equal(packet.claim_occurrences.length, 1);
   assert.equal(packet.claim_occurrences[0].support_reference.bounded_excerpt, preservedSupport);
+  assert.equal(packet.source_snapshot_summaries.length, 1);
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
+});
+
+test("malformed finding and unresolved-question text is skipped without copying rejected text", async () => {
+  const summary = [
+    "The Commission published updated guidance.",
+    "The public record remains available.",
+    "What evidence remains unavailable?",
+  ].join(" ");
+  const candidates = [
+    {
+      candidate_type: "finding",
+      actor: null,
+      text: "The12?",
+      supporting_summary_span: "The Commission published updated guidance.",
+      time_candidate: null,
+      confidence: "low",
+      uncertainty: "Malformed finding.",
+      semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
+    },
+    {
+      candidate_type: "finding",
+      actor: null,
+      text: "The agency changed its guidance because",
+      supporting_summary_span: "The Commission published updated guidance.",
+      time_candidate: null,
+      confidence: "low",
+      uncertainty: "Dangling finding.",
+      semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
+    },
+    {
+      candidate_type: "unresolved_question",
+      actor: null,
+      text: "What remains unresolved because",
+      supporting_summary_span: "What evidence remains unavailable?",
+      time_candidate: null,
+      confidence: "unknown",
+      uncertainty: "Dangling unresolved question.",
+      semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
+    },
+    {
+      candidate_type: "finding",
+      actor: null,
+      text: "The Commission published updated guidance",
+      supporting_summary_span: "The Commission published updated guidance.",
+      time_candidate: null,
+      confidence: "medium",
+      uncertainty: "Complete punctuation-free finding.",
+      semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
+    },
+    {
+      candidate_type: "unresolved_question",
+      actor: null,
+      text: "What evidence remains unavailable?",
+      supporting_summary_span: "What evidence remains unavailable?",
+      time_candidate: null,
+      confidence: "unknown",
+      uncertainty: "Complete unresolved question.",
+      semantic_review: NOT_APPLICABLE_SEMANTIC_REVIEW,
+    },
+  ] as const;
+  const port = new FakeResponsesPort([
+    discoveryResponse([source(1, summary)]),
+    {
+      output_parsed: {
+        candidates,
+        limitations: ["One-source extraction only."],
+      },
+      output: [],
+    },
+  ]);
+
+  const run = await runOpenAIAnalysis({
+    question: "How did the Commission guidance change?",
+    sourceLimit: 1,
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.deepEqual(
+    run.candidates.map((candidate) => [candidate.candidate_type, candidate.text]),
+    [
+      ["finding", "The Commission published updated guidance"],
+      ["unresolved_question", "What evidence remains unavailable?"],
+    ],
+  );
+  assert.match(
+    run.limitations.join(" "),
+    /clearly_incomplete_structured_candidates_skipped:3/,
+  );
+  assert.doesNotMatch(
+    run.limitations.join(" "),
+    /The12|changed its guidance because|remains unresolved because/,
+  );
+  assert.equal(
+    run.source_snapshot_summaries[0].web_search_grounded_candidate_summary,
+    summary,
+  );
+
+  const packet = buildSiteReadyCasePacketFromAnalysis(run);
+  assert.equal(packet.source_bound_findings.length, 1);
+  assert.equal(packet.unresolved_questions.length, 1);
   assert.equal(packet.source_snapshot_summaries.length, 1);
   assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
 });

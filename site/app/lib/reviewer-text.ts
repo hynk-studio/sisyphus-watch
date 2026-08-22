@@ -1,4 +1,8 @@
 const LEXICAL_TOKEN_PATTERN = /[\p{L}\p{N}][\p{L}\p{N}\p{M}]*/gu;
+const PROMINENT_DANGLING_TAIL_PATTERN =
+  /(?:^|\s)(?:and|or|but|because|including|with|without|to|of|for|from|by|as|that|which|who|when|where|while|after|before|through|between|during)\s*[,;:–—-]?$/iu;
+const MALFORMED_FUNCTION_WORD_NUMBER_PATTERN =
+  /(?:^|\s)(?:the|a|an|to|of|and|or)\d+[?!.,;:]*$/iu;
 
 export function normalizeReviewerWhitespace(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
@@ -59,6 +63,68 @@ export function hasClearlyIncompleteTail(value: string): boolean {
     || /[([{]\s*$/u.test(normalized);
 }
 
+export interface RetainedModelSummary {
+  text: string;
+  trailingFragmentDiscarded: boolean;
+}
+
+/**
+ * Treats a summary at the structured-output ceiling without closing sentence
+ * punctuation as a likely hard-bound fragment. The helper never repairs or
+ * completes the text: it retains the largest already-produced complete
+ * sentence, or applies a visible word-boundary ellipsis when no sentence
+ * boundary exists. Summaries below the near-bound threshold are unchanged,
+ * including ordinary short punctuation-free summaries.
+ */
+export function retainBoundedModelSummary(
+  value: string,
+  maximumLength: number,
+): RetainedModelSummary {
+  if (!Number.isInteger(maximumLength) || maximumLength < 2) {
+    throw new RangeError("maximumLength must be an integer of at least 2");
+  }
+
+  const retainedInput = value.trim();
+  // Zod's string maximum follows JavaScript UTF-16 length, so the admission
+  // and presentation thresholds intentionally use the same representation.
+  const nearHardBound = retainedInput.length >= maximumLength - 1;
+  const closesSentence = /[.!?](?:["'’”)}\]]+)?$/u.test(retainedInput);
+  if (!nearHardBound || closesSentence) {
+    return { text: retainedInput, trailingFragmentDiscarded: false };
+  }
+
+  const completeBoundary = lastCompleteSentenceBoundary(retainedInput);
+  if (completeBoundary > 0) {
+    return {
+      text: retainedInput.slice(0, completeBoundary).trim(),
+      trailingFragmentDiscarded: true,
+    };
+  }
+
+  return {
+    text: boundedReviewerText(
+      retainedInput,
+      Math.max(1, Array.from(retainedInput).length - 1),
+    ),
+    trailingFragmentDiscarded: true,
+  };
+}
+
+/**
+ * Prominent review surfaces should fail closed on text that visibly looks cut
+ * off or malformed. This is deliberately stricter than packet admission: the
+ * underlying candidate remains available for review, but it does not become a
+ * headline-like first payoff.
+ */
+export function isSuitableForProminentReviewText(value: string): boolean {
+  const normalized = normalizeReviewerWhitespace(value);
+  if (!normalized || hasClearlyIncompleteTail(normalized)) return false;
+  if (normalized.includes("\uFFFD")) return false;
+  if (MALFORMED_FUNCTION_WORD_NUMBER_PATTERN.test(normalized)) return false;
+  if (PROMINENT_DANGLING_TAIL_PATTERN.test(normalized)) return false;
+  return true;
+}
+
 function lexicalTokens(value: string): string[] {
   return value
     .normalize("NFKC")
@@ -78,4 +144,12 @@ function preferredBoundary(prefix: string): number {
 
   const wordBoundary = prefix.lastIndexOf(" ");
   return wordBoundary > 0 ? wordBoundary : prefix.length;
+}
+
+function lastCompleteSentenceBoundary(value: string): number {
+  let boundary = -1;
+  for (const match of value.matchAll(/[.!?](?:["'’”)}\]]+)?(?=\s|$)/gu)) {
+    boundary = (match.index ?? 0) + match[0].length;
+  }
+  return boundary;
 }
