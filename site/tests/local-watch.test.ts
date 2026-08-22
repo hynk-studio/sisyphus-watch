@@ -33,6 +33,7 @@ import {
   type LocalWatchStorage,
 } from "../app/lib/local-watch";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
+import { validateSiteReadyCasePacket } from "../app/lib/lineage/contracts";
 import {
   buildSavedWatchPacketA,
   buildSavedWatchPacketB,
@@ -133,6 +134,85 @@ test("a live packet alone performs no storage mutation until the explicit storag
   assert.equal(storage.values.size, 0);
   writeLocalWatch(storage, createLocalWatch(packet, SAVED_AT));
   assert.equal(storage.setCount, 1);
+});
+
+test("real-live long claim display text compacts to a strict NFKC Watch without network work", () => {
+  const displayText =
+    "The agency explained that the revised schedule would standardize the inspection sequence, increase review cadence, test public notification interfaces and other systems before the exercise, and support repeated safety checks throughout the year across participating regions.";
+  const packet = packetWithClaimDisplay(displayText);
+  const originalPacketBytes = JSON.stringify(packet);
+  const occurrence = packet.claim_occurrences[0];
+  const expectedIdentity = claimCandidateIdentity(
+    occurrence.actor,
+    occurrence.normalized_claim_representation,
+  );
+  const originalFetch = globalThis.fetch;
+  let networkRequests = 0;
+  globalThis.fetch = (async () => {
+    networkRequests += 1;
+    throw new Error("Saved Watch construction must not use the network");
+  }) as typeof fetch;
+
+  try {
+    assert.doesNotThrow(() => validateSiteReadyCasePacket(packet));
+    const snapshot = buildLocalWatchSnapshot(packet);
+    const candidate = snapshot.candidates.find(
+      (item) => item.identity === expectedIdentity,
+    );
+    assert.ok(candidate);
+    assert.equal(candidate.text.endsWith("..."), true);
+    assert.equal(candidate.text.normalize("NFKC"), candidate.text);
+    assert.ok(candidate.text.length <= 240);
+
+    const watch = createLocalWatch(packet, SAVED_AT);
+    const serialized = serializeLocalWatch(watch);
+    const storage = new MemoryStorage();
+    assert.deepEqual(writeLocalWatch(storage, watch), { ok: true });
+    const restored = readLocalWatch(storage);
+    assert.equal(restored.status, "valid");
+    if (restored.status !== "valid") throw new Error("Watch restoration failed");
+    assert.deepEqual(restored.watch, watch);
+    assert.equal(storage.values.get(LOCAL_WATCH_STORAGE_KEY), serialized);
+
+    const noncanonical = structuredClone(snapshot);
+    const noncanonicalCandidate = noncanonical.candidates.find(
+      (item) => item.identity === expectedIdentity,
+    );
+    assert.ok(noncanonicalCandidate);
+    noncanonicalCandidate.text = noncanonicalCandidate.text.replace(/\.\.\.$/u, "…");
+    assert.throws(
+      () => validateLocalWatchSnapshot(noncanonical),
+      LocalWatchContractError,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(networkRequests, 0);
+  assert.equal(JSON.stringify(packet), originalPacketBytes);
+});
+
+test("claim display compaction remains valid immediately below and above 240 code points", () => {
+  for (const length of [240, 241]) {
+    const displayText = "x".repeat(length);
+    const packet = packetWithClaimDisplay(displayText);
+    assert.doesNotThrow(() => validateSiteReadyCasePacket(packet));
+    const snapshot = buildLocalWatchSnapshot(packet);
+    const occurrence = packet.claim_occurrences[0];
+    const candidate = snapshot.candidates.find(
+      (item) => item.identity === claimCandidateIdentity(
+        occurrence.actor,
+        occurrence.normalized_claim_representation,
+      ),
+    );
+    assert.ok(candidate);
+    assert.equal(candidate.text.normalize("NFKC"), candidate.text);
+    assert.ok(candidate.text.length <= 240);
+    assert.equal(
+      candidate.text,
+      length === 240 ? displayText : `${"x".repeat(237)}...`,
+    );
+  }
 });
 
 test("malformed, unsupported, oversized, tampered, and unavailable storage fail closed", () => {
@@ -609,6 +689,19 @@ function relationRecord(
     left_claim_identity: endpoints.left,
     right_claim_identity: endpoints.right,
   };
+}
+
+function packetWithClaimDisplay(displayText: string) {
+  const packet = structuredClone(buildSavedWatchPacketA());
+  const occurrence = packet.claim_occurrences[0];
+  const claim = packet.actor_claims.find(
+    (item) => item.claim_id === occurrence.claim_id,
+  );
+  assert.ok(claim);
+  occurrence.original_claim_text = displayText;
+  occurrence.support_reference.bounded_excerpt = displayText;
+  claim.claim_text = displayText;
+  return packet;
 }
 
 function buildUnicodeOrderingPacket() {
