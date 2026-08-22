@@ -168,8 +168,8 @@ export function SearchComposer({
                 {sponsoredSelected ? (
                   <p>
                     Sponsored provider requests retain the existing 20-second
-                    per-request timeout, 110-second workflow deadline, in-memory
-                    accidental-repeat cooldown, and D1-backed aggregate capacity limits.
+                    per-request timeout, 110-second workflow deadline, a short cooldown
+                    to prevent accidental repeat requests, and D1-backed aggregate capacity limits.
                   </p>
                 ) : null}
                 <p>
@@ -281,7 +281,7 @@ export function SearchComposer({
                 <span>
                   {isLoading
                     ? "The displayed investigation stays intact until one schema-checked response is available."
-                    : "The prepared investigation remains usable during this accidental-repeat guard."}
+                    : "The prepared investigation remains usable during this short cooldown."}
                 </span>
               </>
             )}
@@ -323,7 +323,7 @@ export function SearchComposer({
                 <button type="button" disabled={relayConnecting} onClick={onConnectRelay}>
                   {relayConnecting ? "Connecting…" : storedRelay ? "Reconnect" : "Connect"}
                 </button>
-                <button type="button" disabled={relayConnecting} onClick={onCancelRelay}>
+                <button type="button" onClick={onCancelRelay}>
                   Cancel
                 </button>
               </div>
@@ -401,7 +401,7 @@ export function SearchComposer({
                 <button type="submit" disabled={relayConnecting}>
                   {relayConnecting ? "Connecting…" : storedRelay ? "Reconnect" : "Connect"}
                 </button>
-                <button type="button" disabled={relayConnecting} onClick={onCancelRelay}>
+                <button type="button" onClick={onCancelRelay}>
                   Cancel
                 </button>
               </div>
