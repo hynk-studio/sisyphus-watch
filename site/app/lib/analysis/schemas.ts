@@ -116,6 +116,65 @@ export const CandidateSemanticReviewSchema = z
   })
   .strict();
 
+export const RELATION_CUE_KINDS = [
+  "correction_candidate",
+  "supersession_candidate",
+] as const;
+
+export const RELATION_CUE_TARGET_KINDS = [
+  "document_title",
+  "notice_identifier",
+  "guidance_identifier",
+  "version_identifier",
+  "dated_document_reference",
+  "quoted_proposition",
+  "other_explicit_identifier",
+  "none",
+] as const;
+
+export const RELATION_CUE_SCOPES = [
+  "whole_proposition",
+  "field",
+  "whole_document",
+  "whole_version",
+  "withdrawal_or_rescission",
+  "partial_or_ambiguous",
+  "none",
+] as const;
+
+export const RELATION_CUE_REPLACEMENT_EFFECTS = [
+  "replaces",
+  "supersedes",
+  "rescinds",
+  "withdraws",
+  "no_longer_in_effect",
+  "none",
+] as const;
+
+export const RelationCueProposalSchema = z
+  .object({
+    provenance: z.literal("model_extracted_from_model_summary"),
+    cue_kind: z.enum(RELATION_CUE_KINDS),
+    operative_actor: z.string().min(1).max(200).nullable(),
+    operative_verb: z.string().min(1).max(80).nullable(),
+    target_reference_text: z.string().min(1).max(240).nullable(),
+    target_kind: z.enum(RELATION_CUE_TARGET_KINDS),
+    target_identifier: z.string().min(1).max(160).nullable(),
+    negated: z.boolean(),
+    modal_or_intent: z.boolean(),
+    question_or_uncertain: z.boolean(),
+    quoted_or_attributed: z.boolean(),
+    conditional_or_hypothetical: z.boolean(),
+    scope: z.enum(RELATION_CUE_SCOPES),
+    affected_field: z.string().min(1).max(120).nullable(),
+    prior_value: z.string().min(1).max(160).nullable(),
+    corrected_value: z.string().min(1).max(160).nullable(),
+    replacement_effect: z.enum(RELATION_CUE_REPLACEMENT_EFFECTS),
+    effective_time: z.string().max(64).nullable(),
+    cue_supporting_summary_span: z.string().min(1).max(280).nullable(),
+  })
+  .strict();
+
 export const CandidateProposalSchema = z
   .object({
     candidate_type: z.enum([
@@ -140,6 +199,7 @@ export const CandidateProposalSchema = z
     confidence: z.enum(["high", "medium", "low", "unknown"]),
     uncertainty: z.string().max(240),
     semantic_review: CandidateSemanticReviewSchema,
+    relation_cues: z.array(RelationCueProposalSchema).max(2).default([]),
   })
   .strict();
 
@@ -153,5 +213,6 @@ export const SourceExtractionOutputSchema = z
 export type DiscoveryOutput = z.infer<typeof DiscoveryOutputSchema>;
 export type DiscoverySource = z.infer<typeof DiscoverySourceSchema>;
 export type CandidateSemanticReview = z.infer<typeof CandidateSemanticReviewSchema>;
+export type RelationCueProposal = z.infer<typeof RelationCueProposalSchema>;
 export type CandidateProposal = z.infer<typeof CandidateProposalSchema>;
 export type SourceExtractionOutput = z.infer<typeof SourceExtractionOutputSchema>;

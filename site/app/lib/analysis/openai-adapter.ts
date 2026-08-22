@@ -33,6 +33,12 @@ import {
   retainBoundedModelSummary,
 } from "../reviewer-text";
 import {
+  buildRelationCueDiagnosticRecords,
+  sortRelationCueDiagnosticRecords,
+  type InternalAnalysisRunEnvelope,
+  type RelationCueDiagnosticRecord,
+} from "./relation-cues";
+import {
   DiscoveryOutputSchema,
   SOURCE_SELECTION_RATIONALE_MAX_LENGTH,
   SourceExtractionOutputSchema,
@@ -96,6 +102,14 @@ export const EXTRACTION_INSTRUCTIONS = [
   "A recommendation may be an actor_claim by a specifically supported issuer, but it must not survive as an action by residents or another advised population.",
   "Never substitute the source publisher as claimant or action performer merely because it published the source. A retained actor must be stated in the supporting summary span.",
   "For other candidate types, set actor to null.",
+  "For every candidate, return relation_cues. Use an empty array unless candidate_type is actor_claim and the same source summary contains explicit possible correction language such as corrected, incorrectly listed, or error was corrected, or explicit possible supersession language such as supersedes, replaces, rescinds, withdraws, or no longer in effect.",
+  "Relation cues are model-extracted diagnostics from this model-generated summary only. They are not captured page text, verbatim wording, verified evidence, pair admission, or relation classification. Never infer which other source or claim a target resolves to and never adjudicate correction, supersession, truth, or falsity.",
+  "Return at most two relation cues per actor claim so a bounded dual correction-and-replacement statement can retain both observations without precedence. Do not create cues from updated, revised, changed, latest, new, or amended alone.",
+  "For each cue, use provenance model_extracted_from_model_summary. Set operative_actor only when the responsible subject is explicit in the same summary; never use publisher, recipient, source title, parent organization, or an invented alias as actor. Set operative_verb and cue_supporting_summary_span only from text contained in the same summary.",
+  "Extract only explicit high-specificity target text and identifiers: exact document title, notice or guidance ID, version, exact dated document reference, quoted proposition, or another explicit bounded identifier. Pronouns and generic previous-guidance or earlier-statement wording are not identifiers; use target_kind none and null target fields.",
+  "Set negated, modal_or_intent, question_or_uncertain, quoted_or_attributed, and conditional_or_hypothetical independently from the local wording. Preserve guarded cue observations rather than converting them into affirmative relations.",
+  "Use field scope only when affected_field, prior_value, and corrected_value are explicit. Use partial_or_ambiguous when scope or values are incomplete. Replacement effects require explicit replaces, supersedes, rescinds, withdraws, or no-longer-in-effect wording; updated, revised, changed, and amended alone map to none.",
+  "Set effective_time only for an explicit YYYY-MM-DD or timezone-qualified ISO date-time. Do not decide whether a future-effective statement is already operative.",
   "Set time_candidate only for an explicit YYYY-MM-DD or ISO date-time with a timezone/offset. Month-only, year-only, vague, or malformed dates must be null; retain coarse wording only in candidate text, the supporting span, or uncertainty.",
   "Every supporting_summary_span must occur within this one bounded candidate summary. This is summary containment only, not proof of wording on the source page.",
   "Keep reviewer-facing candidate text concise and complete. Stop before the field bound at a natural phrase or sentence boundary; never cut a clause or token.",
@@ -165,6 +179,7 @@ interface DiscoveryResult extends DiscoveryPassResult {
 interface ExtractedSourceResult {
   source: WebSearchPartialSourceSnapshot;
   candidates: AnalysisCandidate[];
+  relationCueDiagnostics: RelationCueDiagnosticRecord[];
   limitations: string[];
 }
 
@@ -201,6 +216,12 @@ export async function runOpenAIAnalysisWithKey(input: {
 export async function runOpenAIAnalysis(
   input: RunOpenAIAnalysisInput,
 ): Promise<AnalysisRunPacket> {
+  return (await runOpenAIAnalysisInternal(input)).analysis_run;
+}
+
+export async function runOpenAIAnalysisInternal(
+  input: RunOpenAIAnalysisInput,
+): Promise<InternalAnalysisRunEnvelope> {
   if (
     !Number.isInteger(input.sourceLimit) ||
     input.sourceLimit < 1 ||
@@ -239,7 +260,7 @@ export async function runOpenAIAnalysis(
 
 async function runWithinWorkflow(
   input: BoundedRunOpenAIAnalysisInput,
-): Promise<AnalysisRunPacket> {
+): Promise<InternalAnalysisRunEnvelope> {
   const discoveryProfile = input.discoveryProfile ?? "standard";
   const discovery = await discoverSources(input, discoveryProfile);
   const extractionResults = await mapWithConcurrency(
@@ -282,6 +303,9 @@ async function runWithinWorkflow(
   }
 
   const candidates = successful.flatMap((result) => result.candidates);
+  const relationCueDiagnostics = sortRelationCueDiagnosticRecords(
+    successful.flatMap((result) => result.relationCueDiagnostics),
+  );
   const candidateCounts = countCandidates(candidates);
   const runHash = await shortStableHash(
     `${normalizeForId(input.question)}|${input.sourceLimit}|${discoveryProfile}|${input.generatedAt}`,
@@ -303,7 +327,7 @@ async function runWithinWorkflow(
     );
   }
 
-  return {
+  const analysisRun: AnalysisRunPacket = {
     run_id: `run_live_${runHash}`,
     case_id: `case_candidate_live_${runHash}`,
     mode: "live",
@@ -334,6 +358,10 @@ async function runWithinWorkflow(
       ...summaries.map((source) => source.source_id),
       ...candidates.map((candidate) => candidate.candidate_id),
     ],
+  };
+  return {
+    analysis_run: analysisRun,
+    relation_cue_diagnostics: relationCueDiagnostics,
   };
 }
 
@@ -716,15 +744,30 @@ async function extractOneSource(
   const reviewedProposals = completeProposals
     .map(enforceCandidateSemantics)
     .filter((proposal): proposal is CandidateProposal => proposal !== null);
-  const candidates = await Promise.all(
+  const candidateEntries = await Promise.all(
     reviewedProposals
       .slice(0, MAX_CANDIDATES_PER_SOURCE)
-      .map((proposal) => buildCandidate(proposal, source, input.generatedAt)),
+      .map(async (proposal) => {
+        const candidate = await buildCandidate(proposal, source, input.generatedAt);
+        return {
+          candidate,
+          relationCueDiagnostics: buildRelationCueDiagnosticRecords({
+            proposal,
+            candidateId: candidate.candidate_id,
+            sourceId: source.source_id,
+            snapshotId: source.snapshot_id,
+            sourceSummary: source.web_search_grounded_candidate_summary,
+          }),
+        };
+      }),
   );
 
   return {
     source,
-    candidates,
+    candidates: candidateEntries.map((entry) => entry.candidate),
+    relationCueDiagnostics: candidateEntries.flatMap(
+      (entry) => entry.relationCueDiagnostics,
+    ),
     limitations: [
       ...parsed.data.limitations,
       ...(incompleteCandidateCount > 0
