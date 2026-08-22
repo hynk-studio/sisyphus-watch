@@ -163,6 +163,18 @@ interface CaptureAttempt {
   result: CapturedSourceDocument | CaptureFailure;
 }
 
+type SupportAnchorBoundary = "lexical" | "identifier" | "phrase";
+
+interface SupportAnchor {
+  value: string;
+  boundary: SupportAnchorBoundary;
+}
+
+interface AnchorOccurrence {
+  start: number;
+  end: number;
+}
+
 export function validateDirectCaptureURL(value: string): URL | null {
   let parsed: URL;
   try {
@@ -384,7 +396,10 @@ export async function selectCapturedSupportSpan(
   if (!operativeVerb) return null;
   const targetAnchors = requiredTargetAnchors(cue);
   if (targetAnchors.length === 0) return null;
-  const anchors = [operativeVerb, ...targetAnchors];
+  const anchors: SupportAnchor[] = [
+    { value: operativeVerb, boundary: "lexical" },
+    ...targetAnchors,
+  ];
   const window = smallestAnchorWindow(document.normalized_text, anchors);
   if (!window || window.end - window.start > MAX_CAPTURE_SUPPORT_EXCERPT_CHARS) {
     return null;
@@ -397,7 +412,7 @@ export async function selectCapturedSupportSpan(
       document.capture_id,
       String(window.start),
       String(window.end),
-      ...anchors,
+      ...anchors.map((anchor) => anchor.value),
     ),
     source_id: document.source_id,
     parent_snapshot_id: document.parent_snapshot_id,
@@ -409,7 +424,7 @@ export async function selectCapturedSupportSpan(
     normalized_text_end: window.end,
     support_kind: "captured_live_source_text_span",
     proves: "captured_source_text_containment_only",
-    match_basis: anchors,
+    match_basis: anchors.map((anchor) => anchor.value),
     citation_url: document.final_url,
   };
 }
@@ -418,9 +433,11 @@ export function normalizeCapturedDocumentText(
   input: string,
   mediaKind: "html" | "plain_text",
 ): { text: string; textLimited: boolean } {
-  let value = input.normalize("NFKC").replace(/\r\n?/gu, "\n");
+  let value = input;
   if (mediaKind === "html") value = htmlToVisibleText(value);
   value = value
+    .normalize("NFKC")
+    .replace(/\r\n?/gu, "\n")
     .replace(/[\t\f\v ]+/gu, " ")
     .replace(/ *\n */gu, "\n")
     .replace(/\n{3,}/gu, "\n\n")
@@ -735,7 +752,7 @@ function decodeBasicHTMLEntities(value: string): string {
   );
 }
 
-function requiredTargetAnchors(cue: RelationCueDiagnostic): string[] {
+function requiredTargetAnchors(cue: RelationCueDiagnostic): SupportAnchor[] {
   if (cue.target_kind === "none" || !cue.target_identifier) return [];
   const identifier = normalizeMatchText(cue.target_identifier);
   const reference = normalizeMatchText(cue.target_reference_text ?? "");
@@ -746,62 +763,175 @@ function requiredTargetAnchors(cue: RelationCueDiagnostic): string[] {
   ) {
     if (!identifier) return [];
     const kind = cue.target_kind.replace("_identifier", "");
-    return [kind, identifier];
+    return [
+      { value: kind, boundary: "lexical" },
+      { value: identifier, boundary: "identifier" },
+    ];
   }
   if (cue.target_kind === "dated_document_reference") {
     const combined = `${reference} ${identifier}`;
     const date = /\b\d{4}-\d{2}-\d{2}\b/u.exec(combined)?.[0];
     const kind = /\b(?:guidance|notice|schedule|policy|statement)\b/u.exec(combined)?.[0];
-    return date && kind ? [date, kind] : [];
+    return date && kind
+      ? [
+          { value: date, boundary: "identifier" },
+          { value: kind, boundary: "lexical" },
+        ]
+      : [];
   }
   const exact = identifier || reference;
-  return exact.length >= 12 ? [exact] : [];
+  if (exact.length < 12) return [];
+  return [{
+    value: exact,
+    boundary: cue.target_kind === "other_explicit_identifier"
+      ? "identifier"
+      : "phrase",
+  }];
 }
 
 function smallestAnchorWindow(
   originalText: string,
-  normalizedAnchors: string[],
+  anchors: SupportAnchor[],
 ): { start: number; end: number } | null {
   const normalizedText = originalText.toLowerCase();
-  const events: Array<{ anchor: number; start: number; end: number }> = [];
-  normalizedAnchors.forEach((anchor, anchorIndex) => {
-    let offset = 0;
-    while (offset <= normalizedText.length - anchor.length) {
-      const match = normalizedText.indexOf(anchor, offset);
-      if (match < 0) break;
-      events.push({ anchor: anchorIndex, start: match, end: match + anchor.length });
-      offset = match + Math.max(1, anchor.length);
-    }
-  });
-  if (events.length < normalizedAnchors.length) return null;
-  events.sort((left, right) => left.start - right.start || left.end - right.end || left.anchor - right.anchor);
-  const counts = new Array<number>(normalizedAnchors.length).fill(0);
-  let covered = 0;
-  let left = 0;
+  const occurrences = anchors.map((anchor) =>
+    boundaryValidOccurrences(normalizedText, anchor)
+  );
+  if (occurrences.some((items) => items.length === 0)) return null;
+
+  const cursors = new Array<number>(anchors.length).fill(0);
+  const latest = new Array<AnchorOccurrence | null>(anchors.length).fill(null);
   let best: { start: number; end: number } | null = null;
-  for (let right = 0; right < events.length; right += 1) {
-    if (counts[events[right].anchor] === 0) covered += 1;
-    counts[events[right].anchor] += 1;
-    while (covered === normalizedAnchors.length && left <= right) {
-      const windowStart = events[left].start;
-      let windowEnd = 0;
-      for (let index = left; index <= right; index += 1) {
-        windowEnd = Math.max(windowEnd, events[index].end);
-      }
+
+  while (true) {
+    let nextAnchor = -1;
+    let nextOccurrence: AnchorOccurrence | null = null;
+    for (let anchorIndex = 0; anchorIndex < occurrences.length; anchorIndex += 1) {
+      const candidate = occurrences[anchorIndex][cursors[anchorIndex]];
+      if (!candidate) continue;
       if (
-        !best
-        || windowEnd - windowStart < best.end - best.start
+        !nextOccurrence
+        || candidate.start < nextOccurrence.start
         || (
-          windowEnd - windowStart === best.end - best.start
-          && windowStart < best.start
+          candidate.start === nextOccurrence.start
+          && (
+            candidate.end < nextOccurrence.end
+            || (
+              candidate.end === nextOccurrence.end
+              && anchorIndex < nextAnchor
+            )
+          )
         )
-      ) best = { start: windowStart, end: windowEnd };
-      counts[events[left].anchor] -= 1;
-      if (counts[events[left].anchor] === 0) covered -= 1;
-      left += 1;
+      ) {
+        nextAnchor = anchorIndex;
+        nextOccurrence = candidate;
+      }
     }
+    if (nextAnchor < 0 || !nextOccurrence) break;
+
+    latest[nextAnchor] = nextOccurrence;
+    cursors[nextAnchor] += 1;
+    if (latest.some((item) => item === null)) continue;
+
+    let windowStart = Number.POSITIVE_INFINITY;
+    let windowEnd = 0;
+    for (const item of latest) {
+      if (!item) continue;
+      windowStart = Math.min(windowStart, item.start);
+      windowEnd = Math.max(windowEnd, item.end);
+    }
+    if (
+      !best
+      || windowEnd - windowStart < best.end - best.start
+      || (
+        windowEnd - windowStart === best.end - best.start
+        && windowStart < best.start
+      )
+    ) best = { start: windowStart, end: windowEnd };
   }
   return best;
+}
+
+function boundaryValidOccurrences(
+  text: string,
+  anchor: SupportAnchor,
+): AnchorOccurrence[] {
+  const occurrences: AnchorOccurrence[] = [];
+  let offset = 0;
+  while (offset <= text.length - anchor.value.length) {
+    const start = text.indexOf(anchor.value, offset);
+    if (start < 0) break;
+    const end = start + anchor.value.length;
+    if (hasRequiredAnchorBoundaries(text, start, end, anchor.boundary)) {
+      occurrences.push({ start, end });
+    }
+    offset = start + 1;
+  }
+  return occurrences;
+}
+
+function hasRequiredAnchorBoundaries(
+  text: string,
+  start: number,
+  end: number,
+  boundary: SupportAnchorBoundary,
+): boolean {
+  const first = codePointAt(text, start);
+  const last = codePointBefore(text, end);
+  const before = codePointBefore(text, start);
+  const after = codePointAt(text, end);
+  if (boundary === "identifier") {
+    const beforeBefore = before
+      ? codePointBefore(text, start - before.length)
+      : null;
+    const afterAfter = after
+      ? codePointAt(text, end + after.length)
+      : null;
+    return (
+      !isIdentifierBoundaryConstituent(before, beforeBefore)
+      && !isIdentifierBoundaryConstituent(after, afterAfter)
+    );
+  }
+  return (
+    (!first || !isLexicalConstituent(first) || !before || !isLexicalConstituent(before))
+    && (!last || !isLexicalConstituent(last) || !after || !isLexicalConstituent(after))
+  );
+}
+
+function codePointAt(value: string, index: number): string | null {
+  if (index < 0 || index >= value.length) return null;
+  const codePoint = value.codePointAt(index);
+  return codePoint === undefined ? null : String.fromCodePoint(codePoint);
+}
+
+function codePointBefore(value: string, index: number): string | null {
+  if (index <= 0 || index > value.length) return null;
+  let start = index - 1;
+  const lastUnit = value.charCodeAt(start);
+  if (
+    lastUnit >= 0xdc00
+    && lastUnit <= 0xdfff
+    && start > 0
+  ) {
+    const priorUnit = value.charCodeAt(start - 1);
+    if (priorUnit >= 0xd800 && priorUnit <= 0xdbff) start -= 1;
+  }
+  return codePointAt(value, start);
+}
+
+function isLexicalConstituent(value: string): boolean {
+  return /^[\p{L}\p{M}\p{N}_]$/u.test(value);
+}
+
+function isIdentifierBoundaryConstituent(
+  adjacent: string | null,
+  beyond: string | null,
+): boolean {
+  if (!adjacent) return false;
+  if (isLexicalConstituent(adjacent) || adjacent === "-" || adjacent === "/") {
+    return true;
+  }
+  return adjacent === "." && !!beyond && isLexicalConstituent(beyond);
 }
 
 function compareRelationRelevantCues(

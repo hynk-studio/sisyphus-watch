@@ -391,6 +391,27 @@ test("HTML normalization is deterministic, ignores inert elements, and separates
   );
 });
 
+test("numeric HTML entities are decoded before NFKC normalization and hashing", async () => {
+  const expectedText = "Agency supersedes Guidance G-1.";
+  const html = "<p>Agency supersedes Guidance &#xFF27;-1.</p>";
+  const normalized = normalizeCapturedDocumentText(html, "html");
+  assert.equal(normalized.text, expectedText);
+
+  const result = await capture((async () => response(html)) as typeof fetch);
+  assert.equal(result.documents.length, 1);
+  assert.equal(result.documents[0].normalized_text, expectedText);
+  assert.equal(
+    result.documents[0].normalized_text_sha256,
+    Buffer.from(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(expectedText),
+      ),
+    ).toString("hex"),
+  );
+  assert.equal(result.supports.length, 1);
+});
+
 function plannerFixture(): {
   analysis: AnalysisRunPacket;
   packet: SiteReadyCasePacket;
@@ -583,13 +604,15 @@ test("support extraction uses only exact high-specificity anchors and a bounded 
     assert.ok(support.bounded_excerpt.length <= MAX_CAPTURE_SUPPORT_EXCERPT_CHARS);
   }
 
+  const exactPrefix = "supersedes ";
+  const exactSuffix = " Guidance G-1";
   const gap = "x".repeat(
     MAX_CAPTURE_SUPPORT_EXCERPT_CHARS
-    - "supersedes".length
-    - "Guidance G-1".length,
+    - exactPrefix.length
+    - exactSuffix.length,
   );
   const exactBound = await selectCapturedSupportSpan(
-    document(`supersedes${gap}Guidance G-1`),
+    document(`${exactPrefix}${gap}${exactSuffix}`),
     cue(),
   );
   assert.equal(exactBound?.bounded_excerpt.length, MAX_CAPTURE_SUPPORT_EXCERPT_CHARS);
@@ -597,8 +620,20 @@ test("support extraction uses only exact high-specificity anchors and a bounded 
   const negative: Array<[string, string, Partial<RelationCueDiagnostic>]> = [
     ["missing verb", "Agency mentions Guidance G-1.", {}],
     ["missing target", "Agency supersedes other guidance.", {}],
-    ["anchors distant", `supersedes${"x".repeat(561)}G-1`, {}],
+    ["anchors distant", `supersedes ${"x".repeat(561)} Guidance G-1`, {}],
     ["fuzzy identifier", "Agency supersedes Guidance G 1.", {}],
+    ["guidance identifier prefix", "Agency supersedes Guidance G-10.", {}],
+    ["notice identifier prefix", "Agency supersedes Notice N-170.", {
+      target_kind: "notice_identifier", target_identifier: "N-17", target_reference_text: "Notice N-17",
+    }],
+    ["version identifier suffix", "Agency replaces Version 4.20.", {
+      operative_verb: "replaces", target_kind: "version_identifier", target_identifier: "4.2", target_reference_text: "Version 4.2",
+    }],
+    ["version identifier prefix", "Agency replaces Version 14.2.", {
+      operative_verb: "replaces", target_kind: "version_identifier", target_identifier: "4.2", target_reference_text: "Version 4.2",
+    }],
+    ["embedded operative verb", "Agency antisupersedes Guidance G-1.", {}],
+    ["embedded target kind", "Agency supersedes misguidance G-1.", {}],
     ["URL title substitution", "Agency supersedes https://example.test/g-1.", {}],
     ["publisher substitution", "Agency supersedes Example Publisher.", {}],
     ["competing target expression", "Agency supersedes Guidance G-1 and supersedes Guidance G-2.", {
@@ -613,6 +648,16 @@ test("support extraction uses only exact high-specificity anchors and a bounded 
     );
   }
   assert.equal(MAX_CAPTURE_SUPPORT_EXCERPT_CHARS, 560);
+});
+
+test("support matching stays deterministic with adversarial repeated anchors", async () => {
+  const repeated = `${"supersedes guidance ".repeat(4_096)}supersedes Guidance G-1.`;
+  const first = await selectCapturedSupportSpan(document(repeated), cue());
+  const second = await selectCapturedSupportSpan(document(repeated), cue());
+  assert.ok(first);
+  assert.deepEqual(second, first);
+  assert.equal(first.bounded_excerpt, "supersedes Guidance G-1");
+  assert.ok(first.bounded_excerpt.length <= MAX_CAPTURE_SUPPORT_EXCERPT_CHARS);
 });
 
 test("captured prompt-injection text remains inert data with zero recursive or provider authority", async () => {
