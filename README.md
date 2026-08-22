@@ -60,6 +60,23 @@ The public site also includes a prepared investigation that requires no API call
 
 For live use, the public app does **not** ask users to paste an OpenAI API key into the browser. It can connect directly to a user-controlled Sisyphus Relay, so provider credentials stay on that user's backend rather than passing through the public Sisyphus site.
 
+## Use your own Relay
+
+Live investigations can run through infrastructure you control:
+
+```text
+Browser → your HTTPS Relay → OpenAI API
+```
+
+Keep `OPENAI_API_KEY` on the Relay backend. Sisyphus Watch receives the Relay URL and sends bounded investigation requests directly from the browser.
+
+A compatible Relay exposes:
+
+- `GET /v1/capabilities`
+- `POST /v1/lineage`
+
+See **[Relay setup](docs/relay-setup.md)** for the capability contract, CORS requirements, request/response shape, and a minimal implementation outline using the existing lineage handler.
+
 ## Built with Codex
 
 Codex was used throughout development, not just for scaffolding.
@@ -84,7 +101,7 @@ Open the public demo:
 
 Choose **Explore the prepared investigation** to use the product without credentials or provider spend. Move between Map, Timeline, Sources, and Method to see the same case from different review angles.
 
-**Connect your relay** is the optional live-execution path for users running a compatible backend.
+**Connect your relay** is the optional live-execution path. If you want to run one yourself, follow the [Relay setup guide](docs/relay-setup.md).
 
 ## Run locally
 
