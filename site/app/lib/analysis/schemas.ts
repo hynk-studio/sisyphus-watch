@@ -15,6 +15,7 @@ import {
 } from "../source-profile";
 
 export const WEB_SEARCH_CANDIDATE_SUMMARY_MAX_LENGTH = 500;
+export const SOURCE_SELECTION_RATIONALE_MAX_LENGTH = 240;
 
 export const AnalysisRequestSchema = z
   .object({
@@ -65,7 +66,13 @@ export const DiscoverySourceSchema = z
     discovery_lane: z.enum(DISCOVERY_LANES),
     source_context: z.enum(SOURCE_CONTEXTS),
     information_proximity: z.enum(INFORMATION_PROXIMITIES),
-    why_included: z.string().min(1).max(240),
+    why_included: z
+      .string()
+      .min(1)
+      .max(SOURCE_SELECTION_RATIONALE_MAX_LENGTH)
+      .describe(
+        "A concise reviewer-facing rationale written as a complete natural phrase or sentence. Stop before the hard character bound at a natural boundary; never fill the field by cutting a clause or token.",
+      ),
     comparison_target_source_ids: z.array(z.string().min(1).max(160)).max(8),
     limitations: z.array(z.string().min(1).max(240)).max(4),
   })

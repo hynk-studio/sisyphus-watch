@@ -7,6 +7,7 @@ import type { SiteReadyCasePacket } from "../app/lib/lineage/contracts";
 import {
   hasClearlyIncompleteTail,
   isSuitableForProminentReviewText,
+  retainBoundedModelProse,
   retainBoundedModelSummary,
 } from "../app/lib/reviewer-text";
 
@@ -59,6 +60,31 @@ test("summary retention leaves complete and short punctuation-free text unchange
   assert.equal(bounded.trailingFragmentDiscarded, true);
   assert.match(bounded.text, /…$/u);
   assert.equal(noSentenceBoundary.startsWith(bounded.text.slice(0, -1)), true);
+});
+
+test("generic bounded reviewer prose uses a Unicode-safe word-boundary fallback", () => {
+  for (const unchanged of [
+    "A normal complete source-selection rationale remains unchanged.",
+    "Official origin record",
+    "A rationale well below the hard bound",
+    `${"A".repeat(239)}.`,
+  ]) {
+    assert.deepEqual(retainBoundedModelProse(unchanged, 240), {
+      text: unchanged,
+      trailingFragmentDiscarded: false,
+    });
+  }
+
+  const nearHardBound = `${"word ".repeat(47)}go😀`;
+  assert.equal(nearHardBound.length, 239);
+
+  const bounded = retainBoundedModelProse(nearHardBound, 240);
+
+  assert.equal(bounded.trailingFragmentDiscarded, true);
+  assert.match(bounded.text, /…$/u);
+  assert.ok(bounded.text.length <= 240);
+  assert.equal(nearHardBound.startsWith(bounded.text.slice(0, -1)), true);
+  assert.equal(Buffer.from(bounded.text, "utf8").toString("utf8"), bounded.text);
 });
 
 test("prominent review text fails closed on malformed or visibly dangling tails", () => {
