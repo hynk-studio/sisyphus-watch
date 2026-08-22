@@ -1,4 +1,8 @@
 const LEXICAL_TOKEN_PATTERN = /[\p{L}\p{N}][\p{L}\p{N}\p{M}]*/gu;
+const PROMINENT_DANGLING_TAIL_PATTERN =
+  /(?:^|\s)(?:and|or|but|because|including|with|without|to|of|for|from|by|as|that|which|who|when|where|while|after|before|through|between|during)\s*[,;:–—-]?$/iu;
+const MALFORMED_FUNCTION_WORD_NUMBER_PATTERN =
+  /(?:^|\s)(?:the|a|an|to|of|and|or)\d+[?!.,;:]*$/iu;
 
 export function normalizeReviewerWhitespace(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
@@ -57,6 +61,21 @@ export function hasClearlyIncompleteTail(value: string): boolean {
   // word was intended. Ordinary punctuation-free short statements stay valid.
   return /[\p{L}\p{N}][-/]$/u.test(normalized)
     || /[([{]\s*$/u.test(normalized);
+}
+
+/**
+ * Prominent review surfaces should fail closed on text that visibly looks cut
+ * off or malformed. This is deliberately stricter than packet admission: the
+ * underlying candidate remains available for review, but it does not become a
+ * headline-like first payoff.
+ */
+export function isSuitableForProminentReviewText(value: string): boolean {
+  const normalized = normalizeReviewerWhitespace(value);
+  if (!normalized || hasClearlyIncompleteTail(normalized)) return false;
+  if (normalized.includes("\uFFFD")) return false;
+  if (MALFORMED_FUNCTION_WORD_NUMBER_PATTERN.test(normalized)) return false;
+  if (PROMINENT_DANGLING_TAIL_PATTERN.test(normalized)) return false;
+  return true;
 }
 
 function lexicalTokens(value: string): string[] {
