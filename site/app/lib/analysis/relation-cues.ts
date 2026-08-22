@@ -47,6 +47,7 @@ export interface RelationCueDiagnosticRecord {
 export interface InternalAnalysisRunEnvelope {
   analysis_run: AnalysisRunPacket;
   relation_cue_diagnostics: RelationCueDiagnosticRecord[];
+  workflow_deadline_at_ms: number;
 }
 
 export function buildRelationCueDiagnosticRecords(input: {

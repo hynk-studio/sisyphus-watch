@@ -13,6 +13,7 @@
     "test": "npm run build && node --test tests/*.test.mjs && node --import tsx --test tests/*.test.ts",
     "test:adapter": "node --import tsx --test tests/openai-analysis.test.ts",
     "test:lineage": "node --import tsx --test tests/claim-lineage.test.ts tests/evidence-links.test.ts tests/relation-admission.test.ts tests/relation-cues.test.ts tests/public-evidence.test.ts",
+    "test:capture": "node --import tsx --test tests/source-capture.test.ts",
     "test:experience": "node --import tsx --test tests/site-experience.test.ts tests/local-watch.test.ts",
     "test:map": "node --import tsx --test tests/investigation-map.test.ts",
     "test:boundary": "node --import tsx --test tests/relay.test.ts tests/public-live-admission.test.ts tests/public-live-diagnostics.test.ts",
