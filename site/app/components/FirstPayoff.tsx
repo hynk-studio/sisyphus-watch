@@ -1,6 +1,7 @@
 "use client";
 
 import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
+import { isSuitableForProminentReviewText } from "../lib/reviewer-text";
 import {
   focusTriggerId,
   type FocusHandler,
@@ -114,6 +115,12 @@ export function firstPayoffForPacket(
   const candidates: PayoffCandidate[] = [];
   for (const [packetIndex, payoffRecord] of records.entries()) {
     if (!payoffRecord.text.trim()) continue;
+    if (
+      packet.mode === "live"
+      && !isSuitableForProminentReviewText(payoffRecord.text)
+    ) {
+      continue;
+    }
     for (const [sourceIndex, sourceId] of payoffRecord.record.source_ids.entries()) {
       const source = sources.get(sourceId);
       if (!source?.title.trim()) continue;
