@@ -592,7 +592,8 @@ test("live composer presents concise privacy, review, persistence, and cost-dens
   assert.match(html, /Privacy &amp; limits/);
   assert.match(html, /Source inclusion is not endorsement or truth verification/i);
   assert.match(html, /20-second per-request timeout/i);
-  assert.match(html, /in-memory accidental-repeat cooldown/i);
+  assert.match(html, /short cooldown to prevent accidental repeat requests/i);
+  assert.doesNotMatch(html, /in-memory|not strong abuse prevention/i);
   assert.match(html, /never asks for or stores your OpenAI API key/i);
   assert.doesNotMatch(html, /anonymous|independently verified|fact.checked|no network activity/i);
   assert.doesNotMatch(html, /OPENAI_API_KEY|SISYPHUS_LIVE_ENABLED/);
@@ -2073,7 +2074,17 @@ test("fallback, partial, loading, and error notices never mislabel the displayed
   const cooldown = getRunNotice(prepared, false, null, 17);
   assert.equal(cooldown.title, "Live request cooldown");
   assert.match(cooldown.message, /17s/);
-  assert.match(cooldown.message, /not strong abuse prevention/i);
+  assert.match(cooldown.message, /short cooldown helps prevent accidental repeat requests/i);
+  assert.doesNotMatch(cooldown.message, /in-memory|guard|not strong abuse prevention/i);
+
+  const partialCooldown = getRunNotice(partial, false, null, 8);
+  assert.match(partialCooldown.message, /remain review-only/i);
+  assert.match(partialCooldown.message, /short cooldown helps prevent accidental repeat requests/i);
+  assert.match(partialCooldown.message, /Next live attempt in 8s/i);
+  assert.doesNotMatch(
+    partialCooldown.message,
+    /in-memory|guard|not strong abuse prevention/i,
+  );
 });
 
 test("live primary presentation keeps one global review boundary without repeating local warnings", () => {

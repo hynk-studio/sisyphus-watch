@@ -10,6 +10,12 @@ export const RELAY_CAPABILITIES_CONTRACT_VERSION =
   "sisyphus_relay_capabilities.v1";
 export const RELAY_LINEAGE_RESPONSE_CONTRACT = "site_ready_case_packet.v1";
 export const RELAY_STORAGE_MAX_BYTES = 4 * 1024;
+export const RELAY_CAPABILITY_TIMEOUT_MS = 10_000;
+
+export interface RelayNegotiationOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
 
 export interface RelayStorage {
   getItem(key: string): string | null;
@@ -51,7 +57,9 @@ export class RelayContractError extends Error {
       | "invalid_relay_url"
       | "insecure_relay_url"
       | "relay_capabilities_unavailable"
-      | "relay_capabilities_incompatible",
+      | "relay_capabilities_incompatible"
+      | "relay_capabilities_timeout"
+      | "relay_capabilities_cancelled",
     message: string,
   ) {
     super(message);
@@ -182,51 +190,109 @@ export async function negotiateRelayConnection(
   relayUrlInput: string,
   fetcher: typeof fetch = fetch,
   now: Date = new Date(),
+  options: RelayNegotiationOptions = {},
 ): Promise<RelayConnection> {
   const relayBaseUrl = normalizeRelayBaseUrl(relayUrlInput);
-  let response: Response;
-  try {
-    response = await fetcher(relayCapabilitiesUrl(relayBaseUrl), {
-      method: "GET",
-      headers: { accept: "application/json" },
-      credentials: "omit",
-      redirect: "error",
-      cache: "no-store",
-    });
-  } catch {
-    throw new RelayContractError(
-      "relay_capabilities_unavailable",
-      "The relay capability check could not be completed.",
-    );
-  }
-  if (!response.ok) {
-    throw new RelayContractError(
-      "relay_capabilities_unavailable",
-      "The relay capability check did not succeed.",
-    );
+  if (options.signal?.aborted) {
+    throw relayNegotiationAbortError("cancelled");
   }
 
-  let capabilitiesInput: unknown;
-  try {
-    capabilitiesInput = await response.json();
-  } catch {
-    throw new RelayContractError(
-      "relay_capabilities_incompatible",
-      "The relay returned an invalid capability document.",
-    );
+  const timeoutMs = options.timeoutMs ?? RELAY_CAPABILITY_TIMEOUT_MS;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new TypeError("Relay capability timeout must be a positive finite number.");
   }
-  const capabilities = validateRelayCapabilities(capabilitiesInput);
-  return {
-    contract_version: RELAY_CONNECTION_CONTRACT_VERSION,
-    relay_protocol_version: RELAY_PROTOCOL_VERSION,
-    relay_base_url: relayBaseUrl,
-    capabilities_contract_version: capabilities.contract_version,
-    lineage_response_contract: capabilities.lineage_response_contract,
-    ...(capabilities.relay_display_name
-      ? { relay_display_name: capabilities.relay_display_name }
-      : {}),
-    saved_at: now.toISOString(),
+
+  const controller = new AbortController();
+  let abortReason: "cancelled" | "timeout" | null = null;
+  let rejectAbort: (error: RelayContractError) => void = () => undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject;
+  });
+  const abortNegotiation = (reason: "cancelled" | "timeout") => {
+    if (abortReason !== null) return;
+    abortReason = reason;
+    controller.abort();
+    rejectAbort(relayNegotiationAbortError(reason));
   };
+  const onExternalAbort = () => abortNegotiation("cancelled");
+  options.signal?.addEventListener("abort", onExternalAbort, { once: true });
+  if (options.signal?.aborted) onExternalAbort();
+  const timeout = setTimeout(() => abortNegotiation("timeout"), timeoutMs);
+
+  try {
+    if (abortReason !== null) throw relayNegotiationAbortError(abortReason);
+
+    let response: Response;
+    try {
+      response = await Promise.race([
+        fetcher(relayCapabilitiesUrl(relayBaseUrl), {
+          method: "GET",
+          headers: { accept: "application/json" },
+          credentials: "omit",
+          redirect: "error",
+          cache: "no-store",
+          signal: controller.signal,
+        }),
+        aborted,
+      ]);
+    } catch (error) {
+      if (error instanceof RelayContractError) throw error;
+      if (abortReason !== null) throw relayNegotiationAbortError(abortReason);
+      throw new RelayContractError(
+        "relay_capabilities_unavailable",
+        "The relay capability check could not be completed.",
+      );
+    }
+    if (abortReason !== null) throw relayNegotiationAbortError(abortReason);
+    if (!response.ok) {
+      throw new RelayContractError(
+        "relay_capabilities_unavailable",
+        "The relay capability check did not succeed.",
+      );
+    }
+
+    let capabilitiesInput: unknown;
+    try {
+      capabilitiesInput = await Promise.race([response.json(), aborted]);
+    } catch (error) {
+      if (error instanceof RelayContractError) throw error;
+      if (abortReason !== null) throw relayNegotiationAbortError(abortReason);
+      throw new RelayContractError(
+        "relay_capabilities_incompatible",
+        "The relay returned an invalid capability document.",
+      );
+    }
+    if (abortReason !== null) throw relayNegotiationAbortError(abortReason);
+    const capabilities = validateRelayCapabilities(capabilitiesInput);
+    return {
+      contract_version: RELAY_CONNECTION_CONTRACT_VERSION,
+      relay_protocol_version: RELAY_PROTOCOL_VERSION,
+      relay_base_url: relayBaseUrl,
+      capabilities_contract_version: capabilities.contract_version,
+      lineage_response_contract: capabilities.lineage_response_contract,
+      ...(capabilities.relay_display_name
+        ? { relay_display_name: capabilities.relay_display_name }
+        : {}),
+      saved_at: now.toISOString(),
+    };
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", onExternalAbort);
+  }
+}
+
+function relayNegotiationAbortError(
+  reason: "cancelled" | "timeout",
+): RelayContractError {
+  return reason === "timeout"
+    ? new RelayContractError(
+      "relay_capabilities_timeout",
+      "The relay capability check timed out. Check that the relay is reachable and try again.",
+    )
+    : new RelayContractError(
+      "relay_capabilities_cancelled",
+      "Relay connection cancelled. No provider request was started.",
+    );
 }
 
 export function readRelayConnection(

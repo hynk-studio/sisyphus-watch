@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -15,6 +16,7 @@ import {
 } from "../app/lib/local-watch";
 import {
   RELAY_STORAGE_KEY,
+  RELAY_CAPABILITY_TIMEOUT_MS,
   RelayContractError,
   forgetRelayConnection,
   negotiateRelayConnection,
@@ -121,6 +123,29 @@ test("the public connection UI has one URL field and no provider-key input", () 
   assert.doesNotMatch(inputs[0], /api.?key|provider.?key|authorization|bearer/i);
   assert.doesNotMatch(html, /sk-(?:proj-)?/i);
   assert.match(html, /never asks for or stores your OpenAI API key/i);
+
+  const connectingHtml = renderToStaticMarkup(createElement(SearchComposer, {
+    question: "",
+    sourceLimit: 3,
+    discoveryProfile: "standard",
+    liveEnabled: false,
+    relayFormOpen: true,
+    relayConnecting: true,
+    isLoading: false,
+    cooldownRemainingSeconds: 0,
+    routeError: null,
+    investigationStarted: false,
+    onQuestionChange: noop,
+    onSourceLimitChange: noop,
+    onDiscoveryProfileChange: noop,
+    onSubmit: noop,
+    onPreparedExample: noop,
+  }));
+  const buttons = connectingHtml.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? [];
+  const connectButton = buttons.find((button) => /Connecting…/.test(button)) ?? "";
+  const cancelButton = buttons.find((button) => />Cancel<\/button>/.test(button)) ?? "";
+  assert.match(connectButton, /disabled=""/);
+  assert.doesNotMatch(cancelButton, /disabled=""/);
 });
 
 test("capability negotiation is explicit, credentialless, and persists only afterward", async () => {
@@ -144,6 +169,8 @@ test("capability negotiation is explicit, credentialless, and persists only afte
   assert.equal(calls[0].init?.credentials, "omit");
   assert.equal(calls[0].init?.redirect, "error");
   assert.deepEqual(calls[0].init?.headers, { accept: "application/json" });
+  assert.ok(calls[0].init?.signal instanceof AbortSignal);
+  assert.equal(RELAY_CAPABILITY_TIMEOUT_MS, 10_000);
 
   assert.deepEqual(writeRelayConnection(storage, connection), { ok: true });
   assert.equal(storage.setCount, 1);
@@ -156,6 +183,146 @@ test("capability negotiation is explicit, credentialless, and persists only afte
     serialized,
     /apiKey|openaiApiKey|providerKey|authorization|bearer|cookie|identity|result/i,
   );
+});
+
+test("capability negotiation times out once, aborts the fetch, and cannot later succeed", async () => {
+  let callCount = 0;
+  let fetchSignal: AbortSignal = new AbortController().signal;
+  let resolveFetch: ((response: Response) => void) | null = null;
+  const fetcher = (async (_input: URL | RequestInfo, init?: RequestInit) => {
+    callCount += 1;
+    if (init?.signal instanceof AbortSignal) fetchSignal = init.signal;
+    return new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    });
+  }) as typeof fetch;
+
+  let succeeded = false;
+  const negotiation = negotiateRelayConnection(
+    "https://relay.example",
+    fetcher,
+    new Date("2026-08-21T01:02:03.000Z"),
+    { timeoutMs: 5 },
+  ).then((connection) => {
+    succeeded = true;
+    return connection;
+  });
+
+  await assert.rejects(
+    negotiation,
+    (error: unknown) => error instanceof RelayContractError
+      && error.code === "relay_capabilities_timeout"
+      && /timed out/i.test(error.message),
+  );
+  assert.equal(callCount, 1);
+  assert.equal(fetchSignal.aborted, true);
+  assert.equal(succeeded, false);
+
+  const completeLateFetch = resolveFetch as ((response: Response) => void) | null;
+  completeLateFetch?.(Response.json(CAPABILITIES));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(succeeded, false);
+  assert.equal(callCount, 1);
+});
+
+test("external cancellation aborts exactly one capability request and rejects stale success", async () => {
+  const controller = new AbortController();
+  let callCount = 0;
+  let fetchSignal: AbortSignal = new AbortController().signal;
+  let resolveFetch: ((response: Response) => void) | null = null;
+  const fetcher = (async (_input: URL | RequestInfo, init?: RequestInit) => {
+    callCount += 1;
+    if (init?.signal instanceof AbortSignal) fetchSignal = init.signal;
+    return new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    });
+  }) as typeof fetch;
+
+  let succeeded = false;
+  const negotiation = negotiateRelayConnection(
+    "https://relay.example",
+    fetcher,
+    new Date("2026-08-21T01:02:03.000Z"),
+    { signal: controller.signal, timeoutMs: 1_000 },
+  ).then((connection) => {
+    succeeded = true;
+    return connection;
+  });
+  await Promise.resolve();
+  controller.abort();
+
+  await assert.rejects(
+    negotiation,
+    (error: unknown) => error instanceof RelayContractError
+      && error.code === "relay_capabilities_cancelled"
+      && /No provider request was started/i.test(error.message),
+  );
+  assert.equal(callCount, 1);
+  assert.equal(fetchSignal.aborted, true);
+  assert.equal(succeeded, false);
+
+  const completeLateFetch = resolveFetch as ((response: Response) => void) | null;
+  completeLateFetch?.(Response.json(CAPABILITIES));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(succeeded, false);
+  assert.equal(callCount, 1);
+});
+
+test("an already-aborted capability negotiation fails before network work", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let callCount = 0;
+
+  await assert.rejects(
+    negotiateRelayConnection(
+      "https://relay.example",
+      (async () => {
+        callCount += 1;
+        return Response.json(CAPABILITIES);
+      }) as typeof fetch,
+      new Date("2026-08-21T01:02:03.000Z"),
+      { signal: controller.signal, timeoutMs: 5 },
+    ),
+    (error: unknown) => error instanceof RelayContractError
+      && error.code === "relay_capabilities_cancelled",
+  );
+  assert.equal(callCount, 0);
+});
+
+test("the component cancellation path aborts and invalidates without mutating Relay ownership", () => {
+  const source = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  const cancelStart = source.indexOf("function cancelRelayConnection()");
+  const cancelEnd = source.indexOf("function disconnectRelay()", cancelStart);
+  assert.ok(cancelStart > 0 && cancelEnd > cancelStart);
+  const cancelSource = source.slice(cancelStart, cancelEnd);
+  assert.match(cancelSource, /relayConnectionGeneration\.current \+= 1/);
+  assert.match(cancelSource, /controller\.abort\(\)/);
+  assert.match(cancelSource, /setRelayConnecting\(false\)/);
+  assert.match(cancelSource, /setRelayFormOpen\(false\)/);
+  assert.match(cancelSource, /No provider request was started/);
+  assert.doesNotMatch(
+    cancelSource,
+    /setActiveRelay|setStoredRelay|setSelectedExecutionKind|writeRelayConnection|forgetRelayConnection/,
+  );
+
+  const connectStart = source.indexOf("async function connectRelay()");
+  const connectEnd = source.indexOf("function cancelRelayConnection()", connectStart);
+  const connectSource = source.slice(connectStart, connectEnd);
+  assert.match(connectSource, /\{ signal: controller\.signal \}/);
+  assert.ok(
+    connectSource.indexOf("generation !== relayConnectionGeneration.current")
+      < connectSource.indexOf("writeRelayConnection"),
+  );
+  assert.match(connectSource, /setRelayError/);
+  assert.match(connectSource, /setRelayConnecting\(false\)/);
+  assert.match(
+    source,
+    /useEffect\(\(\) => \(\) => \{[\s\S]*?relayConnectionAbort\.current\?\.abort\(\)/,
+  );
+  assert.match(source, /onCancelRelay=\{cancelRelayConnection\}/);
 });
 
 test("invalid capabilities fail closed without a persistence opportunity", async () => {

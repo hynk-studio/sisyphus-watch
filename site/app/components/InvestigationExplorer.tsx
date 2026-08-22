@@ -217,6 +217,8 @@ export function CaseExplorer({
   const detailCache = useRef(new FocusedDetailSupplementCache());
   const runGuard = useRef(new PublicLiveRunGuard({ cooldownMs: runGuardCooldownMs }));
   const savedWatchRef = useRef<LocalWatch | null>(null);
+  const relayConnectionAbort = useRef<AbortController | null>(null);
+  const relayConnectionGeneration = useRef(0);
   const activeDetailKey = useRef<string | null>(null);
   const activatingElement = useRef<HTMLElement | null>(null);
   const activatingTriggerId = useRef<string | null>(null);
@@ -289,6 +291,12 @@ export function CaseExplorer({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [relayStorage]);
+
+  useEffect(() => () => {
+    relayConnectionGeneration.current += 1;
+    relayConnectionAbort.current?.abort();
+    relayConnectionAbort.current = null;
+  }, []);
 
   useEffect(() => {
     if (cooldownUntilMs === 0) return;
@@ -374,11 +382,24 @@ export function CaseExplorer({
   }
 
   async function connectRelay() {
-    if (relayConnecting) return;
+    if (relayConnectionAbort.current) return;
+    const controller = new AbortController();
+    const generation = relayConnectionGeneration.current + 1;
+    relayConnectionGeneration.current = generation;
+    relayConnectionAbort.current = controller;
     setRelayConnecting(true);
     setRelayError(null);
     try {
-      const connection = await negotiateRelayConnection(relayUrlInput);
+      const connection = await negotiateRelayConnection(
+        relayUrlInput,
+        undefined,
+        undefined,
+        { signal: controller.signal },
+      );
+      if (
+        controller.signal.aborted
+        || generation !== relayConnectionGeneration.current
+      ) return;
       const storage = relayStorage === undefined
         ? browserLocalStorage()
         : relayStorage;
@@ -396,14 +417,33 @@ export function CaseExplorer({
           : "Connected to your relay for this page, but the endpoint could not be saved in this browser.",
       );
     } catch (error) {
+      if (generation !== relayConnectionGeneration.current) return;
       setRelayError(
         error instanceof RelayContractError
           ? error.message
           : "The relay capability check could not be completed.",
       );
     } finally {
-      setRelayConnecting(false);
+      if (generation === relayConnectionGeneration.current) {
+        if (relayConnectionAbort.current === controller) {
+          relayConnectionAbort.current = null;
+        }
+        setRelayConnecting(false);
+      }
     }
+  }
+
+  function cancelRelayConnection() {
+    const controller = relayConnectionAbort.current;
+    if (controller) {
+      relayConnectionGeneration.current += 1;
+      relayConnectionAbort.current = null;
+      controller.abort();
+      setRelayConnecting(false);
+      setRelayNotice("Relay connection cancelled. No provider request was started.");
+    }
+    setRelayFormOpen(false);
+    setRelayError(null);
   }
 
   function disconnectRelay() {
@@ -815,10 +855,7 @@ export function CaseExplorer({
         onPreparedExample={startPreparedExample}
         onRelayUrlChange={setRelayUrlInput}
         onOpenRelay={openRelayConnection}
-        onCancelRelay={() => {
-          setRelayFormOpen(false);
-          setRelayError(null);
-        }}
+        onCancelRelay={cancelRelayConnection}
         onConnectRelay={() => void connectRelay()}
         onDisconnectRelay={disconnectRelay}
         onSelectOperatorSponsored={selectOperatorSponsored}
@@ -1070,7 +1107,7 @@ export function getRunNotice(
     };
   }
   const cooldownMessage = cooldownRemainingSeconds > 0
-    ? ` Next live attempt in ${cooldownRemainingSeconds}s; this in-memory accidental-repeat guard is not strong abuse prevention.`
+    ? ` A short cooldown helps prevent accidental repeat requests. Next live attempt in ${cooldownRemainingSeconds}s.`
     : "";
   if (packet.mode === "fallback") {
     const failureCode = fallbackFailureCode(packet);
@@ -1112,7 +1149,7 @@ export function getRunNotice(
     return {
       tone: "cooldown",
       title: "Live request cooldown",
-      message: `${cooldownRemainingSeconds}s until another live attempt. This in-memory accidental-repeat guard is not strong abuse prevention.`,
+      message: `A short cooldown helps prevent accidental repeat requests. Next live attempt in ${cooldownRemainingSeconds}s.`,
     };
   }
   return {
