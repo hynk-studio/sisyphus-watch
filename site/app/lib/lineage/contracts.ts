@@ -46,6 +46,63 @@ export interface BoundedSupportReference {
   proves: "captured_fixture_support" | "model_summary_containment_only";
 }
 
+export const EVIDENCE_CLAIM_LINK_BASES = [
+  "same_source_topic_overlap",
+  "coverage_comparison_topic_overlap",
+  "same_actor_action_topic_overlap",
+  "cross_source_strong_topic_overlap",
+] as const;
+
+export type EvidenceClaimLinkBasis = (typeof EVIDENCE_CLAIM_LINK_BASES)[number];
+
+export interface EvidenceClaimReviewLinkCandidate {
+  link_id: string;
+  evidence_record_kind: "finding" | "action";
+  evidence_record_id: string;
+  evidence_source_id: string;
+  claim_occurrence_id: string;
+  claim_id: string;
+  claim_source_id: string;
+  link_semantics: "review_together_only";
+  link_basis: EvidenceClaimLinkBasis;
+  shared_topic_tokens: string[];
+  reason: string;
+  evidence_support_reference: BoundedSupportReference;
+  claim_support_reference: BoundedSupportReference;
+  review_status: "pending_review";
+  status: "candidate";
+  generated_by: "deterministic_rule";
+  origin: "live_api";
+}
+
+export interface EvidenceClaimLinkWorkSummary {
+  evidence_record_count: number;
+  claim_occurrence_count: number;
+  theoretical_pair_count: number;
+  prefilter_candidate_count: number;
+  selected_link_count: number;
+  filtered_out_count: number;
+  deferred_link_count: number;
+  configured_maximum_link_count: number;
+  configured_maximum_links_per_evidence_record: number;
+  configured_bound_reached: boolean;
+}
+
+export function emptyEvidenceClaimLinkWorkSummary(): EvidenceClaimLinkWorkSummary {
+  return {
+    evidence_record_count: 0,
+    claim_occurrence_count: 0,
+    theoretical_pair_count: 0,
+    prefilter_candidate_count: 0,
+    selected_link_count: 0,
+    filtered_out_count: 0,
+    deferred_link_count: 0,
+    configured_maximum_link_count: 32,
+    configured_maximum_links_per_evidence_record: 2,
+    configured_bound_reached: false,
+  };
+}
+
 export interface ClaimOccurrence {
   occurrence_id: string;
   source_id: string;
@@ -216,6 +273,8 @@ export interface BoundedWorkSummary {
 
 export const DETAIL_KINDS = [
   "source",
+  "finding",
+  "action",
   "claim_occurrence",
   "claim_family",
   "relation",
@@ -252,6 +311,8 @@ export interface SiteReadyCasePacket {
   claim_occurrences: ClaimOccurrence[];
   candidate_claim_families: ClaimFamilyCandidate[];
   relation_candidates: RelationCandidate[];
+  evidence_claim_review_links: EvidenceClaimReviewLinkCandidate[];
+  evidence_claim_link_work_summary: EvidenceClaimLinkWorkSummary;
   event_timeline_rows: SiteTimelineRow[];
   claim_lineage_rows: ClaimLineageRow[];
   current_source_bound_candidate_synthesis: string[];
@@ -430,6 +491,39 @@ const relationSchema = z.object({
   insufficient_evidence: z.boolean(),
 });
 
+const evidenceClaimReviewLinkSchema = z.object({
+  link_id: z.string().regex(/^evidence_claim_review_link_/),
+  evidence_record_kind: z.enum(["finding", "action"]),
+  evidence_record_id: z.string().min(1),
+  evidence_source_id: z.string().min(1),
+  claim_occurrence_id: z.string().min(1),
+  claim_id: z.string().min(1),
+  claim_source_id: z.string().min(1),
+  link_semantics: z.literal("review_together_only"),
+  link_basis: z.enum(EVIDENCE_CLAIM_LINK_BASES),
+  shared_topic_tokens: z.array(z.string().min(1)).min(2).max(40),
+  reason: z.string().min(1).max(700),
+  evidence_support_reference: boundedSupportSchema,
+  claim_support_reference: boundedSupportSchema,
+  review_status: z.literal("pending_review"),
+  status: z.literal("candidate"),
+  generated_by: z.literal("deterministic_rule"),
+  origin: z.literal("live_api"),
+}).strict();
+
+const evidenceClaimLinkWorkSummarySchema = z.object({
+  evidence_record_count: z.number().int().min(0),
+  claim_occurrence_count: z.number().int().min(0),
+  theoretical_pair_count: z.number().int().min(0),
+  prefilter_candidate_count: z.number().int().min(0),
+  selected_link_count: z.number().int().min(0),
+  filtered_out_count: z.number().int().min(0),
+  deferred_link_count: z.number().int().min(0),
+  configured_maximum_link_count: z.number().int().min(1).max(32),
+  configured_maximum_links_per_evidence_record: z.number().int().min(1).max(2),
+  configured_bound_reached: z.boolean(),
+}).strict();
+
 const sourceSchema = z.object({
   source_id: z.string().min(1),
   snapshot_id: z.string().min(1),
@@ -501,6 +595,9 @@ export const siteReadyCasePacketSchema = z.object({
   claim_occurrences: z.array(occurrenceSchema),
   candidate_claim_families: z.array(familySchema),
   relation_candidates: z.array(relationSchema).max(64),
+  evidence_claim_review_links: z.array(evidenceClaimReviewLinkSchema).max(32).default([]),
+  evidence_claim_link_work_summary: evidenceClaimLinkWorkSummarySchema
+    .default(emptyEvidenceClaimLinkWorkSummary()),
   event_timeline_rows: z.array(z.object({
     timeline_row_id: z.string().min(1), occurrence_ids: z.array(z.string()), summary: z.string().min(1),
     event_time: nullableTimeSchema, event_time_precision: temporalPrecisionSchema,
@@ -628,6 +725,122 @@ export const siteReadyCasePacketSchema = z.object({
       });
     }
   });
+
+  const linkIds = new Set<string>();
+  const linkCountsByEvidence = new Map<string, number>();
+  packet.evidence_claim_review_links.forEach((link, index) => {
+    if (linkIds.has(link.link_id)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["evidence_claim_review_links", index, "link_id"],
+        message: "review-link IDs must be unique",
+      });
+    }
+    linkIds.add(link.link_id);
+    const evidence = link.evidence_record_kind === "finding"
+      ? packet.source_bound_findings.find((item) => item.finding_id === link.evidence_record_id)
+      : packet.actions.find((item) => item.action_id === link.evidence_record_id);
+    const evidenceSource = packet.source_snapshot_summaries.find(
+      (item) => item.source_id === link.evidence_source_id,
+    );
+    if (!evidence || !evidence.source_ids.includes(link.evidence_source_id)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["evidence_claim_review_links", index, "evidence_record_id"],
+        message: "review-link evidence endpoint must resolve to its exact source-bound record",
+      });
+    }
+    const occurrence = packet.claim_occurrences.find(
+      (item) => item.occurrence_id === link.claim_occurrence_id,
+    );
+    if (
+      !occurrence
+      || occurrence.claim_id !== link.claim_id
+      || occurrence.source_id !== link.claim_source_id
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["evidence_claim_review_links", index, "claim_occurrence_id"],
+        message: "review-link claim endpoint must resolve to its exact actor-claim occurrence",
+      });
+    }
+    if (
+      link.evidence_support_reference.source_id !== link.evidence_source_id
+      || link.evidence_support_reference.snapshot_id !== evidenceSource?.snapshot_id
+      || link.claim_support_reference.source_id !== link.claim_source_id
+      || link.claim_support_reference.snapshot_id !== occurrence?.snapshot_id
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["evidence_claim_review_links", index],
+        message: "review-link support references must remain source-local to both endpoints",
+      });
+    }
+    const evidenceKey = `${link.evidence_record_kind}:${link.evidence_record_id}`;
+    linkCountsByEvidence.set(evidenceKey, (linkCountsByEvidence.get(evidenceKey) ?? 0) + 1);
+    const sortedTopics = [...link.shared_topic_tokens].sort((left, right) =>
+      left < right ? -1 : left > right ? 1 : 0
+    );
+    if (
+      new Set(link.shared_topic_tokens).size !== link.shared_topic_tokens.length
+      || sortedTopics.some((token, tokenIndex) => token !== link.shared_topic_tokens[tokenIndex])
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["evidence_claim_review_links", index, "shared_topic_tokens"],
+        message: "review-link topic tokens must be unique and code-point ordered",
+      });
+    }
+  });
+  const linkSummary = packet.evidence_claim_link_work_summary;
+  const compatibilityDefault = packet.evidence_claim_review_links.length === 0
+    && linkSummary.evidence_record_count === 0
+    && linkSummary.claim_occurrence_count === 0
+    && linkSummary.theoretical_pair_count === 0
+    && linkSummary.prefilter_candidate_count === 0;
+  if (
+    linkSummary.selected_link_count !== packet.evidence_claim_review_links.length
+    || linkSummary.prefilter_candidate_count
+      !== linkSummary.selected_link_count + linkSummary.deferred_link_count
+    || linkSummary.theoretical_pair_count
+      !== linkSummary.prefilter_candidate_count + linkSummary.filtered_out_count
+    || linkSummary.configured_bound_reached !== (linkSummary.deferred_link_count > 0)
+    || linkSummary.selected_link_count > linkSummary.configured_maximum_link_count
+    || [...linkCountsByEvidence.values()].some(
+      (count) => count > linkSummary.configured_maximum_links_per_evidence_record,
+    )
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["evidence_claim_link_work_summary"],
+      message: "review-link bounded-work accounting is inconsistent",
+    });
+  }
+
+  if (
+    !compatibilityDefault
+    && (
+      linkSummary.evidence_record_count
+        !== packet.source_bound_findings.length + packet.actions.length
+      || linkSummary.claim_occurrence_count !== packet.claim_occurrences.length
+      || linkSummary.theoretical_pair_count
+        !== linkSummary.evidence_record_count * linkSummary.claim_occurrence_count
+    )
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["evidence_claim_link_work_summary"],
+      message: "review-link workload counts must match the typed packet lanes",
+    });
+  }
+
+  if (packet.mode !== "live" && packet.evidence_claim_review_links.length > 0) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["evidence_claim_review_links"],
+      message: "only live packets may contain evidence-to-claim review links",
+    });
+  }
 
   if (packet.mode === "deterministic") {
     if (packet.discovery_profile !== null) {

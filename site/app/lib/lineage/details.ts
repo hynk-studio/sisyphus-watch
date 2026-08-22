@@ -29,6 +29,10 @@ function findDetail(
   switch (focusKind) {
     case "source":
       return packet.source_snapshot_summaries.find((item) => item.source_id === focusId);
+    case "finding":
+      return packet.source_bound_findings.find((item) => item.finding_id === focusId);
+    case "action":
+      return packet.actions.find((item) => item.action_id === focusId);
     case "claim_occurrence":
       return packet.claim_occurrences.find((item) => item.occurrence_id === focusId);
     case "claim_family":
