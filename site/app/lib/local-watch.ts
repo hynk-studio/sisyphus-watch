@@ -722,7 +722,12 @@ function normalizeIdentityText(value: string): string {
 }
 
 function compactText(value: string, maximum: number): string {
-  return boundedReviewerText(normalizeStoredText(value), maximum);
+  const normalized = normalizeStoredText(value);
+  if (Array.from(normalized).length <= maximum) return normalized;
+
+  // boundedReviewerText uses U+2026, which NFKC expands to three periods.
+  // Reserve that two-code-point growth before canonicalizing stored Watch text.
+  return normalizeStoredText(boundedReviewerText(normalized, maximum - 2));
 }
 
 function canonicalInstant(value: string | number | Date): string {
