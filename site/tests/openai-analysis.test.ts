@@ -27,12 +27,15 @@ import {
   OPENAI_REQUEST_TIMEOUT_MS,
   normalizePublicSourceURL,
   runOpenAIAnalysis,
+  runOpenAIAnalysisInternal,
   type ProviderResponse,
   type ResponsesPort,
 } from "../app/lib/analysis/openai-adapter";
 import { parseAnalysisRequest, RequestValidationError } from "../app/lib/analysis/request";
 import {
   DiscoverySourceSchema,
+  DiscoveryOutputSchema,
+  PROVIDER_COMPARISON_REFERENCE_MAX_LENGTH,
   SOURCE_SELECTION_RATIONALE_MAX_LENGTH,
   type DiscoverySource,
 } from "../app/lib/analysis/schemas";
@@ -533,6 +536,111 @@ test("builds a compact live packet from API-provenanced partial snapshots", asyn
   );
 });
 
+test("Version 20 long comparison references parse, drop from baseline, and allow the internal envelope", async () => {
+  const longURLReference =
+    `https://provider-mistake.example/compare?source=${"a".repeat(220)}`;
+  const longProseReference =
+    `Compare this source with the earlier regulatory record described as ${"historical context ".repeat(12)}`;
+  assert.ok(longURLReference.length > 160);
+  assert.ok(longProseReference.length > 160);
+  assert.ok(longURLReference.length <= PROVIDER_COMPARISON_REFERENCE_MAX_LENGTH);
+  assert.ok(longProseReference.length <= PROVIDER_COMPARISON_REFERENCE_MAX_LENGTH);
+
+  const sources = [
+    source(1, undefined, { comparison_target_source_ids: [longURLReference] }),
+    source(2, undefined, { comparison_target_source_ids: [longProseReference] }),
+  ];
+  const port = new FakeResponsesPort([
+    discoveryResponse(sources),
+    extractionResponse(1),
+    extractionResponse(2),
+  ]);
+
+  const internal = await runOpenAIAnalysisInternal({
+    question: "How did public regulatory guidance change?",
+    sourceLimit: 2,
+    discoveryProfile: "standard",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(port.calls.length, 3);
+  const providerComparisonReferenceSchema = (
+    port.calls[0].text as {
+      format: {
+        schema: {
+          properties: {
+            sources: {
+              items: {
+                properties: {
+                  comparison_target_source_ids: {
+                    maxItems: number;
+                    items: { maxLength: number };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    }
+  ).format.schema.properties.sources.items.properties.comparison_target_source_ids;
+  assert.equal(providerComparisonReferenceSchema.maxItems, 8);
+  assert.equal(
+    providerComparisonReferenceSchema.items.maxLength,
+    PROVIDER_COMPARISON_REFERENCE_MAX_LENGTH,
+  );
+  assert.equal(internal.analysis_run.actual_source_count, 2);
+  assert.equal(internal.analysis_run.candidate_counts.finding, 2);
+  assert.deepEqual(
+    internal.analysis_run.source_snapshot_summaries.map(
+      (item) => item.source_selection.comparison_target_source_ids,
+    ),
+    [[], []],
+  );
+  assert.deepEqual(internal.relation_cue_diagnostics, []);
+  const publicRun = JSON.stringify(internal.analysis_run);
+  assert.equal(publicRun.includes(longURLReference), false);
+  assert.equal(publicRun.includes(longProseReference), false);
+
+  const packet = buildSiteReadyCasePacketFromAnalysis(internal.analysis_run);
+  assert.equal(packet.contract_version, "site_ready_case_packet.v1");
+  assert.equal(JSON.stringify(packet).includes(longURLReference), false);
+  assert.equal(JSON.stringify(packet).includes(longProseReference), false);
+});
+
+test("baseline comparison targets are always irrelevant and stored as empty", async () => {
+  const returnedReferences = [
+    "src_candidate_live_exact_looking_but_untrusted",
+    "https://provider-mistake.example/earlier-source",
+    "Compare against the earlier official guidance because its conclusion changed.",
+    "Public source 99",
+  ];
+  const port = new FakeResponsesPort([
+    discoveryResponse([
+      source(1, undefined, { comparison_target_source_ids: returnedReferences }),
+    ]),
+    extractionResponse(1),
+  ]);
+
+  const run = await runOpenAIAnalysis({
+    question: "How did public regulatory guidance change?",
+    sourceLimit: 1,
+    discoveryProfile: "standard",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+
+  assert.equal(port.calls.length, 2);
+  assert.deepEqual(
+    run.source_snapshot_summaries[0].source_selection.comparison_target_source_ids,
+    [],
+  );
+  for (const reference of returnedReferences) {
+    assert.equal(JSON.stringify(run).includes(reference), false);
+  }
+});
+
 test("hard-bound source summary retention drives extraction, containment, and hashing", async () => {
   const hardBoundSummary = "On August 11, Saskatoon Transit announced that smart-card sales and reloads had resumed at participating vendors and the Customer Service Centre. The exceptional permission to board because reloading was unavailable was no longer presented; instead, the notice returned to the requirement for valid fare payment, while reiterating that active cards, mobile tickets, and cash remained available. It also reminded riders to exchange old cards before September 1, with the $5 activation fee waived for a";
   const retainedSummary = "On August 11, Saskatoon Transit announced that smart-card sales and reloads had resumed at participating vendors and the Customer Service Centre. The exceptional permission to board because reloading was unavailable was no longer presented; instead, the notice returned to the requirement for valid fare payment, while reiterating that active cards, mobile tickets, and cash remained available.";
@@ -736,6 +844,61 @@ test("generation instructions require complete natural boundaries before field l
   assert.match(
     EXTRACTION_INSTRUCTIONS,
     /candidate text concise and complete.*never cut a clause or token/i,
+  );
+  assert.match(
+    DISCOVERY_INSTRUCTIONS,
+    /baseline discovery.*comparison_target_source_ids must be \[\].*no earlier baseline sources/i,
+  );
+  assert.match(
+    COVERAGE_EXPANSION_DISCOVERY_INSTRUCTIONS,
+    /comparison_target_source_ids may contain only exact source_id strings from already_selected_sources.*never use a URL, title, publisher, explanation, summary, or prose.*return \[\]/i,
+  );
+});
+
+test("provider comparison-reference tolerance remains bounded and otherwise strict", () => {
+  assert.equal(PROVIDER_COMPARISON_REFERENCE_MAX_LENGTH, 2048);
+  assert.equal(
+    DiscoverySourceSchema.safeParse(source(1, undefined, {
+      comparison_target_source_ids: ["x".repeat(2048)],
+    })).success,
+    true,
+  );
+  assert.equal(
+    DiscoverySourceSchema.safeParse(source(1, undefined, {
+      comparison_target_source_ids: ["x".repeat(2049)],
+    })).success,
+    false,
+  );
+  assert.equal(
+    DiscoverySourceSchema.safeParse({
+      ...source(1),
+      comparison_target_source_ids: Array.from({ length: 9 }, (_, index) => `src_${index}`),
+    }).success,
+    false,
+  );
+  assert.equal(
+    DiscoverySourceSchema.safeParse({
+      ...source(1),
+      comparison_target_source_ids: [123],
+    }).success,
+    false,
+  );
+  assert.equal(
+    DiscoverySourceSchema.safeParse({ ...source(1), url: 42 }).success,
+    false,
+  );
+  const missingTitle = { ...source(1) } as Record<string, unknown>;
+  delete missingTitle.title;
+  assert.equal(DiscoverySourceSchema.safeParse(missingTitle).success, false);
+  assert.equal(
+    DiscoverySourceSchema.safeParse({ ...source(1), unrelated_extra_field: true }).success,
+    false,
+  );
+  assert.equal(
+    DiscoveryOutputSchema.safeParse({
+      sources: Array.from({ length: MAX_SOURCE_LIMIT + 1 }, (_, index) => source(index + 1)),
+    }).success,
+    false,
   );
 });
 
@@ -1820,6 +1983,53 @@ test("coverage expansion performs two bounded passes and carries candidate role 
     expansionInput.already_selected_sources.map((item) => item.url),
     baseline.map((item) => item.url),
   );
+});
+
+test("coverage expansion retains only exact allowed baseline source IDs", async () => {
+  const baseline = source(1);
+  const allowedBaselineID = `src_candidate_live_${await shortStableHash(baseline.url)}`;
+  const longInvalidReference =
+    `https://provider-mistake.example/baseline-reference/${"x".repeat(220)}`;
+  const shortNonexistentID = "src_candidate_live_nonexistent";
+  const paddedAllowedID = ` ${allowedBaselineID}`;
+  const expansion = source(2, undefined, {
+    discovery_lane: "primary_or_origin",
+    source_context: "official",
+    information_proximity: "direct_document",
+    why_included: "Adds a directly relevant primary record.",
+    comparison_target_source_ids: [
+      allowedBaselineID,
+      longInvalidReference,
+      shortNonexistentID,
+      paddedAllowedID,
+    ],
+  });
+  const port = new FakeResponsesPort([
+    discoveryResponse([baseline]),
+    discoveryResponse([expansion]),
+    extractionResponse(1),
+    extractionResponse(2),
+  ]);
+
+  const run = await runOpenAIAnalysis({
+    question: "How did public regulatory guidance change?",
+    sourceLimit: 2,
+    discoveryProfile: "coverage_expansion",
+    generatedAt: GENERATED_AT,
+    responses: port,
+  });
+  const expansionSummary = run.source_snapshot_summaries.find(
+    (item) => item.source_selection.discovery_pass === "coverage_expansion",
+  );
+
+  assert.ok(expansionSummary);
+  assert.deepEqual(
+    expansionSummary.source_selection.comparison_target_source_ids,
+    [allowedBaselineID],
+  );
+  assert.equal(JSON.stringify(run).includes(longInvalidReference), false);
+  assert.equal(JSON.stringify(run).includes(shortNonexistentID), false);
+  assert.equal(JSON.stringify(run).includes(paddedAllowedID), false);
 });
 
 test("unused baseline capacity is made available to the single expansion pass", async () => {
