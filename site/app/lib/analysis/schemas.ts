@@ -53,7 +53,13 @@ export const DiscoverySourceSchema = z
     url: z.string().min(1).max(2048),
     publisher: z.string().max(160).nullable(),
     published_at: z.string().max(64).nullable(),
-    web_search_grounded_candidate_summary: z.string().min(1).max(500),
+    web_search_grounded_candidate_summary: z
+      .string()
+      .min(1)
+      .max(500)
+      .describe(
+        "A concise source-specific reviewer summary written in complete sentences. Stop at a natural sentence boundary before the hard limit; never end with an unfinished clause or cut-off token.",
+      ),
     discovery_lane: z.enum(DISCOVERY_LANES),
     source_context: z.enum(SOURCE_CONTEXTS),
     information_proximity: z.enum(INFORMATION_PROXIMITIES),
@@ -113,7 +119,13 @@ export const CandidateProposalSchema = z
       "source_hygiene",
     ]),
     actor: z.string().min(1).max(200).nullable(),
-    text: z.string().min(1).max(320),
+    text: z
+      .string()
+      .min(1)
+      .max(320)
+      .describe(
+        "Complete reviewer-facing record text. Keep it concise and finish at a natural phrase or sentence boundary; never emit an unfinished clause, dangling connector, or cut-off token.",
+      ),
     supporting_summary_span: z.string().min(1).max(360),
     time_candidate: z.string().max(64).nullable(),
     confidence: z.enum(["high", "medium", "low", "unknown"]),
