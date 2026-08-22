@@ -33,7 +33,15 @@ import type {
   SiteReadyCasePacket,
   SiteTimelineRow,
 } from "./contracts";
-import { validateSiteReadyCasePacket } from "./contracts";
+import {
+  emptyEvidenceClaimLinkWorkSummary,
+  validateSiteReadyCasePacket,
+} from "./contracts";
+import {
+  buildEvidenceClaimReviewLinks,
+  MAX_EVIDENCE_CLAIM_REVIEW_LINKS,
+  MAX_REVIEW_LINKS_PER_EVIDENCE_RECORD,
+} from "./evidence-links";
 
 const PREPARED_CASE_ID = "city_heatwave_cooling_centers";
 const PREPARED_QUESTION =
@@ -154,6 +162,8 @@ export function buildPreparedSiteReadyCasePacket(
     claim_occurrences: occurrencesWithFamilies,
     candidate_claim_families: families,
     relation_candidates: relationResult.relations,
+    evidence_claim_review_links: [],
+    evidence_claim_link_work_summary: emptyEvidenceClaimLinkWorkSummary(),
     event_timeline_rows: buildTimelineRows(occurrencesWithFamilies),
     claim_lineage_rows: buildLineageRows(occurrencesWithFamilies, relationResult.relations),
     current_source_bound_candidate_synthesis: preparedCase.source_bound_summary,
@@ -226,6 +236,18 @@ export function buildSiteReadyCasePacketFromAnalysis(
   const questions = run.candidates.filter(
     (item) => item.candidate_type === "unresolved_question",
   );
+  const sourceComparisonHints = run.source_snapshot_summaries.map((source) => ({
+    source_id: source.source_id,
+    comparison_target_source_ids:
+      source.source_selection.comparison_target_source_ids,
+  }));
+  const evidenceLinkResult = buildEvidenceClaimReviewLinks(
+    [...findings, ...actions],
+    occurrencesWithFamilies,
+    sourceComparisonHints,
+    MAX_EVIDENCE_CLAIM_REVIEW_LINKS,
+    MAX_REVIEW_LINKS_PER_EVIDENCE_RECORD,
+  );
 
   return assembleAndValidate({
     contract_version: "site_ready_case_packet.v1",
@@ -260,16 +282,23 @@ export function buildSiteReadyCasePacketFromAnalysis(
     claim_occurrences: occurrencesWithFamilies,
     candidate_claim_families: families,
     relation_candidates: relationResult.relations,
+    evidence_claim_review_links: evidenceLinkResult.links,
+    evidence_claim_link_work_summary: evidenceLinkResult.summary,
     event_timeline_rows: buildTimelineRows(occurrencesWithFamilies),
     claim_lineage_rows: buildLineageRows(occurrencesWithFamilies, relationResult.relations),
     current_source_bound_candidate_synthesis: buildLiveSynthesis(run),
     unresolved_questions: questions.map(candidateToQuestion),
-    warnings: [...run.warnings, ...relationResult.warnings],
+    warnings: [
+      ...run.warnings,
+      ...relationResult.warnings,
+      ...evidenceLinkResult.warnings,
+    ],
     limitations: [
       ...run.limitations,
       "Live source text was not captured; web-search candidate summaries remain model-generated partial records.",
       "Relations and groupings based on live partial records are candidate/review-only.",
       "The deterministic relation stage used no model-assisted classification.",
+      "Evidence-to-claim links only identify bounded records worth reviewing together; they do not imply support, contradiction, causality, truth, or acceptance.",
     ],
     candidate_canonical_boundary: canonicalBoundary(),
     bounded_work_summary: relationResult.summary,
@@ -612,6 +641,8 @@ function assembleAndValidate(
 function buildDetailKeys(packet: SiteReadyCasePacket): FocusedDetailLookupKey[] {
   const entries: Array<readonly [FocusedDetailLookupKey["kind"], string]> = [
     ...packet.source_snapshot_summaries.map((item) => ["source" as const, item.source_id] as const),
+    ...packet.source_bound_findings.map((item) => ["finding" as const, item.finding_id] as const),
+    ...packet.actions.map((item) => ["action" as const, item.action_id] as const),
     ...packet.claim_occurrences.map((item) => ["claim_occurrence" as const, item.occurrence_id] as const),
     ...packet.candidate_claim_families.map((item) => ["claim_family" as const, item.family_id] as const),
     ...packet.relation_candidates.map((item) => ["relation" as const, item.relation_id] as const),

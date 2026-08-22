@@ -188,11 +188,13 @@ function SupportingEvidenceRows({
   return (
     <ul className="supporting-evidence-list">
       {rows.map((row) => {
-        const sourceSelection = row.sourceId && row.sourceTitle ? {
-          kind: "source" as const,
-          id: row.sourceId,
-          label: row.sourceTitle,
-        } : null;
+        const recordSelection = {
+          kind: row.recordKind,
+          id: row.recordId,
+          label: row.recordKind === "action"
+            ? `Action record: ${row.actor ? actorLabel(row.actor) : row.text}`
+            : `Source-bound finding: ${row.text}`,
+        };
         return (
           <li key={row.evidenceRowId} className="supporting-evidence-row">
             <div className="row-meta">
@@ -208,19 +210,16 @@ function SupportingEvidenceRows({
             </div>
             {row.actor ? <h4>{actorLabel(row.actor)}</h4> : null}
             <p>{row.text}</p>
-            {sourceSelection ? (
-              <button
-                className="detail-button"
-                type="button"
-                aria-label={`Inspect linked source: ${row.sourceTitle}`}
-                data-focus-trigger={focusTriggerId("supporting-evidence-source", sourceSelection)}
-                onClick={(event) => onFocus(sourceSelection, event.currentTarget)}
-              >
-                Source: {row.sourceTitle} <span aria-hidden="true">→</span>
-              </button>
-            ) : (
-              <span className="supporting-evidence-source-unavailable">Linked source unavailable</span>
-            )}
+            <button
+              className="detail-button"
+              type="button"
+              aria-label={`Inspect ${row.recordKind === "action" ? "action record" : "source-bound finding"}: ${row.text}`}
+              data-focus-trigger={focusTriggerId("supporting-evidence-record", recordSelection)}
+              onClick={(event) => onFocus(recordSelection, event.currentTarget)}
+            >
+              Inspect record{row.sourceTitle ? ` · ${row.sourceTitle}` : ""}
+              {" "}<span aria-hidden="true">→</span>
+            </button>
           </li>
         );
       })}

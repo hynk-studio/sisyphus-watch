@@ -46,6 +46,8 @@ const INSPECTOR_FOCUSABLE_SELECTOR = [
 ].join(",");
 const INSPECTOR_RECORD_KIND_LABELS: Record<SiteDetailKind, string> = {
   source: "Source record",
+  finding: "Source-bound finding",
+  action: "Action record",
   claim_occurrence: "Claim occurrence",
   claim_family: "Claim family",
   relation: "Candidate relation",
@@ -325,6 +327,16 @@ function DetailBody({
       />
     );
   }
+  if (kind === "finding" || kind === "action") {
+    return (
+      <EvidenceRecordDetail
+        packet={packet}
+        selection={selection}
+        kind={kind}
+        item={item}
+      />
+    );
+  }
   if (kind === "timeline_row") {
     return (
       <div className="detail-body">
@@ -455,6 +467,11 @@ function ClaimOccurrenceDetail({
           source?.record_status ?? item.source_record_status,
         )}
       />
+      <ReviewTogetherSection
+        packet={packet}
+        selectedKind="claim_occurrence"
+        selectedId={selection.id}
+      />
       <details className="technical-details">
         <summary>Record status enum and exact references</summary>
         <div className="detail-disclosure-body">
@@ -469,6 +486,176 @@ function ClaimOccurrenceDetail({
         </div>
       </details>
     </div>
+  );
+}
+
+function EvidenceRecordDetail({
+  packet,
+  selection,
+  kind,
+  item,
+}: {
+  packet?: SiteReadyCasePacket;
+  selection: FocusSelection;
+  kind: "finding" | "action";
+  item: Record<string, unknown>;
+}) {
+  const sourceIds = arrayValue(item.source_ids);
+  const source = packet?.source_snapshot_summaries.find((candidate) =>
+    sourceIds.includes(candidate.source_id)
+  );
+  const link = packet?.evidence_claim_review_links.find(
+    (candidate) =>
+      candidate.evidence_record_kind === kind
+      && candidate.evidence_record_id === selection.id,
+  );
+  const support = link?.evidence_support_reference;
+  const text = kind === "finding"
+    ? stringValue(item.text)
+    : stringValue(item.action_text);
+
+  return (
+    <div className="detail-body">
+      <DetailField label={kind === "finding" ? "Finding" : "Action"} value={text} />
+      {kind === "action" ? (
+        <>
+          <DetailField
+            label="Actor"
+            value={actorLabel(typeof item.actor === "string" ? item.actor : null)}
+          />
+          <DetailField
+            label="Event time and precision"
+            value={timestampWithPrecision(
+              asNullableString(item.event_time_candidate),
+              asTemporalPrecision(item.event_time_candidate_precision),
+            )}
+          />
+        </>
+      ) : null}
+      <div className="support-box">
+        <strong>Source attachment</strong>
+        <p>
+          {source
+            ? `${sourceRoleLabel(source)} · ${source.title}`
+            : "The source attachment is unavailable in the displayed packet."}
+        </p>
+        <small>
+          {source
+            ? `${source.publisher} · ${source.domain} · ${sourceRecordBoundaryLabel(source.record_status)}`
+            : "Source detail unavailable"}
+        </small>
+      </div>
+      {support ? (
+        <div className="support-box">
+          <strong>Source-local bounded support</strong>
+          <p>{support.bounded_excerpt}</p>
+          <small>
+            {supportKindLabel(support.support_kind)} · {supportBoundaryLabel(support.proves)}
+          </small>
+        </div>
+      ) : (
+        <p className="detail-note">
+          No evidence-to-claim review link supplies source-local support for this record.
+        </p>
+      )}
+      <ReviewTogetherSection
+        packet={packet}
+        selectedKind={kind}
+        selectedId={selection.id}
+      />
+      <DetailField label="Record status" value={focusedRecordStatusLabel(item.status)} />
+      <DetailField label="Record origin" value={lineageOriginLabel(item.origin)} />
+      <details className="technical-details">
+        <summary>Exact record and support references</summary>
+        <div className="detail-disclosure-body">
+          <DetailField
+            label={kind === "finding" ? "Finding ID" : "Action ID"}
+            value={selection.id}
+          />
+          <DetailField label="Source IDs" value={sourceIds.join(" · ")} />
+          <DetailField label="Support kind enum" value={support?.support_kind} />
+          <DetailField label="Evidence reference" value={support?.evidence_reference} />
+          <DetailField label="Status enum" value={item.status} />
+          <DetailField label="Origin enum" value={item.origin} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function ReviewTogetherSection({
+  packet,
+  selectedKind,
+  selectedId,
+}: {
+  packet?: SiteReadyCasePacket;
+  selectedKind: "finding" | "action" | "claim_occurrence";
+  selectedId: string;
+}) {
+  if (!packet) return null;
+  const links = packet.evidence_claim_review_links.filter((link) =>
+    selectedKind === "claim_occurrence"
+      ? link.claim_occurrence_id === selectedId
+      : link.evidence_record_kind === selectedKind
+        && link.evidence_record_id === selectedId
+  );
+  if (!links.length) return null;
+
+  return (
+    <section className="support-box review-together" aria-labelledby={`review-together-${selectedId}`}>
+      <strong id={`review-together-${selectedId}`}>Review together</strong>
+      <p>
+        These candidate links only indicate that bounded records may be worth
+        reviewing together. They do not imply support, contradiction,
+        correction, causality, truth, or acceptance.
+      </p>
+      <ul>
+        {links.map((link) => {
+          const evidence = link.evidence_record_kind === "finding"
+            ? packet.source_bound_findings.find(
+                (item) => item.finding_id === link.evidence_record_id,
+              )
+            : packet.actions.find((item) => item.action_id === link.evidence_record_id);
+          const occurrence = packet.claim_occurrences.find(
+            (item) => item.occurrence_id === link.claim_occurrence_id,
+          );
+          const otherText = selectedKind === "claim_occurrence"
+            ? link.evidence_record_kind === "finding"
+              ? evidence && "text" in evidence ? evidence.text : "Evidence record unavailable"
+              : evidence && "action_text" in evidence
+                ? evidence.action_text
+                : "Evidence record unavailable"
+            : occurrence?.original_claim_text ?? "Claim occurrence unavailable";
+          const otherKind = selectedKind === "claim_occurrence"
+            ? link.evidence_record_kind === "finding" ? "Source-bound finding" : "Action record"
+            : "Actor-claim occurrence";
+          const otherSourceId = selectedKind === "claim_occurrence"
+            ? link.evidence_source_id
+            : link.claim_source_id;
+          const otherSource = packet.source_snapshot_summaries.find(
+            (source) => source.source_id === otherSourceId,
+          );
+          const otherSupport = selectedKind === "claim_occurrence"
+            ? link.evidence_support_reference
+            : link.claim_support_reference;
+          return (
+            <li key={link.link_id}>
+              <strong>{otherKind}</strong>
+              <p>{otherText}</p>
+              <small>
+                {otherSource
+                  ? `${otherSource.title} · ${otherSource.domain}`
+                  : "Source unavailable"}
+                {` · Basis: ${humanize(link.link_basis)}`}
+                {` · Shared topics: ${link.shared_topic_tokens.join(", ")}`}
+                {` · ${supportKindLabel(otherSupport.support_kind)}`}
+              </small>
+            </li>
+          );
+        })}
+      </ul>
+      <small>Semantics: review together only · status: needs review</small>
+    </section>
   );
 }
 
