@@ -457,14 +457,35 @@ p, li, blockquote { text-wrap: pretty; }
   font-size: .88rem;
   font-weight: 760;
 }
-.public-api-key-boundary {
-  margin: 0;
-  padding-left: 10px;
+.relay-explanation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 9px 11px;
   border-left: 3px solid var(--gold-ink);
+  background: var(--surface);
+}
+.relay-explanation strong {
+  color: var(--ink-soft);
+  font-family: var(--font-editorial);
+  font-size: .84rem;
+}
+.relay-explanation p {
+  margin: 0;
   color: var(--muted);
   font-size: .74rem;
-  font-weight: 680;
-  line-height: 1.45;
+  line-height: 1.5;
+}
+.relay-explanation a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  color: var(--navy);
+  font-size: .74rem;
+  font-weight: 740;
+  text-underline-offset: 3px;
+  white-space: nowrap;
 }
 .relay-connect-form {
   display: grid;
@@ -1990,6 +2011,8 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
   .investigation-form > .availability-note,
   .investigation-form > .form-error { margin-right: 15px; margin-left: 15px; }
   .execution-support { padding: 15px; }
+  .relay-explanation { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .relay-explanation a { width: fit-content; }
   .composer-options,
   .profile-fieldset,
   .composer-actions { grid-template-columns: 1fr; }

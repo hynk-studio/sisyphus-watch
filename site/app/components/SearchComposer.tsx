@@ -311,9 +311,21 @@ export function SearchComposer({
             </div>
           )}
 
-          <p className="public-api-key-boundary">
-            Public Sisyphus Watch never asks for or stores your OpenAI API key.
-          </p>
+          <aside className="relay-explanation" aria-labelledby="relay-explanation-title">
+            <strong id="relay-explanation-title">What is a Relay?</strong>
+            <p>
+              A Relay is a small backend you control that runs Sisyphus investigations
+              using your own OpenAI API key. Your API key stays on the Relay; this Site
+              connects only to its URL.
+            </p>
+            <a
+              href="https://github.com/hynk-studio/sisyphus-watch#use-your-own-relay"
+              target="_blank"
+              rel="noreferrer"
+            >
+              How to set up a Relay <span aria-hidden="true">→</span>
+            </a>
+          </aside>
 
           {relaySelected && operatorSponsoredReady ? (
             <div className="execution-switches">
