@@ -33,6 +33,7 @@ const NOW_ISO = "2030-03-17T17:46:40.000Z";
 
 interface CaseOptions {
   assertion?: string;
+  ownerContentType?: string;
   ownerTitle?: string;
   targetTitle?: string;
   cue?: Partial<RelationCueDiagnostic>;
@@ -111,8 +112,9 @@ async function buildCase(options: CaseOptions = {}): Promise<PositiveCase> {
         return new Response(text, {
           status: 200,
           headers: {
-            "content-type": options.targetContentType
-              ?? "text/plain; charset=utf-8",
+            "content-type": url.includes("source-owner")
+              ? options.ownerContentType ?? "text/plain; charset=utf-8"
+              : options.targetContentType ?? "text/plain; charset=utf-8",
           },
         });
       }) as typeof fetch,
@@ -238,7 +240,7 @@ test("positive control emits one deterministic internal supersedes assessment wi
   assert.equal(proof.identity_anchor, "guidance g-1");
   assert.equal(
     proof.proof_basis,
-    "captured_document_self_title_matches_resolved_target_metadata",
+    "captured_document_self_identity_matches_resolved_target_metadata",
   );
   assert.equal(proof.proves, "captured_target_document_identity_alignment_only");
   assert.equal(proof.proof_status, "internal_target_identity_supported");
@@ -299,6 +301,36 @@ test("positive control emits one deterministic internal supersedes assessment wi
   assert.equal(MAX_SOURCE_SUPPORTED_RELATION_ASSESSMENTS_PER_WORKFLOW, 1);
   assert.equal(MAX_SOURCE_SUPPORTED_TARGET_IDENTITY_PROOFS_PER_WORKFLOW, 1);
   assert.equal(MAX_CAPTURED_ASSERTION_CONTEXT_CHARS, 560);
+});
+
+test("XHTML owner text is capture-only and cannot provide strong relation support", async () => {
+  const fixture = await buildCase({
+    assertion: [
+      '<html xmlns="http://www.w3.org/1999/xhtml">',
+      "<body>This guidance supersedes Guidance G-1.</body>",
+      "</html>",
+    ].join(""),
+    ownerContentType: "application/xhtml+xml",
+  });
+  const ownerDocument = fixture.input.captureResult.documents.find(
+    (item) => item.source_id === "source_owner",
+  );
+  assert.ok(ownerDocument);
+  assert.equal(ownerDocument.capture_completeness, "complete");
+  assert.match(ownerDocument.normalized_text, /This guidance supersedes Guidance G-1\./u);
+  const targetDocument = fixture.input.captureResult.documents.find(
+    (item) => item.source_id === "source_target",
+  );
+  assert.ok(targetDocument);
+  assert.equal(targetDocument.capture_completeness, "complete");
+  assert.equal(fixture.captureCalls, 2);
+  assert.equal(fixture.input.capturePlan.entries.length, 2);
+  assert.equal(fixture.input.captureResult.documents.length, 2);
+  assert.equal(fixture.input.captureResult.supports.length, 0);
+  const result = assess(fixture.input);
+  assert.equal(result.target_identity_proofs.length, 1);
+  assert.equal(result.assessments.length, 0);
+  assert.equal(result.summary.rejected_capture_support_count, 1);
 });
 
 test("captured target self-identity admits the required HTML and plain-text positives", async () => {

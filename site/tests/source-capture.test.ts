@@ -363,6 +363,51 @@ test("XHTML remains captured but cannot provide strong document identity", async
   assert.equal(cases.length, 3);
 });
 
+test("strong captured relation support is limited to HTML and plain text syntax", async () => {
+  const cases: Array<{
+    label: string;
+    contentType: string;
+    body: string;
+    expectedSupports: number;
+  }> = [
+    {
+      label: "HTML owner support",
+      contentType: "text/html; charset=utf-8",
+      body: "<p>This guidance supersedes Guidance G-1.</p>",
+      expectedSupports: 1,
+    },
+    {
+      label: "plain-text owner support",
+      contentType: "text/plain; charset=utf-8",
+      body: "This guidance supersedes Guidance G-1.",
+      expectedSupports: 1,
+    },
+    {
+      label: "XHTML owner capture only",
+      contentType: "application/xhtml+xml",
+      body: [
+        '<html xmlns="http://www.w3.org/1999/xhtml">',
+        "<body>This guidance supersedes Guidance G-1.</body>",
+        "</html>",
+      ].join(""),
+      expectedSupports: 0,
+    },
+  ];
+  for (const item of cases) {
+    const result = await capture((async () =>
+      response(item.body, item.contentType)) as typeof fetch);
+    assert.equal(result.failures.length, 0, item.label);
+    assert.equal(result.documents.length, 1, item.label);
+    assert.equal(result.documents[0].capture_completeness, "complete", item.label);
+    assert.match(
+      result.documents[0].normalized_text,
+      /This guidance supersedes Guidance G-1\./u,
+      item.label,
+    );
+    assert.equal(result.supports.length, item.expectedSupports, item.label);
+  }
+});
+
 test("bounded body and normalized text ceilings preserve partial hash semantics", async () => {
   const oversized = new TextEncoder().encode(
     `Agency supersedes Guidance G-1. ${"x".repeat(MAX_CAPTURE_BODY_BYTES + 100)}`,

@@ -187,6 +187,12 @@ interface RelationRelevantCue {
 interface CaptureAttempt {
   plan: CapturePlanEntry;
   result: CapturedSourceDocument | CaptureFailure;
+  strongEvidenceEligible: boolean;
+}
+
+interface CapturedSourceSuccess {
+  document: CapturedSourceDocument;
+  strongEvidenceEligible: boolean;
 }
 
 export type SupportAnchorBoundary = "lexical" | "identifier" | "phrase";
@@ -210,6 +216,12 @@ interface RawHTMLTag {
 }
 
 type CapturedResponseSyntax = "html" | "xhtml" | "plain_text";
+
+function isStrongCapturedEvidenceSyntax(
+  syntax: CapturedResponseSyntax,
+): boolean {
+  return syntax === "html" || syntax === "plain_text";
+}
 
 export function validateDirectCaptureURL(value: string): URL | null {
   let parsed: URL;
@@ -392,16 +404,26 @@ export async function executeCapturedSourcePlan(
   const attempts = await mapWithConcurrency(
     plan.entries,
     MAX_CAPTURE_NETWORK_CONCURRENCY,
-    async (entry): Promise<CaptureAttempt> => ({
-      plan: entry,
-      result: await captureOneSource(
+    async (entry): Promise<CaptureAttempt> => {
+      const outcome = await captureOneSource(
         entry,
         workflowDeadlineAtMs,
         fetcher,
         nowMs,
         nowISO,
-      ),
-    }),
+      );
+      return "document" in outcome
+        ? {
+            plan: entry,
+            result: outcome.document,
+            strongEvidenceEligible: outcome.strongEvidenceEligible,
+          }
+        : {
+            plan: entry,
+            result: outcome,
+            strongEvidenceEligible: false,
+          };
+    },
   );
   const documents = attempts
     .map((attempt) => attempt.result)
@@ -414,6 +436,7 @@ export async function executeCapturedSourcePlan(
     if (
       attempt.plan.role !== "cue_owner"
       || attempt.result.status !== "captured"
+      || !attempt.strongEvidenceEligible
     ) continue;
     const support = await selectCapturedSupportSpan(
       attempt.result,
@@ -515,7 +538,7 @@ async function captureOneSource(
   fetcher: typeof fetch,
   nowMs: () => number,
   nowISO: () => string,
-): Promise<CapturedSourceDocument | CaptureFailure> {
+): Promise<CapturedSourceSuccess | CaptureFailure> {
   if (
     entry.source.retrieval_mode !== "openai_web_search"
     || entry.source.record_status !== "candidate"
@@ -655,9 +678,10 @@ async function captureOneSource(
       });
     }
     const mediaKind = content === "plain_text" ? "plain_text" : "html";
-    const documentIdentity = content === "xhtml"
-      ? null
-      : extractCapturedDocumentIdentity(decoded, mediaKind);
+    const strongEvidenceEligible = isStrongCapturedEvidenceSyntax(content);
+    const documentIdentity = strongEvidenceEligible
+      ? extractCapturedDocumentIdentity(decoded, mediaKind)
+      : null;
     const normalized = normalizeCapturedDocumentText(decoded, mediaKind);
     if (!normalized.text) {
       return captureFailure({
@@ -687,30 +711,33 @@ async function captureOneSource(
       ? "text_limited"
       : "complete";
     return {
-      capture_id: stableLineageId(
-        "captured_source_document_",
-        entry.source.source_id,
-        entry.source.snapshot_id,
-        currentURL.href,
-        bodyHash,
-        textHash,
-      ),
-      source_id: entry.source.source_id,
-      parent_snapshot_id: entry.source.snapshot_id,
-      requested_url: requestedURL.href,
-      final_url: currentURL.href,
-      redirect_count: redirectCount,
-      retrieved_at: nowISO(),
-      capture_method: "direct_worker_fetch",
-      media_kind: mediaKind,
-      capture_completeness: completeness,
-      captured_body_bytes: retained.bytes.byteLength,
-      captured_body_sha256: bodyHash,
-      normalized_text_chars: normalized.text.length,
-      normalized_text_sha256: textHash,
-      normalized_text: normalized.text,
-      document_identity: documentIdentity,
-      status: "captured",
+      strongEvidenceEligible,
+      document: {
+        capture_id: stableLineageId(
+          "captured_source_document_",
+          entry.source.source_id,
+          entry.source.snapshot_id,
+          currentURL.href,
+          bodyHash,
+          textHash,
+        ),
+        source_id: entry.source.source_id,
+        parent_snapshot_id: entry.source.snapshot_id,
+        requested_url: requestedURL.href,
+        final_url: currentURL.href,
+        redirect_count: redirectCount,
+        retrieved_at: nowISO(),
+        capture_method: "direct_worker_fetch",
+        media_kind: mediaKind,
+        capture_completeness: completeness,
+        captured_body_bytes: retained.bytes.byteLength,
+        captured_body_sha256: bodyHash,
+        normalized_text_chars: normalized.text.length,
+        normalized_text_sha256: textHash,
+        normalized_text: normalized.text,
+        document_identity: documentIdentity,
+        status: "captured",
+      },
     };
   } finally {
     clearTimeout(timeout);

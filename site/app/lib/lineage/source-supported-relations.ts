@@ -170,7 +170,7 @@ export interface SourceSupportedTargetIdentityProof {
   document_identity_kind: "html_title" | "plain_text_first_line";
   identity_anchor: string;
   target_kind: SourceSupportedTargetIdentityKind;
-  proof_basis: "captured_document_self_title_matches_resolved_target_metadata";
+  proof_basis: "captured_document_self_identity_matches_resolved_target_metadata";
   proves: "captured_target_document_identity_alignment_only";
   proof_status: "internal_target_identity_supported";
   generated_by: "deterministic_rule";
@@ -807,7 +807,7 @@ function buildTargetIdentityProof(input: {
     identity_anchor: identityAnchor,
     target_kind: targetKind,
     proof_basis:
-      "captured_document_self_title_matches_resolved_target_metadata",
+      "captured_document_self_identity_matches_resolved_target_metadata",
     proves: "captured_target_document_identity_alignment_only",
     proof_status: "internal_target_identity_supported",
     generated_by: "deterministic_rule",
