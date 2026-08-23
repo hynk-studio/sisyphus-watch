@@ -1662,6 +1662,7 @@ p, li, blockquote { text-wrap: pretty; }
 .complete-relation-ledger > header { padding: 16px 18px; border-bottom: 1px solid var(--line); }
 .complete-relation-ledger > header h4 { margin: 0 0 5px; }
 .complete-relation-ledger > header p:last-child { margin: 0; color: var(--muted); font-size: var(--map-font-supporting); line-height: 1.5; }
+.source-backed-ledger-explanation { max-width: 72ch; padding-left: 10px; border-left: 2px solid var(--gold-ink); }
 .complete-relation-ledger.is-empty { border-top-width: 1px; }
 .complete-relation-ledger.is-empty > p { margin: 0; padding: 13px 18px; color: var(--muted); font-size: var(--map-font-supporting); line-height: 1.5; }
 .complete-relation-ledger ol { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
@@ -1699,6 +1700,8 @@ p, li, blockquote { text-wrap: pretty; }
 .relation-ledger-route b { color: var(--gold-ink); font-size: var(--map-font-important); }
 .relation-ledger-meta { display: flex; flex-wrap: wrap; gap: 3px 11px; color: var(--muted); font-size: var(--map-font-supporting); line-height: 1.4; }
 .relation-ledger-meta span:first-child { color: var(--review); font-weight: 720; }
+.relation-ledger-meta .source-backed-state,
+.relation-ledger-meta .review-state { font-weight: 720; }
 .complete-relation-ledger li > details { padding: 0 18px 11px 70px; }
 .complete-relation-ledger li > details summary { color: var(--navy); cursor: pointer; font-size: var(--map-font-supporting); font-weight: 720; }
 .relation-ledger-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .62fr) minmax(0, 1fr); gap: 10px; padding-top: 9px; }
@@ -1853,6 +1856,15 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
 .detail-field strong, .support-box strong, .captured-text strong, .inspector-list > strong { display: block; margin-bottom: 5px; color: var(--ink-soft); font-size: .8rem; }
 .detail-field p, .support-box p, .captured-text p, .inspector-list p { margin: 0; overflow-wrap: anywhere; color: var(--muted); font-size: .88rem; line-height: 1.55; }
 .support-box small { color: var(--muted); font-family: var(--font-ledger); font-size: .78rem; }
+.source-backed-relation-evidence { display: grid; gap: 10px; padding: 14px; border-left: 3px solid var(--gold-ink); background: var(--gold-soft); }
+.source-backed-relation-evidence h4,
+.source-backed-relation-evidence p,
+.source-backed-relation-evidence blockquote { margin: 0; }
+.source-backed-relation-evidence h4 { color: var(--navy); font-size: .95rem; }
+.source-backed-relation-evidence blockquote { padding: 10px 12px; border-left: 2px solid var(--navy); background: var(--surface-strong); }
+.source-backed-relation-evidence blockquote p,
+.source-backed-relation-evidence > p { overflow-wrap: anywhere; color: var(--ink-soft); font-size: .88rem; line-height: 1.55; }
+.source-backed-relation-links { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .inspector-list ul { display: grid; gap: 6px; margin: 7px 0 0; padding-left: 17px; color: var(--muted); font-size: .84rem; line-height: 1.5; }
 .citation-link { width: fit-content; color: var(--navy); font-size: .84rem; font-weight: 720; text-decoration-color: var(--gold-ink); text-underline-offset: 3px; }
 .detail-disclosure, .technical-details { border-top: 1px solid var(--line); }

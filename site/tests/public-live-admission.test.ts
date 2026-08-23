@@ -517,8 +517,7 @@ test("public live internal-envelope success captures bounded pages without chang
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assert.deepEqual(body, fixture.expectedPacket);
-  assert.equal(JSON.stringify(body), JSON.stringify(fixture.expectedPacket));
+  assertSiteV2Projection(body, fixture.expectedPacket, 1);
   assert.equal(internalRuns, 1);
   assert.equal(legacyRunCalls, 0);
   assert.equal(captureCalls, 2);
@@ -547,7 +546,7 @@ test("public live internal-envelope success captures bounded pages without chang
     outcome: "settled",
     nowMs: NOW_MS,
   }]);
-  assert.equal(body.contract_version, "site_ready_case_packet.v1");
+  assert.equal(body.contract_version, "site_ready_case_packet.v2");
   assert.equal(body.bounded_work_summary.model_classified_count, 0);
   assert.equal(
     body.relation_candidates.filter((item) => item.relation_type === "supersedes").length,
@@ -559,11 +558,12 @@ test("public live internal-envelope success captures bounded pages without chang
   );
   assert.equal(body.candidate_canonical_boundary.canonical_mutation, "none");
   const serialized = JSON.stringify(body);
+  assert.match(serialized, /source_supported_relation_signals/);
   assert.doesNotMatch(
     serialized,
-    /source_supported_relation|source_supported_target_identity_proofs|target_identity_proof_id|source_supported_target_identity_proof_|document_identity|identity_anchor|internal_target_identity_supported|assessment_id|owner_capture_id|target_capture_id|captured_live_source_text_span|captured_source_text_containment_only|captured_target_document_identity_alignment_only|captured_document_self_identity_matches_resolved_target_metadata|captured_body_sha256|normalized_text_sha256|normalized_text/,
+    /source_supported_relation_assessments|source_supported_target_identity_proofs|target_identity_proof_id|source_supported_target_identity_proof_|document_identity|identity_anchor|internal_target_identity_supported|assessment_id|owner_capture_id|target_capture_id|captured_live_source_text_span|captured_source_text_containment_only|captured_target_document_identity_alignment_only|captured_document_self_identity_matches_resolved_target_metadata|captured_body_sha256|normalized_text_sha256|normalized_text/,
   );
-  assert.doesNotMatch(serialized, /supersedes Guidance G-1/u);
+  assert.match(serialized, /supersedes Guidance G-1/u);
 });
 
 test("public live target-identity rejection returns the normal packet and settles exactly once", async () => {
@@ -619,8 +619,7 @@ test("public live target-identity rejection returns the normal packet and settle
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assert.deepEqual(body, fixture.expectedPacket);
-  assert.equal(JSON.stringify(body), JSON.stringify(fixture.expectedPacket));
+  assertSiteV2Projection(body, fixture.expectedPacket, 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
@@ -717,8 +716,7 @@ test("public live XHTML owner is capture-only while target identity remains inde
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assert.deepEqual(body, fixture.expectedPacket);
-  assert.equal(JSON.stringify(body), JSON.stringify(fixture.expectedPacket));
+  assertSiteV2Projection(body, fixture.expectedPacket, 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
@@ -800,7 +798,7 @@ test("public live internal-envelope capture failure preserves the live investiga
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assert.deepEqual(body, fixture.expectedPacket);
+  assertSiteV2Projection(body, fixture.expectedPacket, 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
@@ -1047,6 +1045,27 @@ test("mixed day and instant precision is grouped without fabricated intra-day or
     ],
   );
 });
+
+function assertSiteV2Projection(
+  body: SiteReadyCasePacket,
+  expectedV1: SiteReadyCasePacket,
+  expectedSignalCount: number,
+): void {
+  const {
+    contract_version: bodyContract,
+    source_supported_relation_signals: signals,
+    ...bodyFields
+  } = body as unknown as Record<string, unknown>;
+  const {
+    contract_version: expectedContract,
+    ...expectedFields
+  } = expectedV1 as unknown as Record<string, unknown>;
+  assert.equal(bodyContract, "site_ready_case_packet.v2");
+  assert.equal(expectedContract, "site_ready_case_packet.v1");
+  assert.equal(Array.isArray(signals) ? signals.length : -1, expectedSignalCount);
+  assert.deepEqual(bodyFields, expectedFields);
+  assert.equal(body.relation_candidates[0].relation_type, "unresolved");
+}
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

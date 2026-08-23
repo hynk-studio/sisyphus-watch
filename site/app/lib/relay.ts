@@ -8,7 +8,13 @@ export const RELAY_CONNECTION_CONTRACT_VERSION =
 export const RELAY_PROTOCOL_VERSION = "sisyphus_relay.v1";
 export const RELAY_CAPABILITIES_CONTRACT_VERSION =
   "sisyphus_relay_capabilities.v1";
-export const RELAY_LINEAGE_RESPONSE_CONTRACT = "site_ready_case_packet.v1";
+export const RELAY_LINEAGE_RESPONSE_CONTRACTS = [
+  "site_ready_case_packet.v1",
+  "site_ready_case_packet.v2",
+] as const;
+export type RelayLineageResponseContract =
+  (typeof RELAY_LINEAGE_RESPONSE_CONTRACTS)[number];
+export const RELAY_LINEAGE_RESPONSE_CONTRACT = "site_ready_case_packet.v2";
 export const RELAY_STORAGE_MAX_BYTES = 4 * 1024;
 export const RELAY_CAPABILITY_TIMEOUT_MS = 10_000;
 
@@ -25,7 +31,7 @@ export interface RelayStorage {
 
 export interface RelayCapabilities {
   contract_version: typeof RELAY_CAPABILITIES_CONTRACT_VERSION;
-  lineage_response_contract: typeof RELAY_LINEAGE_RESPONSE_CONTRACT;
+  lineage_response_contract: RelayLineageResponseContract;
   supported_source_limits: [3, 5];
   supported_discovery_profiles: ["standard", "coverage_expansion"];
   relay_display_name?: string;
@@ -36,7 +42,7 @@ export interface RelayConnection {
   relay_protocol_version: typeof RELAY_PROTOCOL_VERSION;
   relay_base_url: string;
   capabilities_contract_version: typeof RELAY_CAPABILITIES_CONTRACT_VERSION;
-  lineage_response_contract: typeof RELAY_LINEAGE_RESPONSE_CONTRACT;
+  lineage_response_contract: RelayLineageResponseContract;
   relay_display_name?: string;
   saved_at: string;
 }
@@ -71,7 +77,7 @@ const relayDisplayNameSchema = z.string().trim().min(1).max(80);
 
 const relayCapabilitiesSchema = z.object({
   contract_version: z.literal(RELAY_CAPABILITIES_CONTRACT_VERSION),
-  lineage_response_contract: z.literal(RELAY_LINEAGE_RESPONSE_CONTRACT),
+  lineage_response_contract: z.enum(RELAY_LINEAGE_RESPONSE_CONTRACTS),
   supported_source_limits: z.array(z.union([z.literal(3), z.literal(5)]))
     .min(1)
     .max(2),
@@ -111,7 +117,7 @@ const relayConnectionSchema = z.object({
   capabilities_contract_version: z.literal(
     RELAY_CAPABILITIES_CONTRACT_VERSION,
   ),
-  lineage_response_contract: z.literal(RELAY_LINEAGE_RESPONSE_CONTRACT),
+  lineage_response_contract: z.enum(RELAY_LINEAGE_RESPONSE_CONTRACTS),
   relay_display_name: relayDisplayNameSchema.optional(),
   saved_at: z.string().datetime({ offset: true }),
 }).strict().superRefine((connection, context) => {

@@ -1038,7 +1038,7 @@ test("internal orchestration captures support while preserving semantic and publ
   assert.equal(buildPublicEvidencePacket(after).contract_version, "sisyphus_public_evidence_packet.v1");
   assert.deepEqual(buildLocalWatchSnapshot(after), buildLocalWatchSnapshot(before));
   assert.deepEqual(buildPublicEvidencePacket(after), buildPublicEvidencePacket(before));
-  assert.equal(RELAY_LINEAGE_RESPONSE_CONTRACT, "site_ready_case_packet.v1");
+  assert.equal(RELAY_LINEAGE_RESPONSE_CONTRACT, "site_ready_case_packet.v2");
   assert.doesNotMatch(JSON.stringify(OPENAPI_DOCUMENT), /captured_live_source_text_span/);
   assert.doesNotMatch(JSON.stringify(LINEAGE_CAPABILITY_DOCUMENT), /captured_live_source_text_span/);
 });
@@ -1069,7 +1069,7 @@ test("capture failures are nonfatal to the existing investigation packet", async
   assert.equal(failed.site_ready_case_packet.candidate_canonical_boundary.canonical_mutation, "none");
 });
 
-test("lineage handler projects only site_ready_case_packet.v1 from the internal envelope", async () => {
+test("reference lineage handler projects Site packet v2 while preserving ordinary packet fields", async () => {
   const analysisRun = version18RelationAdmissionRun();
   const before = buildSiteReadyCasePacketFromAnalysis(analysisRun);
   const relation = before.relation_candidates[0];
@@ -1119,9 +1119,28 @@ test("lineage handler projects only site_ready_case_packet.v1 from the internal 
       },
     },
   );
-  const projected = await responseValue.json();
+  const projected = await responseValue.json() as SiteReadyCasePacket;
   assert.equal(responseValue.status, 200);
-  assert.deepEqual(projected, before);
+  assert.equal(projected.contract_version, "site_ready_case_packet.v2");
+  assert.equal(
+    projected.contract_version === "site_ready_case_packet.v2"
+      ? projected.source_supported_relation_signals.length
+      : -1,
+    0,
+  );
+  const {
+    contract_version: projectedContract,
+    source_supported_relation_signals: projectedSignals,
+    ...projectedFields
+  } = projected as unknown as Record<string, unknown>;
+  const {
+    contract_version: beforeContract,
+    ...beforeFields
+  } = before as unknown as Record<string, unknown>;
+  assert.equal(projectedContract, "site_ready_case_packet.v2");
+  assert.deepEqual(projectedSignals, []);
+  assert.equal(beforeContract, "site_ready_case_packet.v1");
+  assert.deepEqual(projectedFields, beforeFields);
   assert.ok(fetchCalls <= 2);
   assert.doesNotMatch(JSON.stringify(projected), /capture_id|normalized_text|captured_body/);
   assert.doesNotMatch(JSON.stringify(projected), /fake-key-never-forwarded/);

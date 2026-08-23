@@ -6,6 +6,7 @@ import {
 import { buildSiteReadyCasePacketFromAnalysis } from "./builder";
 import { runLineageInternal } from "./internal";
 import type { CaptureDependencies } from "./source-capture";
+import { projectSiteReadyCasePacketV2 } from "./source-supported-public";
 
 export interface LineageHandlerDependencies extends AnalysisHandlerDependencies {
   capture?: CaptureDependencies;
@@ -22,7 +23,7 @@ export async function handleLineageRequest(
         execution.internal_envelope,
         dependencies.capture,
       );
-      return Response.json(internal.site_ready_case_packet);
+      return Response.json(projectSiteReadyCasePacketV2(internal));
     } catch {
       return buildLineageResponseFromAnalysis(execution.response);
     }

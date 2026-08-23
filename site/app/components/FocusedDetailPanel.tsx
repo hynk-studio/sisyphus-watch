@@ -23,6 +23,7 @@ import type {
   SiteReadyCaseDetail,
   SiteReadyCasePacket,
 } from "../lib/lineage/contracts";
+import { publicRelationPresentation } from "../lib/relation-presentation";
 import {
   formatReviewTimestamp,
   type TemporalPrecision,
@@ -349,7 +350,7 @@ function DetailBody({
     );
   }
   if (kind === "relation") {
-    return <RelationDetail selection={selection} item={item} />;
+    return <RelationDetail packet={packet} selection={selection} item={item} />;
   }
   if (kind === "claim_family") {
     return (
@@ -943,9 +944,14 @@ function SourceDetail({
       />
       <InspectorList
         title="Connected changes"
-        items={changes.map((relation) =>
-          `${relationDisplayLabel(relation.relation_type)} · needs review`,
-        )}
+        items={changes.map((relation) => {
+          const presentation = packet
+            ? publicRelationPresentation(packet, relation)
+            : null;
+          return presentation?.sourceBacked
+            ? `${relationDisplayLabel(presentation.presentationRelationType)} · Source-backed · needs review`
+            : `${relationDisplayLabel(relation.relation_type)} · needs review`;
+        })}
         empty="No cross-source claim relation is connected to this source."
       />
       <InspectorList
@@ -1019,14 +1025,112 @@ function SourceDetail({
 }
 
 function RelationDetail({
+  packet,
   selection,
   item,
 }: {
+  packet?: SiteReadyCasePacket;
   selection: FocusSelection;
   item: Record<string, unknown>;
 }) {
   const left = asRecord(item.left_support_reference);
   const right = asRecord(item.right_support_reference);
+  const relation = packet?.relation_candidates.find(
+    (candidate) => candidate.relation_id === selection.id,
+  );
+  const presentation = packet && relation
+    ? publicRelationPresentation(packet, relation)
+    : null;
+  const signal = presentation?.signal ?? null;
+  if (packet && relation && presentation?.sourceBacked && signal) {
+    const statementSource = packet.source_snapshot_summaries.find(
+      (source) => source.source_id === signal.statement_source_id
+        && source.snapshot_id === signal.statement_snapshot_id,
+    );
+    const targetSource = packet.source_snapshot_summaries.find(
+      (source) => source.source_id === signal.target_source_id
+        && source.snapshot_id === signal.target_snapshot_id,
+    );
+    const statementSourceUrl = publicHttpSourceUrl(statementSource?.url);
+    const targetSourceUrl = publicHttpSourceUrl(targetSource?.url);
+    return (
+      <div className="detail-body">
+        <DetailField
+          label="Connection"
+          value={relationDisplayLabel(presentation.presentationRelationType)}
+        />
+        <DetailField label="Evidence state" value="Source-backed · Needs review" />
+        <section className="source-backed-relation-evidence" aria-labelledby="source-backed-relation-title">
+          <h4 id="source-backed-relation-title">Why this is shown</h4>
+          <blockquote>
+            <p>{signal.statement_excerpt}</p>
+          </blockquote>
+          <p>
+            <strong>{statementSource?.title ?? "The statement source"}</strong>
+            {" directly states this relationship."}
+          </p>
+          <p>
+            Referenced document: <strong>{targetSource?.title ?? "Referenced source"}</strong>
+          </p>
+          {statementSourceUrl || targetSourceUrl ? (
+            <div className="source-backed-relation-links">
+              {statementSourceUrl ? (
+                <a
+                  className="citation-link"
+                  href={statementSourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open statement source <span aria-hidden="true">↗</span>
+                </a>
+              ) : null}
+              {targetSourceUrl ? (
+                <a
+                  className="citation-link"
+                  href={targetSourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open referenced document <span aria-hidden="true">↗</span>
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+        <details className="detail-disclosure">
+          <summary>Other relation review context</summary>
+          <div className="detail-disclosure-body">
+            <DetailField label="Reason" value={item.reason} />
+            <div className="support-box">
+              <strong>First relation support</strong>
+              <p>{stringValue(left.bounded_excerpt)}</p>
+              <small>{stringValue(left.proves)}</small>
+            </div>
+            <div className="support-box">
+              <strong>Second relation support</strong>
+              <p>{stringValue(right.bounded_excerpt)}</p>
+              <small>{stringValue(right.proves)}</small>
+            </div>
+            <p className="detail-note">
+              These additional references are inspection aids. This relationship still
+              needs review and is not an accepted record.
+            </p>
+          </div>
+        </details>
+        <details className="technical-details">
+          <summary>Exact relation and support references</summary>
+          <div className="detail-disclosure-body">
+            <DetailField label="Relation ID" value={selection.id} />
+            <DetailField label="First occurrence ID" value={presentation.fromOccurrenceId} />
+            <DetailField label="Second occurrence ID" value={presentation.toOccurrenceId} />
+            <DetailField label="First support reference" value={left.evidence_reference} />
+            <DetailField label="Second support reference" value={right.evidence_reference} />
+            <DetailField label="Review status" value="Needs review" />
+          </div>
+        </details>
+      </div>
+    );
+  }
   return (
     <div className="detail-body">
       <DetailField
@@ -1186,6 +1290,18 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asNullableString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function publicHttpSourceUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:"
+      ? parsed.href
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function asTemporalPrecision(value: unknown): TemporalPrecision {
