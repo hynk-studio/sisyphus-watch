@@ -126,11 +126,13 @@ export async function handlePublicLiveLineageRequest(
       } catch {
         response = await buildLineageResponseFromAnalysis(
           analysisExecution.response,
+          "site_ready_case_packet.v2",
         );
       }
     } else {
       response = await buildLineageResponseFromAnalysis(
         analysisExecution.response,
+        "site_ready_case_packet.v2",
       );
     }
     outcome = await settlementForResponse(response);
