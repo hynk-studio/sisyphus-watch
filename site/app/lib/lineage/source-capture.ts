@@ -163,14 +163,14 @@ interface CaptureAttempt {
   result: CapturedSourceDocument | CaptureFailure;
 }
 
-type SupportAnchorBoundary = "lexical" | "identifier" | "phrase";
+export type SupportAnchorBoundary = "lexical" | "identifier" | "phrase";
 
-interface SupportAnchor {
+export interface SupportAnchor {
   value: string;
   boundary: SupportAnchorBoundary;
 }
 
-interface AnchorOccurrence {
+export interface AnchorOccurrence {
   start: number;
   end: number;
 }
@@ -752,7 +752,9 @@ function decodeBasicHTMLEntities(value: string): string {
   );
 }
 
-function requiredTargetAnchors(cue: RelationCueDiagnostic): SupportAnchor[] {
+export function requiredTargetAnchors(
+  cue: RelationCueDiagnostic,
+): SupportAnchor[] {
   if (cue.target_kind === "none" || !cue.target_identifier) return [];
   const identifier = normalizeMatchText(cue.target_identifier);
   const reference = normalizeMatchText(cue.target_reference_text ?? "");
@@ -850,6 +852,13 @@ function smallestAnchorWindow(
     ) best = { start: windowStart, end: windowEnd };
   }
   return best;
+}
+
+export function findCapturedTextAnchorOccurrences(
+  text: string,
+  anchor: SupportAnchor,
+): AnchorOccurrence[] {
+  return boundaryValidOccurrences(text.toLowerCase(), anchor);
 }
 
 function boundaryValidOccurrences(

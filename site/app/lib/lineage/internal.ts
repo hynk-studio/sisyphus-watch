@@ -7,9 +7,16 @@ import {
   type CaptureDependencies,
   type CaptureExecutionResult,
 } from "./source-capture";
+import {
+  assessSourceSupportedRelations,
+  type SourceSupportedRelationAssessment,
+  type SourceSupportedRelationWorkSummary,
+} from "./source-supported-relations";
 
 export interface InternalLineageRunEnvelope extends CaptureExecutionResult {
   site_ready_case_packet: SiteReadyCasePacket;
+  source_supported_relation_assessments: SourceSupportedRelationAssessment[];
+  source_supported_relation_work_summary: SourceSupportedRelationWorkSummary;
 }
 
 export async function runLineageInternal(
@@ -29,8 +36,17 @@ export async function runLineageInternal(
     analysisEnvelope.workflow_deadline_at_ms,
     dependencies,
   );
+  const sourceSupportedRelations = assessSourceSupportedRelations({
+    analysisRun: analysisEnvelope.analysis_run,
+    lineagePacket: siteReadyCasePacket,
+    relationCueDiagnostics: analysisEnvelope.relation_cue_diagnostics,
+    capturePlan: plan,
+    captureResult: capture,
+  });
   return {
     site_ready_case_packet: siteReadyCasePacket,
     ...capture,
+    source_supported_relation_assessments: sourceSupportedRelations.assessments,
+    source_supported_relation_work_summary: sourceSupportedRelations.summary,
   };
 }

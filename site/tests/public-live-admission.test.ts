@@ -28,6 +28,10 @@ import {
 } from "../app/lib/lineage/builder";
 import type { SiteReadyCasePacket } from "../app/lib/lineage/contracts";
 import {
+  runLineageInternal,
+  type InternalLineageRunEnvelope,
+} from "../app/lib/lineage/internal";
+import {
   calculatePublicWorkUnits,
   PUBLIC_ADMISSION_LIMITS,
   PUBLIC_ADMISSION_SCHEMA_STATEMENTS,
@@ -45,7 +49,7 @@ import {
   compareReviewTimestamps,
   groupReviewTimestampItems,
 } from "../app/lib/temporal";
-import { version18RelationAdmissionRun } from "./fixtures/version18-relation-admission";
+import { sourceSupportedSupersedesAnalysisRun } from "./fixtures/source-supported-supersedes";
 
 const NOW_MS = Date.UTC(2026, 7, 17, 12, 0, 0);
 const NOW_ISO = "2026-08-17T12:00:00.000Z";
@@ -172,14 +176,13 @@ function publicLiveInternalFixture(): {
   expectedPacket: SiteReadyCasePacket;
   targetTitle: string;
 } {
-  const analysisRun = version18RelationAdmissionRun();
+  const analysisRun = sourceSupportedSupersedesAnalysisRun();
   const expectedPacket = buildSiteReadyCasePacketFromAnalysis(analysisRun);
-  const relation = expectedPacket.relation_candidates[0];
   const owner = expectedPacket.claim_occurrences.find(
-    (occurrence) => occurrence.occurrence_id === relation.left_occurrence_id,
+    (occurrence) => occurrence.claim_id === "candidate_owner",
   )!;
   const target = expectedPacket.claim_occurrences.find(
-    (occurrence) => occurrence.occurrence_id === relation.right_occurrence_id,
+    (occurrence) => occurrence.claim_id === "candidate_target",
   )!;
   const targetTitle = analysisRun.source_snapshot_summaries.find(
     (source) => source.source_id === target.source_id,
@@ -187,11 +190,11 @@ function publicLiveInternalFixture(): {
   const diagnostic: RelationCueDiagnostic = {
     provenance: "model_extracted_from_model_summary",
     cue_kind: "supersession_candidate",
-    operative_actor: "NASA",
+    operative_actor: "Agency",
     operative_verb: "supersedes",
     target_reference_text: targetTitle,
-    target_kind: "document_title",
-    target_identifier: targetTitle,
+    target_kind: "guidance_identifier",
+    target_identifier: "G-1",
     negated: false,
     modal_or_intent: false,
     question_or_uncertain: false,
@@ -205,7 +208,7 @@ function publicLiveInternalFixture(): {
     effective_time: null,
     effective_time_precision: null,
     cue_supporting_summary_span:
-      `NASA supersedes ${targetTitle}.`,
+      `Agency states that this guidance supersedes ${targetTitle}.`,
   };
   return {
     envelope: {
@@ -465,9 +468,10 @@ test("public live internal-envelope success captures bounded pages without chang
   let internalRuns = 0;
   let legacyRunCalls = 0;
   let captureCalls = 0;
+  const observedInternals: InternalLineageRunEnvelope[] = [];
   const response = await handlePublicLiveLineageRequest(
     publicRequest({
-      question: "How is NASA's public mission plan changing across official updates?",
+      question: "How did the agency's current guidance change the earlier guidance?",
       sourceLimit: 3,
       discoveryProfile: "standard",
     }),
@@ -483,16 +487,27 @@ test("public live internal-envelope success captures bounded pages without chang
         internalRuns += 1;
         return fixture.envelope;
       },
+      runLineageInternal: async (analysisEnvelope, captureDependencies) => {
+        const internal = await runLineageInternal(
+          analysisEnvelope,
+          captureDependencies,
+        );
+        observedInternals.push(internal);
+        return internal;
+      },
       capture: {
         nowMs: () => NOW_MS,
         nowISO: () => NOW_ISO,
-        fetcher: (async (_input, init) => {
+        fetcher: (async (input, init) => {
           captureCalls += 1;
           const headers = new Headers(init?.headers);
           assert.equal(init?.credentials, "omit");
           assert.equal(headers.has("authorization"), false);
           assert.equal(headers.has("cookie"), false);
-          return new Response(`NASA supersedes ${fixture.targetTitle}.`, {
+          return new Response(
+            String(input).includes("source-owner")
+              ? "This guidance supersedes Guidance G-1."
+              : "Archived captured text for Guidance G-1.", {
             status: 200,
             headers: { "content-type": "text/plain; charset=utf-8" },
           });
@@ -503,9 +518,20 @@ test("public live internal-envelope success captures bounded pages without chang
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
   assert.deepEqual(body, fixture.expectedPacket);
+  assert.equal(JSON.stringify(body), JSON.stringify(fixture.expectedPacket));
   assert.equal(internalRuns, 1);
   assert.equal(legacyRunCalls, 0);
-  assert.equal(captureCalls, 1);
+  assert.equal(captureCalls, 2);
+  assert.equal(observedInternals.length, 1);
+  assert.equal(
+    observedInternals[0].source_supported_relation_assessments.length,
+    1,
+  );
+  assert.equal(
+    observedInternals[0].source_supported_relation_work_summary
+      .additional_network_requests,
+    0,
+  );
   assert.deepEqual(admission.reserveInputs, [{ workUnits: 6, nowMs: NOW_MS }]);
   assert.deepEqual(admission.settlements, [{
     reservationId: "aggregate-reservation-1",
@@ -523,10 +549,12 @@ test("public live internal-envelope success captures bounded pages without chang
     0,
   );
   assert.equal(body.candidate_canonical_boundary.canonical_mutation, "none");
+  const serialized = JSON.stringify(body);
   assert.doesNotMatch(
-    JSON.stringify(body),
-    /captured_live_source_text_span|captured_source_text_containment_only|captured_body_sha256|normalized_text_sha256|normalized_text/,
+    serialized,
+    /source_supported_relation|assessment_id|owner_capture_id|target_capture_id|captured_live_source_text_span|captured_source_text_containment_only|captured_body_sha256|normalized_text_sha256|normalized_text/,
   );
+  assert.doesNotMatch(serialized, /supersedes Guidance G-1/u);
 });
 
 test("public live internal-envelope capture failure preserves the live investigation and settlement", async () => {
@@ -534,9 +562,10 @@ test("public live internal-envelope capture failure preserves the live investiga
   const fixture = publicLiveInternalFixture();
   let internalRuns = 0;
   let captureCalls = 0;
+  const observedInternals: InternalLineageRunEnvelope[] = [];
   const response = await handlePublicLiveLineageRequest(
     publicRequest({
-      question: "How is NASA's public mission plan changing across official updates?",
+      question: "How did the agency's current guidance change the earlier guidance?",
       sourceLimit: 3,
       discoveryProfile: "standard",
     }),
@@ -547,6 +576,14 @@ test("public live internal-envelope capture failure preserves the live investiga
       runLiveInternal: async () => {
         internalRuns += 1;
         return fixture.envelope;
+      },
+      runLineageInternal: async (analysisEnvelope, captureDependencies) => {
+        const internal = await runLineageInternal(
+          analysisEnvelope,
+          captureDependencies,
+        );
+        observedInternals.push(internal);
+        return internal;
       },
       capture: {
         nowMs: () => NOW_MS,
@@ -567,7 +604,12 @@ test("public live internal-envelope capture failure preserves the live investiga
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
-  assert.equal(captureCalls, 1);
+  assert.equal(captureCalls, 2);
+  assert.equal(observedInternals.length, 1);
+  assert.equal(
+    observedInternals[0].source_supported_relation_assessments.length,
+    0,
+  );
   assert.deepEqual(admission.reserveInputs, [{ workUnits: 6, nowMs: NOW_MS }]);
   assert.deepEqual(admission.settlements, [{
     reservationId: "aggregate-reservation-1",

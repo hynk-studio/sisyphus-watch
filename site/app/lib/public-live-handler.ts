@@ -33,6 +33,7 @@ export interface PublicLiveHandlerDependencies {
   nowISO?: () => string;
   runLive?: AnalysisHandlerDependencies["runLive"];
   runLiveInternal?: AnalysisHandlerDependencies["runLiveInternal"];
+  runLineageInternal?: typeof runLineageInternal;
   capture?: CaptureDependencies;
   diagnostics?: PublicLiveDiagnosticSink;
 }
@@ -114,7 +115,9 @@ export async function handlePublicLiveLineageRequest(
     });
     if (analysisExecution.internal_envelope) {
       try {
-        const internal = await runLineageInternal(
+        const internal = await (
+          dependencies.runLineageInternal ?? runLineageInternal
+        )(
           analysisExecution.internal_envelope,
           dependencies.capture,
         );
