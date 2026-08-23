@@ -30,6 +30,7 @@ import {
   buildMapDensityFixture,
   buildSameSourceRelationFixture,
 } from "./fixtures/map-density";
+import { buildSourceSupportedSitePacketV2Fixture } from "./fixtures/source-supported-site-packet";
 
 const TIME_AXES: readonly TimeAxis[] = [
   "event_time",
@@ -495,6 +496,30 @@ test("relation ledger endpoints remain exact occurrence IDs with one semantic en
     assert.deepEqual(entry.leftSupportReference, relation.left_support_reference);
     assert.deepEqual(entry.rightSupportReference, relation.right_support_reference);
   }
+});
+
+test("source-backed supersession uses signal direction and existing transformative Map grammar", () => {
+  const packet = buildSourceSupportedSitePacketV2Fixture();
+  const relation = packet.relation_candidates[0];
+  const signal = packet.source_supported_relation_signals[0];
+  assert.equal(relation.relation_type, "unresolved");
+  assert.equal(relation.left_occurrence_id, signal.to_occurrence_id);
+  assert.equal(relation.right_occurrence_id, signal.from_occurrence_id);
+
+  const map = deriveInvestigationMap(packet, "publication_time");
+  const entry = relationEntry(map, relation.relation_id);
+  assert.equal(entry.candidateRelationType, "unresolved");
+  assert.equal(entry.relationType, "supersedes");
+  assert.equal(entry.sourceBacked, true);
+  assert.equal(entry.leftOccurrenceId, signal.from_occurrence_id);
+  assert.equal(entry.rightOccurrenceId, signal.to_occurrence_id);
+  assert.equal(entry.fromNodeId, signal.from_occurrence_id);
+  assert.equal(entry.toNodeId, signal.to_occurrence_id);
+  assert.equal(entry.shortLabel, "Replaces");
+  assert.equal(entry.visualFamily, "transformative");
+  assert.equal(entry.lineStyle, "solid");
+  assert.equal(entry.directionAsserted, true);
+  assert.equal(spatialRelationEdges(map, "matrix")[0].relationId, relation.relation_id);
 });
 
 test("same-source cross-row occurrence relations remain port and ledger representable", () => {

@@ -11,6 +11,7 @@ import type { NormalizedAnalysisRequest } from "./analysis/request";
 import { buildLineageResponseFromAnalysis } from "./lineage/handler";
 import { runLineageInternal } from "./lineage/internal";
 import type { CaptureDependencies } from "./lineage/source-capture";
+import { projectSiteReadyCasePacketV2 } from "./lineage/source-supported-public";
 import {
   liveAnalysisDisabledResponse,
   operatorSponsoredLiveDisabledResponse,
@@ -121,15 +122,17 @@ export async function handlePublicLiveLineageRequest(
           analysisExecution.internal_envelope,
           dependencies.capture,
         );
-        response = Response.json(internal.site_ready_case_packet);
+        response = Response.json(projectSiteReadyCasePacketV2(internal));
       } catch {
         response = await buildLineageResponseFromAnalysis(
           analysisExecution.response,
+          "site_ready_case_packet.v2",
         );
       }
     } else {
       response = await buildLineageResponseFromAnalysis(
         analysisExecution.response,
+        "site_ready_case_packet.v2",
       );
     }
     outcome = await settlementForResponse(response);

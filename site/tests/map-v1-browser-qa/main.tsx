@@ -39,6 +39,7 @@ import {
   buildSavedWatchPacketA,
   buildSavedWatchPacketB,
 } from "../fixtures/saved-watch";
+import { buildSourceSupportedSitePacketV2Fixture } from "../fixtures/source-supported-site-packet";
 
 const REQUESTED_SURFACE = new URLSearchParams(window.location.search).get("surface");
 const STORAGE_UNAVAILABLE_SURFACE = "watch-storage-unavailable";
@@ -62,6 +63,7 @@ if (REQUESTED_SURFACE && EXECUTION_BOUNDARY_SURFACES.has(REQUESTED_SURFACE)) {
   REQUESTED_SURFACE === "experience"
   || REQUESTED_SURFACE === "temporal"
   || REQUESTED_SURFACE === "live-relations"
+  || REQUESTED_SURFACE === "source-backed"
   || REQUESTED_SURFACE === "loading"
 ) {
   installNoRequestFetchGuard();
@@ -74,6 +76,7 @@ const FIXTURE_BUILDERS = {
   density8: () => buildMapDensityFixture(8),
   unplaced: buildUnplacedOccurrenceFixture,
   temporal: buildTemporalAcceptanceFixture,
+  sourceBacked: buildSourceSupportedSitePacketV2Fixture,
 } as const;
 
 type FixtureName = keyof typeof FIXTURE_BUILDERS;
@@ -85,6 +88,7 @@ const FIXTURE_LABELS: Record<FixtureName, string> = {
   density8: "8-source density fixture",
   unplaced: "Unplaced-occurrence fixture",
   temporal: "Temporal acceptance regression",
+  sourceBacked: "Source-backed supersession v2",
 };
 
 function MapQaApp() {
@@ -163,11 +167,14 @@ function MapQaApp() {
     surface === "experience"
     || surface === "temporal"
     || surface === "live-relations"
+    || surface === "source-backed"
   ) {
     return (
       <CaseExplorer
         preparedCase={surface === "temporal"
           ? buildTemporalAcceptanceFixture()
+          : surface === "source-backed"
+            ? buildSourceSupportedSitePacketV2Fixture()
           : surface === "live-relations"
             ? buildLiveRelationPresentationFixture()
             : buildPreparedSiteReadyCasePacket()}

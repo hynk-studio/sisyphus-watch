@@ -31,6 +31,7 @@ composer, use:
 ```text
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=temporal
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=live-relations
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=source-backed
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=loading
 ```
 
@@ -70,7 +71,9 @@ local packet-A response.
 The temporal surface starts a local live-style zero-relation packet when the
 prepared-example control is activated. The live-relations surface uses the same
 production result shell with a deterministic nonzero-relation packet in live
-presentation mode. The loading surface passes `isLoading=true` directly to the
+presentation mode. The source-backed surface uses a deterministic Site packet v2
+with one unresolved candidate relation and one directed source-supported
+supersession signal. The loading surface passes `isLoading=true` directly to the
 production composer. A test-page fetch guard records attempted calls and blocks
 them before traffic; these surfaces do not submit `/api/lineage`.
 

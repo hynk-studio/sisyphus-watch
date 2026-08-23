@@ -957,9 +957,83 @@ export const OPENAPI_DOCUMENT = {
         },
       },
       InternalSitePacket: {
-        type: "object",
+        oneOf: [
+          { $ref: "#/components/schemas/SiteReadyCasePacketV1" },
+          { $ref: "#/components/schemas/SiteReadyCasePacketV2" },
+        ],
+        discriminator: {
+          propertyName: "contract_version",
+          mapping: {
+            "site_ready_case_packet.v1": "#/components/schemas/SiteReadyCasePacketV1",
+            "site_ready_case_packet.v2": "#/components/schemas/SiteReadyCasePacketV2",
+          },
+        },
         description:
-          "The existing browser-facing SiteReadyCasePacket. It is intentionally distinct from the public evidence contract.",
+          "The browser-facing SiteReadyCasePacket v1 or v2. It is intentionally distinct from the frozen public evidence contract.",
+      },
+      SiteReadyCasePacketV1: {
+        type: "object",
+        required: ["contract_version"],
+        properties: {
+          contract_version: {
+            type: "string",
+            const: "site_ready_case_packet.v1",
+          },
+        },
+        additionalProperties: true,
+      },
+      SiteReadyCasePacketV2: {
+        type: "object",
+        required: ["contract_version", "source_supported_relation_signals"],
+        properties: {
+          contract_version: {
+            type: "string",
+            const: "site_ready_case_packet.v2",
+          },
+          source_supported_relation_signals: {
+            type: "array",
+            maxItems: 1,
+            items: {
+              $ref: "#/components/schemas/SourceSupportedRelationSignal",
+            },
+          },
+        },
+        additionalProperties: true,
+      },
+      SourceSupportedRelationSignal: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "relation_candidate_id",
+          "supported_relation_type",
+          "from_occurrence_id",
+          "to_occurrence_id",
+          "support_status",
+          "review_status",
+          "statement_source_id",
+          "statement_snapshot_id",
+          "statement_excerpt",
+          "target_source_id",
+          "target_snapshot_id",
+        ],
+        properties: {
+          relation_candidate_id: { type: "string" },
+          supported_relation_type: { type: "string", const: "supersedes" },
+          from_occurrence_id: { type: "string" },
+          to_occurrence_id: { type: "string" },
+          support_status: { type: "string", const: "direct_source_support" },
+          review_status: { type: "string", const: "pending_review" },
+          statement_source_id: { type: "string" },
+          statement_snapshot_id: { type: "string" },
+          statement_excerpt: {
+            type: "string",
+            minLength: 1,
+            maxLength: 560,
+            pattern: "\\S",
+          },
+          target_source_id: { type: "string" },
+          target_snapshot_id: { type: "string" },
+        },
       },
       Error: {
         type: "object",

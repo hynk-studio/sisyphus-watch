@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 import { POST as postPublicAnalysis } from "../app/api/analysis/route";
+import { projectLineageResponse } from "../app/api/lineage/route";
 import type {
   AnalysisErrorPacket,
   AnalysisRunPacket,
@@ -45,6 +46,10 @@ import {
   decidePublicRunResponse,
   PROVIDER_CALL_PLANNING_BOUNDS,
 } from "../app/lib/public-live";
+import {
+  PUBLIC_EVIDENCE_CONTRACT_VERSION,
+  PUBLIC_EVIDENCE_MEDIA_TYPE,
+} from "../app/lib/public-evidence";
 import {
   compareReviewTimestamps,
   groupReviewTimestampItems,
@@ -421,7 +426,7 @@ test("capacity denial is a safe 429 before provider work and stores no visitor d
   assert.doesNotMatch(JSON.stringify(admission.reserveInputs), /question|result|url|ip|agent|cookie/i);
 });
 
-test("successful provider work settles one reservation exactly once", async () => {
+test("successful provider work without an internal envelope returns Site v2 and settles once", async () => {
   const admission = new FakeAdmissionStore();
   const responses = new OneSourceResponsesPort();
   const response = await handlePublicLiveLineageRequest(
@@ -447,12 +452,15 @@ test("successful provider work settles one reservation exactly once", async () =
       }),
     },
   );
-  const body = await response.json() as {
-    mode: string;
-    candidate_canonical_boundary: { canonical_mutation: string };
-  };
+  const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
+  assert.equal(body.contract_version, "site_ready_case_packet.v2");
+  if (body.contract_version !== "site_ready_case_packet.v2") {
+    assert.fail("Expected successful live Site v2 response");
+  }
+  assert.deepEqual(body.source_supported_relation_signals, []);
   assert.equal(body.mode, "live");
+  assert.equal(body.status, "live");
   assert.equal(body.candidate_canonical_boundary.canonical_mutation, "none");
   assert.equal(responses.calls, 2);
   assert.deepEqual(admission.settlements, [{
@@ -517,8 +525,7 @@ test("public live internal-envelope success captures bounded pages without chang
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assert.deepEqual(body, fixture.expectedPacket);
-  assert.equal(JSON.stringify(body), JSON.stringify(fixture.expectedPacket));
+  assertSiteV2Projection(body, fixture.expectedPacket, 1);
   assert.equal(internalRuns, 1);
   assert.equal(legacyRunCalls, 0);
   assert.equal(captureCalls, 2);
@@ -547,7 +554,7 @@ test("public live internal-envelope success captures bounded pages without chang
     outcome: "settled",
     nowMs: NOW_MS,
   }]);
-  assert.equal(body.contract_version, "site_ready_case_packet.v1");
+  assert.equal(body.contract_version, "site_ready_case_packet.v2");
   assert.equal(body.bounded_work_summary.model_classified_count, 0);
   assert.equal(
     body.relation_candidates.filter((item) => item.relation_type === "supersedes").length,
@@ -559,11 +566,12 @@ test("public live internal-envelope success captures bounded pages without chang
   );
   assert.equal(body.candidate_canonical_boundary.canonical_mutation, "none");
   const serialized = JSON.stringify(body);
+  assert.match(serialized, /source_supported_relation_signals/);
   assert.doesNotMatch(
     serialized,
-    /source_supported_relation|source_supported_target_identity_proofs|target_identity_proof_id|source_supported_target_identity_proof_|document_identity|identity_anchor|internal_target_identity_supported|assessment_id|owner_capture_id|target_capture_id|captured_live_source_text_span|captured_source_text_containment_only|captured_target_document_identity_alignment_only|captured_document_self_identity_matches_resolved_target_metadata|captured_body_sha256|normalized_text_sha256|normalized_text/,
+    /source_supported_relation_assessments|source_supported_target_identity_proofs|target_identity_proof_id|source_supported_target_identity_proof_|document_identity|identity_anchor|internal_target_identity_supported|assessment_id|owner_capture_id|target_capture_id|captured_live_source_text_span|captured_source_text_containment_only|captured_target_document_identity_alignment_only|captured_document_self_identity_matches_resolved_target_metadata|captured_body_sha256|normalized_text_sha256|normalized_text/,
   );
-  assert.doesNotMatch(serialized, /supersedes Guidance G-1/u);
+  assert.match(serialized, /supersedes Guidance G-1/u);
 });
 
 test("public live target-identity rejection returns the normal packet and settles exactly once", async () => {
@@ -619,8 +627,7 @@ test("public live target-identity rejection returns the normal packet and settle
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assert.deepEqual(body, fixture.expectedPacket);
-  assert.equal(JSON.stringify(body), JSON.stringify(fixture.expectedPacket));
+  assertSiteV2Projection(body, fixture.expectedPacket, 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
@@ -717,8 +724,7 @@ test("public live XHTML owner is capture-only while target identity remains inde
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assert.deepEqual(body, fixture.expectedPacket);
-  assert.equal(JSON.stringify(body), JSON.stringify(fixture.expectedPacket));
+  assertSiteV2Projection(body, fixture.expectedPacket, 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
@@ -800,7 +806,7 @@ test("public live internal-envelope capture failure preserves the live investiga
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assert.deepEqual(body, fixture.expectedPacket);
+  assertSiteV2Projection(body, fixture.expectedPacket, 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
@@ -821,6 +827,82 @@ test("public live internal-envelope capture failure preserves the live investiga
   assert.doesNotMatch(serialized, /captured_|normalized_text/);
   assert.equal(body.bounded_work_summary.model_classified_count, 0);
   assert.equal(body.candidate_canonical_boundary.canonical_mutation, "none");
+});
+
+test("public live internal-lineage failure recovers as Site v2 and public evidence v1", async () => {
+  const admission = new FakeAdmissionStore();
+  const fixture = publicLiveInternalFixture();
+  let internalRuns = 0;
+  let lineageRuns = 0;
+  let legacyRunCalls = 0;
+  let captureCalls = 0;
+  const response = await handlePublicLiveLineageRequest(
+    publicRequest({
+      question: "How did the agency's current guidance change the earlier guidance?",
+      sourceLimit: 3,
+      discoveryProfile: "standard",
+    }),
+    {
+      getRuntime: async () => runtime(admission),
+      nowMs: () => NOW_MS,
+      nowISO: () => NOW_ISO,
+      runLive: async () => {
+        legacyRunCalls += 1;
+        throw new Error("legacy provider path must not run");
+      },
+      runLiveInternal: async () => {
+        internalRuns += 1;
+        return fixture.envelope;
+      },
+      runLineageInternal: async () => {
+        lineageRuns += 1;
+        throw new Error("deterministic internal-lineage failure");
+      },
+      capture: {
+        fetcher: (async () => {
+          captureCalls += 1;
+          throw new Error("capture must not run after injected lineage failure");
+        }) as typeof fetch,
+      },
+    },
+  );
+  const publicResponse = await projectLineageResponse(response.clone(), true);
+  const body = await response.json() as SiteReadyCasePacket;
+  const publicPayload = await publicResponse.json() as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assertSiteV2Projection(body, fixture.expectedPacket, 0);
+  assert.equal(body.mode, "live");
+  assert.equal(body.status, "live");
+  assert.equal(body.relation_candidates[0].relation_type, "unresolved");
+  assert.equal(body.relation_candidates[0].review_status, "pending_review");
+  assert.equal(body.relation_candidates[0].status, "candidate");
+  assert.equal(body.relation_candidates[0].insufficient_evidence, true);
+  assert.equal(body.candidate_canonical_boundary.canonical_mutation, "none");
+  assert.equal(internalRuns, 1);
+  assert.equal(lineageRuns, 1);
+  assert.equal(legacyRunCalls, 0);
+  assert.equal(captureCalls, 0);
+  assert.deepEqual(admission.reserveInputs, [{ workUnits: 6, nowMs: NOW_MS }]);
+  assert.deepEqual(admission.settlements, [{
+    reservationId: "aggregate-reservation-1",
+    outcome: "settled",
+    nowMs: NOW_MS,
+  }]);
+
+  assert.equal(publicResponse.status, 200);
+  assert.equal(publicResponse.headers.get("content-type"), PUBLIC_EVIDENCE_MEDIA_TYPE);
+  assert.equal(publicPayload.contract_version, PUBLIC_EVIDENCE_CONTRACT_VERSION);
+  assert.equal(publicPayload.result_kind, "evidence");
+  const serializedPublic = JSON.stringify(publicPayload);
+  assert.doesNotMatch(
+    serializedPublic,
+    /source_supported_relation_signals|direct_source_support|statement_excerpt/,
+  );
+  assert.doesNotMatch(
+    serializedPublic,
+    /source_supported_relation_assessments|source_supported_target_identity_proofs|target_identity_proof_id|assessment_id|owner_capture_id|target_capture_id|captured_live_source_text_span|captured_body_sha256|normalized_text_sha256/,
+  );
 });
 
 test("provider failure, deadline, spend boundary, and unexpected exception all release admission", async () => {
@@ -1047,6 +1129,27 @@ test("mixed day and instant precision is grouped without fabricated intra-day or
     ],
   );
 });
+
+function assertSiteV2Projection(
+  body: SiteReadyCasePacket,
+  expectedV1: SiteReadyCasePacket,
+  expectedSignalCount: number,
+): void {
+  const {
+    contract_version: bodyContract,
+    source_supported_relation_signals: signals,
+    ...bodyFields
+  } = body as unknown as Record<string, unknown>;
+  const {
+    contract_version: expectedContract,
+    ...expectedFields
+  } = expectedV1 as unknown as Record<string, unknown>;
+  assert.equal(bodyContract, "site_ready_case_packet.v2");
+  assert.equal(expectedContract, "site_ready_case_packet.v1");
+  assert.equal(Array.isArray(signals) ? signals.length : -1, expectedSignalCount);
+  assert.deepEqual(bodyFields, expectedFields);
+  assert.equal(body.relation_candidates[0].relation_type, "unresolved");
+}
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

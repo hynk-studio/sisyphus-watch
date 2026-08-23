@@ -6,9 +6,14 @@ import {
 import { buildSiteReadyCasePacketFromAnalysis } from "./builder";
 import { runLineageInternal } from "./internal";
 import type { CaptureDependencies } from "./source-capture";
+import {
+  projectSiteReadyCasePacketV2,
+  projectSiteReadyCasePacketV2WithoutSignals,
+} from "./source-supported-public";
 
 export interface LineageHandlerDependencies extends AnalysisHandlerDependencies {
   capture?: CaptureDependencies;
+  runLineageInternal?: typeof runLineageInternal;
 }
 
 export async function handleLineageRequest(
@@ -18,20 +23,28 @@ export async function handleLineageRequest(
   const execution = await handleAnalysisRequestInternal(request, dependencies);
   if (execution.internal_envelope) {
     try {
-      const internal = await runLineageInternal(
+      const internal = await (dependencies.runLineageInternal ?? runLineageInternal)(
         execution.internal_envelope,
         dependencies.capture,
       );
-      return Response.json(internal.site_ready_case_packet);
+      return Response.json(projectSiteReadyCasePacketV2(internal));
     } catch {
-      return buildLineageResponseFromAnalysis(execution.response);
+      return buildLineageResponseFromAnalysis(
+        execution.response,
+        "site_ready_case_packet.v2",
+      );
     }
   }
-  return buildLineageResponseFromAnalysis(execution.response);
+  return buildLineageResponseFromAnalysis(
+    execution.response,
+    "site_ready_case_packet.v2",
+  );
 }
 
 export async function buildLineageResponseFromAnalysis(
   analysisResponse: Response,
+  successfulLiveContract: "site_ready_case_packet.v1" | "site_ready_case_packet.v2" =
+    "site_ready_case_packet.v1",
 ): Promise<Response> {
   const payload = (await analysisResponse.json()) as AnalysisRoutePayload;
   if (payload.status === "error") {
@@ -39,8 +52,15 @@ export async function buildLineageResponseFromAnalysis(
   }
 
   try {
+    const packet = buildSiteReadyCasePacketFromAnalysis(
+      payload satisfies AnalysisRunPacket,
+    );
     return Response.json(
-      buildSiteReadyCasePacketFromAnalysis(payload satisfies AnalysisRunPacket),
+      successfulLiveContract === "site_ready_case_packet.v2"
+        && packet.mode === "live"
+        && packet.status === "live"
+        ? projectSiteReadyCasePacketV2WithoutSignals(packet)
+        : packet,
     );
   } catch {
     return Response.json(

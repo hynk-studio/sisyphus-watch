@@ -291,8 +291,21 @@ export interface FocusedDetailLookupKey {
   key: string;
 }
 
-export interface SiteReadyCasePacket {
-  contract_version: "site_ready_case_packet.v1";
+export interface SourceSupportedRelationSignal {
+  relation_candidate_id: string;
+  supported_relation_type: "supersedes";
+  from_occurrence_id: string;
+  to_occurrence_id: string;
+  support_status: "direct_source_support";
+  review_status: "pending_review";
+  statement_source_id: string;
+  statement_snapshot_id: string;
+  statement_excerpt: string;
+  target_source_id: string;
+  target_snapshot_id: string;
+}
+
+interface SiteReadyCasePacketFields {
   case_id: string;
   run_id: string;
   mode: AnalysisMode;
@@ -329,6 +342,17 @@ export interface SiteReadyCasePacket {
   bounded_work_summary: BoundedWorkSummary;
   focused_detail_lookup_keys: FocusedDetailLookupKey[];
 }
+
+export interface SiteReadyCasePacketV1 extends SiteReadyCasePacketFields {
+  contract_version: "site_ready_case_packet.v1";
+}
+
+export interface SiteReadyCasePacketV2 extends SiteReadyCasePacketFields {
+  contract_version: "site_ready_case_packet.v2";
+  source_supported_relation_signals: SourceSupportedRelationSignal[];
+}
+
+export type SiteReadyCasePacket = SiteReadyCasePacketV1 | SiteReadyCasePacketV2;
 
 export interface SiteReadyCaseDetail<T = unknown> {
   case_id: string;
@@ -551,8 +575,7 @@ const sourceSchema = z.object({
   source_selection: sourceSelectionSchema,
 });
 
-export const siteReadyCasePacketSchema = z.object({
-  contract_version: z.literal("site_ready_case_packet.v1"),
+const siteReadyCasePacketBaseSchema = z.object({
   case_id: z.string().min(1),
   run_id: z.string().min(1),
   mode: z.enum(["deterministic", "live", "fallback"]),
@@ -892,7 +915,224 @@ export const siteReadyCasePacketSchema = z.object({
       message: "fallback packets require prepared fixture coverage",
     });
   }
-}) satisfies z.ZodType<SiteReadyCasePacket>;
+});
+
+const sourceSupportedRelationSignalSchema = z.object({
+  relation_candidate_id: z.string().min(1),
+  supported_relation_type: z.literal("supersedes"),
+  from_occurrence_id: z.string().min(1),
+  to_occurrence_id: z.string().min(1),
+  support_status: z.literal("direct_source_support"),
+  review_status: z.literal("pending_review"),
+  statement_source_id: z.string().min(1),
+  statement_snapshot_id: z.string().min(1),
+  statement_excerpt: z.string().min(1).max(560).refine(
+    (value) => value.trim().length > 0,
+    "statement excerpt must contain non-whitespace text",
+  ),
+  target_source_id: z.string().min(1),
+  target_snapshot_id: z.string().min(1),
+}).strict();
+
+export const siteReadyCasePacketV1Schema = z.intersection(
+  z.object({
+    contract_version: z.literal("site_ready_case_packet.v1"),
+  }),
+  siteReadyCasePacketBaseSchema,
+) satisfies z.ZodType<SiteReadyCasePacketV1>;
+
+export const siteReadyCasePacketV2Schema = z.intersection(
+  z.object({
+    contract_version: z.literal("site_ready_case_packet.v2"),
+    source_supported_relation_signals: z.array(sourceSupportedRelationSignalSchema).max(1),
+  }),
+  siteReadyCasePacketBaseSchema,
+).superRefine((packet, context) => {
+  packet.source_supported_relation_signals.forEach((signal, signalIndex) => {
+    const signalPath = ["source_supported_relation_signals", signalIndex];
+    const relations = packet.relation_candidates.filter(
+      (relation) => relation.relation_id === signal.relation_candidate_id,
+    );
+    const relation = relations[0];
+    if (
+      relations.length !== 1
+      || relation.relation_type !== "unresolved"
+      || relation.review_status !== "pending_review"
+      || relation.status !== "candidate"
+      || relation.insufficient_evidence !== true
+      || relation.generated_by !== "deterministic_rule"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...signalPath, "relation_candidate_id"],
+        message: "source-supported signal must resolve to one unchanged unresolved relation candidate",
+      });
+      return;
+    }
+
+    const fromOccurrences = packet.claim_occurrences.filter(
+      (occurrence) => occurrence.occurrence_id === signal.from_occurrence_id,
+    );
+    const toOccurrences = packet.claim_occurrences.filter(
+      (occurrence) => occurrence.occurrence_id === signal.to_occurrence_id,
+    );
+    const from = fromOccurrences[0];
+    const to = toOccurrences[0];
+    const relationEndpoints = new Set([
+      relation.left_occurrence_id,
+      relation.right_occurrence_id,
+    ]);
+    if (
+      signal.from_occurrence_id === signal.to_occurrence_id
+      || fromOccurrences.length !== 1
+      || toOccurrences.length !== 1
+      || relationEndpoints.size !== 2
+      || !relationEndpoints.has(signal.from_occurrence_id)
+      || !relationEndpoints.has(signal.to_occurrence_id)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: signalPath,
+        message: "source-supported signal endpoints must resolve uniquely to the relation pair",
+      });
+      return;
+    }
+
+    if (
+      from.source_id !== signal.statement_source_id
+      || from.snapshot_id !== signal.statement_snapshot_id
+      || to.source_id !== signal.target_source_id
+      || to.snapshot_id !== signal.target_snapshot_id
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: signalPath,
+        message: "source-supported signal provenance must match its directed occurrence endpoints",
+      });
+    }
+
+    const statementSources = packet.source_snapshot_summaries.filter(
+      (source) => source.source_id === signal.statement_source_id,
+    );
+    const targetSources = packet.source_snapshot_summaries.filter(
+      (source) => source.source_id === signal.target_source_id,
+    );
+    if (
+      statementSources.length !== 1
+      || statementSources[0].snapshot_id !== signal.statement_snapshot_id
+      || targetSources.length !== 1
+      || targetSources[0].snapshot_id !== signal.target_snapshot_id
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: signalPath,
+        message: "source-supported signal source summaries must resolve uniquely",
+      });
+    }
+  });
+}) satisfies z.ZodType<SiteReadyCasePacketV2>;
+
+const siteReadyCasePacketUnionSchema = z.union([
+  siteReadyCasePacketV1Schema,
+  siteReadyCasePacketV2Schema,
+]);
+
+const SOURCE_SUPPORTED_SIGNAL_FIELDS = new Set([
+  "relation_candidate_id",
+  "supported_relation_type",
+  "from_occurrence_id",
+  "to_occurrence_id",
+  "support_status",
+  "review_status",
+  "statement_source_id",
+  "statement_snapshot_id",
+  "statement_excerpt",
+  "target_source_id",
+  "target_snapshot_id",
+]);
+
+const EVIDENCE_CLAIM_REVIEW_LINK_FIELDS = new Set([
+  "link_id",
+  "evidence_record_kind",
+  "evidence_record_id",
+  "evidence_source_id",
+  "claim_occurrence_id",
+  "claim_id",
+  "claim_source_id",
+  "link_semantics",
+  "link_basis",
+  "shared_topic_tokens",
+  "reason",
+  "evidence_support_reference",
+  "claim_support_reference",
+  "review_status",
+  "status",
+  "generated_by",
+  "origin",
+]);
+
+const INTERNAL_PUBLIC_PACKET_FIELDS = [
+  "source_supported_target_identity_proofs",
+  "source_supported_relation_assessments",
+] as const;
+
+export const siteReadyCasePacketSchema = z.unknown().superRefine((input, context) => {
+  if (!isUnknownRecord(input)) return;
+  const contractVersion = input.contract_version;
+  if (
+    contractVersion === "site_ready_case_packet.v1"
+    && "source_supported_relation_signals" in input
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["source_supported_relation_signals"],
+      message: "Site packet v1 cannot contain the v2 source-supported overlay",
+    });
+  }
+  for (const field of INTERNAL_PUBLIC_PACKET_FIELDS) {
+    if (!(field in input)) continue;
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [field],
+      message: "internal source-supported sidecars cannot enter a public Site packet",
+    });
+  }
+  requireExactObjectArrayFields(
+    input.source_supported_relation_signals,
+    SOURCE_SUPPORTED_SIGNAL_FIELDS,
+    "source_supported_relation_signals",
+    context,
+  );
+  requireExactObjectArrayFields(
+    input.evidence_claim_review_links,
+    EVIDENCE_CLAIM_REVIEW_LINK_FIELDS,
+    "evidence_claim_review_links",
+    context,
+  );
+}).pipe(siteReadyCasePacketUnionSchema) satisfies z.ZodType<SiteReadyCasePacket>;
+
+function requireExactObjectArrayFields(
+  input: unknown,
+  allowedFields: ReadonlySet<string>,
+  path: string,
+  context: z.RefinementCtx,
+): void {
+  if (!Array.isArray(input)) return;
+  input.forEach((item, index) => {
+    if (!isUnknownRecord(item)) return;
+    const unknownField = Object.keys(item).find((field) => !allowedFields.has(field));
+    if (!unknownField) return;
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [path, index, unknownField],
+      message: `${path} entries cannot contain additional fields`,
+    });
+  });
+}
+
+function isUnknownRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null && !Array.isArray(input);
+}
 
 function requireMatchingPrecision(
   value: string | null,

@@ -1495,6 +1495,12 @@ function CompleteRelationLedger({
           Every candidate relation is listed once below. Open a relation for full
           claims, sources, times, evidence, and reasoning.
         </p>
+        {entries.some((entry) => entry.sourceBacked) ? (
+          <p className="source-backed-ledger-explanation">
+            Source-backed means captured source text directly states the displayed
+            relationship; it still needs review.
+          </p>
+        ) : null}
       </header>
       <ol>
         {entries.map((entry) => {
@@ -1526,7 +1532,8 @@ function CompleteRelationLedger({
                   </span>
                   <strong>{relationLedgerSentence(entry)}</strong>
                   <span className="relation-ledger-meta">
-                    <span>{entry.publicReviewLabel}</span>
+                    {entry.sourceBacked ? <span className="source-backed-state">Source-backed</span> : null}
+                    <span className="review-state">{entry.publicReviewLabel}</span>
                     <span>{relationDirectionState(entry, selectedTimeAxisLabel)}</span>
                     {entry.parallelCount > 1 ? (
                       <span>Parallel relation {entry.parallelIndex + 1} of {entry.parallelCount}</span>
@@ -1546,7 +1553,11 @@ function CompleteRelationLedger({
                     label="First occurrence"
                   />
                   <div className="relation-ledger-reason">
-                    <strong>{relationDisplayLabel(entry.relationType)} · {entry.publicReviewLabel}</strong>
+                    <strong>
+                      {relationDisplayLabel(entry.relationType)} · {entry.sourceBacked
+                        ? `Source-backed · ${entry.publicReviewLabel}`
+                        : entry.publicReviewLabel}
+                    </strong>
                     <p>{entry.reason}</p>
                     <small>
                       {entry.integrityState === "valid"
@@ -1688,7 +1699,7 @@ function relationSelection(entry: InvestigationRelationLedgerEntry): FocusSelect
   return {
     kind: "relation",
     id: entry.relationId,
-    label: `${entry.publicNumber} · ${relationDisplayLabel(entry.relationType)} · ${entry.publicReviewLabel}`,
+    label: `${entry.publicNumber} · ${relationDisplayLabel(entry.relationType)} · ${entry.sourceBacked ? "Source-backed · " : ""}${entry.publicReviewLabel}`,
   };
 }
 
@@ -1697,9 +1708,11 @@ function relationAccessibleName(
   selectedTimeAxisLabel: string,
 ): string {
   const connector = entry.directionAsserted
-    ? `; earlier-to-later connector ${relationSpatialLabel(entry)}`
+    ? entry.sourceBacked
+      ? `; source-backed connector ${relationSpatialLabel(entry)}`
+      : `; earlier-to-later connector ${relationSpatialLabel(entry)}`
     : "";
-  return `${entry.publicNumber}, candidate relation ${relationDisplayLabel(entry.relationType)}, ${entry.publicReviewLabel}${connector}; ${relationLedgerSentence(entry)}; first occurrence: ${relationEndpointAccessibleName(entry.leftEndpoint)}; second occurrence: ${relationEndpointAccessibleName(entry.rightEndpoint)}; ${relationDirectionState(entry, selectedTimeAxisLabel)}; opens the same relation detail as the Complete relation review ledger`;
+  return `${entry.publicNumber}, candidate relation ${relationDisplayLabel(entry.relationType)}, ${entry.sourceBacked ? "Source-backed, " : ""}${entry.publicReviewLabel}${connector}; ${relationLedgerSentence(entry)}; first occurrence: ${relationEndpointAccessibleName(entry.leftEndpoint)}; second occurrence: ${relationEndpointAccessibleName(entry.rightEndpoint)}; ${relationDirectionState(entry, selectedTimeAxisLabel)}; opens the same relation detail as the Complete relation review ledger`;
 }
 
 function relationEndpointAccessibleName(
@@ -1709,6 +1722,7 @@ function relationEndpointAccessibleName(
 }
 
 export function relationSpatialLabel(entry: InvestigationRelationLedgerEntry): string {
+  if (entry.sourceBacked && entry.relationType === "supersedes") return "Replaces";
   if (!entry.directionAsserted) return relationDisplayLabel(entry.relationType);
   if (entry.relationType === "supersedes") return "Superseded by";
   if (entry.relationType === "correction") return "Corrected by";
@@ -1723,6 +1737,9 @@ function relationDirectionState(
 ): string {
   if (!isDirectionalRelationType(entry.relationType)) {
     return "Non-directional relation";
+  }
+  if (entry.sourceBacked && entry.directionAsserted) {
+    return "Direction follows the source-backed statement";
   }
   return entry.directionAsserted
     ? `Earlier-to-later direction established on ${selectedTimeAxisLabel}`
@@ -1739,6 +1756,9 @@ function isDirectionalRelationType(relationType: string): boolean {
 function relationLedgerSentence(entry: InvestigationRelationLedgerEntry): string {
   const earlierActor = boundedAccessibleClaim(entry.leftEndpoint.actor, 42);
   const laterActor = boundedAccessibleClaim(entry.rightEndpoint.actor, 42);
+  if (entry.sourceBacked && entry.relationType === "supersedes") {
+    return `${earlierActor} claim replaces the referenced ${laterActor} claim`;
+  }
   if (!entry.directionAsserted) {
     if (entry.relationType === "supersedes") {
       return "Possible supersession between these claim occurrences";

@@ -96,13 +96,17 @@ POST /v1/lineage
 
 The non-billable capability document has contract
 `sisyphus_relay_capabilities.v1`, advertises response contract
-`site_ready_case_packet.v1`, source limits `[3, 5]`, and discovery profiles
+`site_ready_case_packet.v2` in the reference configuration, source limits `[3, 5]`, and discovery profiles
 `["standard", "coverage_expansion"]`. Lineage requests contain only
 `question`, `sourceLimit`, and `discoveryProfile`. The browser uses
 `credentials: "omit"`, rejects redirects, sends no Authorization header, and
 sends no API-key field. Successful responses must strictly validate as a live
-`site_ready_case_packet.v1`; prepared/fallback or malformed relay responses do
-not replace the displayed investigation or Saved Watch baseline.
+packet whose `site_ready_case_packet.v1` or `site_ready_case_packet.v2` contract
+exactly matches the Relay capability response. Existing v1 Relays remain
+compatible; the v2 overlay may carry at most one review-pending,
+source-supported supersession signal. Prepared/fallback, mismatched, or
+malformed Relay responses do not replace the displayed investigation or Saved
+Watch baseline.
 
 Production relay bases require HTTPS; HTTP is allowed only for loopback
 development. The relay must allow the public Site origin through its own CORS
@@ -335,8 +339,11 @@ browser-public variables or `.openai/hosting.json`.
 
 `POST /api/lineage` owns the shared public admission/execution boundary and
 adapts deterministic fallback and live candidate runs into the same schema-checked
-`site_ready_case_packet.v1` contract. `GET /api/lineage/:caseId` serves the
-deterministic prepared packet. Focused prepared-case detail is available at:
+Site packet family. Existing prepared/fallback responses remain
+`site_ready_case_packet.v1`; eligible live internal runs project to
+`site_ready_case_packet.v2`, with an empty overlay when exact source support is
+not established. `GET /api/lineage/:caseId` serves the deterministic prepared
+packet. Focused prepared-case detail is available at:
 
 ```text
 GET /api/lineage/:caseId?focus=source|claim_occurrence|claim_family|relation|timeline_row|lineage_row|unresolved_question&id=:stableId
@@ -452,7 +459,7 @@ reservation data only and no visitor question or result packet.
 
 ## Portable public evidence and agent contact
 
-`SiteReadyCasePacket` remains the internal browser/Site read model. BFG8H adds a
+`SiteReadyCasePacket` v1/v2 remains the internal browser/Site read model. BFG8H adds a
 separate allow-list-projected public contract:
 
 ```text

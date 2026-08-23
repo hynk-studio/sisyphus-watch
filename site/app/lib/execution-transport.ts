@@ -125,6 +125,15 @@ export async function executeInvestigationTransport(
       "Your relay did not return a live investigation packet.",
     );
   }
+  if (
+    isRelay
+    && packet.contract_version !== transport.connection.lineage_response_contract
+  ) {
+    throw new ExecutionTransportError(
+      "relay_response_invalid",
+      "Your relay returned a different investigation contract than it advertised.",
+    );
+  }
 
   return {
     payload: packet,

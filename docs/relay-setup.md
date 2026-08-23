@@ -6,7 +6,7 @@ Sisyphus Watch keeps live-provider credentials off the public site.
 Browser → your HTTPS Relay → OpenAI API
 ```
 
-The browser sends a bounded investigation request to the Relay. The Relay keeps `OPENAI_API_KEY` on its backend, runs the OpenAI-backed workflow, and returns a live `site_ready_case_packet.v1` response.
+The browser sends a bounded investigation request to the Relay. The Relay keeps `OPENAI_API_KEY` on its backend, runs the OpenAI-backed workflow, and returns the live Site-packet contract it advertised during capability negotiation. The current reference configuration uses `site_ready_case_packet.v2`; existing v1 Relays remain compatible.
 
 ## Quick setup
 
@@ -36,14 +36,14 @@ https://sisyphus-d1-capability-probe.hynk1240.chatgpt.site
 ```json
 {
   "contract_version": "sisyphus_relay_capabilities.v1",
-  "lineage_response_contract": "site_ready_case_packet.v1",
+  "lineage_response_contract": "site_ready_case_packet.v2",
   "supported_source_limits": [3, 5],
   "supported_discovery_profiles": ["standard", "coverage_expansion"],
   "relay_display_name": "My Sisyphus Relay"
 }
 ```
 
-`relay_display_name` is optional. The other fields are required by the current client.
+`relay_display_name` is optional. The other fields are required by the current client. `lineage_response_contract` may be `site_ready_case_packet.v1` or `site_ready_case_packet.v2`; the lineage response must exactly match the advertised value.
 
 Connecting performs this capability check only. It does not start an OpenAI request.
 
@@ -59,7 +59,7 @@ Connecting performs this capability check only. It does not start an OpenAI requ
 }
 ```
 
-The response must be a valid live `site_ready_case_packet.v1` with:
+For the reference capability response above, the response must be a valid live `site_ready_case_packet.v2` with:
 
 ```text
 mode = live
@@ -67,6 +67,12 @@ status = live
 ```
 
 Prepared, fallback, malformed, or incompatible responses are rejected by the browser and do not replace the displayed investigation or Saved Watch baseline.
+
+The v2 packet preserves all ordinary Site-packet fields and may add at most one
+`source_supported_relation_signals` entry. Absence of exact deterministic
+source support is represented by an empty overlay, not by promoting the raw
+relation candidate. A legacy Relay that advertises v1 must continue returning
+v1 exactly.
 
 If you are building the Relay from this repository, the existing lineage handler can be reused directly:
 

@@ -39,6 +39,7 @@ import {
   buildSavedWatchPacketB,
 } from "./fixtures/saved-watch";
 import { buildTemporalAcceptanceFixture } from "./fixtures/temporal-acceptance";
+import { buildSourceSupportedSitePacketV2Fixture } from "./fixtures/source-supported-site-packet";
 
 const SAVED_AT = "2030-09-21T10:00:00.000Z";
 const CHECKED_AT = "2030-09-22T10:00:00.000Z";
@@ -338,6 +339,19 @@ test("snapshot identity ignores run-local IDs, source snapshot IDs, and packet a
     buildLocalWatchSnapshot(packetB),
   );
   assert.equal(delta.has_deterministic_differences, false);
+});
+
+test("Saved Watch accepts Site packet v2 but snapshots the unresolved candidate relation", () => {
+  const packet = buildSourceSupportedSitePacketV2Fixture();
+  assert.equal(packet.source_supported_relation_signals.length, 1);
+  assert.equal(packet.relation_candidates[0].relation_type, "unresolved");
+  const snapshot = buildLocalWatchSnapshot(packet);
+  assert.equal(snapshot.relations.length, 1);
+  assert.equal(snapshot.relations[0].relation_type, "unresolved");
+  assert.equal(
+    snapshot.relations.some((relation) => relation.relation_type === "supersedes"),
+    false,
+  );
 });
 
 test("Unicode source and claim identities use one locale-independent canonical order", () => {

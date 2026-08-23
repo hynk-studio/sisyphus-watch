@@ -24,6 +24,7 @@ import type {
   RelationType,
   SiteReadyCasePacket,
 } from "./lineage/contracts";
+import { publicRelationPresentation } from "./relation-presentation";
 
 export const COVERAGE_LENSES = [
   "all",
@@ -247,7 +248,9 @@ export interface InvestigationRelationLedgerEntry {
   toNodeId: string;
   leftSourceId: string;
   rightSourceId: string;
+  candidateRelationType: RelationType;
   relationType: RelationType;
+  sourceBacked: boolean;
   shortLabel: string;
   visualFamily: RelationVisualFamily;
   lineStyle: "solid" | "dashed" | "double" | "dotted" | "dash_dot" | "none";
@@ -1484,15 +1487,20 @@ function deriveRelationLedger(
   const pairIndexes = new Map<string, number>();
   return relationGroups.map((candidateRecords, index) => {
     const relation = candidateRecords[0];
-    const left = occurrenceGroups.get(relation.left_occurrence_id)?.[0];
-    const right = occurrenceGroups.get(relation.right_occurrence_id)?.[0];
-    const endpointsUnique = occurrenceGroups.get(relation.left_occurrence_id)?.length === 1
-      && occurrenceGroups.get(relation.right_occurrence_id)?.length === 1;
-    const redundantReferencesMatch = Boolean(left && right)
-      && left?.source.sourceId === relation.left_source_id
-      && right?.source.sourceId === relation.right_source_id
-      && left?.source.snapshotId === relation.left_snapshot_id
-      && right?.source.snapshotId === relation.right_snapshot_id
+    const presentation = publicRelationPresentation(packet, relation);
+    const candidateLeft = occurrenceGroups.get(relation.left_occurrence_id)?.[0];
+    const candidateRight = occurrenceGroups.get(relation.right_occurrence_id)?.[0];
+    const leftOccurrenceId = presentation.fromOccurrenceId;
+    const rightOccurrenceId = presentation.toOccurrenceId;
+    const left = occurrenceGroups.get(leftOccurrenceId)?.[0];
+    const right = occurrenceGroups.get(rightOccurrenceId)?.[0];
+    const endpointsUnique = occurrenceGroups.get(leftOccurrenceId)?.length === 1
+      && occurrenceGroups.get(rightOccurrenceId)?.length === 1;
+    const redundantReferencesMatch = Boolean(candidateLeft && candidateRight)
+      && candidateLeft?.source.sourceId === relation.left_source_id
+      && candidateRight?.source.sourceId === relation.right_source_id
+      && candidateLeft?.source.snapshotId === relation.left_snapshot_id
+      && candidateRight?.source.snapshotId === relation.right_snapshot_id
       && relation.left_support_reference.source_id === relation.left_source_id
       && relation.right_support_reference.source_id === relation.right_source_id
       && relation.left_support_reference.snapshot_id === relation.left_snapshot_id
@@ -1503,30 +1511,40 @@ function deriveRelationLedger(
     );
     const parallelIndex = pairIndexes.get(pairKey) ?? 0;
     pairIndexes.set(pairKey, parallelIndex + 1);
-    const visualFamily = RELATION_VISUAL_FAMILIES[relation.relation_type];
+    const visualFamily = RELATION_VISUAL_FAMILIES[presentation.presentationRelationType];
     const integrityState = candidateRecords.length === 1
       ? "valid" as const
       : "duplicate_relation_id" as const;
     const geometryEligible = integrityState === "valid"
       && endpointsUnique
       && redundantReferencesMatch
-      && relation.left_occurrence_id !== relation.right_occurrence_id
-      && relation.relation_type !== "unrelated";
+      && leftOccurrenceId !== rightOccurrenceId
+      && presentation.presentationRelationType !== "unrelated";
     const directionAsserted = geometryEligible
-      && relationDirectionAsserted(relation, left, right);
+      && (
+        presentation.sourceBacked
+        || relationDirectionAsserted(relation, left, right)
+      );
+    const presentationUsesCandidateOrder = leftOccurrenceId === relation.left_occurrence_id;
     return {
       kind: "relation",
       relationId: relation.relation_id,
       relationNumber: index + 1,
       publicNumber: `R${index + 1}`,
-      leftOccurrenceId: relation.left_occurrence_id,
-      rightOccurrenceId: relation.right_occurrence_id,
-      fromNodeId: relation.left_occurrence_id,
-      toNodeId: relation.right_occurrence_id,
-      leftSourceId: relation.left_source_id,
-      rightSourceId: relation.right_source_id,
-      relationType: relation.relation_type,
-      shortLabel: RELATION_SHORT_LABELS[relation.relation_type],
+      leftOccurrenceId,
+      rightOccurrenceId,
+      fromNodeId: leftOccurrenceId,
+      toNodeId: rightOccurrenceId,
+      leftSourceId: left?.source.sourceId ?? (presentationUsesCandidateOrder
+        ? relation.left_source_id
+        : relation.right_source_id),
+      rightSourceId: right?.source.sourceId ?? (presentationUsesCandidateOrder
+        ? relation.right_source_id
+        : relation.left_source_id),
+      candidateRelationType: presentation.candidateRelationType,
+      relationType: presentation.presentationRelationType,
+      sourceBacked: presentation.sourceBacked,
+      shortLabel: RELATION_SHORT_LABELS[presentation.presentationRelationType],
       visualFamily,
       lineStyle: RELATION_LINE_STYLES[visualFamily],
       reviewStatus: relation.review_status,
@@ -1535,8 +1553,16 @@ function deriveRelationLedger(
       recordCount: candidateRecords.length,
       candidateRecords: candidateRecords.map(cloneRelationCandidate),
       reason: relation.reason,
-      leftSupportReference: { ...relation.left_support_reference },
-      rightSupportReference: { ...relation.right_support_reference },
+      leftSupportReference: {
+        ...(presentationUsesCandidateOrder
+          ? relation.left_support_reference
+          : relation.right_support_reference),
+      },
+      rightSupportReference: {
+        ...(presentationUsesCandidateOrder
+          ? relation.right_support_reference
+          : relation.left_support_reference),
+      },
       lineageRowId: integrityState === "valid"
         ? lineageByRelationId.get(relation.relation_id)?.lineage_row_id ?? null
         : null,
@@ -1544,21 +1570,23 @@ function deriveRelationLedger(
       parallelIndex,
       parallelCount: pairCounts.get(pairKey) ?? 1,
       leftEndpoint: relationEndpoint(
-        relation.left_occurrence_id,
-        relation.left_source_id,
+        leftOccurrenceId,
+        left?.source.sourceId ?? relation.left_source_id,
         left,
         selectedTimeAxis,
       ),
       rightEndpoint: relationEndpoint(
-        relation.right_occurrence_id,
-        relation.right_source_id,
+        rightOccurrenceId,
+        right?.source.sourceId ?? relation.right_source_id,
         right,
         selectedTimeAxis,
       ),
       sameRow: Boolean(left && right && left.rowId === right.rowId),
       geometryEligible,
       directionAsserted,
-      directionExplanation: directionAsserted
+      directionExplanation: presentation.sourceBacked
+        ? "Direction follows the source-backed statement and remains review-only."
+        : directionAsserted
         ? `Direction asserted from earlier to later on ${TIME_AXIS_LABELS[selectedTimeAxis]} under the conservative composite rule.`
         : "Direction not asserted on the selected axis",
     };

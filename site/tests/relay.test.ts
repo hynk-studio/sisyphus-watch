@@ -32,6 +32,7 @@ import {
   buildSavedWatchPacketA,
   buildSavedWatchPacketB,
 } from "./fixtures/saved-watch";
+import { buildSourceSupportedSitePacketV2Fixture } from "./fixtures/source-supported-site-packet";
 
 const CAPABILITIES = {
   contract_version: "sisyphus_relay_capabilities.v1",
@@ -190,6 +191,28 @@ test("capability negotiation is explicit, credentialless, and persists only afte
   );
 });
 
+test("Relay capability negotiation accepts and preserves either exact Site response contract", async () => {
+  for (const lineageResponseContract of [
+    "site_ready_case_packet.v1",
+    "site_ready_case_packet.v2",
+  ] as const) {
+    const capabilities = {
+      ...CAPABILITIES,
+      lineage_response_contract: lineageResponseContract,
+    };
+    assert.equal(
+      validateRelayCapabilities(capabilities).lineage_response_contract,
+      lineageResponseContract,
+    );
+    const connection = await negotiateRelayConnection(
+      "https://relay.example",
+      (async () => Response.json(capabilities)) as typeof fetch,
+      new Date("2026-08-21T01:02:03.000Z"),
+    );
+    assert.equal(connection.lineage_response_contract, lineageResponseContract);
+  }
+});
+
 test("capability negotiation times out once, aborts the fetch, and cannot later succeed", async () => {
   let callCount = 0;
   let fetchSignal: AbortSignal = new AbortController().signal;
@@ -346,6 +369,9 @@ test("the component cancellation path aborts and invalidates without mutating Re
 test("invalid capabilities fail closed without a persistence opportunity", async () => {
   for (const capabilities of [
     { ...CAPABILITIES, contract_version: "unsupported.v2" },
+    { ...CAPABILITIES, lineage_response_contract: "site_ready_case_packet.v3" },
+    { ...CAPABILITIES, lineage_response_contract: "site_ready_case_packet" },
+    { ...CAPABILITIES, lineage_response_contract: "arbitrary" },
     { ...CAPABILITIES, supported_source_limits: [3] },
     { ...CAPABILITIES, supported_discovery_profiles: ["standard"] },
     { ...CAPABILITIES, provider: "secret-provider-detail" },
@@ -360,6 +386,49 @@ test("invalid capabilities fail closed without a persistence opportunity", async
         (async () => Response.json(capabilities)) as typeof fetch,
       ),
       RelayContractError,
+    );
+  }
+});
+
+test("Relay lineage response must exactly match the negotiated v1 or v2 contract", async () => {
+  const v1 = buildSavedWatchPacketA();
+  const v2 = buildSourceSupportedSitePacketV2Fixture();
+  const acceptedV1 = await executeInvestigationTransport(
+    { kind: "relay", connection: relayConnection("site_ready_case_packet.v1") },
+    REQUEST,
+    (async () => Response.json(v1)) as typeof fetch,
+  );
+  assert.equal(
+    "contract_version" in acceptedV1.payload
+      ? acceptedV1.payload.contract_version
+      : null,
+    "site_ready_case_packet.v1",
+  );
+
+  const acceptedV2 = await executeInvestigationTransport(
+    { kind: "relay", connection: relayConnection("site_ready_case_packet.v2") },
+    REQUEST,
+    (async () => Response.json(v2)) as typeof fetch,
+  );
+  assert.equal(
+    "contract_version" in acceptedV2.payload
+      ? acceptedV2.payload.contract_version
+      : null,
+    "site_ready_case_packet.v2",
+  );
+
+  for (const [connection, response] of [
+    [relayConnection("site_ready_case_packet.v1"), v2],
+    [relayConnection("site_ready_case_packet.v2"), v1],
+  ] as const) {
+    await assert.rejects(
+      executeInvestigationTransport(
+        { kind: "relay", connection },
+        REQUEST,
+        (async () => Response.json(response)) as typeof fetch,
+      ),
+      (error: unknown) => error instanceof ExecutionTransportError
+        && error.code === "relay_response_invalid",
     );
   }
 });
@@ -488,13 +557,16 @@ test("successful relay Watch recheck advances the same baseline and deterministi
   assert.equal(advanced.saved_at, baseline.saved_at);
 });
 
-function relayConnection(): RelayConnection {
+function relayConnection(
+  lineageResponseContract: RelayConnection["lineage_response_contract"] =
+    "site_ready_case_packet.v1",
+): RelayConnection {
   return {
     contract_version: "sisyphus_relay_connection.v1",
     relay_protocol_version: "sisyphus_relay.v1",
     relay_base_url: "https://relay.example/team/",
     capabilities_contract_version: "sisyphus_relay_capabilities.v1",
-    lineage_response_contract: "site_ready_case_packet.v1",
+    lineage_response_contract: lineageResponseContract,
     relay_display_name: "Civic evidence relay",
     saved_at: "2026-08-21T01:02:03.000Z",
   };

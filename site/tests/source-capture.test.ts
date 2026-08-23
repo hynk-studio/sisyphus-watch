@@ -10,6 +10,7 @@ import type {
   RelationCueDiagnosticRecord,
 } from "../app/lib/analysis/relation-cues";
 import { LINEAGE_CAPABILITY_DOCUMENT, OPENAPI_DOCUMENT } from "../app/lib/agent-surface";
+import { executeInvestigationTransport } from "../app/lib/execution-transport";
 import { buildSiteReadyCasePacketFromAnalysis } from "../app/lib/lineage/builder";
 import { handleLineageRequest } from "../app/lib/lineage/handler";
 import type {
@@ -38,7 +39,10 @@ import {
 } from "../app/lib/lineage/source-capture";
 import { buildLocalWatchSnapshot } from "../app/lib/local-watch";
 import { buildPublicEvidencePacket } from "../app/lib/public-evidence";
-import { RELAY_LINEAGE_RESPONSE_CONTRACT } from "../app/lib/relay";
+import {
+  RELAY_LINEAGE_RESPONSE_CONTRACT,
+  type RelayConnection,
+} from "../app/lib/relay";
 import { version18RelationAdmissionRun } from "./fixtures/version18-relation-admission";
 
 const NOW_MS = 1_900_000_000_000;
@@ -1038,7 +1042,7 @@ test("internal orchestration captures support while preserving semantic and publ
   assert.equal(buildPublicEvidencePacket(after).contract_version, "sisyphus_public_evidence_packet.v1");
   assert.deepEqual(buildLocalWatchSnapshot(after), buildLocalWatchSnapshot(before));
   assert.deepEqual(buildPublicEvidencePacket(after), buildPublicEvidencePacket(before));
-  assert.equal(RELAY_LINEAGE_RESPONSE_CONTRACT, "site_ready_case_packet.v1");
+  assert.equal(RELAY_LINEAGE_RESPONSE_CONTRACT, "site_ready_case_packet.v2");
   assert.doesNotMatch(JSON.stringify(OPENAPI_DOCUMENT), /captured_live_source_text_span/);
   assert.doesNotMatch(JSON.stringify(LINEAGE_CAPABILITY_DOCUMENT), /captured_live_source_text_span/);
 });
@@ -1069,7 +1073,7 @@ test("capture failures are nonfatal to the existing investigation packet", async
   assert.equal(failed.site_ready_case_packet.candidate_canonical_boundary.canonical_mutation, "none");
 });
 
-test("lineage handler projects only site_ready_case_packet.v1 from the internal envelope", async () => {
+test("reference lineage handler projects Site packet v2 while preserving ordinary packet fields", async () => {
   const analysisRun = version18RelationAdmissionRun();
   const before = buildSiteReadyCasePacketFromAnalysis(analysisRun);
   const relation = before.relation_candidates[0];
@@ -1119,10 +1123,101 @@ test("lineage handler projects only site_ready_case_packet.v1 from the internal 
       },
     },
   );
-  const projected = await responseValue.json();
+  const projected = await responseValue.json() as SiteReadyCasePacket;
   assert.equal(responseValue.status, 200);
-  assert.deepEqual(projected, before);
+  assert.equal(projected.contract_version, "site_ready_case_packet.v2");
+  assert.equal(
+    projected.contract_version === "site_ready_case_packet.v2"
+      ? projected.source_supported_relation_signals.length
+      : -1,
+    0,
+  );
+  const {
+    contract_version: projectedContract,
+    source_supported_relation_signals: projectedSignals,
+    ...projectedFields
+  } = projected as unknown as Record<string, unknown>;
+  const {
+    contract_version: beforeContract,
+    ...beforeFields
+  } = before as unknown as Record<string, unknown>;
+  assert.equal(projectedContract, "site_ready_case_packet.v2");
+  assert.deepEqual(projectedSignals, []);
+  assert.equal(beforeContract, "site_ready_case_packet.v1");
+  assert.deepEqual(projectedFields, beforeFields);
   assert.ok(fetchCalls <= 2);
   assert.doesNotMatch(JSON.stringify(projected), /capture_id|normalized_text|captured_body/);
   assert.doesNotMatch(JSON.stringify(projected), /fake-key-never-forwarded/);
+});
+
+test("reference Relay recovery returns and accepts v2 without signals after internal lineage failure", async () => {
+  const analysisRun = version18RelationAdmissionRun();
+  const ordinary = buildSiteReadyCasePacketFromAnalysis(analysisRun);
+  let internalAttempts = 0;
+  const response = await handleLineageRequest(
+    new Request("https://relay.example/v1/lineage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        question: "How did current official mission guidance change?",
+        sourceLimit: 3,
+        discoveryProfile: "standard",
+      }),
+    }),
+    {
+      apiKey: "fake-key-never-forwarded",
+      runLiveInternal: async () => ({
+        analysis_run: analysisRun,
+        relation_cue_diagnostics: [],
+        workflow_deadline_at_ms: NOW_MS + 20_000,
+      }),
+      runLineageInternal: async () => {
+        internalAttempts += 1;
+        throw new Error("forced internal lineage failure");
+      },
+    },
+  );
+  const responseBody = await response.text();
+  const packet = JSON.parse(responseBody) as SiteReadyCasePacket;
+  assert.equal(internalAttempts, 1);
+  assert.equal(response.status, 200);
+  assert.equal(packet.contract_version, "site_ready_case_packet.v2");
+  assert.equal(packet.mode, "live");
+  assert.equal(packet.status, "live");
+  assert.deepEqual(
+    packet.contract_version === "site_ready_case_packet.v2"
+      ? packet.source_supported_relation_signals
+      : null,
+    [],
+  );
+  assert.deepEqual(packet.relation_candidates, ordinary.relation_candidates);
+  assert.ok(packet.relation_candidates.every((relation) => relation.relation_type === "unresolved"));
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
+
+  const relayConnection: RelayConnection = {
+    contract_version: "sisyphus_relay_connection.v1",
+    relay_protocol_version: "sisyphus_relay.v1",
+    relay_base_url: "https://relay.example/",
+    capabilities_contract_version: "sisyphus_relay_capabilities.v1",
+    lineage_response_contract: "site_ready_case_packet.v2",
+    saved_at: NOW_ISO,
+  };
+  const transport = await executeInvestigationTransport(
+    { kind: "relay", connection: relayConnection },
+    {
+      question: "How did current official mission guidance change?",
+      sourceLimit: 3,
+      discoveryProfile: "standard",
+    },
+    (async () => new Response(responseBody, {
+      status: response.status,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch,
+  );
+  assert.equal(transport.responseOk, true);
+  assert.equal("contract_version" in transport.payload, true);
+  if (!("contract_version" in transport.payload)) {
+    assert.fail("successful v2 Relay transport returned an error packet");
+  }
+  assert.equal(transport.payload.contract_version, "site_ready_case_packet.v2");
 });

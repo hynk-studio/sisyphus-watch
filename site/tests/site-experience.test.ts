@@ -47,6 +47,7 @@ import {
   OPERATOR_LIVE_ENVIRONMENT_FLAG,
 } from "../app/lib/live-mode";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
+import type { SiteReadyCasePacket } from "../app/lib/lineage/contracts";
 import { getSiteReadyCaseDetail } from "../app/lib/lineage/details";
 import { getPreparedCaseDetail } from "../app/lib/read-model";
 import { POST as postLineage } from "../app/api/lineage/route";
@@ -75,6 +76,10 @@ import {
   buildUnplacedOccurrenceFixture,
 } from "./fixtures/map-density";
 import { buildTemporalAcceptanceFixture } from "./fixtures/temporal-acceptance";
+import {
+  SOURCE_SUPPORTED_STATEMENT,
+  buildSourceSupportedSitePacketV2Fixture,
+} from "./fixtures/source-supported-site-packet";
 
 const noop = () => undefined;
 
@@ -1225,6 +1230,151 @@ test("Map relation language reads earlier to later without changing candidate se
   assert.match(retrievalHtml, /Supersession/);
   assert.doesNotMatch(retrievalHtml, /Superseded by/);
   assert.doesNotMatch(retrievalHtml, /Response follows/);
+});
+
+test("source-backed v2 reuses one relation across Map, ledger, inspector, and source detail", () => {
+  const packet = buildSourceSupportedSitePacketV2Fixture();
+  const relation = packet.relation_candidates[0];
+  const signal = packet.source_supported_relation_signals[0];
+  const map = deriveInvestigationMap(packet, "publication_time");
+  const entry = map.relationLedger[0];
+  const html = renderMapMarkup(packet, "publication_time");
+
+  assert.equal(relation.relation_type, "unresolved");
+  assert.equal(entry.candidateRelationType, "unresolved");
+  assert.equal(entry.relationType, "supersedes");
+  assert.equal(entry.sourceBacked, true);
+  assert.equal(entry.fromNodeId, signal.from_occurrence_id);
+  assert.equal(entry.toNodeId, signal.to_occurrence_id);
+  assert.equal(relation.left_occurrence_id, signal.to_occurrence_id);
+  assert.equal(relation.right_occurrence_id, signal.from_occurrence_id);
+  const fromOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === signal.from_occurrence_id,
+  )!;
+  const toOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === signal.to_occurrence_id,
+  )!;
+  const fromSupport = relation.right_support_reference;
+  const toSupport = relation.left_support_reference;
+  assert.equal(fromSupport.source_id, fromOccurrence.source_id);
+  assert.equal(fromSupport.snapshot_id, fromOccurrence.snapshot_id);
+  assert.equal(toSupport.source_id, toOccurrence.source_id);
+  assert.equal(toSupport.snapshot_id, toOccurrence.snapshot_id);
+  assert.equal(relationSpatialLabel(entry), "Replaces");
+  assert.match(html, /Supersession/);
+  assert.match(html, /Source-backed/);
+  assert.match(html, /Needs review/);
+  assert.match(html, /Direction follows the source-backed statement/);
+  assert.doesNotMatch(html, /source-backed connector Replaces;[\s\S]*?Earlier-to-later direction/);
+  assert.match(
+    html,
+    /Source-backed means captured source text directly states the displayed relationship; it still needs review\./,
+  );
+  assert.doesNotMatch(html, /Source-backed visual family|Signal tab|Proof tab/);
+
+  const relationPayload = getSiteReadyCaseDetail(
+    packet,
+    "relation",
+    relation.relation_id,
+  );
+  assert.ok(relationPayload);
+  const relationHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: { kind: "relation", id: relation.relation_id, label: "Candidate relation" },
+    payload: relationPayload,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.match(relationHtml, /Connection[\s\S]*?Supersession/);
+  assert.match(relationHtml, /Evidence state[\s\S]*?Source-backed · Needs review/);
+  assert.match(relationHtml, /Why this is shown/);
+  assert.match(relationHtml, new RegExp(escapeRegex(SOURCE_SUPPORTED_STATEMENT)));
+  assert.match(relationHtml, /Guidance G-2[\s\S]*?directly states this relationship/);
+  assert.match(relationHtml, /Referenced document:[\s\S]*?Guidance G-1/);
+  assert.match(relationHtml, /Open statement source/);
+  assert.match(relationHtml, /Open referenced document/);
+  assert.match(relationHtml, /Other relation review context/);
+  assert.match(relationHtml, /From-side candidate support/);
+  assert.match(relationHtml, /To-side candidate support/);
+  assert.match(
+    relationHtml,
+    new RegExp(`From occurrence ID[\\s\\S]*?${escapeRegex(fromOccurrence.occurrence_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`To occurrence ID[\\s\\S]*?${escapeRegex(toOccurrence.occurrence_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`From support source ID[\\s\\S]*?${escapeRegex(fromSupport.source_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`From support snapshot ID[\\s\\S]*?${escapeRegex(fromSupport.snapshot_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`From support reference[\\s\\S]*?${escapeRegex(fromSupport.evidence_reference)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`To support source ID[\\s\\S]*?${escapeRegex(toSupport.source_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`To support snapshot ID[\\s\\S]*?${escapeRegex(toSupport.snapshot_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`To support reference[\\s\\S]*?${escapeRegex(toSupport.evidence_reference)}`),
+  );
+  assert.doesNotMatch(relationHtml, /First occurrence ID|Second occurrence ID|First relation support|Second relation support/);
+  assert.ok(
+    relationHtml.indexOf("Why this is shown")
+      < relationHtml.indexOf("Other relation review context"),
+  );
+  assert.doesNotMatch(
+    relationHtml,
+    /target_identity|proof[_ ](?:id|status|basis)|capture[_ ]id|captured_body_sha256|normalized_text_sha256|assessment[_ ]id|identity_anchor/i,
+  );
+  const unsafeUrlPacket = structuredClone(packet);
+  unsafeUrlPacket.source_snapshot_summaries.forEach((source) => {
+    source.url = "javascript:alert(1)";
+  });
+  const unsafeUrlHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet: unsafeUrlPacket,
+    selection: { kind: "relation", id: relation.relation_id, label: "Candidate relation" },
+    payload: relationPayload,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.doesNotMatch(unsafeUrlHtml, /Open statement source|Open referenced document/);
+
+  const statementPayload = getSiteReadyCaseDetail(
+    packet,
+    "source",
+    signal.statement_source_id,
+  );
+  assert.ok(statementPayload);
+  const sourceHtml = renderToStaticMarkup(createElement(FocusedDetailPanel, {
+    packet,
+    selection: {
+      kind: "source",
+      id: signal.statement_source_id,
+      label: "Statement source",
+    },
+    payload: statementPayload,
+    state: "idle",
+    onClose: noop,
+  }));
+  assert.match(sourceHtml, /Connected changes/);
+  assert.match(sourceHtml, /Supersession · Source-backed · needs review/);
+
+  const preparedHtml = renderMapMarkup(
+    buildPreparedSiteReadyCasePacket(),
+    "event_time",
+  );
+  assert.doesNotMatch(preparedHtml, /Source-backed/);
 });
 
 test("Map viewing lenses and broader provider work are separate public control regions", () => {
@@ -2399,7 +2549,7 @@ test("matrix activates keyboard scrolling only for measured horizontal overflow"
 });
 
 function renderMapMarkup(
-  packet: ReturnType<typeof buildPreparedSiteReadyCasePacket>,
+  packet: SiteReadyCasePacket,
   timeAxis: TimeAxis,
   liveEnabled = false,
 ): string {

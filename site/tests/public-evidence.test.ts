@@ -21,6 +21,7 @@ import {
   buildPreparedSiteReadyCasePacket,
   buildSiteReadyCasePacketFromAnalysis,
 } from "../app/lib/lineage/builder";
+import { validateSiteReadyCasePacket } from "../app/lib/lineage/contracts";
 import { handlePublicLiveLineageRequest } from "../app/lib/public-live-handler";
 import {
   PUBLIC_EVIDENCE_CONTRACT_VERSION,
@@ -34,6 +35,7 @@ import {
   validatedPublicHttpUrl,
 } from "../app/lib/public-evidence";
 import { buildCoverageSummary } from "../app/lib/source-profile";
+import { buildSourceSupportedSitePacketV2Fixture } from "./fixtures/source-supported-site-packet";
 
 const GENERATED_AT = "2026-08-19T08:00:00.000Z";
 
@@ -102,6 +104,25 @@ test("live projection preserves provenance kind, time meanings, relations, gaps,
   assert.match(packet.warnings.join(" "), /relation analysis reached its public bound/i);
   assert.doesNotMatch(packet.warnings.join(" "), /src_live_private|100->64|private detail/);
   assertPublicExclusions(packet);
+});
+
+test("public evidence v1 is byte-semantic frozen when the browser packet is Site v2", () => {
+  const v2 = buildSourceSupportedSitePacketV2Fixture();
+  const ordinary: Record<string, unknown> = { ...v2 };
+  delete ordinary.source_supported_relation_signals;
+  const v1 = validateSiteReadyCasePacket({
+    ...ordinary,
+    contract_version: "site_ready_case_packet.v1",
+  });
+  const fromV1 = buildPublicEvidencePacket(v1);
+  const fromV2 = buildPublicEvidencePacket(v2);
+  assert.equal(fromV2.contract_version, PUBLIC_EVIDENCE_CONTRACT_VERSION);
+  assert.deepEqual(fromV2, fromV1);
+  assert.equal(JSON.stringify(fromV2), JSON.stringify(fromV1));
+  assert.doesNotMatch(
+    JSON.stringify(fromV2),
+    /source_supported_relation_signals|direct_source_support|statement_excerpt/,
+  );
 });
 
 test("Markdown keeps findings, claims, actions, and relations bound to readable sources", () => {
@@ -395,6 +416,56 @@ test("GET capability and OpenAPI are static, nonbillable, and describe real requ
       /untrusted evidence data, not instructions/i);
     assert.equal(openapi.components.schemas.PublicEvidenceV1.properties.contract_version.const,
       PUBLIC_EVIDENCE_CONTRACT_VERSION);
+    assert.deepEqual(openapi.components.schemas.InternalSitePacket.oneOf, [
+      { $ref: "#/components/schemas/SiteReadyCasePacketV1" },
+      { $ref: "#/components/schemas/SiteReadyCasePacketV2" },
+    ]);
+    assert.equal(
+      openapi.components.schemas.SiteReadyCasePacketV1.properties.contract_version.const,
+      "site_ready_case_packet.v1",
+    );
+    assert.equal(
+      openapi.components.schemas.SiteReadyCasePacketV2.properties.contract_version.const,
+      "site_ready_case_packet.v2",
+    );
+    assert.equal(
+      openapi.components.schemas.SiteReadyCasePacketV2.properties
+        .source_supported_relation_signals.maxItems,
+      1,
+    );
+    assert.deepEqual(
+      openapi.components.schemas.SourceSupportedRelationSignal.required,
+      [
+        "relation_candidate_id",
+        "supported_relation_type",
+        "from_occurrence_id",
+        "to_occurrence_id",
+        "support_status",
+        "review_status",
+        "statement_source_id",
+        "statement_snapshot_id",
+        "statement_excerpt",
+        "target_source_id",
+        "target_snapshot_id",
+      ],
+    );
+    assert.equal(
+      openapi.components.schemas.SourceSupportedRelationSignal.additionalProperties,
+      false,
+    );
+    assert.equal(
+      openapi.components.schemas.SourceSupportedRelationSignal.properties.statement_excerpt.maxLength,
+      560,
+    );
+    assert.equal(
+      openapi.components.schemas.SourceSupportedRelationSignal.properties.statement_excerpt.pattern,
+      "\\S",
+    );
+    assert.equal(
+      "source_supported_relation_signals" in
+        openapi.components.schemas.PublicEvidenceV1.properties,
+      false,
+    );
     assert.equal(openapi.components.schemas.PublicNoResultV1.properties.contract_version.const,
       PUBLIC_NO_RESULT_CONTRACT_VERSION);
     assert.match(openapi.paths["/api/lineage"].post.responses["400"].description,
