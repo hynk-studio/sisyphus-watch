@@ -554,6 +554,11 @@ test("successful relay Watch recheck advances the same baseline and deterministi
   const delta = compareInvestigationSnapshots(baseline.snapshot, advanced.snapshot);
   assert.notDeepEqual(advanced.snapshot, baseline.snapshot);
   assert.equal(delta.has_deterministic_differences, true);
+  assert.equal(baseline.snapshot.relation_evidence_observation, "unavailable");
+  assert.equal(advanced.snapshot.relation_evidence_observation, "unavailable");
+  assert.equal(delta.relation_evidence_comparison, "unavailable");
+  assert.deepEqual(delta.clarified_source_backed_relations, []);
+  assert.deepEqual(delta.source_backed_relations_not_reobserved, []);
   assert.equal(advanced.saved_at, baseline.saved_at);
 });
 

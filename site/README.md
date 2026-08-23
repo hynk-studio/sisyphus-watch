@@ -401,24 +401,37 @@ contains no full fixture source text or raw provider response.
 
 Sisyphus Watch can turn one bounded live investigation into a browser-local
 saved Watch and show deterministic differences when the user explicitly checks
-again. The v1 contract is deliberately limited to one Watch, explicit opt-in,
+again. The v2 contract is deliberately limited to one Watch, explicit opt-in,
 and manual rechecks. Completing or viewing a live result does not write browser
 storage; the write occurs only after **Track this topic on this device**. A
 different topic requires an explicit Replace confirmation, and **Forget**
-removes only `sisyphus.local-watch.v1`.
+removes only `sisyphus.local-watch.v1`. That historical key remains the
+intentionally stable owned storage slot; the contract discriminator inside its
+value is now `sisyphus_local_watch.v2`.
 
-The versioned `sisyphus_local_watch.v1` value stores the normalized question,
+The versioned `sisyphus_local_watch.v2` value stores the normalized question,
 the run's source limit and discovery profile, saved/last-checked timestamps, and
-a validated compact public-source-derived snapshot. It does not store the full
+a validated compact public-source-derived snapshot. Alongside the unchanged raw
+relation snapshot, v2 can store at most one semantic source-backed supersession
+observation: only its stable raw-relation identity, supported type, and stable
+from/to claim identities. It does not promote the raw relation or store captured
+text, excerpts, source/snapshot/occurrence IDs, relation-candidate IDs, proof or
+capture IDs, hashes, or internal statuses. It also does not store the full
 `SiteReadyCasePacket`, run/provider/search/admission/work-unit IDs, raw provider
-responses, evidence excerpts, supporting-summary spans, source-page text,
-warnings copied wholesale, credentials, headers, cookies, identity, or
-fingerprinting data. Reads occur only after client hydration. The complete
-shape, HTTP(S) URLs, timestamps, enums, cross-references, deterministic ordering,
-and 128 KiB serialized bound are independently validated; malformed,
+responses, supporting-summary spans, source-page text, warnings copied wholesale,
+credentials, headers, cookies, identity, or fingerprinting data. Reads occur only
+after client hydration. The complete shape, HTTP(S) URLs, timestamps, enums,
+cross-references, deterministic ordering, and 128 KiB serialized bound are
+independently validated; malformed,
 unsupported, oversized, tampered, disabled, or quota-failing storage fails
 closed without submitting a question or crashing the page. Snapshots are never
 silently truncated.
+
+Exact legacy `sisyphus_local_watch.v1` values remain readable. A valid v1 value
+is upgraded only in memory with relation-evidence observation marked unavailable
+and an empty source-backed sidecar; hydration performs no migration write. The
+v2 value is persisted only by an existing explicit Track/Replace action or a
+successful manual recheck baseline update.
 
 Cross-run source identity uses a validated normalized HTTP(S) URL with only the
 fragment removed; query differences remain distinct. Only URL-less sources use
@@ -444,7 +457,11 @@ run, new/exactly absent/changed claim candidates, and new contradiction,
 correction, and supersession signals. A stable candidate is changed only when
 its support-source set, confidence, or explicit assertion/event/publication time
 and precision changes. Packet order, object order, uncertainty wording, and
-run-local IDs do not create noise. Records and relations remain review
+run-local IDs do not create noise. When both bounded snapshots expose v2 relation
+evidence, the same raw unresolved relation can additionally be reported as newly
+Source-backed, not re-observed, or directionally different. A legacy or v1-only
+side of the comparison is explicitly non-comparable and cannot create a false
+"became Source-backed" or disappearance claim. Records and relations remain review
 candidates: absence from a bounded recheck is not deletion, retraction, or
 resolution, and no-difference output does not prove that nothing changed.
 

@@ -6,6 +6,7 @@ import "./map-v1-browser-qa.css";
 
 import { CaseExplorer } from "../../app/components/CaseExplorer";
 import { FocusedDetailPanel } from "../../app/components/FocusedDetailPanel";
+import { InvestigationDeltaPanel } from "../../app/components/InvestigationDeltaPanel";
 import { InvestigationMapView } from "../../app/components/InvestigationMapView";
 import { SearchComposer } from "../../app/components/SearchComposer";
 import {
@@ -17,6 +18,7 @@ import {
   projectInvestigationMap,
   type CoverageLens,
 } from "../../app/lib/investigation-map";
+import { compareInvestigationSnapshots } from "../../app/lib/investigation-delta";
 import { buildPreparedSiteReadyCasePacket } from "../../app/lib/lineage/builder";
 import {
   validateSiteReadyCasePacket,
@@ -26,6 +28,8 @@ import { getSiteReadyCaseDetail } from "../../app/lib/lineage/details";
 import {
   buildLocalWatchSnapshot,
   readLocalWatch,
+  validateLocalWatchSnapshot,
+  type LocalWatchSnapshot,
   type LocalWatchStorage,
 } from "../../app/lib/local-watch";
 import type { TimeAxis } from "../../app/lib/experience";
@@ -65,6 +69,7 @@ if (REQUESTED_SURFACE && EXECUTION_BOUNDARY_SURFACES.has(REQUESTED_SURFACE)) {
   || REQUESTED_SURFACE === "live-relations"
   || REQUESTED_SURFACE === "source-backed"
   || REQUESTED_SURFACE === "loading"
+  || REQUESTED_SURFACE?.startsWith("watch-delta-")
 ) {
   installNoRequestFetchGuard();
 }
@@ -142,6 +147,9 @@ function MapQaApp() {
   }, []);
 
   if (surface === "loading") return <LoadingComposerHarness />;
+  if (surface?.startsWith("watch-delta-")) {
+    return <WatchDeltaHarness scenario={surface.slice("watch-delta-".length)} />;
+  }
 
   if (
     surface === "public-default"
@@ -212,6 +220,57 @@ function MapQaApp() {
         </label>
       </header>
       <MountedMap key={fixtureName} packet={packet} fixtureName={fixtureName} />
+    </main>
+  );
+}
+
+function WatchDeltaHarness({ scenario }: { scenario: string }) {
+  const packet = buildSourceSupportedSitePacketV2Fixture();
+  const sourceBacked = buildLocalWatchSnapshot(packet);
+  const withoutSignal = buildLocalWatchSnapshot(validateSiteReadyCasePacket({
+    ...structuredClone(packet),
+    source_supported_relation_signals: [],
+  }));
+  let previousSnapshot: LocalWatchSnapshot = withoutSignal;
+  let currentSnapshot: LocalWatchSnapshot = withoutSignal;
+
+  if (scenario === "clarified") {
+    currentSnapshot = sourceBacked;
+  } else if (scenario === "legacy") {
+    previousSnapshot = validateLocalWatchSnapshot({
+      ...structuredClone(withoutSignal),
+      relation_evidence_observation: "unavailable",
+    });
+    currentSnapshot = sourceBacked;
+  } else if (scenario === "not-reobserved") {
+    previousSnapshot = sourceBacked;
+    currentSnapshot = withoutSignal;
+  } else if (scenario === "unavailable") {
+    previousSnapshot = sourceBacked;
+    currentSnapshot = validateLocalWatchSnapshot({
+      ...structuredClone(withoutSignal),
+      relation_evidence_observation: "unavailable",
+    });
+  } else if (scenario === "direction") {
+    previousSnapshot = sourceBacked;
+    const reversed = structuredClone(sourceBacked);
+    const direction = reversed.source_backed_relations[0];
+    [direction.from_claim_identity, direction.to_claim_identity] = [
+      direction.to_claim_identity,
+      direction.from_claim_identity,
+    ];
+    currentSnapshot = validateLocalWatchSnapshot(reversed);
+  }
+
+  return (
+    <main className="site-shell map-qa-shell" data-qa-watch-delta={scenario}>
+      <InvestigationDeltaPanel
+        delta={compareInvestigationSnapshots(previousSnapshot, currentSnapshot)}
+        previousSnapshot={previousSnapshot}
+        currentSnapshot={currentSnapshot}
+        previousCheckedAt="2030-09-21T10:00:00.000Z"
+        baselineUpdateState="updated"
+      />
     </main>
   );
 }

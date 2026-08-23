@@ -18,7 +18,8 @@ import {
 import { isExactTimestamp, type TemporalPrecision } from "./temporal";
 
 export const LOCAL_WATCH_STORAGE_KEY = "sisyphus.local-watch.v1";
-export const LOCAL_WATCH_CONTRACT_VERSION = "sisyphus_local_watch.v1";
+export const LOCAL_WATCH_LEGACY_CONTRACT_VERSION = "sisyphus_local_watch.v1";
+export const LOCAL_WATCH_CONTRACT_VERSION = "sisyphus_local_watch.v2";
 export const LOCAL_WATCH_MAX_BYTES = 128 * 1024;
 
 const MAX_SNAPSHOT_SOURCES = 8;
@@ -61,10 +62,19 @@ export interface LocalWatchRelation {
   right_claim_identity: string;
 }
 
+export interface LocalWatchSourceBackedRelation {
+  relation_identity: string;
+  supported_relation_type: "supersedes";
+  from_claim_identity: string;
+  to_claim_identity: string;
+}
+
 export interface LocalWatchSnapshot {
   sources: LocalWatchSource[];
   candidates: LocalWatchCandidate[];
   relations: LocalWatchRelation[];
+  relation_evidence_observation: "available" | "unavailable";
+  source_backed_relations: LocalWatchSourceBackedRelation[];
 }
 
 export interface LocalWatch {
@@ -225,11 +235,112 @@ const localWatchRelationSchema = z.object({
   }
 });
 
-const localWatchSnapshotSchema = z.object({
+const legacyLocalWatchSnapshotSchema = z.object({
   sources: z.array(localWatchSourceSchema).max(MAX_SNAPSHOT_SOURCES),
   candidates: z.array(localWatchCandidateSchema).max(MAX_SNAPSHOT_CANDIDATES),
   relations: z.array(localWatchRelationSchema).max(MAX_SNAPSHOT_RELATIONS),
 }).strict().superRefine((snapshot, context) => {
+  validateLocalWatchSnapshotReferences(snapshot, context);
+});
+
+const localWatchSourceBackedRelationSchema = z.object({
+  relation_identity: z.string().min(1).max(MAX_IDENTITY_LENGTH * 2),
+  supported_relation_type: z.literal("supersedes"),
+  from_claim_identity: z.string().min(1).max(MAX_IDENTITY_LENGTH),
+  to_claim_identity: z.string().min(1).max(MAX_IDENTITY_LENGTH),
+}).strict();
+
+const localWatchSnapshotSchema = z.object({
+  sources: z.array(localWatchSourceSchema).max(MAX_SNAPSHOT_SOURCES),
+  candidates: z.array(localWatchCandidateSchema).max(MAX_SNAPSHOT_CANDIDATES),
+  relations: z.array(localWatchRelationSchema).max(MAX_SNAPSHOT_RELATIONS),
+  relation_evidence_observation: z.enum(["available", "unavailable"]),
+  source_backed_relations: z.array(localWatchSourceBackedRelationSchema).max(1),
+}).strict().superRefine((snapshot, context) => {
+  validateLocalWatchSnapshotReferences(snapshot, context);
+  requireSortedUnique(
+    snapshot.source_backed_relations,
+    context,
+    ["source_backed_relations"],
+    (item) => item.relation_identity,
+  );
+  if (
+    snapshot.relation_evidence_observation === "unavailable"
+    && snapshot.source_backed_relations.length > 0
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["source_backed_relations"],
+      message: "unavailable evidence observation cannot contain source-backed relations",
+    });
+  }
+  const relationByIdentity = new Map(
+    snapshot.relations.map((relation) => [relation.identity, relation]),
+  );
+  const candidateIdentities = new Set(
+    snapshot.candidates.map((candidate) => candidate.identity),
+  );
+  snapshot.source_backed_relations.forEach((sourceBacked, index) => {
+    const path = ["source_backed_relations", index];
+    const relation = relationByIdentity.get(sourceBacked.relation_identity);
+    if (!relation || relation.relation_type !== "unresolved") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, "relation_identity"],
+        message: "source-backed relation must resolve to one unresolved raw relation",
+      });
+      return;
+    }
+    if (!candidateIdentities.has(sourceBacked.from_claim_identity)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, "from_claim_identity"],
+        message: "source-backed from claim must resolve to a stored candidate",
+      });
+    }
+    if (!candidateIdentities.has(sourceBacked.to_claim_identity)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, "to_claim_identity"],
+        message: "source-backed to claim must resolve to a stored candidate",
+      });
+    }
+    if (sourceBacked.from_claim_identity === sourceBacked.to_claim_identity) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, "to_claim_identity"],
+        message: "source-backed direction endpoints must differ",
+      });
+    }
+    const evidenceEndpoints = [
+      sourceBacked.from_claim_identity,
+      sourceBacked.to_claim_identity,
+    ].sort(compareCanonicalWatchStrings);
+    const rawEndpoints = [
+      relation.left_claim_identity,
+      relation.right_claim_identity,
+    ].sort(compareCanonicalWatchStrings);
+    if (
+      evidenceEndpoints[0] !== rawEndpoints[0]
+      || evidenceEndpoints[1] !== rawEndpoints[1]
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path,
+        message: "source-backed endpoints must equal the raw relation endpoint pair",
+      });
+    }
+  });
+});
+
+function validateLocalWatchSnapshotReferences(
+  snapshot: {
+    sources: LocalWatchSource[];
+    candidates: LocalWatchCandidate[];
+    relations: LocalWatchRelation[];
+  },
+  context: z.RefinementCtx,
+): void {
   requireSortedUnique(snapshot.sources, context, ["sources"], (item) => item.identity);
   requireSortedUnique(snapshot.candidates, context, ["candidates"], (item) => item.identity);
   requireSortedUnique(snapshot.relations, context, ["relations"], (item) => item.identity);
@@ -263,6 +374,21 @@ const localWatchSnapshotSchema = z.object({
       });
     }
   });
+}
+
+const legacyLocalWatchSchema = z.object({
+  contract_version: z.literal(LOCAL_WATCH_LEGACY_CONTRACT_VERSION),
+  normalized_public_interest_question: normalizedTextSchema(
+    MIN_QUESTION_LENGTH,
+    MAX_QUESTION_LENGTH,
+  ),
+  saved_source_limit: z.union([z.literal(3), z.literal(5)]),
+  saved_discovery_profile: z.enum(DISCOVERY_PROFILES),
+  saved_at: exactTimestampSchema,
+  last_checked_at: exactTimestampSchema,
+  snapshot: legacyLocalWatchSnapshotSchema,
+}).strict().superRefine((watch, context) => {
+  validateLocalWatchTimestamps(watch, context);
 });
 
 export const localWatchSchema = z.object({
@@ -277,6 +403,13 @@ export const localWatchSchema = z.object({
   last_checked_at: exactTimestampSchema,
   snapshot: localWatchSnapshotSchema,
 }).strict().superRefine((watch, context) => {
+  validateLocalWatchTimestamps(watch, context);
+}) satisfies z.ZodType<LocalWatch>;
+
+function validateLocalWatchTimestamps(
+  watch: { saved_at: string; last_checked_at: string },
+  context: z.RefinementCtx,
+): void {
   if (!isCanonicalInstant(watch.saved_at)) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
@@ -298,7 +431,7 @@ export const localWatchSchema = z.object({
       message: "last_checked_at cannot precede saved_at",
     });
   }
-}) satisfies z.ZodType<LocalWatch>;
+}
 
 export function normalizeLocalWatchQuestion(value: string): string {
   return normalizeStoredText(value);
@@ -499,6 +632,7 @@ export function buildLocalWatchSnapshot(input: unknown): LocalWatchSnapshot {
       compareCanonicalWatchStrings(left.identity, right.identity)
     );
 
+  const relationIdentityByRunId = new Map<string, string>();
   const relationByIdentity = new Map<string, LocalWatchRelation>();
   for (const packetRelation of packet.relation_candidates) {
     const leftIdentity = occurrenceIdentity.get(packetRelation.left_occurrence_id);
@@ -524,8 +658,34 @@ export function buildLocalWatchSnapshot(input: unknown): LocalWatchSnapshot {
       left_claim_identity: endpoints.left,
       right_claim_identity: endpoints.right,
     };
+    relationIdentityByRunId.set(packetRelation.relation_id, relation.identity);
     relationByIdentity.set(relation.identity, relation);
   }
+
+  const sourceBackedRelations: LocalWatchSourceBackedRelation[] =
+    packet.contract_version === "site_ready_case_packet.v2"
+      ? packet.source_supported_relation_signals.map((signal) => {
+          const rawRelationIdentity = relationIdentityByRunId.get(
+            signal.relation_candidate_id,
+          );
+          const fromClaimIdentity = occurrenceIdentity.get(signal.from_occurrence_id);
+          const toClaimIdentity = occurrenceIdentity.get(signal.to_occurrence_id);
+          if (!rawRelationIdentity || !fromClaimIdentity || !toClaimIdentity) {
+            throw new LocalWatchContractError(
+              "invalid",
+              "Source-backed relation evidence could not be resolved safely",
+            );
+          }
+          return {
+            relation_identity: rawRelationIdentity,
+            supported_relation_type: signal.supported_relation_type,
+            from_claim_identity: fromClaimIdentity,
+            to_claim_identity: toClaimIdentity,
+          };
+        }).sort((left, right) =>
+          compareCanonicalWatchStrings(left.relation_identity, right.relation_identity)
+        )
+      : [];
 
   return validateLocalWatchSnapshot({
     sources: [...sourceByIdentity.values()].sort((left, right) =>
@@ -535,6 +695,11 @@ export function buildLocalWatchSnapshot(input: unknown): LocalWatchSnapshot {
     relations: [...relationByIdentity.values()].sort((left, right) =>
       compareCanonicalWatchStrings(left.identity, right.identity)
     ),
+    relation_evidence_observation:
+      packet.contract_version === "site_ready_case_packet.v2"
+        ? "available"
+        : "unavailable",
+    source_backed_relations: sourceBackedRelations,
   });
 }
 
@@ -662,14 +827,32 @@ export function readLocalWatch(storage: LocalWatchStorage): LocalWatchReadResult
     !parsed
     || typeof parsed !== "object"
     || !("contract_version" in parsed)
-    || parsed.contract_version !== LOCAL_WATCH_CONTRACT_VERSION
   ) {
     return { status: "invalid", reason: "unsupported" };
   }
-  const result = localWatchSchema.safeParse(parsed);
-  return result.success
-    ? { status: "valid", watch: result.data }
-    : { status: "invalid", reason: "malformed" };
+  if (parsed.contract_version === LOCAL_WATCH_CONTRACT_VERSION) {
+    const result = localWatchSchema.safeParse(parsed);
+    return result.success
+      ? { status: "valid", watch: result.data }
+      : { status: "invalid", reason: "malformed" };
+  }
+  if (parsed.contract_version === LOCAL_WATCH_LEGACY_CONTRACT_VERSION) {
+    const result = legacyLocalWatchSchema.safeParse(parsed);
+    if (!result.success) return { status: "invalid", reason: "malformed" };
+    return {
+      status: "valid",
+      watch: validateLocalWatch({
+        ...result.data,
+        contract_version: LOCAL_WATCH_CONTRACT_VERSION,
+        snapshot: {
+          ...result.data.snapshot,
+          relation_evidence_observation: "unavailable",
+          source_backed_relations: [],
+        },
+      }),
+    };
+  }
+  return { status: "invalid", reason: "unsupported" };
 }
 
 export function writeLocalWatch(

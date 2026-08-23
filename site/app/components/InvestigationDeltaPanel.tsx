@@ -7,6 +7,7 @@ import type {
   LocalWatchRelation,
   LocalWatchSnapshot,
   LocalWatchSource,
+  LocalWatchSourceBackedRelation,
 } from "../lib/local-watch";
 import { formatWatchTimestamp } from "./SavedWatchCard";
 
@@ -29,6 +30,14 @@ export function InvestigationDeltaPanel({
     ...previousSnapshot.candidates,
     ...currentSnapshot.candidates,
   ].map((candidate) => [candidate.identity, candidate]));
+  const hasTraditionalDetail = [
+    delta.new_sources,
+    delta.new_candidates,
+    delta.changed_candidates,
+    delta.new_contradiction_signals,
+    delta.new_correction_signals,
+    delta.new_supersession_signals,
+  ].some((items) => items.length > 0);
 
   return (
     <section className="investigation-delta-panel" aria-labelledby="delta-panel-title">
@@ -53,12 +62,26 @@ export function InvestigationDeltaPanel({
         />
       </div>
 
+      {delta.clarified_source_backed_relations.length > 0 ? (
+        <div className="delta-source-backed-summary" role="status">
+          <strong>
+            {delta.clarified_source_backed_relations.length} {plural(
+              delta.clarified_source_backed_relations.length,
+              "relation",
+            )} became Source-backed.
+          </strong>
+          <span>
+            Captured source text now directly supports the supersession. It still needs review.
+          </span>
+        </div>
+      ) : null}
+
       {!delta.has_deterministic_differences ? (
         <div className="delta-no-difference" role="status">
           <strong>No deterministic differences were found between these two bounded checks.</strong>
           <span>This does not prove that nothing changed.</span>
         </div>
-      ) : (
+      ) : hasTraditionalDetail ? (
         <div className="delta-detail-grid">
           <DeltaDetailList
             title="New sources"
@@ -85,7 +108,12 @@ export function InvestigationDeltaPanel({
             render={(relation) => relationLabel(relation, candidateByIdentity)}
           />
         </div>
-      )}
+      ) : null}
+
+      <RelationEvidenceDelta
+        delta={delta}
+        candidates={candidateByIdentity}
+      />
 
       <div className="delta-neutral-summary">
         <p>
@@ -127,6 +155,82 @@ export function InvestigationDeltaPanel({
         verify a real-world change.
       </p>
     </section>
+  );
+}
+
+function RelationEvidenceDelta({
+  delta,
+  candidates,
+}: {
+  delta: InvestigationDelta;
+  candidates: Map<string, LocalWatchCandidate>;
+}) {
+  const comparisonUnavailable = delta.relation_evidence_comparison === "current_unavailable"
+    || delta.relation_evidence_comparison === "unavailable";
+  if (
+    delta.clarified_source_backed_relations.length === 0
+    && delta.new_source_backed_relations.length === 0
+    && delta.source_backed_relations_without_comparable_baseline.length === 0
+    && delta.source_backed_relations_not_reobserved.length === 0
+    && delta.source_backed_direction_changes.length === 0
+    && !comparisonUnavailable
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="delta-relation-evidence">
+      {delta.clarified_source_backed_relations.length > 0 ? (
+        <DeltaDetailList
+          title="Relations clarified"
+          items={delta.clarified_source_backed_relations}
+          render={(relation) =>
+            `Source-backed supersession: ${sourceBackedRelationLabel(relation, candidates)}`
+          }
+        />
+      ) : null}
+      {delta.new_source_backed_relations.length > 0 ? (
+        <DeltaDetailList
+          title="New Source-backed relations"
+          items={delta.new_source_backed_relations}
+          render={(relation) =>
+            `New Source-backed supersession: ${sourceBackedRelationLabel(relation, candidates)}`
+          }
+        />
+      ) : null}
+      {delta.source_backed_relations_without_comparable_baseline.length > 0 ? (
+        <p className="delta-evidence-neutral">
+          Source-backed relation observed on this check. The previous Watch did not
+          preserve this evidence state, so no before/after claim is made.
+        </p>
+      ) : null}
+      {delta.source_backed_relations_not_reobserved.length > 0 ? (
+        <div className="delta-evidence-caution">
+          <strong>
+            {delta.source_backed_relations_not_reobserved.length} previously Source-backed {plural(
+              delta.source_backed_relations_not_reobserved.length,
+              "relation",
+            )} {delta.source_backed_relations_not_reobserved.length === 1 ? "was" : "were"} not
+            re-observed in this bounded check.
+          </strong>
+          <span>This does not show reversal or retraction.</span>
+        </div>
+      ) : null}
+      {comparisonUnavailable ? (
+        <p className="delta-evidence-neutral">
+          Relation evidence-state comparison was unavailable for this check. No
+          Source-backed change was inferred.
+        </p>
+      ) : null}
+      {delta.source_backed_direction_changes.map((change) => (
+        <div className="delta-evidence-caution" key={change.relation_identity}>
+          <strong>Source-backed direction differed from the previous check and needs review.</strong>
+          <span>
+            Previous: {sourceBackedRelationLabel(change.previous, candidates)} · Current: {sourceBackedRelationLabel(change.current, candidates)}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -188,6 +292,15 @@ function relationLabel(
       : "New supersession signal";
   const connector = relation.relation_type === "contradicts" ? "↔" : "→";
   return `${type}: ${left?.text ?? "Candidate record"} ${connector} ${right?.text ?? "candidate record"}`;
+}
+
+function sourceBackedRelationLabel(
+  relation: LocalWatchSourceBackedRelation,
+  candidates: Map<string, LocalWatchCandidate>,
+): string {
+  const from = candidates.get(relation.from_claim_identity);
+  const to = candidates.get(relation.to_claim_identity);
+  return `${from?.text ?? "Candidate record"} → ${to?.text ?? "candidate record"}`;
 }
 
 function plural(count: number, singular: string): string {

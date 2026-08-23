@@ -42,6 +42,21 @@ http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-storage-unavailable
 ```
 
+For deterministic production Since-last-check relation-evidence states, use:
+
+```text
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-delta-unchanged
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-delta-clarified
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-delta-legacy
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-delta-not-reobserved
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-delta-unavailable
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-delta-direction
+```
+
+These pages mount the production `InvestigationDeltaPanel` with local validated
+snapshots and a fetch guard. They make no Relay, provider, hosted, or same-origin
+API request.
+
 For the relay-first execution boundary, use:
 
 ```text
