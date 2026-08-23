@@ -507,6 +507,74 @@ test("raw HTML title scanning skips completed false-title contexts before one re
   }
 });
 
+test("HTML TOKENIZER STRUCTURAL CLOSURE uses only ASCII HTML space", () => {
+  const nbsp = "\u00a0";
+  const falseTitles: Array<[string, string]> = [
+    ["NBSP title open and close", `<title${nbsp}>Guidance G-1</title${nbsp}>`],
+    ["NBSP title attribute separator", `<title${nbsp}class="x">Guidance G-1</title>`],
+    ["NBSP title close", `<title>Guidance G-1</title${nbsp}>`],
+    [
+      "NBSP raw-container close",
+      `<textarea>fake</textarea${nbsp}><title>Guidance G-1</title>`,
+    ],
+    [
+      "NBSP DOCTYPE separator",
+      `<!doctype${nbsp}html><title>Guidance G-1</title>`,
+    ],
+  ];
+  for (const [label, html] of falseTitles) {
+    assert.equal(extractCapturedDocumentIdentity(html, "html"), null, label);
+  }
+  assert.equal(falseTitles.length, 5);
+
+  const validTitles = [
+    "<title>Guidance G-1</title>",
+    "<title class=\"x\">Guidance G-1</title>",
+    "<title\n  class=\"x\"\n>\nGuidance G-1\n</title>",
+    "<textarea>fake</textarea><title>Guidance G-1</title>",
+    "<!doctype html><title>Guidance G-1</title>",
+  ];
+  for (const html of validTitles) {
+    assert.deepEqual(extractCapturedDocumentIdentity(html, "html"), {
+      kind: "html_title",
+      text: "Guidance G-1",
+    });
+  }
+  for (const asciiSpace of ["\t", "\n", "\f", "\r", " "]) {
+    assert.deepEqual(extractCapturedDocumentIdentity(
+      `<title${asciiSpace}class="x">Guidance G-1</title${asciiSpace}>`,
+      "html",
+    ), {
+      kind: "html_title",
+      text: "Guidance G-1",
+    });
+  }
+});
+
+test("foreign and non-title contexts cannot supply document identity", () => {
+  const falseTitles: Array<[string, string]> = [
+    ["math", "<math><title>Guidance G-1</title></math>"],
+    ["select", "<select><title>Guidance G-1</title></select>"],
+    ["frameset", "<frameset><title>Guidance G-1</title></frameset>"],
+  ];
+  for (const [label, html] of falseTitles) {
+    assert.equal(extractCapturedDocumentIdentity(html, "html"), null, label);
+  }
+  assert.equal(falseTitles.length, 3);
+
+  const validAfterExcludedContext = [
+    "<math><title>Guidance G-9</title></math><title>Guidance G-1</title>",
+    "<select><option>fake</option></select><title>Guidance G-1</title>",
+    "<frameset></frameset><title>Guidance G-1</title>",
+  ];
+  for (const html of validAfterExcludedContext) {
+    assert.deepEqual(extractCapturedDocumentIdentity(html, "html"), {
+      kind: "html_title",
+      text: "Guidance G-1",
+    });
+  }
+});
+
 test("plain-text document identity uses only the first non-empty bounded normalized line", async () => {
   assert.deepEqual(extractCapturedDocumentIdentity(
     "\r\n  \n Ｇuidance   G-1 \r\nGuidance G-9",

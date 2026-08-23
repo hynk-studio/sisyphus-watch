@@ -49,7 +49,11 @@ const HTML_INERT_IDENTITY_CONTAINERS = new Set([
   "noscript",
   "template",
   "svg",
+  "math",
+  "select",
+  "frameset",
 ]);
+const HTML_ASCII_WHITESPACE_PATTERN = "[\\t\\n\\f\\r ]";
 
 export type CaptureFailureReason =
   | "ineligible_source"
@@ -809,7 +813,7 @@ function scanDocumentTitleFromRawHTML(html: string): string | null {
       const declaration = scanRawHTMLTagBoundary(html, start);
       if (
         !declaration
-        || !/^<!doctype(?:\s|>)/iu.test(declaration.text)
+        || !/^<!doctype(?:[\t\n\f\r ]|>)/iu.test(declaration.text)
         || declaration.text.slice(1).includes("<")
       ) return null;
       searchFrom = declaration.end;
@@ -897,7 +901,7 @@ function scanRawHTMLTagBoundary(
 function scanRawHTMLTag(html: string, start: number): RawHTMLTag | null {
   const boundary = scanRawHTMLTagBoundary(html, start);
   if (!boundary) return null;
-  const closing = /^<\/([a-z][a-z\d:-]*)\s*>$/iu.exec(boundary.text);
+  const closing = /^<\/([a-z][a-z\d:-]*)[\t\n\f\r ]*>$/iu.exec(boundary.text);
   if (closing) {
     return {
       start,
@@ -907,7 +911,7 @@ function scanRawHTMLTag(html: string, start: number): RawHTMLTag | null {
       selfClosing: false,
     };
   }
-  const opening = /^<([a-z][a-z\d:-]*)(?:\s+[^\s"'<>/=]+(?:\s*=\s*(?:"[^"<>]*"|'[^'<>]*'|[^\s"'`=<>/]+))?)*\s*(\/?)>$/iu.exec(
+  const opening = /^<([a-z][a-z\d:-]*)(?:[\t\n\f\r ]+[^\t\n\f\r "'<>/=]+(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"[^"<>]*"|'[^'<>]*'|[^\t\n\f\r "'`=<>/]+))?)*[\t\n\f\r ]*(\/?)>$/iu.exec(
     boundary.text,
   );
   if (!opening) return null;
@@ -924,7 +928,10 @@ function skipRawHTMLIdentityContainer(
   html: string,
   opening: RawHTMLTag,
 ): number | null {
-  const closingPrefix = new RegExp(`</${opening.name}(?=>|\\s)`, "giu");
+  const closingPrefix = new RegExp(
+    `</${opening.name}(?=>|${HTML_ASCII_WHITESPACE_PATTERN})`,
+    "giu",
+  );
   closingPrefix.lastIndex = opening.end;
   const match = closingPrefix.exec(html);
   if (!match) return null;

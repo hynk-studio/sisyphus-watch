@@ -547,6 +547,46 @@ test("raw HTML title context safety propagates to target proof admission", async
   );
 });
 
+test("HTML tokenizer structural closure propagates to target proof admission", async () => {
+  const nbsp = "\u00a0";
+  const falseTitles: Array<[string, string]> = [
+    [
+      "NBSP title structure",
+      `<title${nbsp}>Guidance G-1</title${nbsp}><body>Guidance G-1</body>`,
+    ],
+    [
+      "MathML title context",
+      "<math><title>Guidance G-1</title></math><body>Guidance G-1</body>",
+    ],
+  ];
+  for (const [label, targetBody] of falseTitles) {
+    const fixture = await buildCase({
+      targetBody,
+      targetContentType: "text/html; charset=utf-8",
+    });
+    const result = assess(fixture.input);
+    assert.equal(result.target_identity_proofs.length, 0, label);
+    assert.equal(result.assessments.length, 0, label);
+    assert.equal(result.summary.rejected_target_identity_capture_count, 1, label);
+  }
+  assert.equal(falseTitles.length, 2);
+
+  const realTitle = await buildCase({
+    targetBody: [
+      "<math><title>Guidance G-9</title></math>",
+      "<title>Guidance G-1</title>",
+    ].join(""),
+    targetContentType: "text/html; charset=utf-8",
+  });
+  const admitted = assess(realTitle.input);
+  assert.equal(admitted.target_identity_proofs.length, 1);
+  assert.equal(admitted.assessments.length, 1);
+  assert.equal(
+    admitted.assessments[0].target_identity_proof_id,
+    admitted.target_identity_proofs[0].proof_id,
+  );
+});
+
 test("plain-text later-line identity mentions are ignored", async () => {
   const fixture = await buildCase({
     targetBody: "Agency archive\nGuidance G-1\nMore about Guidance G-1.",
