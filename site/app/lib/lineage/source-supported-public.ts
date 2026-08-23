@@ -146,6 +146,7 @@ export function projectSiteReadyCasePacketV2(
   const candidate = {
     ...base,
     contract_version: "site_ready_case_packet.v2" as const,
+    source_supported_relation_observation: "evaluated" as const,
     source_supported_relation_signals: signals,
   };
   try {
@@ -153,6 +154,7 @@ export function projectSiteReadyCasePacketV2(
   } catch {
     return validateSiteReadyCasePacket({
       ...candidate,
+      source_supported_relation_observation: "unavailable",
       source_supported_relation_signals: [],
     }) as SiteReadyCasePacketV2;
   }
@@ -164,6 +166,7 @@ export function projectSiteReadyCasePacketV2WithoutSignals(
   return validateSiteReadyCasePacket({
     ...packet,
     contract_version: "site_ready_case_packet.v2",
+    source_supported_relation_observation: "unavailable",
     source_supported_relation_signals: [],
   }) as SiteReadyCasePacketV2;
 }

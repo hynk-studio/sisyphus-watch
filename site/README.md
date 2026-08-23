@@ -103,8 +103,10 @@ The non-billable capability document has contract
 sends no API-key field. Successful responses must strictly validate as a live
 packet whose `site_ready_case_packet.v1` or `site_ready_case_packet.v2` contract
 exactly matches the Relay capability response. Existing v1 Relays remain
-compatible; the v2 overlay may carry at most one review-pending,
-source-supported supersession signal. Prepared/fallback, mismatched, or
+compatible. The v2 overlay explicitly distinguishes a completed source-supported
+projection (`evaluated`) from a compatibility recovery (`unavailable`), and may
+carry at most one review-pending, source-supported supersession signal only when
+evaluated. Prepared/fallback, mismatched, or
 malformed Relay responses do not replace the displayed investigation or Saved
 Watch baseline.
 
@@ -341,8 +343,12 @@ browser-public variables or `.openai/hosting.json`.
 adapts deterministic fallback and live candidate runs into the same schema-checked
 Site packet family. Existing prepared/fallback responses remain
 `site_ready_case_packet.v1`; eligible live internal runs project to
-`site_ready_case_packet.v2`, with an empty overlay when exact source support is
-not established. `GET /api/lineage/:caseId` serves the deterministic prepared
+`site_ready_case_packet.v2` with
+`source_supported_relation_observation: "evaluated"`, including a valid empty
+signal array when exact source support is not established. Successful live
+compatibility recovery without a completed internal projection remains v2 but
+uses `source_supported_relation_observation: "unavailable"` and an empty signal
+array. `GET /api/lineage/:caseId` serves the deterministic prepared
 packet. Focused prepared-case detail is available at:
 
 ```text
@@ -401,24 +407,37 @@ contains no full fixture source text or raw provider response.
 
 Sisyphus Watch can turn one bounded live investigation into a browser-local
 saved Watch and show deterministic differences when the user explicitly checks
-again. The v1 contract is deliberately limited to one Watch, explicit opt-in,
+again. The v2 contract is deliberately limited to one Watch, explicit opt-in,
 and manual rechecks. Completing or viewing a live result does not write browser
 storage; the write occurs only after **Track this topic on this device**. A
 different topic requires an explicit Replace confirmation, and **Forget**
-removes only `sisyphus.local-watch.v1`.
+removes only `sisyphus.local-watch.v1`. That historical key remains the
+intentionally stable owned storage slot; the contract discriminator inside its
+value is now `sisyphus_local_watch.v2`.
 
-The versioned `sisyphus_local_watch.v1` value stores the normalized question,
+The versioned `sisyphus_local_watch.v2` value stores the normalized question,
 the run's source limit and discovery profile, saved/last-checked timestamps, and
-a validated compact public-source-derived snapshot. It does not store the full
+a validated compact public-source-derived snapshot. Alongside the unchanged raw
+relation snapshot, v2 can store at most one semantic source-backed supersession
+observation: only its stable raw-relation identity, supported type, and stable
+from/to claim identities. It does not promote the raw relation or store captured
+text, excerpts, source/snapshot/occurrence IDs, relation-candidate IDs, proof or
+capture IDs, hashes, or internal statuses. It also does not store the full
 `SiteReadyCasePacket`, run/provider/search/admission/work-unit IDs, raw provider
-responses, evidence excerpts, supporting-summary spans, source-page text,
-warnings copied wholesale, credentials, headers, cookies, identity, or
-fingerprinting data. Reads occur only after client hydration. The complete
-shape, HTTP(S) URLs, timestamps, enums, cross-references, deterministic ordering,
-and 128 KiB serialized bound are independently validated; malformed,
+responses, supporting-summary spans, source-page text, warnings copied wholesale,
+credentials, headers, cookies, identity, or fingerprinting data. Reads occur only
+after client hydration. The complete shape, HTTP(S) URLs, timestamps, enums,
+cross-references, deterministic ordering, and 128 KiB serialized bound are
+independently validated; malformed,
 unsupported, oversized, tampered, disabled, or quota-failing storage fails
 closed without submitting a question or crashing the page. Snapshots are never
 silently truncated.
+
+Exact legacy `sisyphus_local_watch.v1` values remain readable. A valid v1 value
+is upgraded only in memory with relation-evidence observation marked unavailable
+and an empty source-backed sidecar; hydration performs no migration write. The
+v2 value is persisted only by an existing explicit Track/Replace action or a
+successful manual recheck baseline update.
 
 Cross-run source identity uses a validated normalized HTTP(S) URL with only the
 fragment removed; query differences remain distinct. Only URL-less sources use
@@ -444,9 +463,14 @@ run, new/exactly absent/changed claim candidates, and new contradiction,
 correction, and supersession signals. A stable candidate is changed only when
 its support-source set, confidence, or explicit assertion/event/publication time
 and precision changes. Packet order, object order, uncertainty wording, and
-run-local IDs do not create noise. Records and relations remain review
-candidates: absence from a bounded recheck is not deletion, retraction, or
-resolution, and no-difference output does not prove that nothing changed.
+run-local IDs do not create noise. When both bounded snapshots record evaluated
+relation evidence, the same raw unresolved relation can additionally be reported
+as newly Source-backed, not re-observed, or directionally different. A legacy or
+v1-only side—or a recovered v2 response—is explicitly non-comparable and cannot
+create a false "became Source-backed" or disappearance claim. Records and
+relations remain review candidates: absence from a bounded recheck is not
+deletion, retraction, or resolution, and no-difference output does not prove that
+nothing changed.
 
 This opt-in value is stored in the current browser profile, not D1 or a
 Sisyphus account. It remains until **Forget** or site-data clearing, and anyone

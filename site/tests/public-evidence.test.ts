@@ -109,6 +109,7 @@ test("live projection preserves provenance kind, time meanings, relations, gaps,
 test("public evidence v1 is byte-semantic frozen when the browser packet is Site v2", () => {
   const v2 = buildSourceSupportedSitePacketV2Fixture();
   const ordinary: Record<string, unknown> = { ...v2 };
+  delete ordinary.source_supported_relation_observation;
   delete ordinary.source_supported_relation_signals;
   const v1 = validateSiteReadyCasePacket({
     ...ordinary,
@@ -121,7 +122,7 @@ test("public evidence v1 is byte-semantic frozen when the browser packet is Site
   assert.equal(JSON.stringify(fromV2), JSON.stringify(fromV1));
   assert.doesNotMatch(
     JSON.stringify(fromV2),
-    /source_supported_relation_signals|direct_source_support|statement_excerpt/,
+    /source_supported_relation_observation|source_supported_relation_signals|direct_source_support|statement_excerpt/,
   );
 });
 
@@ -434,6 +435,24 @@ test("GET capability and OpenAPI are static, nonbillable, and describe real requ
       1,
     );
     assert.deepEqual(
+      openapi.components.schemas.SiteReadyCasePacketV2.properties
+        .source_supported_relation_observation.enum,
+      ["evaluated", "unavailable"],
+    );
+    assert.deepEqual(
+      openapi.components.schemas.SiteReadyCasePacketV2.required,
+      [
+        "contract_version",
+        "source_supported_relation_observation",
+        "source_supported_relation_signals",
+      ],
+    );
+    assert.equal(
+      openapi.components.schemas.SiteReadyCasePacketV2.allOf[0].then.properties
+        .source_supported_relation_signals.maxItems,
+      0,
+    );
+    assert.deepEqual(
       openapi.components.schemas.SourceSupportedRelationSignal.required,
       [
         "relation_candidate_id",
@@ -463,6 +482,11 @@ test("GET capability and OpenAPI are static, nonbillable, and describe real requ
     );
     assert.equal(
       "source_supported_relation_signals" in
+        openapi.components.schemas.PublicEvidenceV1.properties,
+      false,
+    );
+    assert.equal(
+      "source_supported_relation_observation" in
         openapi.components.schemas.PublicEvidenceV1.properties,
       false,
     );

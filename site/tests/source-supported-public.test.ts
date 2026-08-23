@@ -14,6 +14,7 @@ import {
 } from "../app/lib/lineage/contracts";
 import {
   projectSiteReadyCasePacketV2,
+  projectSiteReadyCasePacketV2WithoutSignals,
   projectSourceSupportedRelationSignals,
 } from "../app/lib/lineage/source-supported-public";
 import { publicRelationPresentation } from "../app/lib/relation-presentation";
@@ -84,6 +85,7 @@ test("positive projection emits one minimal deterministic v2 signal without publ
   assert.equal(JSON.stringify(first), JSON.stringify(second));
   assert.equal(JSON.stringify(internal), internalBefore);
   assert.equal(first.contract_version, "site_ready_case_packet.v2");
+  assert.equal(first.source_supported_relation_observation, "evaluated");
   assert.equal(first.source_supported_relation_signals.length, 1);
   assert.deepEqual(Object.keys(first.source_supported_relation_signals[0]), [
     "relation_candidate_id",
@@ -139,6 +141,41 @@ test("v1 validation and serialized field order remain unchanged", () => {
   );
   assert.equal(JSON.stringify(v1), JSON.stringify(original));
   assert.equal("source_supported_relation_signals" in v1, false);
+  assert.equal("source_supported_relation_observation" in v1, false);
+});
+
+test("v2 observation schema distinguishes evaluated absence from unavailable recovery", async () => {
+  const evaluatedSignal = projectSiteReadyCasePacketV2(await buildPositiveInternal());
+  const evaluatedEmpty = validateSiteReadyCasePacket({
+    ...structuredClone(evaluatedSignal),
+    source_supported_relation_observation: "evaluated",
+    source_supported_relation_signals: [],
+  });
+  assert.equal(evaluatedEmpty.contract_version, "site_ready_case_packet.v2");
+  if (evaluatedEmpty.contract_version !== "site_ready_case_packet.v2") {
+    assert.fail("expected Site packet v2");
+  }
+  assert.equal(evaluatedEmpty.source_supported_relation_observation, "evaluated");
+  assert.deepEqual(evaluatedEmpty.source_supported_relation_signals, []);
+
+  const recovered = projectSiteReadyCasePacketV2WithoutSignals(evaluatedSignal);
+  assert.equal(recovered.source_supported_relation_observation, "unavailable");
+  assert.deepEqual(recovered.source_supported_relation_signals, []);
+
+  assert.throws(() => validateSiteReadyCasePacket({
+    ...structuredClone(evaluatedSignal),
+    source_supported_relation_observation: "unavailable",
+  }), /unavailable source-supported observation cannot contain signals/u);
+
+  const missingObservation = structuredClone(evaluatedSignal) as Partial<SiteReadyCasePacketV2>;
+  delete missingObservation.source_supported_relation_observation;
+  assert.throws(() => validateSiteReadyCasePacket(missingObservation));
+
+  const v1WithObservation = {
+    ...buildSiteReadyCasePacketFromAnalysis(sourceSupportedSupersedesAnalysisRun()),
+    source_supported_relation_observation: "evaluated",
+  };
+  assert.throws(() => validateSiteReadyCasePacket(v1WithObservation));
 });
 
 test("projector fails closed across ambiguous and mismatched internal sidecars", async () => {
@@ -303,6 +340,11 @@ test("public projector re-binds complete captures, exact support spans, assertio
     assert.deepEqual(projectSourceSupportedRelationSignals(input), [], item.name);
     const projected = projectSiteReadyCasePacketV2(input);
     assert.equal(projected.contract_version, "site_ready_case_packet.v2", item.name);
+    assert.equal(
+      projected.source_supported_relation_observation,
+      "evaluated",
+      item.name,
+    );
     assert.deepEqual(projected.source_supported_relation_signals, [], item.name);
     assert.deepEqual(
       projected.relation_candidates,
@@ -316,11 +358,12 @@ test("public projector re-binds complete captures, exact support spans, assertio
   }
 });
 
-test("a valid internal run with unavailable admission still returns v2 with an empty overlay", async () => {
+test("a valid internal run with no qualifying assessment returns evaluated v2 with an empty overlay", async () => {
   const internal = await buildPositiveInternal();
   internal.source_supported_relation_assessments = [];
   const packet = projectSiteReadyCasePacketV2(internal);
   assert.equal(packet.contract_version, "site_ready_case_packet.v2");
+  assert.equal(packet.source_supported_relation_observation, "evaluated");
   assert.deepEqual(packet.source_supported_relation_signals, []);
   assert.equal(packet.relation_candidates[0].relation_type, "unresolved");
 });
