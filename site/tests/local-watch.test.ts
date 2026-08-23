@@ -76,7 +76,8 @@ test("server render and initial Watch read perform no browser-local write", () =
   const html = renderToStaticMarkup(createElement(CaseExplorer, {
     preparedCase: packet,
   }));
-  assert.match(html, /Prepared demo \+ Connect your relay/);
+  assert.match(html, /What do you want to investigate\?/);
+  assert.match(html, /Try the prepared cooling-center example/);
   assert.equal(storage.setCount, 0);
   assert.deepEqual(readLocalWatch(storage), { status: "empty" });
   assert.equal(storage.getCount, 1);

@@ -24,21 +24,27 @@ async function request(path) {
   );
 }
 
-test("renders the relay-first prepared public default with no live composer", async () => {
+test("renders the question-first public default without claiming execution is ready", async () => {
   const response = await request("/");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /<title>Sisyphus Watch \| Build an investigation map<\/title>/i);
-  assert.match(html, /Explore how public information changes/);
-  assert.match(html, /Explore the prepared investigation/);
-  assert.match(html, /Prepared demo \+ Connect your relay/);
-  assert.match(html, /Connect your relay/);
-  assert.match(html, /deterministic source record with no provider work/i);
+  assert.match(html, /What do you want to investigate\?/);
+  assert.match(
+    html,
+    /<textarea[^>]*id="investigation-question"[^>]*minLength="12"[^>]*maxLength="500"/,
+  );
+  assert.match(html, /type="radio"/);
+  assert.match(html, /id="source-limit"/);
+  assert.match(html, /Build investigation map/);
+  assert.match(html, /Try the prepared cooling-center example/);
+  assert.match(html, /Connect your Relay/);
+  assert.match(html, /Run your question when you are ready/);
   assert.match(html, /never asks for or stores your OpenAI API key/i);
-  assert.doesNotMatch(html, /<textarea/);
-  assert.doesNotMatch(html, /Build investigation map/);
+  assert.doesNotMatch(html, /type="password"|name="api[_-]?key"/i);
+  assert.doesNotMatch(html, /data-live-capability="available"/);
   assert.doesNotMatch(html, /id="investigation-workspace"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
   assert.doesNotMatch(html, /DEMO FIXTURE ONLY/);

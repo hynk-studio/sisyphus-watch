@@ -164,6 +164,23 @@ function activateButtonFromKeyboard(
   activate();
 }
 
+export type InvestigationSubmissionInput = {
+  question: string;
+  sourceLimit: number;
+  discoveryProfile: DiscoveryProfile;
+};
+
+export function decideInvestigationSubmission(
+  executionTransport: ExecutionTransport | null,
+  input: InvestigationSubmissionInput,
+):
+  | { kind: "request_execution_transport"; input: InvestigationSubmissionInput }
+  | { kind: "execute"; input: InvestigationSubmissionInput } {
+  return executionTransport
+    ? { kind: "execute", input }
+    : { kind: "request_execution_transport", input };
+}
+
 export function CaseExplorer({
   preparedCase,
   operatorSponsoredReady = false,
@@ -416,6 +433,9 @@ export function CaseExplorer({
           ? "Connected to your relay. The verified endpoint was saved in this browser."
           : "Connected to your relay for this page, but the endpoint could not be saved in this browser.",
       );
+      requestAnimationFrame(() => {
+        document.getElementById("build-investigation-map")?.focus({ preventScroll: true });
+      });
     } catch (error) {
       if (generation !== relayConnectionGeneration.current) return;
       setRelayError(
@@ -434,16 +454,26 @@ export function CaseExplorer({
   }
 
   function cancelRelayConnection() {
+    const scrollY = window.scrollY;
+    const scrollX = window.scrollX;
     const controller = relayConnectionAbort.current;
     if (controller) {
       relayConnectionGeneration.current += 1;
       relayConnectionAbort.current = null;
       controller.abort();
       setRelayConnecting(false);
-      setRelayNotice("Relay connection cancelled. No provider request was started.");
     }
     setRelayFormOpen(false);
     setRelayError(null);
+    setRelayNotice(
+      "Relay setup closed. Your question and settings remain unchanged. No provider request was started.",
+    );
+    requestAnimationFrame(() => {
+      document.getElementById("relay-connect-toggle")?.focus({ preventScroll: true });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: scrollY, left: scrollX, behavior: "instant" });
+      });
+    });
   }
 
   function disconnectRelay() {
@@ -478,11 +508,11 @@ export function CaseExplorer({
     }
   }
 
-  async function runAnalysis(input: {
-    question: string;
-    sourceLimit: number;
-    discoveryProfile: DiscoveryProfile;
-  }, runKind: PublicRunKind = "normal", recheckBaseline?: LocalWatch) {
+  async function runAnalysis(
+    input: InvestigationSubmissionInput,
+    runKind: PublicRunKind = "normal",
+    recheckBaseline?: LocalWatch,
+  ) {
     const activeTransport = executionTransport;
     if (!activeTransport) return;
     const requestId = runGuard.current.begin();
@@ -596,7 +626,20 @@ export function CaseExplorer({
 
   function submitAnalysis(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void runAnalysis({ question, sourceLimit, discoveryProfile });
+    const decision = decideInvestigationSubmission(executionTransport, {
+      question,
+      sourceLimit,
+      discoveryProfile,
+    });
+    if (decision.kind === "request_execution_transport") {
+      setRouteError(null);
+      setRelayNotice(
+        "Connect your Relay to run this investigation. Your question will stay here.",
+      );
+      openRelayConnection();
+      return;
+    }
+    void runAnalysis(decision.input);
   }
 
   function startPreparedExample() {
@@ -623,9 +666,7 @@ export function CaseExplorer({
     setReplacementWatch(null);
     clearDetail();
     requestAnimationFrame(() => {
-      document.getElementById(
-        liveEnabled ? "investigation-question" : "prepared-investigation-cta",
-      )?.focus();
+      document.getElementById("investigation-question")?.focus();
     });
   }
 

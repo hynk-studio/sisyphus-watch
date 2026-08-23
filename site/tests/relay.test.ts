@@ -117,10 +117,10 @@ test("the public connection UI has one URL field and no provider-key input", () 
     onPreparedExample: noop,
   }));
   const inputs = html.match(/<input\b[^>]*>/g) ?? [];
-  assert.equal(inputs.length, 1);
-  assert.match(inputs[0], /name="relay-url"/);
-  assert.match(inputs[0], /type="url"/);
-  assert.doesNotMatch(inputs[0], /api.?key|provider.?key|authorization|bearer/i);
+  const urlInputs = inputs.filter((input) => /type="url"/.test(input));
+  assert.equal(urlInputs.length, 1);
+  assert.match(urlInputs[0], /name="relay-url"/);
+  assert.doesNotMatch(urlInputs[0], /api.?key|provider.?key|authorization|bearer/i);
   assert.doesNotMatch(html, /sk-(?:proj-)?/i);
   assert.match(html, /never asks for or stores your OpenAI API key/i);
 
@@ -303,9 +303,16 @@ test("the component cancellation path aborts and invalidates without mutating Re
   assert.match(cancelSource, /setRelayConnecting\(false\)/);
   assert.match(cancelSource, /setRelayFormOpen\(false\)/);
   assert.match(cancelSource, /No provider request was started/);
+  assert.match(cancelSource, /"relay-connect-toggle"/);
+  assert.match(cancelSource, /focus\(\{ preventScroll: true \}\)/);
+  assert.match(cancelSource, /window\.scrollTo\(\{ top: scrollY, left: scrollX, behavior: "instant" \}\)/);
   assert.doesNotMatch(
     cancelSource,
     /setActiveRelay|setStoredRelay|setSelectedExecutionKind|writeRelayConnection|forgetRelayConnection/,
+  );
+  assert.doesNotMatch(
+    cancelSource,
+    /setQuestion|setSourceLimit|setDiscoveryProfile|executeInvestigationTransport|runAnalysis/,
   );
 
   const connectStart = source.indexOf("async function connectRelay()");
@@ -318,6 +325,12 @@ test("the component cancellation path aborts and invalidates without mutating Re
   );
   assert.match(connectSource, /setRelayError/);
   assert.match(connectSource, /setRelayConnecting\(false\)/);
+  assert.match(connectSource, /"build-investigation-map"/);
+  assert.match(connectSource, /focus\(\{ preventScroll: true \}\)/);
+  assert.doesNotMatch(
+    connectSource,
+    /setQuestion|setSourceLimit|setDiscoveryProfile|executeInvestigationTransport|runAnalysis|\/v1\/lineage|\/api\/lineage/,
+  );
   assert.match(
     source,
     /useEffect\(\(\) => \(\) => \{[\s\S]*?relayConnectionAbort\.current\?\.abort\(\)/,
@@ -360,6 +373,20 @@ test("saved relay restoration is validation-only and Forget removes only the own
   assert.deepEqual(forgetRelayConnection(storage), { ok: true });
   assert.equal(storage.values.has(RELAY_STORAGE_KEY), false);
   assert.equal(storage.values.get("sisyphus.local-watch.v1"), "watch-baseline");
+
+  const componentSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  const restoreStart = componentSource.indexOf("const storage = relayStorage === undefined");
+  const restoreEnd = componentSource.indexOf("useEffect(() => () =>", restoreStart);
+  const restoreSource = componentSource.slice(restoreStart, restoreEnd);
+  assert.match(restoreSource, /readRelayConnection\(storage\)/);
+  assert.match(restoreSource, /reconnect to use\. No network request was made automatically/);
+  assert.doesNotMatch(
+    restoreSource,
+    /fetch\(|negotiateRelayConnection|executeInvestigationTransport|runAnalysis/,
+  );
 });
 
 test("relay lineage is browser-direct with a bounded credentialless body", async () => {
