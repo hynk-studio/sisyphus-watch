@@ -20,7 +20,9 @@ import { runLineageInternal } from "../app/lib/lineage/internal";
 import {
   CAPTURE_REQUEST_TIMEOUT_MS,
   executeCapturedSourcePlan,
+  extractCapturedDocumentIdentity,
   MAX_CAPTURE_BODY_BYTES,
+  MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS,
   MAX_CAPTURE_REDIRECTS,
   MAX_CAPTURE_SUPPORT_EXCERPT_CHARS,
   MAX_CAPTURED_SOURCE_PAGES_PER_WORKFLOW,
@@ -167,6 +169,7 @@ function document(
     normalized_text_chars: text.length,
     normalized_text_sha256: "b".repeat(64),
     normalized_text: text,
+    document_identity: null,
     status: "captured",
     ...overrides,
   };
@@ -328,6 +331,83 @@ test("content policy accepts bounded UTF-8 HTML/XHTML/plain text and rejects uns
   assert.equal(malformedUTF8.failures[0].reason, "unsupported_encoding");
 });
 
+test("XHTML remains captured but cannot provide strong document identity", async () => {
+  const cases: Array<[string, string]> = [
+    ["uppercase TITLE", "<TITLE>Guidance G-1</TITLE>"],
+    ["lowercase bare title", "<title>Guidance G-1</title>"],
+    [
+      "namespaced XHTML title",
+      [
+        "<html xmlns=\"http://www.w3.org/1999/xhtml\">",
+        "<head><title>Guidance G-1</title></head>",
+        "</html>",
+      ].join(""),
+    ],
+  ];
+  for (const [label, body] of cases) {
+    const result = await capture((async () =>
+      response(body, "application/xhtml+xml")) as typeof fetch);
+    assert.equal(result.failures.length, 0, label);
+    assert.equal(result.documents.length, 1, label);
+    assert.equal(result.documents[0].status, "captured", label);
+    assert.equal(result.documents[0].capture_completeness, "complete", label);
+    assert.equal(result.documents[0].media_kind, "html", label);
+    assert.equal(result.documents[0].document_identity, null, label);
+    assert.equal(
+      result.documents[0].normalized_text,
+      normalizeCapturedDocumentText(body, "html").text,
+      label,
+    );
+    assert.match(result.documents[0].normalized_text, /Guidance G-1/u, label);
+  }
+  assert.equal(cases.length, 3);
+});
+
+test("strong captured relation support is limited to HTML and plain text syntax", async () => {
+  const cases: Array<{
+    label: string;
+    contentType: string;
+    body: string;
+    expectedSupports: number;
+  }> = [
+    {
+      label: "HTML owner support",
+      contentType: "text/html; charset=utf-8",
+      body: "<p>This guidance supersedes Guidance G-1.</p>",
+      expectedSupports: 1,
+    },
+    {
+      label: "plain-text owner support",
+      contentType: "text/plain; charset=utf-8",
+      body: "This guidance supersedes Guidance G-1.",
+      expectedSupports: 1,
+    },
+    {
+      label: "XHTML owner capture only",
+      contentType: "application/xhtml+xml",
+      body: [
+        '<html xmlns="http://www.w3.org/1999/xhtml">',
+        "<body>This guidance supersedes Guidance G-1.</body>",
+        "</html>",
+      ].join(""),
+      expectedSupports: 0,
+    },
+  ];
+  for (const item of cases) {
+    const result = await capture((async () =>
+      response(item.body, item.contentType)) as typeof fetch);
+    assert.equal(result.failures.length, 0, item.label);
+    assert.equal(result.documents.length, 1, item.label);
+    assert.equal(result.documents[0].capture_completeness, "complete", item.label);
+    assert.match(
+      result.documents[0].normalized_text,
+      /This guidance supersedes Guidance G-1\./u,
+      item.label,
+    );
+    assert.equal(result.supports.length, item.expectedSupports, item.label);
+  }
+});
+
 test("bounded body and normalized text ceilings preserve partial hash semantics", async () => {
   const oversized = new TextEncoder().encode(
     `Agency supersedes Guidance G-1. ${"x".repeat(MAX_CAPTURE_BODY_BYTES + 100)}`,
@@ -389,6 +469,216 @@ test("HTML normalization is deterministic, ignores inert elements, and separates
     result.documents[0].normalized_text_sha256,
     again.documents[0].normalized_text_sha256,
   );
+  assert.equal(result.documents[0].document_identity, null);
+});
+
+test("HTML document identity uses one bounded text-only title from captured bytes", async () => {
+  const html = [
+    "<html><head>",
+    "<title>  Ｇuidance&nbsp;  &#xFF27;-1  </title>",
+    "</head><body>Body text may mention Guidance G-9.</body></html>",
+  ].join("");
+  assert.deepEqual(extractCapturedDocumentIdentity(html, "html"), {
+    kind: "html_title",
+    text: "Guidance G-1",
+  });
+
+  const result = await capture((async () => response(html)) as typeof fetch);
+  assert.deepEqual(result.documents[0].document_identity, {
+    kind: "html_title",
+    text: "Guidance G-1",
+  });
+  assert.match(result.documents[0].normalized_text, /Body text may mention Guidance G-9/u);
+  assert.equal(MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS, 240);
+});
+
+test("HTML document identity fails closed on absent, duplicate, malformed, nested, fake, or overlong titles", () => {
+  const cases: Array<[string, string]> = [
+    ["absent", "<html><body>Guidance G-1</body></html>"],
+    ["duplicate", "<title>Guidance G-1</title><title>Guidance G-1</title>"],
+    ["unclosed", "<html><head><title>Guidance G-1</head></html>"],
+    ["malformed close", "<title>Guidance G-1</title extra>"],
+    ["malformed opening", "<title ==bad>Guidance G-1</title>"],
+    ["self closing", "<title/><body>Guidance G-1</body>"],
+    ["stray close", "</title><title>Guidance G-1</title>"],
+    [
+      "script and comment fake title",
+      "<script>const fake = '<title>Guidance G-1</title>';</script><!-- <title>Guidance G-1</title> -->",
+    ],
+    [
+      "template fake title",
+      "<template><title>Guidance G-1</title></template><body>Guidance G-1</body>",
+    ],
+    [
+      "attribute fake title",
+      "<meta data-fake=\"<title>Guidance G-1</title>\"><body>Guidance G-1</body>",
+    ],
+    [
+      "overlong",
+      `<title>${"x".repeat(MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS + 1)}</title>`,
+    ],
+  ];
+  for (const [label, html] of cases) {
+    assert.equal(extractCapturedDocumentIdentity(html, "html"), null, label);
+  }
+
+  assert.deepEqual(extractCapturedDocumentIdentity(
+    "<script>const fake = '<title>Guidance G-1</title>';</script><title>Guidance G-9</title>",
+    "html",
+  ), {
+    kind: "html_title",
+    text: "Guidance G-9",
+  });
+});
+
+test("RAW HTML TITLE CONTEXT SAFETY rejects false titles and raw title markup", () => {
+  const falseTitles: Array<[string, string]> = [
+    ["textarea", "<textarea><title>Guidance G-1</title></textarea>"],
+    ["xmp", "<xmp><title>Guidance G-1</title></xmp>"],
+    ["iframe", "<iframe><title>Guidance G-1</title></iframe>"],
+    ["noembed", "<noembed><title>Guidance G-1</title></noembed>"],
+    ["noframes", "<noframes><title>Guidance G-1</title></noframes>"],
+    ["plaintext", "<plaintext><title>Guidance G-1</title>"],
+    ["style", "<style><title>Guidance G-1</title></style>"],
+    ["noscript", "<noscript><title>Guidance G-1</title></noscript>"],
+    ["svg", "<svg><title>Guidance G-1</title></svg>"],
+    ["title comment", "<title>Guidance G-1<!--x--></title>"],
+    ["title script", "<title>Guidance G-1<script>x</script></title>"],
+    ["title markup", "<title>Guidance <b>G-1</b></title>"],
+  ];
+  for (const [label, html] of falseTitles) {
+    assert.equal(extractCapturedDocumentIdentity(html, "html"), null, label);
+  }
+  assert.equal(falseTitles.length, 12);
+  assert.equal(
+    normalizeCapturedDocumentText(
+      "<title>Guidance G-1<!--x--></title>",
+      "html",
+    ).text,
+    "Guidance G-1",
+  );
+});
+
+test("raw HTML title scanning skips completed false-title contexts before one real title", () => {
+  const cases: Array<[string, string]> = [
+    [
+      "completed textarea",
+      "<textarea>fake <title>Guidance G-9</title></textarea><title>Guidance G-1</title>",
+    ],
+    [
+      "script fake title",
+      "<script>const x = \"<title>Guidance G-9</title>\"</script><title>Guidance G-1</title>",
+    ],
+    [
+      "comment fake title",
+      "<!-- <title>Guidance G-9</title> --><title>Guidance G-1</title>",
+    ],
+    ["uppercase title", "<TITLE>Guidance G-1</TITLE>"],
+    ["title attributes", "<title class=\"x\">Guidance G-1</title>"],
+  ];
+  for (const [label, html] of cases) {
+    assert.deepEqual(extractCapturedDocumentIdentity(html, "html"), {
+      kind: "html_title",
+      text: "Guidance G-1",
+    }, label);
+  }
+});
+
+test("HTML TOKENIZER STRUCTURAL CLOSURE uses only ASCII HTML space", () => {
+  const nbsp = "\u00a0";
+  const falseTitles: Array<[string, string]> = [
+    ["NBSP title open and close", `<title${nbsp}>Guidance G-1</title${nbsp}>`],
+    ["NBSP title attribute separator", `<title${nbsp}class="x">Guidance G-1</title>`],
+    ["NBSP title close", `<title>Guidance G-1</title${nbsp}>`],
+    [
+      "NBSP raw-container close",
+      `<textarea>fake</textarea${nbsp}><title>Guidance G-1</title>`,
+    ],
+    [
+      "NBSP DOCTYPE separator",
+      `<!doctype${nbsp}html><title>Guidance G-1</title>`,
+    ],
+  ];
+  for (const [label, html] of falseTitles) {
+    assert.equal(extractCapturedDocumentIdentity(html, "html"), null, label);
+  }
+  assert.equal(falseTitles.length, 5);
+
+  const validTitles = [
+    "<title>Guidance G-1</title>",
+    "<title class=\"x\">Guidance G-1</title>",
+    "<title\n  class=\"x\"\n>\nGuidance G-1\n</title>",
+    "<textarea>fake</textarea><title>Guidance G-1</title>",
+    "<!doctype html><title>Guidance G-1</title>",
+  ];
+  for (const html of validTitles) {
+    assert.deepEqual(extractCapturedDocumentIdentity(html, "html"), {
+      kind: "html_title",
+      text: "Guidance G-1",
+    });
+  }
+  for (const asciiSpace of ["\t", "\n", "\f", "\r", " "]) {
+    assert.deepEqual(extractCapturedDocumentIdentity(
+      `<title${asciiSpace}class="x">Guidance G-1</title${asciiSpace}>`,
+      "html",
+    ), {
+      kind: "html_title",
+      text: "Guidance G-1",
+    });
+  }
+});
+
+test("foreign and non-title contexts cannot supply document identity", () => {
+  const falseTitles: Array<[string, string]> = [
+    ["math", "<math><title>Guidance G-1</title></math>"],
+    ["select", "<select><title>Guidance G-1</title></select>"],
+    ["frameset", "<frameset><title>Guidance G-1</title></frameset>"],
+  ];
+  for (const [label, html] of falseTitles) {
+    assert.equal(extractCapturedDocumentIdentity(html, "html"), null, label);
+  }
+  assert.equal(falseTitles.length, 3);
+
+  const validAfterExcludedContext = [
+    "<math><title>Guidance G-9</title></math><title>Guidance G-1</title>",
+    "<select><option>fake</option></select><title>Guidance G-1</title>",
+    "<frameset></frameset><title>Guidance G-1</title>",
+  ];
+  for (const html of validAfterExcludedContext) {
+    assert.deepEqual(extractCapturedDocumentIdentity(html, "html"), {
+      kind: "html_title",
+      text: "Guidance G-1",
+    });
+  }
+});
+
+test("plain-text document identity uses only the first non-empty bounded normalized line", async () => {
+  assert.deepEqual(extractCapturedDocumentIdentity(
+    "\r\n  \n Ｇuidance   G-1 \r\nGuidance G-9",
+    "plain_text",
+  ), {
+    kind: "plain_text_first_line",
+    text: "Guidance G-1",
+  });
+  assert.deepEqual(extractCapturedDocumentIdentity(
+    "Agency archive\nGuidance G-1",
+    "plain_text",
+  ), {
+    kind: "plain_text_first_line",
+    text: "Agency archive",
+  });
+  assert.equal(extractCapturedDocumentIdentity("\n \t\n", "plain_text"), null);
+  assert.equal(extractCapturedDocumentIdentity(
+    `${"x".repeat(MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS + 1)}\nGuidance G-1`,
+    "plain_text",
+  ), null);
+
+  const result = await capture((async () =>
+    response("\n Guidance G-1 \nBody text", "text/plain")) as typeof fetch);
+  assert.deepEqual(result.documents[0].document_identity, {
+    kind: "plain_text_first_line",
+    text: "Guidance G-1",
+  });
 });
 
 test("numeric HTML entities are decoded before NFKC normalization and hashing", async () => {

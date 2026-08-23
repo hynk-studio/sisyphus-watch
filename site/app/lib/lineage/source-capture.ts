@@ -23,18 +23,38 @@ export const MINIMUM_CAPTURE_START_BUDGET_MS = 9_000;
 export const MAX_CAPTURE_BODY_BYTES = 1_048_576;
 export const MAX_NORMALIZED_CAPTURE_TEXT_CHARS = 98_304;
 export const MAX_CAPTURE_SUPPORT_EXCERPT_CHARS = 560;
+export const MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS = 240;
 export const MAX_CAPTURE_REDIRECTS = 2;
 export const MAX_CAPTURE_NETWORK_CONCURRENCY = 2;
 
 const CAPTURE_ACCEPT =
   "text/html, application/xhtml+xml, text/plain;q=0.9";
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-const HTML_MEDIA_TYPES = new Set(["text/html", "application/xhtml+xml"]);
+const HTML_MEDIA_TYPE = "text/html";
+const XHTML_MEDIA_TYPE = "application/xhtml+xml";
 const STRONG_SUPERSESSION_SCOPES = new Set([
   "whole_document",
   "whole_version",
   "withdrawal_or_rescission",
 ]);
+const HTML_RAW_TEXT_IDENTITY_CONTAINERS = new Set([
+  "script",
+  "style",
+  "textarea",
+  "xmp",
+  "iframe",
+  "noembed",
+  "noframes",
+]);
+const HTML_INERT_IDENTITY_CONTAINERS = new Set([
+  "noscript",
+  "template",
+  "svg",
+  "math",
+  "select",
+  "frameset",
+]);
+const HTML_ASCII_WHITESPACE_PATTERN = "[\\t\\n\\f\\r ]";
 
 export type CaptureFailureReason =
   | "ineligible_source"
@@ -55,6 +75,11 @@ export type CaptureCompleteness =
   | "byte_limited"
   | "text_limited";
 
+export interface CapturedDocumentIdentity {
+  kind: "html_title" | "plain_text_first_line";
+  text: string;
+}
+
 export interface CapturedSourceDocument {
   capture_id: string;
   source_id: string;
@@ -71,6 +96,7 @@ export interface CapturedSourceDocument {
   normalized_text_chars: number;
   normalized_text_sha256: string;
   normalized_text: string;
+  document_identity: CapturedDocumentIdentity | null;
   status: "captured";
 }
 
@@ -161,6 +187,12 @@ interface RelationRelevantCue {
 interface CaptureAttempt {
   plan: CapturePlanEntry;
   result: CapturedSourceDocument | CaptureFailure;
+  strongEvidenceEligible: boolean;
+}
+
+interface CapturedSourceSuccess {
+  document: CapturedSourceDocument;
+  strongEvidenceEligible: boolean;
 }
 
 export type SupportAnchorBoundary = "lexical" | "identifier" | "phrase";
@@ -173,6 +205,22 @@ export interface SupportAnchor {
 export interface AnchorOccurrence {
   start: number;
   end: number;
+}
+
+interface RawHTMLTag {
+  start: number;
+  end: number;
+  name: string;
+  closing: boolean;
+  selfClosing: boolean;
+}
+
+type CapturedResponseSyntax = "html" | "xhtml" | "plain_text";
+
+function isStrongCapturedEvidenceSyntax(
+  syntax: CapturedResponseSyntax,
+): boolean {
+  return syntax === "html" || syntax === "plain_text";
 }
 
 export function validateDirectCaptureURL(value: string): URL | null {
@@ -356,16 +404,26 @@ export async function executeCapturedSourcePlan(
   const attempts = await mapWithConcurrency(
     plan.entries,
     MAX_CAPTURE_NETWORK_CONCURRENCY,
-    async (entry): Promise<CaptureAttempt> => ({
-      plan: entry,
-      result: await captureOneSource(
+    async (entry): Promise<CaptureAttempt> => {
+      const outcome = await captureOneSource(
         entry,
         workflowDeadlineAtMs,
         fetcher,
         nowMs,
         nowISO,
-      ),
-    }),
+      );
+      return "document" in outcome
+        ? {
+            plan: entry,
+            result: outcome.document,
+            strongEvidenceEligible: outcome.strongEvidenceEligible,
+          }
+        : {
+            plan: entry,
+            result: outcome,
+            strongEvidenceEligible: false,
+          };
+    },
   );
   const documents = attempts
     .map((attempt) => attempt.result)
@@ -378,6 +436,7 @@ export async function executeCapturedSourcePlan(
     if (
       attempt.plan.role !== "cue_owner"
       || attempt.result.status !== "captured"
+      || !attempt.strongEvidenceEligible
     ) continue;
     const support = await selectCapturedSupportSpan(
       attempt.result,
@@ -447,13 +506,39 @@ export function normalizeCapturedDocumentText(
   return { text: value, textLimited };
 }
 
+export function extractCapturedDocumentIdentity(
+  input: string,
+  mediaKind: "html" | "plain_text",
+): CapturedDocumentIdentity | null {
+  if (mediaKind === "plain_text") {
+    const lines = input.normalize("NFKC").replace(/\r\n?/gu, "\n").split("\n");
+    for (const line of lines) {
+      const text = normalizeCapturedDocumentIdentityText(line);
+      if (!text) continue;
+      return text.length <= MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS
+        ? { kind: "plain_text_first_line", text }
+        : null;
+    }
+    return null;
+  }
+
+  const rawTitle = scanDocumentTitleFromRawHTML(input);
+  if (rawTitle === null || /[<>]/u.test(rawTitle)) return null;
+  const text = normalizeCapturedDocumentIdentityText(
+    decodeBasicHTMLEntities(rawTitle),
+  );
+  return text && text.length <= MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS
+    ? { kind: "html_title", text }
+    : null;
+}
+
 async function captureOneSource(
   entry: CapturePlanEntry,
   workflowDeadlineAtMs: number,
   fetcher: typeof fetch,
   nowMs: () => number,
   nowISO: () => string,
-): Promise<CapturedSourceDocument | CaptureFailure> {
+): Promise<CapturedSourceSuccess | CaptureFailure> {
   if (
     entry.source.retrieval_mode !== "openai_web_search"
     || entry.source.record_status !== "candidate"
@@ -592,7 +677,12 @@ async function captureOneSource(
         networkAttempted: true,
       });
     }
-    const normalized = normalizeCapturedDocumentText(decoded, content);
+    const mediaKind = content === "plain_text" ? "plain_text" : "html";
+    const strongEvidenceEligible = isStrongCapturedEvidenceSyntax(content);
+    const documentIdentity = strongEvidenceEligible
+      ? extractCapturedDocumentIdentity(decoded, mediaKind)
+      : null;
+    const normalized = normalizeCapturedDocumentText(decoded, mediaKind);
     if (!normalized.text) {
       return captureFailure({
         entry,
@@ -621,29 +711,33 @@ async function captureOneSource(
       ? "text_limited"
       : "complete";
     return {
-      capture_id: stableLineageId(
-        "captured_source_document_",
-        entry.source.source_id,
-        entry.source.snapshot_id,
-        currentURL.href,
-        bodyHash,
-        textHash,
-      ),
-      source_id: entry.source.source_id,
-      parent_snapshot_id: entry.source.snapshot_id,
-      requested_url: requestedURL.href,
-      final_url: currentURL.href,
-      redirect_count: redirectCount,
-      retrieved_at: nowISO(),
-      capture_method: "direct_worker_fetch",
-      media_kind: content,
-      capture_completeness: completeness,
-      captured_body_bytes: retained.bytes.byteLength,
-      captured_body_sha256: bodyHash,
-      normalized_text_chars: normalized.text.length,
-      normalized_text_sha256: textHash,
-      normalized_text: normalized.text,
-      status: "captured",
+      strongEvidenceEligible,
+      document: {
+        capture_id: stableLineageId(
+          "captured_source_document_",
+          entry.source.source_id,
+          entry.source.snapshot_id,
+          currentURL.href,
+          bodyHash,
+          textHash,
+        ),
+        source_id: entry.source.source_id,
+        parent_snapshot_id: entry.source.snapshot_id,
+        requested_url: requestedURL.href,
+        final_url: currentURL.href,
+        redirect_count: redirectCount,
+        retrieved_at: nowISO(),
+        capture_method: "direct_worker_fetch",
+        media_kind: mediaKind,
+        capture_completeness: completeness,
+        captured_body_bytes: retained.bytes.byteLength,
+        captured_body_sha256: bodyHash,
+        normalized_text_chars: normalized.text.length,
+        normalized_text_sha256: textHash,
+        normalized_text: normalized.text,
+        document_identity: documentIdentity,
+        status: "captured",
+      },
     };
   } finally {
     clearTimeout(timeout);
@@ -696,11 +790,15 @@ async function readBoundedBody(
 
 function parseSupportedContentType(
   value: string | null,
-): "html" | "plain_text" | "unsupported_content_type" | "unsupported_encoding" {
+): CapturedResponseSyntax | "unsupported_content_type" | "unsupported_encoding" {
   const [rawMediaType, ...parameters] = (value ?? "")
     .split(";")
     .map((part) => part.trim().toLowerCase());
-  if (!HTML_MEDIA_TYPES.has(rawMediaType) && rawMediaType !== "text/plain") {
+  if (
+    rawMediaType !== HTML_MEDIA_TYPE
+    && rawMediaType !== XHTML_MEDIA_TYPE
+    && rawMediaType !== "text/plain"
+  ) {
     return "unsupported_content_type";
   }
   const charsetParameter = parameters.find((part) => part.startsWith("charset="));
@@ -712,21 +810,178 @@ function parseSupportedContentType(
       return "unsupported_encoding";
     }
   }
-  return HTML_MEDIA_TYPES.has(rawMediaType) ? "html" : "plain_text";
+  if (rawMediaType === HTML_MEDIA_TYPE) return "html";
+  if (rawMediaType === XHTML_MEDIA_TYPE) return "xhtml";
+  return "plain_text";
 }
 
 function htmlToVisibleText(html: string): string {
-  const withoutIgnored = html
-    .replace(/<!--([\s\S]*?)-->/gu, " ")
-    .replace(/<!--[\s\S]*$/gu, " ")
-    .replace(/<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, "\n")
-    .replace(/<(script|style|noscript|template|svg)\b[^>]*\/\s*>/giu, "\n")
-    .replace(/<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*$/giu, "\n");
+  const withoutIgnored = stripIgnoredHTMLRegions(html);
   const withBlocks = withoutIgnored.replace(
     /<\/?(?:address|article|aside|blockquote|br|dd|div|dl|dt|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>/giu,
     "\n",
   );
   return decodeBasicHTMLEntities(withBlocks.replace(/<[^>]*>/gu, " "));
+}
+
+function stripIgnoredHTMLRegions(html: string): string {
+  return html
+    .replace(/<!--([\s\S]*?)-->/gu, " ")
+    .replace(/<!--[\s\S]*$/gu, " ")
+    .replace(/<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, "\n")
+    .replace(/<(script|style|noscript|template|svg)\b[^>]*\/\s*>/giu, "\n")
+    .replace(/<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*$/giu, "\n");
+}
+
+function scanDocumentTitleFromRawHTML(html: string): string | null {
+  const inertContextStack: string[] = [];
+  const titleContents: string[] = [];
+  let searchFrom = 0;
+  while (searchFrom < html.length) {
+    const start = html.indexOf("<", searchFrom);
+    if (start < 0) break;
+
+    if (html.startsWith("<!--", start)) {
+      const commentEnd = html.indexOf("-->", start + 4);
+      if (commentEnd < 0) return null;
+      searchFrom = commentEnd + 3;
+      continue;
+    }
+
+    if (html.startsWith("<!", start)) {
+      const declaration = scanRawHTMLTagBoundary(html, start);
+      if (
+        !declaration
+        || !/^<!doctype(?:[\t\n\f\r ]|>)/iu.test(declaration.text)
+        || declaration.text.slice(1).includes("<")
+      ) return null;
+      searchFrom = declaration.end;
+      continue;
+    }
+    if (html.startsWith("<?", start)) return null;
+
+    const tag = scanRawHTMLTag(html, start);
+    if (!tag) return null;
+
+    if (HTML_RAW_TEXT_IDENTITY_CONTAINERS.has(tag.name)) {
+      if (tag.closing || tag.selfClosing) return null;
+      const containerEnd = skipRawHTMLIdentityContainer(html, tag);
+      if (containerEnd === null) return null;
+      searchFrom = containerEnd;
+      continue;
+    }
+
+    if (tag.name === "plaintext") {
+      if (tag.closing || tag.selfClosing) return null;
+      searchFrom = html.length;
+      break;
+    }
+
+    if (HTML_INERT_IDENTITY_CONTAINERS.has(tag.name)) {
+      if (tag.selfClosing) return null;
+      if (tag.closing) {
+        if (inertContextStack.at(-1) !== tag.name) return null;
+        inertContextStack.pop();
+      } else {
+        inertContextStack.push(tag.name);
+      }
+      searchFrom = tag.end;
+      continue;
+    }
+
+    if (tag.name === "title") {
+      if (inertContextStack.length > 0) {
+        searchFrom = tag.end;
+        continue;
+      }
+      if (tag.closing || tag.selfClosing) return null;
+      const closeStart = html.indexOf("<", tag.end);
+      if (closeStart < 0) return null;
+      const rawTitle = html.slice(tag.end, closeStart);
+      if (/[<>]/u.test(rawTitle)) return null;
+      const close = scanRawHTMLTag(html, closeStart);
+      if (!close || !close.closing || close.name !== "title") return null;
+      titleContents.push(rawTitle);
+      if (titleContents.length > 1) return null;
+      searchFrom = close.end;
+      continue;
+    }
+
+    searchFrom = tag.end;
+  }
+
+  return inertContextStack.length === 0 && titleContents.length === 1
+    ? titleContents[0]
+    : null;
+}
+
+function scanRawHTMLTagBoundary(
+  html: string,
+  start: number,
+): { end: number; text: string } | null {
+  if (html[start] !== "<") return null;
+  let quote: "\"" | "'" | null = null;
+  for (let index = start + 1; index < html.length; index += 1) {
+    const value = html[index];
+    if (quote) {
+      if (value === quote) quote = null;
+      continue;
+    }
+    if (value === "\"" || value === "'") {
+      quote = value;
+    } else if (value === ">") {
+      const end = index + 1;
+      return { end, text: html.slice(start, end) };
+    }
+  }
+  return null;
+}
+
+function scanRawHTMLTag(html: string, start: number): RawHTMLTag | null {
+  const boundary = scanRawHTMLTagBoundary(html, start);
+  if (!boundary) return null;
+  const closing = /^<\/([a-z][a-z\d:-]*)[\t\n\f\r ]*>$/iu.exec(boundary.text);
+  if (closing) {
+    return {
+      start,
+      end: boundary.end,
+      name: closing[1].toLowerCase(),
+      closing: true,
+      selfClosing: false,
+    };
+  }
+  const opening = /^<([a-z][a-z\d:-]*)(?:[\t\n\f\r ]+[^\t\n\f\r "'<>/=]+(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"[^"<>]*"|'[^'<>]*'|[^\t\n\f\r "'`=<>/]+))?)*[\t\n\f\r ]*(\/?)>$/iu.exec(
+    boundary.text,
+  );
+  if (!opening) return null;
+  return {
+    start,
+    end: boundary.end,
+    name: opening[1].toLowerCase(),
+    closing: false,
+    selfClosing: opening[2] === "/",
+  };
+}
+
+function skipRawHTMLIdentityContainer(
+  html: string,
+  opening: RawHTMLTag,
+): number | null {
+  const closingPrefix = new RegExp(
+    `</${opening.name}(?=>|${HTML_ASCII_WHITESPACE_PATTERN})`,
+    "giu",
+  );
+  closingPrefix.lastIndex = opening.end;
+  const match = closingPrefix.exec(html);
+  if (!match) return null;
+  const closing = scanRawHTMLTag(html, match.index);
+  return closing?.closing && closing.name === opening.name
+    ? closing.end
+    : null;
+}
+
+function normalizeCapturedDocumentIdentityText(value: string): string {
+  return value.normalize("NFKC").replace(/\s+/gu, " ").trim();
 }
 
 function decodeBasicHTMLEntities(value: string): string {
