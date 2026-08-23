@@ -220,6 +220,38 @@ p, li, blockquote { text-wrap: pretty; }
   border-top: 4px solid var(--navy);
   background: var(--surface-strong);
 }
+.composer-workflow {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+.execution-support {
+  display: grid;
+  gap: 11px;
+  padding: 15px clamp(18px, 2.5vw, 24px);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-strong);
+}
+.execution-setup-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.execution-setup-intro > div { display: grid; min-width: 0; gap: 3px; }
+.execution-setup-intro h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-editorial);
+  font-size: 1.08rem;
+  letter-spacing: -.02em;
+}
+.execution-setup-intro p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.5;
+}
 .execution-mode-banner {
   display: flex;
   align-items: center;
@@ -255,19 +287,16 @@ p, li, blockquote { text-wrap: pretty; }
   padding: clamp(22px, 3vw, 32px);
 }
 .investigation-brief-heading,
-.composer-config-heading,
-.prepared-launch-heading {
+.composer-config-heading {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 16px;
 }
 .investigation-brief-heading p,
-.composer-config-heading p,
-.prepared-launch-heading p { margin: 0; font-size: .8rem; font-weight: 760; }
+.composer-config-heading p { margin: 0; font-size: .8rem; font-weight: 760; }
 .investigation-brief-heading span,
-.composer-config-heading span,
-.prepared-launch-heading span { color: var(--muted); font-size: .75rem; }
+.composer-config-heading span { color: var(--muted); font-size: .75rem; }
 .investigation-privacy-region { display: grid; gap: 9px; }
 .composer-config-rail {
   display: grid;
@@ -283,9 +312,8 @@ p, li, blockquote { text-wrap: pretty; }
   margin-right: clamp(22px, 3vw, 32px);
   margin-left: clamp(22px, 3vw, 32px);
 }
-.investigation-form > .execution-switches {
-  margin: 0 clamp(22px, 3vw, 32px) 20px;
-}
+.investigation-form > .availability-note,
+.investigation-form > .form-error { margin-bottom: 20px; }
 .investigation-form > label,
 .source-limit-control,
 .profile-fieldset legend,
@@ -417,37 +445,10 @@ p, li, blockquote { text-wrap: pretty; }
   background: transparent;
   color: var(--navy);
 }
-.prepared-launch-panel {
-  display: grid;
-  gap: 16px;
-  align-content: start;
-  padding: clamp(22px, 3.2vw, 34px);
-  border: 1px solid var(--line-strong);
-  border-top: 4px solid var(--navy);
-  background:
-    linear-gradient(135deg, transparent 0 68%, rgba(246, 196, 83, .12) 68% 70%, transparent 70%),
-    var(--surface-strong);
-}
-.prepared-launch-copy { display: grid; gap: 10px; }
-.prepared-launch-copy > p { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.58; }
-.prepared-launch-panel h2 { margin: 0; font-family: var(--font-editorial); font-size: clamp(1.55rem, 2.35vw, 2rem); letter-spacing: -.035em; line-height: 1.1; }
-.prepared-launch-panel > p { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.58; }
-.prepared-launch-kicker { color: var(--review) !important; font-size: .78rem !important; font-weight: 760; letter-spacing: .015em; }
-.prepared-primary-button {
-  min-height: 52px;
-  border: 0;
-  border-radius: 3px;
-  background: var(--navy);
-  color: white;
-  box-shadow: inset 0 -3px 0 rgba(246, 196, 83, .72);
-  cursor: pointer;
-  font-size: .88rem;
-  font-weight: 760;
-}
-.public-default-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 .connect-relay-button {
-  min-height: 52px;
-  padding: 0 18px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding: 0 14px;
   border: 1px solid var(--navy);
   border-radius: 3px;
   background: var(--surface-strong);
@@ -457,22 +458,20 @@ p, li, blockquote { text-wrap: pretty; }
   font-weight: 760;
 }
 .public-api-key-boundary {
-  padding: 11px 13px;
-  border-left: 4px solid var(--gold-ink);
-  background: var(--gold-soft);
-  color: var(--ink-soft) !important;
-  font-weight: 720;
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--gold-ink);
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 680;
+  line-height: 1.45;
 }
-.relay-explanation { font-size: .82rem !important; }
 .relay-connect-form {
   display: grid;
   gap: 9px;
   padding: 16px;
   border: 1px solid var(--line-strong);
   background: var(--surface);
-}
-.investigation-form > .sponsored-relay-connect {
-  margin: 0 clamp(22px, 3vw, 32px) 20px;
 }
 .relay-connect-form > label { color: var(--ink-soft); font-size: .8rem; font-weight: 740; }
 .relay-connect-form > input { min-width: 0; min-height: 46px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--surface-strong); color: var(--ink); }
@@ -490,7 +489,7 @@ p, li, blockquote { text-wrap: pretty; }
   font-size: .8rem;
   font-weight: 720;
 }
-.relay-connect-form button[type="button"] { background: transparent; color: var(--navy); }
+.relay-connect-form button:not(.relay-connect-submit) { background: transparent; color: var(--navy); }
 .relay-connect-form button:disabled { cursor: not-allowed; opacity: .55; }
 .relay-connect-form .relay-error { color: var(--red); font-weight: 680; }
 .relay-status { padding: 10px 12px; border-left: 3px solid var(--review); background: var(--review-soft); font-size: .78rem !important; }
@@ -1986,20 +1985,18 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
   .investigation-brief,
   .composer-config-rail { padding: 18px 15px; }
   .investigation-brief-heading,
-  .composer-config-heading,
-  .prepared-launch-heading { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .composer-config-heading { align-items: flex-start; flex-direction: column; gap: 3px; }
   .investigation-form > .composer-actions,
   .investigation-form > .availability-note,
-  .investigation-form > .form-error,
-  .investigation-form > .execution-switches,
-  .investigation-form > .sponsored-relay-connect { margin-right: 15px; margin-left: 15px; }
-  .prepared-launch-panel { padding: 21px 17px; }
+  .investigation-form > .form-error { margin-right: 15px; margin-left: 15px; }
+  .execution-support { padding: 15px; }
   .composer-options,
   .profile-fieldset,
-  .composer-actions,
-  .public-default-actions { grid-template-columns: 1fr; }
+  .composer-actions { grid-template-columns: 1fr; }
+  .execution-setup-intro,
   .execution-mode-banner,
   .sponsored-option { align-items: stretch; flex-direction: column; }
+  .connect-relay-button,
   .execution-mode-exit,
   .sponsored-option button { width: 100%; }
   .relay-connect-form > div { display: grid; grid-template-columns: minmax(0, 1fr); }

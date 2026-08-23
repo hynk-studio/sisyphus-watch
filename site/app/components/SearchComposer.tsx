@@ -75,6 +75,11 @@ export function SearchComposer({
       : "idle-ready";
   const relaySelected = executionMode === "relay" && activeRelay !== null;
   const sponsoredSelected = executionMode === "operator_sponsored";
+  const questionPrivacy = relaySelected
+    ? "When you build, your question is sent directly from this browser to your relay. The public Sisyphus server does not receive relay provider credentials."
+    : sponsoredSelected
+      ? "When you build, your question uses the separately enabled operator-sponsored route. The Sisyphus operator funds provider work under bounded admission limits."
+      : "You can draft and revise your question before choosing an execution transport. Nothing is submitted merely by typing.";
 
   return (
     <section
@@ -84,45 +89,17 @@ export function SearchComposer({
       <div className="composer-heading">
         <p className="eyebrow">Build a source-bound version map</p>
         <ComposerHeading id="composer-title">
-          {liveEnabled
-            ? "What do you want to investigate?"
-            : "Explore how public information changes"}
+          What do you want to investigate?
         </ComposerHeading>
         <p>
-          {liveEnabled
-            ? "Start with a public-interest topic or question. Sisyphus Watch organizes bounded sources, candidate claim relations, and unanswered questions without turning them into accepted truth."
-            : "Start with a deterministic prepared investigation, or connect a relay you control for live work."}
+          Start with a public-interest topic or question. Sisyphus Watch organizes
+          bounded sources, candidate claim relations, and unanswered questions
+          without turning them into accepted truth.
         </p>
       </div>
 
-      {liveEnabled ? (
+      <div className="composer-workflow">
         <form className="investigation-form" onSubmit={onSubmit}>
-          <div className={`execution-mode-banner execution-mode-${executionMode}`}>
-            <div>
-              <p className="execution-mode-kicker">
-                {relaySelected ? "Live via your relay" : "Sponsored live investigation"}
-              </p>
-              <strong>
-                {relaySelected
-                  ? `Connected to ${activeRelay?.relay_display_name ?? "your relay"}`
-                  : "Explicitly operator-funded"}
-              </strong>
-              <span>
-                {relaySelected
-                  ? "Question and result traffic goes directly between this browser and the configured relay. Provider credentials stay on the relay backend."
-                  : "This investigation is funded by the Sisyphus operator and is subject to strict capacity limits."}
-              </span>
-            </div>
-            <button
-              className="execution-mode-exit"
-              type="button"
-              disabled={isLoading}
-              onClick={relaySelected ? onDisconnectRelay : onLeaveOperatorSponsored}
-            >
-              {relaySelected ? "Disconnect" : "Stop using sponsored live"}
-            </button>
-          </div>
-
           <section
             className="investigation-brief"
             aria-labelledby="investigation-brief-title"
@@ -140,26 +117,17 @@ export function SearchComposer({
               maxLength={500}
               placeholder="How has access to cooling centers changed during the current heatwave?"
               required
-              aria-describedby="live-input-privacy live-availability-note"
+              aria-describedby="question-input-privacy execution-status-note"
             />
             <div className="investigation-privacy-region">
-              <p id="live-input-privacy" className="live-input-privacy">
-                {relaySelected
-                  ? "Your question is sent directly from this browser to your relay. The public Sisyphus server does not receive relay provider credentials."
-                  : "Your question uses the separately enabled operator-sponsored route. The Sisyphus operator funds provider work under bounded admission limits."}
-                {" "}Do not enter personal, confidential, sensitive, or identifying
-                information. By default, Sisyphus Watch does not persist visitor
-                questions or results. Selecting Track this topic on this device stores
-                one compact browser-local snapshot. Results may be incomplete or wrong;
+              <p id="question-input-privacy" className="live-input-privacy">
+                {questionPrivacy} Do not enter personal, confidential, sensitive, or
+                identifying information. By default, Sisyphus Watch does not persist
+                visitor questions or results. Results may be incomplete or wrong;
                 records and relations remain review candidates.
               </p>
               <details className="live-privacy-disclosure">
                 <summary>Privacy &amp; limits</summary>
-                <p>
-                  Public Sisyphus Watch never asks for or stores your OpenAI API key.
-                  Relay authentication and network protection are the relay operator&apos;s
-                  responsibility in v1; this client stores no generic relay credential.
-                </p>
                 <p>
                   Source inclusion is not endorsement or truth verification. A live map
                   can take time because several bounded discovery and source-local
@@ -218,7 +186,9 @@ export function SearchComposer({
                   />
                   <span>
                     <strong>Expand source coverage</strong>
-                    <small>Also look for local, firsthand, specialist, and corrective sources</small>
+                    <small>
+                      Also look for local, firsthand, specialist, and corrective sources
+                    </small>
                   </span>
                 </label>
               </fieldset>
@@ -238,6 +208,7 @@ export function SearchComposer({
 
           <div className="composer-actions">
             <button
+              id="build-investigation-map"
               className="build-map-button"
               type="submit"
               disabled={isLoading || cooldownRemainingSeconds > 0}
@@ -249,58 +220,123 @@ export function SearchComposer({
                   : "Build investigation map"}
             </button>
             <button
+              id="prepared-investigation-cta"
               className="prepared-example-button"
               type="button"
               disabled={isLoading}
               onClick={onPreparedExample}
             >
-              Explore the prepared investigation
+              Try the prepared cooling-center example
             </button>
           </div>
-          <div
-            id="live-availability-note"
-            className={`availability-note availability-${availabilityState}`}
-            data-live-capability="available"
-            data-execution-transport={executionMode ?? "none"}
-            data-availability-state={availabilityState}
-            role="status"
-          >
-            {availabilityState === "idle-ready" ? (
-              <strong className="live-ready-line">
-                <span className="live-ready-dot" aria-hidden="true" />
-                {relaySelected ? "Relay ready" : "Sponsored capacity ready"}
-                {" "}<span aria-hidden="true">·</span> bounded limits apply
-              </strong>
-            ) : (
-              <>
-                <strong>
-                  {isLoading
-                    ? "Bounded live investigation running."
-                    : `Next live attempt available in ${cooldownRemainingSeconds}s.`}
+
+          {liveEnabled ? (
+            <div
+              className={`availability-note availability-${availabilityState}`}
+              data-live-capability="available"
+              data-execution-transport={executionMode ?? "none"}
+              data-availability-state={availabilityState}
+              role="status"
+            >
+              {availabilityState === "idle-ready" ? (
+                <strong className="live-ready-line">
+                  <span className="live-ready-dot" aria-hidden="true" />
+                  {relaySelected ? "Relay ready" : "Sponsored capacity ready"}
+                  {" "}<span aria-hidden="true">·</span> bounded limits apply
                 </strong>
-                <span>
-                  {isLoading
-                    ? "The displayed investigation stays intact until one schema-checked response is available."
-                    : "The prepared investigation remains usable during this short cooldown."}
-                </span>
-              </>
-            )}
-          </div>
+              ) : (
+                <>
+                  <strong>
+                    {isLoading
+                      ? "Bounded live investigation running."
+                      : `Next live attempt available in ${cooldownRemainingSeconds}s.`}
+                  </strong>
+                  <span>
+                    {isLoading
+                      ? "The displayed investigation stays intact until one schema-checked response is available."
+                      : "The prepared investigation remains usable during this short cooldown."}
+                  </span>
+                </>
+              )}
+            </div>
+          ) : null}
           {routeError ? <p className="form-error" role="alert">{routeError}</p> : null}
-          <div className="execution-switches">
-            {relaySelected && operatorSponsoredReady ? (
+        </form>
+
+        <section className="execution-support" aria-labelledby="execution-support-title">
+          {liveEnabled ? (
+            <div className={`execution-mode-banner execution-mode-${executionMode}`}>
+              <div>
+                <p className="execution-mode-kicker" id="execution-support-title">
+                  {relaySelected ? "Live via your relay" : "Sponsored live investigation"}
+                </p>
+                <strong>
+                  {relaySelected
+                    ? `Connected to ${activeRelay?.relay_display_name ?? "your relay"}`
+                    : "Explicitly operator-funded"}
+                </strong>
+                <span id="execution-status-note">
+                  {relaySelected
+                    ? "Build sends the question directly from this browser to the configured relay."
+                    : "This explicitly selected operator-funded investigation is subject to strict capacity limits."}
+                </span>
+              </div>
+              <button
+                className="execution-mode-exit"
+                type="button"
+                disabled={isLoading}
+                onClick={relaySelected ? onDisconnectRelay : onLeaveOperatorSponsored}
+              >
+                {relaySelected ? "Disconnect" : "Stop using sponsored live"}
+              </button>
+            </div>
+          ) : (
+            <div className="execution-setup-intro">
+              <div>
+                <p className="execution-mode-kicker">Execution setup</p>
+                <h2 id="execution-support-title">Run your question when you are ready</h2>
+                <p id="execution-status-note">
+                  Connect a Relay you control before starting a personal live investigation.
+                  Your authored question and settings stay in the composer.
+                </p>
+              </div>
+              <button
+                id="relay-connect-toggle"
+                className="connect-relay-button"
+                type="button"
+                onClick={onOpenRelay}
+              >
+                {storedRelay ? "Reconnect your Relay" : "Connect your Relay"}
+              </button>
+            </div>
+          )}
+
+          <p className="public-api-key-boundary">
+            Public Sisyphus Watch never asks for or stores your OpenAI API key.
+          </p>
+
+          {relaySelected && operatorSponsoredReady ? (
+            <div className="execution-switches">
               <button type="button" disabled={isLoading} onClick={onSelectOperatorSponsored}>
                 Use sponsored live instead
               </button>
-            ) : null}
-            {sponsoredSelected ? (
-              <button type="button" disabled={isLoading} onClick={onOpenRelay}>
-                Connect your relay instead
+            </div>
+          ) : null}
+          {sponsoredSelected ? (
+            <div className="execution-switches">
+              <button
+                id="relay-connect-toggle"
+                type="button"
+                disabled={isLoading}
+                onClick={onOpenRelay}
+              >
+                Connect your Relay instead
               </button>
-            ) : null}
-          </div>
-          {sponsoredSelected && relayFormOpen ? (
-            <div className="relay-connect-form sponsored-relay-connect">
+            </div>
+          ) : null}
+
+          {relayFormOpen ? (
+            <div className="relay-connect-form">
               <label htmlFor="relay-url">Relay URL</label>
               <input
                 id="relay-url"
@@ -316,11 +352,17 @@ export function SearchComposer({
                 required
               />
               <p>
-                Connect explicitly to switch transports. A failed capability check
-                leaves sponsored mode selected and does not start provider work.
+                HTTPS is required except for loopback development. Connect performs one
+                non-billable Relay v1 capability check. It does not submit your question
+                or start provider work.
               </p>
               <div>
-                <button type="button" disabled={relayConnecting} onClick={onConnectRelay}>
+                <button
+                  className="relay-connect-submit"
+                  type="button"
+                  disabled={relayConnecting}
+                  onClick={onConnectRelay}
+                >
                   {relayConnecting ? "Connecting…" : storedRelay ? "Reconnect" : "Connect"}
                 </button>
                 <button type="button" onClick={onCancelRelay}>
@@ -330,84 +372,6 @@ export function SearchComposer({
               {relayError ? <p className="relay-error" role="alert">{relayError}</p> : null}
             </div>
           ) : null}
-        </form>
-      ) : (
-        <div className="prepared-launch-panel">
-          <div className="prepared-launch-heading">
-            <p className="prepared-launch-kicker">Public default</p>
-            <span>Prepared demo + Connect your relay</span>
-          </div>
-          <div className="prepared-launch-copy">
-            <h2>Cooling-center access during extreme heat</h2>
-            <p>
-              Explore a deterministic source record with no provider work, or connect
-              infrastructure you control for a live investigation.
-            </p>
-          </div>
-          <div className="public-default-actions">
-            <button
-              id="prepared-investigation-cta"
-              className="prepared-primary-button"
-              type="button"
-              onClick={onPreparedExample}
-            >
-              Explore the prepared investigation
-            </button>
-            <button
-              id="connect-relay-cta"
-              className="connect-relay-button"
-              type="button"
-              onClick={onOpenRelay}
-            >
-              {storedRelay ? "Reconnect your relay" : "Connect your relay"}
-            </button>
-          </div>
-          <p className="public-api-key-boundary">
-            Public Sisyphus Watch never asks for or stores your OpenAI API key.
-          </p>
-          <p className="relay-explanation">
-            Your relay runs provider requests on infrastructure you control. Provider
-            credentials stay on your backend, and this browser communicates directly
-            with the configured relay.
-          </p>
-
-          {relayFormOpen ? (
-            <form
-              className="relay-connect-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onConnectRelay();
-              }}
-            >
-              <label htmlFor="relay-url">Relay URL</label>
-              <input
-                id="relay-url"
-                name="relay-url"
-                type="url"
-                inputMode="url"
-                autoComplete="url"
-                autoCapitalize="none"
-                spellCheck={false}
-                value={relayUrlInput}
-                onChange={(event) => onRelayUrlChange(event.target.value)}
-                placeholder="https://relay.example"
-                required
-              />
-              <p>
-                HTTPS is required except for loopback development. Connecting performs
-                one non-billable Relay v1 capability check; typing alone stores nothing.
-              </p>
-              <div>
-                <button type="submit" disabled={relayConnecting}>
-                  {relayConnecting ? "Connecting…" : storedRelay ? "Reconnect" : "Connect"}
-                </button>
-                <button type="button" onClick={onCancelRelay}>
-                  Cancel
-                </button>
-              </div>
-              {relayError ? <p className="relay-error" role="alert">{relayError}</p> : null}
-            </form>
-          ) : null}
 
           {relayHydrated && relayNotice ? (
             <p className="relay-status" role="status" aria-live="polite">
@@ -415,14 +379,14 @@ export function SearchComposer({
             </p>
           ) : null}
 
-          {operatorSponsoredReady ? (
+          {operatorSponsoredReady && !liveEnabled ? (
             <section className="sponsored-option" aria-labelledby="sponsored-option-title">
               <div>
                 <p>Optional lower-priority path</p>
                 <h3 id="sponsored-option-title">Sponsored live investigation</h3>
                 <span>
-                  This investigation is funded by the Sisyphus operator and is subject
-                  to strict capacity limits.
+                  Explicitly select operator-funded execution, subject to strict
+                  capacity limits.
                 </span>
               </div>
               <button type="button" onClick={onSelectOperatorSponsored}>
@@ -430,8 +394,8 @@ export function SearchComposer({
               </button>
             </section>
           ) : null}
-        </div>
-      )}
+        </section>
+      </div>
     </section>
   );
 }

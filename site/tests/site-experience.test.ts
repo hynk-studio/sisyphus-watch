@@ -17,6 +17,7 @@ import {
   firstPayoffForPacket,
   getRunNotice,
 } from "../app/components/CaseExplorer";
+import { decideInvestigationSubmission } from "../app/components/InvestigationExplorer";
 import {
   EXPERIENCE_VIEWS,
   VIEW_LABELS,
@@ -85,26 +86,69 @@ test("Site metadata declares a repository-contained icon", () => {
   assert.doesNotMatch(icon, /(?:href|src)=["']https?:\/\//);
 });
 
-test("live-disabled landing makes the prepared investigation the primary usable action without false editable affordances", () => {
+test("fresh public landing is question-first without claiming that execution is ready", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const before = JSON.stringify(packet);
   const html = renderToStaticMarkup(createElement(CaseExplorer, {
     preparedCase: packet,
   }));
 
-  assert.match(html, /Explore how public information changes/);
-  assert.match(html, /class="prepared-primary-button"/);
-  assert.match(html, /Explore the prepared investigation/);
-  assert.match(html, /Prepared demo \+ Connect your relay/);
-  assert.match(html, /Connect your relay/);
+  assert.match(html, /What do you want to investigate\?/);
+  assert.match(html, /<textarea[^>]*id="investigation-question"/);
+  assert.match(html, /minLength="12"/);
+  assert.match(html, /maxLength="500"/);
+  assert.equal((html.match(/type="radio"/g) ?? []).length, 2);
+  assert.match(html, /Standard review/);
+  assert.match(html, /Expand source coverage/);
+  assert.match(html, /<select id="source-limit">/);
+  assert.match(html, /Build investigation map/);
+  assert.match(html, /Try the prepared cooling-center example/);
+  assert.match(html, /Connect your Relay/);
   assert.match(html, /never asks for or stores your OpenAI API key/);
-  assert.doesNotMatch(html, /<textarea/);
-  assert.doesNotMatch(html, /type="radio"/);
-  assert.doesNotMatch(html, /<select/);
-  assert.doesNotMatch(html, /Build investigation map/);
+  assert.doesNotMatch(html, /name="[^"]*(?:api|provider)[^"]*key/i);
+  assert.doesNotMatch(html, /Relay ready|Sponsored capacity ready/);
+  assert.doesNotMatch(html, /data-live-capability="available"/);
   assert.doesNotMatch(html, /id="investigation-workspace"/);
   assert.doesNotMatch(html, /Prepared demonstration/);
+  assert.ok(html.indexOf("What do you want to investigate?") < html.indexOf("Build investigation map"));
+  assert.ok(html.indexOf("Build investigation map") < html.indexOf("Try the prepared cooling-center example"));
+  assert.ok(html.indexOf("Try the prepared cooling-center example") < html.indexOf("Connect your Relay"));
   assert.equal(JSON.stringify(packet), before);
+});
+
+test("submission decision preserves the exact authored question and settings until transport is explicit", () => {
+  const input = {
+    question: "  How is public access changing for residents?  ",
+    sourceLimit: 5,
+    discoveryProfile: "coverage_expansion" as const,
+  };
+  const before = JSON.stringify(input);
+  const decision = decideInvestigationSubmission(null, input);
+  assert.equal(decision.kind, "request_execution_transport");
+  assert.equal(decision.input, input);
+  assert.equal(JSON.stringify(input), before);
+
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  const submitStart = explorerSource.indexOf("function submitAnalysis(");
+  const submitEnd = explorerSource.indexOf("function startPreparedExample()", submitStart);
+  const submitSource = explorerSource.slice(submitStart, submitEnd);
+  assert.match(submitSource, /decision\.kind === "request_execution_transport"/);
+  assert.match(submitSource, /Connect your Relay to run this investigation\. Your question will stay here\./);
+  assert.match(submitSource, /openRelayConnection\(\)/);
+  assert.ok(submitSource.indexOf("return;") < submitSource.indexOf("runAnalysis(decision.input)"));
+  assert.doesNotMatch(submitSource, /setQuestion|setSourceLimit|setDiscoveryProfile|fetch\(/);
+
+  const preparedStart = explorerSource.indexOf("function startPreparedExample()");
+  const preparedEnd = explorerSource.indexOf("function startNewInvestigation()", preparedStart);
+  const preparedSource = explorerSource.slice(preparedStart, preparedEnd);
+  assert.match(preparedSource, /setPacket\(preparedCase\)/);
+  assert.doesNotMatch(
+    preparedSource,
+    /fetch\(|runAnalysis|executeInvestigationTransport|negotiateRelayConnection/,
+  );
 });
 
 test("the persistent top target and visible page heading follow the active surface", () => {
@@ -176,7 +220,7 @@ test("result-mode home controls expose one shared local reset path", () => {
   assert.match(resetSource, /setInvestigationStarted\(false\)/);
   assert.match(resetSource, /clearDetail\(\)/);
   assert.match(resetSource, /"investigation-question"/);
-  assert.match(resetSource, /"prepared-investigation-cta"/);
+  assert.doesNotMatch(resetSource, /"prepared-investigation-cta"/);
   assert.match(resetSource, /\.focus\(\)/);
   assert.doesNotMatch(resetSource, /fetch\(|\/api\/lineage/);
 });
@@ -218,7 +262,7 @@ test("live composer exposes the existing bounded request controls without claimi
   assert.doesNotMatch(html, /availability-note live-ready/);
   assert.doesNotMatch(html, /\bvalidated\b/i);
   assert.doesNotMatch(html, /disabled=""/);
-  assert.ok(html.indexOf("Build investigation map") < html.indexOf("Explore the prepared investigation"));
+  assert.ok(html.indexOf("Build investigation map") < html.indexOf("Try the prepared cooling-center example"));
 });
 
 test("loading and cooldown retain their distinct availability treatments", () => {
