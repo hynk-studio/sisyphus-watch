@@ -251,6 +251,8 @@ test("narrow direct-active modifier gaps preserve positive assessment semantics"
     "This guidance hereby supersedes Guidance G-1.",
     "This guidance expressly supersedes Guidance G-1.",
     "This guidance expressly supersedes the prior Guidance G-1.",
+    "This guidance supersedes Guidance No G-1.",
+    "This guidance supersedes Guidance No. G-1.",
   ];
   for (const assertion of assertions) {
     const fixture = await buildCase({ assertion });
@@ -259,6 +261,18 @@ test("narrow direct-active modifier gaps preserve positive assessment semantics"
     assert.equal(result.summary.accepted_assessment_count, 1, assertion);
     assert.equal(result.assessments[0].relation_type, "supersedes", assertion);
   }
+
+  const notice = await buildCase({
+    ownerTitle: "Notice N-18",
+    targetTitle: "Notice N-17",
+    assertion: "This notice supersedes Notice N-17.",
+    cue: {
+      target_kind: "notice_identifier",
+      target_identifier: "N-17",
+      target_reference_text: "Notice N-17",
+    },
+  });
+  assert.equal(assess(notice.input).assessments.length, 1);
 });
 
 test("verb and semantic alternatives never produce a strong assessment", async () => {
@@ -592,6 +606,65 @@ test("direct active grammar rejects intervening subjects and nested verbs", asyn
     "This guidance, according to Policy X, supersedes Guidance G-1.",
   ];
   assert.equal(assertions.length, 6);
+  for (const assertion of assertions) {
+    const fixture = await buildCase({ assertion });
+    const result = assess(fixture.input);
+    assert.equal(result.assessments.length, 0, assertion);
+    assert.equal(result.summary.rejected_direction_count, 1, assertion);
+  }
+});
+
+test("multi-anchor targets must compose one direct target expression", async () => {
+  const cases: CaseOptions[] = [
+    {
+      assertion:
+        "This guidance supersedes guidance on cooling and leaves Guidance G-1 unchanged.",
+    },
+    {
+      assertion:
+        "This guidance supersedes guidance for local programs and discusses G-1 separately.",
+    },
+    {
+      assertion:
+        "This guidance supersedes guidance about heat safety while Guidance G-1 remains unchanged.",
+    },
+    {
+      assertion:
+        "This guidance supersedes guidance and separately references Guidance G-1.",
+    },
+    {
+      ownerTitle: "Notice N-18",
+      targetTitle: "Notice N-17",
+      assertion:
+        "This notice supersedes notice requirements for operators and leaves Notice N-17 unchanged.",
+      cue: {
+        target_kind: "notice_identifier",
+        target_identifier: "N-17",
+        target_reference_text: "Notice N-17",
+      },
+    },
+  ];
+  assert.equal(cases.length, 5);
+  for (const item of cases) {
+    const fixture = await buildCase(item);
+    const result = assess(fixture.input);
+    assert.equal(result.assessments.length, 0, item.assertion);
+    assert.equal(result.summary.rejected_direction_count, 1, item.assertion);
+  }
+});
+
+test("captured quotation and owner-prefix attribution fail closed", async () => {
+  const assertions = [
+    "\"This guidance supersedes Guidance G-1.\"",
+    "“This guidance supersedes Guidance G-1.”",
+    "‘This guidance supersedes Guidance G-1.’",
+    "According to the prior notice, this guidance supersedes Guidance G-1.",
+    "The agency says this guidance supersedes Guidance G-1.",
+    "The prior notice states that this guidance supersedes Guidance G-1.",
+    "For reference, this guidance supersedes Guidance G-1.",
+    "A reviewer wrote that this guidance supersedes Guidance G-1.",
+  ];
+  assert.equal(assertions.length, 8);
   for (const assertion of assertions) {
     const fixture = await buildCase({ assertion });
     const result = assess(fixture.input);

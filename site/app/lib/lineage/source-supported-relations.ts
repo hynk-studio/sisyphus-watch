@@ -59,6 +59,10 @@ const VERB_TO_TARGET_ALLOWED_TOKENS = new Set([
   "prior",
   "the",
 ]);
+const IDENTIFIER_TARGET_GAP_ALLOWED_TOKENS = new Set(["no"]);
+const NO_ALLOWED_GAP_TOKENS = new Set<string>();
+const ASSERTION_QUOTE_DELIMITERS = /["‘’“”«»‹›]/u;
+const OWNER_PREFIX_ALLOWED_NON_QUOTE_CONTENT = /^[\s,.:;!?()[\]{}–—-]*$/u;
 const ASSERTION_QUALIFIERS: SupportAnchor[] = [
   "not",
   "never",
@@ -375,6 +379,9 @@ export function assessSourceSupportedRelations(
   if (hasAssertionQualifier(assertionContext.text)) {
     return reject(summary, "rejected_qualifier_count");
   }
+  if (ASSERTION_QUOTE_DELIMITERS.test(assertionContext.text)) {
+    return reject(summary, "rejected_direction_count");
+  }
 
   const ownerSource = input.analysisRun.source_snapshot_summaries.find(
     (source) => source.source_id === owner.source_id,
@@ -438,19 +445,19 @@ export function deriveBoundedAssertionContext(
   ) return null;
 
   for (let index = supportStart; index < supportEnd; index += 1) {
-    if (ASSERTION_HARD_BOUNDARIES.has(normalizedText[index])) return null;
+    if (isAssertionHardBoundary(normalizedText, index)) return null;
   }
 
   let start = 0;
   for (let index = supportStart - 1; index >= 0; index -= 1) {
-    if (ASSERTION_HARD_BOUNDARIES.has(normalizedText[index])) {
+    if (isAssertionHardBoundary(normalizedText, index)) {
       start = index + 1;
       break;
     }
   }
   let end = normalizedText.length;
   for (let index = supportEnd; index < normalizedText.length; index += 1) {
-    if (ASSERTION_HARD_BOUNDARIES.has(normalizedText[index])) {
+    if (isAssertionHardBoundary(normalizedText, index)) {
       end = index + 1;
       break;
     }
@@ -465,6 +472,24 @@ export function deriveBoundedAssertionContext(
   ) return null;
   const text = normalizedText.slice(start, end);
   return text ? { start, end, text } : null;
+}
+
+function isAssertionHardBoundary(text: string, index: number): boolean {
+  const value = text[index];
+  return ASSERTION_HARD_BOUNDARIES.has(value)
+    && !(value === "." && isNarrowNoAbbreviationPeriod(text, index));
+}
+
+function isNarrowNoAbbreviationPeriod(text: string, index: number): boolean {
+  const noStart = index - 2;
+  if (noStart < 0 || text.slice(noStart, index).toLowerCase() !== "no") {
+    return false;
+  }
+  const before = noStart > 0 ? text[noStart - 1] : "";
+  if (before && /[\p{L}\p{M}\p{N}_]/u.test(before)) return false;
+  return /^[ \t]{1,8}[\p{L}\p{M}\p{N}_]/u.test(
+    text.slice(index + 1, index + 11),
+  );
 }
 
 function emptySourceSupportedRelationWorkSummary(): SourceSupportedRelationWorkSummary {
@@ -731,7 +756,11 @@ function activeDirectionMatch(
     boundary: "lexical",
   });
   if (verbOccurrences.length !== 1) return null;
-  const targetExtents = orderedTargetExtents(assertionContext, targetAnchors);
+  const targetExtents = composeDirectTargetExtents(
+    assertionContext,
+    targetAnchors,
+    cue.target_kind,
+  );
   const matches: Array<{
     owner: AnchorOccurrence & { anchor: SupportAnchor };
     verb: AnchorOccurrence;
@@ -741,6 +770,9 @@ function activeDirectionMatch(
     if (verb.start < supportStart || verb.end > supportEnd) continue;
     for (const owner of ownerOccurrences) {
       if (owner.end > verb.start) continue;
+      if (!OWNER_PREFIX_ALLOWED_NON_QUOTE_CONTENT.test(
+        assertionContext.slice(0, owner.start),
+      )) continue;
       if (!gapContainsOnlyAllowedTokens(
         assertionContext,
         owner.end,
@@ -798,9 +830,10 @@ function gapContainsOnlyAllowedTokens(
     && tokens.every((token) => allowedTokens.has(token));
 }
 
-function orderedTargetExtents(
+function composeDirectTargetExtents(
   text: string,
   anchors: SupportAnchor[],
+  targetKind: RelationCueDiagnostic["target_kind"],
 ): AnchorOccurrence[] {
   if (anchors.length === 0) return [];
   let extents = captureAnchorOccurrences(text, anchors[0]);
@@ -809,9 +842,21 @@ function orderedTargetExtents(
     const next: AnchorOccurrence[] = [];
     for (const extent of extents) {
       for (const occurrence of occurrences) {
-        if (occurrence.start >= extent.end) {
-          next.push({ start: extent.start, end: occurrence.end });
-        }
+        if (occurrence.start < extent.end) continue;
+        const identifierTarget = index === 1 && (
+          targetKind === "notice_identifier"
+          || targetKind === "guidance_identifier"
+        );
+        if (!gapContainsOnlyAllowedTokens(
+          text,
+          extent.end,
+          occurrence.start,
+          identifierTarget
+            ? IDENTIFIER_TARGET_GAP_ALLOWED_TOKENS
+            : NO_ALLOWED_GAP_TOKENS,
+          identifierTarget ? 1 : 0,
+        )) continue;
+        next.push({ start: extent.start, end: occurrence.end });
       }
     }
     extents = next;
