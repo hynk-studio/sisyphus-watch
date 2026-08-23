@@ -328,7 +328,7 @@ test("captured target self-identity admits the required HTML and plain-text posi
       options: {
         targetTitle: "Guidance G-1 | Agency",
         targetBody: "<title>Guidance G-1 | Agency</title><p>Archive text.</p>",
-        targetContentType: "application/xhtml+xml",
+        targetContentType: "text/html",
       },
       identityKind: "html_title",
     },
@@ -585,6 +585,46 @@ test("HTML tokenizer structural closure propagates to target proof admission", a
     admitted.assessments[0].target_identity_proof_id,
     admitted.target_identity_proofs[0].proof_id,
   );
+});
+
+test("XHTML captures fail closed before target identity proof admission", async () => {
+  const falseTitles: Array<[string, string]> = [
+    [
+      "uppercase XHTML TITLE",
+      "<TITLE>Guidance G-1</TITLE><body>Guidance G-1</body>",
+    ],
+    [
+      "namespaced XHTML title",
+      [
+        "<html xmlns=\"http://www.w3.org/1999/xhtml\">",
+        "<head><title>Guidance G-1</title></head>",
+        "<body>Guidance G-1</body></html>",
+      ].join(""),
+    ],
+  ];
+  for (const [label, targetBody] of falseTitles) {
+    const fixture = await buildCase({
+      targetBody,
+      targetContentType: "application/xhtml+xml",
+    });
+    const targetDocument = fixture.input.captureResult.documents.find(
+      (item) => item.source_id === "source_target",
+    );
+    assert.ok(targetDocument, label);
+    assert.equal(targetDocument.capture_completeness, "complete", label);
+    assert.equal(targetDocument.media_kind, "html", label);
+    assert.equal(targetDocument.document_identity, null, label);
+    const result = assess(fixture.input);
+    assert.equal(result.target_identity_proofs.length, 0, label);
+    assert.equal(result.assessments.length, 0, label);
+    assert.equal(result.summary.rejected_target_identity_capture_count, 1, label);
+    assert.equal(
+      fixture.input.lineagePacket.relation_candidates[0].relation_type,
+      "unresolved",
+      label,
+    );
+  }
+  assert.equal(falseTitles.length, 2);
 });
 
 test("plain-text later-line identity mentions are ignored", async () => {

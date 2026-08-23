@@ -30,7 +30,8 @@ export const MAX_CAPTURE_NETWORK_CONCURRENCY = 2;
 const CAPTURE_ACCEPT =
   "text/html, application/xhtml+xml, text/plain;q=0.9";
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-const HTML_MEDIA_TYPES = new Set(["text/html", "application/xhtml+xml"]);
+const HTML_MEDIA_TYPE = "text/html";
+const XHTML_MEDIA_TYPE = "application/xhtml+xml";
 const STRONG_SUPERSESSION_SCOPES = new Set([
   "whole_document",
   "whole_version",
@@ -207,6 +208,8 @@ interface RawHTMLTag {
   closing: boolean;
   selfClosing: boolean;
 }
+
+type CapturedResponseSyntax = "html" | "xhtml" | "plain_text";
 
 export function validateDirectCaptureURL(value: string): URL | null {
   let parsed: URL;
@@ -651,8 +654,11 @@ async function captureOneSource(
         networkAttempted: true,
       });
     }
-    const documentIdentity = extractCapturedDocumentIdentity(decoded, content);
-    const normalized = normalizeCapturedDocumentText(decoded, content);
+    const mediaKind = content === "plain_text" ? "plain_text" : "html";
+    const documentIdentity = content === "xhtml"
+      ? null
+      : extractCapturedDocumentIdentity(decoded, mediaKind);
+    const normalized = normalizeCapturedDocumentText(decoded, mediaKind);
     if (!normalized.text) {
       return captureFailure({
         entry,
@@ -696,7 +702,7 @@ async function captureOneSource(
       redirect_count: redirectCount,
       retrieved_at: nowISO(),
       capture_method: "direct_worker_fetch",
-      media_kind: content,
+      media_kind: mediaKind,
       capture_completeness: completeness,
       captured_body_bytes: retained.bytes.byteLength,
       captured_body_sha256: bodyHash,
@@ -757,11 +763,15 @@ async function readBoundedBody(
 
 function parseSupportedContentType(
   value: string | null,
-): "html" | "plain_text" | "unsupported_content_type" | "unsupported_encoding" {
+): CapturedResponseSyntax | "unsupported_content_type" | "unsupported_encoding" {
   const [rawMediaType, ...parameters] = (value ?? "")
     .split(";")
     .map((part) => part.trim().toLowerCase());
-  if (!HTML_MEDIA_TYPES.has(rawMediaType) && rawMediaType !== "text/plain") {
+  if (
+    rawMediaType !== HTML_MEDIA_TYPE
+    && rawMediaType !== XHTML_MEDIA_TYPE
+    && rawMediaType !== "text/plain"
+  ) {
     return "unsupported_content_type";
   }
   const charsetParameter = parameters.find((part) => part.startsWith("charset="));
@@ -773,7 +783,9 @@ function parseSupportedContentType(
       return "unsupported_encoding";
     }
   }
-  return HTML_MEDIA_TYPES.has(rawMediaType) ? "html" : "plain_text";
+  if (rawMediaType === HTML_MEDIA_TYPE) return "html";
+  if (rawMediaType === XHTML_MEDIA_TYPE) return "xhtml";
+  return "plain_text";
 }
 
 function htmlToVisibleText(html: string): string {

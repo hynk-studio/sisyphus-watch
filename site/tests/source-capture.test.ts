@@ -331,6 +331,38 @@ test("content policy accepts bounded UTF-8 HTML/XHTML/plain text and rejects uns
   assert.equal(malformedUTF8.failures[0].reason, "unsupported_encoding");
 });
 
+test("XHTML remains captured but cannot provide strong document identity", async () => {
+  const cases: Array<[string, string]> = [
+    ["uppercase TITLE", "<TITLE>Guidance G-1</TITLE>"],
+    ["lowercase bare title", "<title>Guidance G-1</title>"],
+    [
+      "namespaced XHTML title",
+      [
+        "<html xmlns=\"http://www.w3.org/1999/xhtml\">",
+        "<head><title>Guidance G-1</title></head>",
+        "</html>",
+      ].join(""),
+    ],
+  ];
+  for (const [label, body] of cases) {
+    const result = await capture((async () =>
+      response(body, "application/xhtml+xml")) as typeof fetch);
+    assert.equal(result.failures.length, 0, label);
+    assert.equal(result.documents.length, 1, label);
+    assert.equal(result.documents[0].status, "captured", label);
+    assert.equal(result.documents[0].capture_completeness, "complete", label);
+    assert.equal(result.documents[0].media_kind, "html", label);
+    assert.equal(result.documents[0].document_identity, null, label);
+    assert.equal(
+      result.documents[0].normalized_text,
+      normalizeCapturedDocumentText(body, "html").text,
+      label,
+    );
+    assert.match(result.documents[0].normalized_text, /Guidance G-1/u, label);
+  }
+  assert.equal(cases.length, 3);
+});
+
 test("bounded body and normalized text ceilings preserve partial hash semantics", async () => {
   const oversized = new TextEncoder().encode(
     `Agency supersedes Guidance G-1. ${"x".repeat(MAX_CAPTURE_BODY_BYTES + 100)}`,
