@@ -116,7 +116,7 @@ export function compareInvestigationSnapshots(
   const newSupersessionSignals = relationSignals(newRelations, "supersedes");
   const relationEvidenceComparison = evidenceComparison(previous, current);
   const evidenceIsComparable = relationEvidenceComparison === "comparable";
-  const newSourceBackedRelations = current.relation_evidence_observation === "available"
+  const newSourceBackedRelations = current.relation_evidence_observation === "evaluated"
     ? current.source_backed_relations.filter(
         (relation) => !previousRelations.has(relation.relation_identity),
       )
@@ -194,23 +194,23 @@ export function compareInvestigationSnapshots(
 }
 
 function evidenceComparison(
-  previous: { relation_evidence_observation: "available" | "unavailable" },
-  current: { relation_evidence_observation: "available" | "unavailable" },
+  previous: { relation_evidence_observation: "evaluated" | "unavailable" },
+  current: { relation_evidence_observation: "evaluated" | "unavailable" },
 ): InvestigationDelta["relation_evidence_comparison"] {
   if (
-    previous.relation_evidence_observation === "available"
-    && current.relation_evidence_observation === "available"
+    previous.relation_evidence_observation === "evaluated"
+    && current.relation_evidence_observation === "evaluated"
   ) {
     return "comparable";
   }
   if (
     previous.relation_evidence_observation === "unavailable"
-    && current.relation_evidence_observation === "available"
+    && current.relation_evidence_observation === "evaluated"
   ) {
     return "previous_unavailable";
   }
   if (
-    previous.relation_evidence_observation === "available"
+    previous.relation_evidence_observation === "evaluated"
     && current.relation_evidence_observation === "unavailable"
   ) {
     return "current_unavailable";

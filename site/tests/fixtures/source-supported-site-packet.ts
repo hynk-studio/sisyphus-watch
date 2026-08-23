@@ -22,6 +22,7 @@ export function buildSourceSupportedSitePacketV2Fixture(): SiteReadyCasePacketV2
   return validateSiteReadyCasePacket({
     ...base,
     contract_version: "site_ready_case_packet.v2",
+    source_supported_relation_observation: "evaluated",
     source_supported_relation_signals: [{
       relation_candidate_id: relation.relation_id,
       supported_relation_type: "supersedes",

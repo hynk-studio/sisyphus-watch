@@ -26,6 +26,12 @@ export function InvestigationDeltaPanel({
   previousCheckedAt: string;
   baselineUpdateState: "updated" | "failed";
 }) {
+  const previousCandidateByIdentity = new Map(
+    previousSnapshot.candidates.map((candidate) => [candidate.identity, candidate]),
+  );
+  const currentCandidateByIdentity = new Map(
+    currentSnapshot.candidates.map((candidate) => [candidate.identity, candidate]),
+  );
   const candidateByIdentity = new Map([
     ...previousSnapshot.candidates,
     ...currentSnapshot.candidates,
@@ -113,6 +119,8 @@ export function InvestigationDeltaPanel({
       <RelationEvidenceDelta
         delta={delta}
         candidates={candidateByIdentity}
+        previousCandidates={previousCandidateByIdentity}
+        currentCandidates={currentCandidateByIdentity}
       />
 
       <div className="delta-neutral-summary">
@@ -161,9 +169,13 @@ export function InvestigationDeltaPanel({
 function RelationEvidenceDelta({
   delta,
   candidates,
+  previousCandidates,
+  currentCandidates,
 }: {
   delta: InvestigationDelta;
   candidates: Map<string, LocalWatchCandidate>;
+  previousCandidates: Map<string, LocalWatchCandidate>;
+  currentCandidates: Map<string, LocalWatchCandidate>;
 }) {
   const comparisonUnavailable = delta.relation_evidence_comparison === "current_unavailable"
     || delta.relation_evidence_comparison === "unavailable";
@@ -201,7 +213,7 @@ function RelationEvidenceDelta({
       {delta.source_backed_relations_without_comparable_baseline.length > 0 ? (
         <p className="delta-evidence-neutral">
           Source-backed relation observed on this check. The previous Watch did not
-          preserve this evidence state, so no before/after claim is made.
+          preserve a comparable evidence state, so no before/after claim is made.
         </p>
       ) : null}
       {delta.source_backed_relations_not_reobserved.length > 0 ? (
@@ -226,7 +238,7 @@ function RelationEvidenceDelta({
         <div className="delta-evidence-caution" key={change.relation_identity}>
           <strong>Source-backed direction differed from the previous check and needs review.</strong>
           <span>
-            Previous: {sourceBackedRelationLabel(change.previous, candidates)} · Current: {sourceBackedRelationLabel(change.current, candidates)}
+            Previous: {sourceBackedRelationLabel(change.previous, previousCandidates)} · Current: {sourceBackedRelationLabel(change.current, currentCandidates)}
           </span>
         </div>
       ))}

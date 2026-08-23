@@ -40,6 +40,7 @@ import {
   type SiteReadyCasePacketV1,
   type SiteReadyCasePacketV2,
 } from "../app/lib/lineage/contracts";
+import { projectSiteReadyCasePacketV2WithoutSignals } from "../app/lib/lineage/source-supported-public";
 import {
   buildSavedWatchPacketA,
   buildSavedWatchPacketB,
@@ -356,7 +357,7 @@ test("Saved Watch v2 keeps the raw unresolved relation and projects one compact 
   const snapshot = buildLocalWatchSnapshot(packet);
   assert.equal(snapshot.relations.length, 1);
   assert.equal(snapshot.relations[0].relation_type, "unresolved");
-  assert.equal(snapshot.relation_evidence_observation, "available");
+  assert.equal(snapshot.relation_evidence_observation, "evaluated");
   assert.equal(snapshot.source_backed_relations.length, 1);
   const signal = packet.source_supported_relation_signals[0];
   const from = packet.claim_occurrences.find(
@@ -401,7 +402,7 @@ test("Saved Watch v2 keeps the raw unresolved relation and projects one compact 
   }
 });
 
-test("Site packet v1 exposes unavailable relation evidence while v2 empty signal exposes available absence", () => {
+test("Site packet observations map v1 and recovery to unavailable and evaluated v2 absence to evaluated", () => {
   const v2 = buildSourceSupportedSitePacketV2Fixture();
   const v1 = sitePacketV1(v2);
   const emptyV2 = validateSiteReadyCasePacket({
@@ -415,7 +416,7 @@ test("Site packet v1 exposes unavailable relation evidence while v2 empty signal
   assert.deepEqual(v1Snapshot.source_backed_relations, []);
 
   const emptyV2Snapshot = buildLocalWatchSnapshot(emptyV2);
-  assert.equal(emptyV2Snapshot.relation_evidence_observation, "available");
+  assert.equal(emptyV2Snapshot.relation_evidence_observation, "evaluated");
   assert.deepEqual(emptyV2Snapshot.source_backed_relations, []);
   assert.equal(emptyV2Snapshot.relations[0].relation_type, "unresolved");
 });
@@ -455,7 +456,7 @@ test("literal Local Watch v1 reads as v2 in memory without writing and first exp
 
   const advanced = advanceLocalWatch(restored.watch, currentPacket, CHECKED_AT);
   assert.equal(advanced.contract_version, LOCAL_WATCH_CONTRACT_VERSION);
-  assert.equal(advanced.snapshot.relation_evidence_observation, "available");
+  assert.equal(advanced.snapshot.relation_evidence_observation, "evaluated");
   assert.deepEqual(writeLocalWatch(storage, advanced), { ok: true });
   assert.equal(storage.setCount, 1);
   assert.equal(
@@ -773,12 +774,12 @@ test("not-returned remains neutral, uncertainty wording is excluded, and equival
 test("relation evidence deltas distinguish clarified, unchanged, not-reobserved, legacy, new, unavailable, and direction change", () => {
   const packet = buildSourceSupportedSitePacketV2Fixture();
   const sourceBacked = buildLocalWatchSnapshot(packet);
-  const availableWithoutSignal = buildLocalWatchSnapshot(validateSiteReadyCasePacket({
+  const evaluatedWithoutSignal = buildLocalWatchSnapshot(validateSiteReadyCasePacket({
     ...structuredClone(packet),
     source_supported_relation_signals: [],
   }));
 
-  const clarified = compareInvestigationSnapshots(availableWithoutSignal, sourceBacked);
+  const clarified = compareInvestigationSnapshots(evaluatedWithoutSignal, sourceBacked);
   assert.equal(clarified.relation_evidence_comparison, "comparable");
   assert.equal(clarified.clarified_source_backed_relations.length, 1);
   assert.equal(clarified.new_source_backed_relations.length, 0);
@@ -791,13 +792,13 @@ test("relation evidence deltas distinguish clarified, unchanged, not-reobserved,
   assert.equal(unchanged.clarified_source_backed_relations.length, 0);
   assert.equal(unchanged.source_backed_direction_changes.length, 0);
 
-  const notReobserved = compareInvestigationSnapshots(sourceBacked, availableWithoutSignal);
+  const notReobserved = compareInvestigationSnapshots(sourceBacked, evaluatedWithoutSignal);
   assert.equal(notReobserved.relation_evidence_comparison, "comparable");
   assert.equal(notReobserved.source_backed_relations_not_reobserved.length, 1);
   assert.equal(notReobserved.has_deterministic_differences, true);
 
   const legacyBaseline = validateLocalWatchSnapshot({
-    ...structuredClone(availableWithoutSignal),
+    ...structuredClone(evaluatedWithoutSignal),
     relation_evidence_observation: "unavailable",
   });
   const legacy = compareInvestigationSnapshots(legacyBaseline, sourceBacked);
@@ -807,7 +808,7 @@ test("relation evidence deltas distinguish clarified, unchanged, not-reobserved,
   assert.equal(legacy.has_deterministic_differences, false);
 
   const previousWithoutRawRelation = validateLocalWatchSnapshot({
-    ...structuredClone(availableWithoutSignal),
+    ...structuredClone(evaluatedWithoutSignal),
     relations: [],
   });
   const newlySourceBacked = compareInvestigationSnapshots(
@@ -872,6 +873,51 @@ test("source-backed Watch identity ignores run-local IDs and statement excerpt w
     compareInvestigationSnapshots(originalSnapshot, wordingSnapshot)
       .has_deterministic_differences,
     false,
+  );
+});
+
+test("real v2 recovery helper prevents false Source-backed inference across A to B to C", () => {
+  const evaluatedPacketA = buildSourceSupportedSitePacketV2Fixture();
+  const baselineA = createLocalWatch(evaluatedPacketA, SAVED_AT);
+  const unavailablePacketB = projectSiteReadyCasePacketV2WithoutSignals(
+    evaluatedPacketA,
+  );
+  assert.equal(unavailablePacketB.source_supported_relation_observation, "unavailable");
+  assert.deepEqual(unavailablePacketB.source_supported_relation_signals, []);
+
+  const watchB = advanceLocalWatch(baselineA, unavailablePacketB, CHECKED_AT);
+  const deltaAB = compareInvestigationSnapshots(
+    baselineA.snapshot,
+    watchB.snapshot,
+  );
+  assert.equal(watchB.snapshot.relation_evidence_observation, "unavailable");
+  assert.equal(deltaAB.relation_evidence_comparison, "current_unavailable");
+  assert.equal(deltaAB.clarified_source_backed_relations.length, 0);
+  assert.equal(deltaAB.source_backed_relations_not_reobserved.length, 0);
+  assert.equal(deltaAB.source_backed_direction_changes.length, 0);
+  assert.equal(deltaAB.has_deterministic_differences, false);
+  const panelAB = renderDeltaPanel(baselineA.snapshot, watchB.snapshot);
+  assert.doesNotMatch(panelAB, /became Source-backed|not re-observed/u);
+
+  const evaluatedPacketC = structuredClone(evaluatedPacketA);
+  evaluatedPacketC.run_id = "run_live_source_supported_c";
+  const watchC = advanceLocalWatch(
+    watchB,
+    validateSiteReadyCasePacket(evaluatedPacketC),
+    "2030-09-23T10:00:00.000Z",
+  );
+  const deltaBC = compareInvestigationSnapshots(watchB.snapshot, watchC.snapshot);
+  assert.equal(watchC.snapshot.relation_evidence_observation, "evaluated");
+  assert.equal(deltaBC.relation_evidence_comparison, "previous_unavailable");
+  assert.equal(deltaBC.clarified_source_backed_relations.length, 0);
+  assert.equal(deltaBC.source_backed_relations_not_reobserved.length, 0);
+  assert.equal(deltaBC.source_backed_direction_changes.length, 0);
+  assert.equal(deltaBC.has_deterministic_differences, false);
+  const panelBC = renderDeltaPanel(watchB.snapshot, watchC.snapshot);
+  assert.doesNotMatch(panelBC, /became Source-backed/u);
+  assert.match(
+    panelBC,
+    /Source-backed relation observed on this check\. The previous Watch did not preserve a comparable evidence state/u,
   );
 });
 
@@ -985,10 +1031,11 @@ test("Since-last-check UI renders every bounded relation evidence state without 
   }), sourceBacked);
   assert.match(
     legacy,
-    /Source-backed relation observed on this check\. The previous Watch did not preserve this evidence state, so no before\/after claim is made\./,
+    /Source-backed relation observed on this check\. The previous Watch did not preserve a comparable evidence state, so no before\/after claim is made\./,
   );
   assert.doesNotMatch(legacy, /became Source-backed/);
   assert.doesNotMatch(legacy, /newly clarified|strengthened since last check/i);
+  assertForbiddenAcceptedTruthTerms(legacy);
 
   const notReobserved = renderDeltaPanel(sourceBacked, withoutSignal);
   assert.match(
@@ -997,6 +1044,7 @@ test("Since-last-check UI renders every bounded relation evidence state without 
   );
   assert.match(notReobserved, /This does not show reversal or retraction\./);
   assert.doesNotMatch(notReobserved, /no longer supersedes|disproven|downgraded/i);
+  assertForbiddenAcceptedTruthTerms(notReobserved);
 
   const unavailable = renderDeltaPanel(
     sourceBacked,
@@ -1007,6 +1055,7 @@ test("Since-last-check UI renders every bounded relation evidence state without 
     /Relation evidence-state comparison was unavailable for this check\./,
   );
   assert.match(unavailable, /No Source-backed change was inferred\./);
+  assertForbiddenAcceptedTruthTerms(unavailable);
 
   const previousWithoutRelation = validateLocalWatchSnapshot({
     ...structuredClone(withoutSignal),
@@ -1015,6 +1064,7 @@ test("Since-last-check UI renders every bounded relation evidence state without 
   const newlySourceBacked = renderDeltaPanel(previousWithoutRelation, sourceBacked);
   assert.match(newlySourceBacked, /New Source-backed relations/);
   assert.match(newlySourceBacked, /New Source-backed supersession:/);
+  assertForbiddenAcceptedTruthTerms(newlySourceBacked);
 
   const reversed = structuredClone(sourceBacked);
   const direction = reversed.source_backed_relations[0];
@@ -1022,16 +1072,37 @@ test("Since-last-check UI renders every bounded relation evidence state without 
     direction.to_claim_identity,
     direction.from_claim_identity,
   ];
+  const previousDisplay = structuredClone(sourceBacked);
+  previousDisplay.candidates.find(
+    (candidate) => candidate.identity
+      === previousDisplay.source_backed_relations[0].from_claim_identity,
+  )!.text = "Previous outgoing claim text";
+  previousDisplay.candidates.find(
+    (candidate) => candidate.identity
+      === previousDisplay.source_backed_relations[0].to_claim_identity,
+  )!.text = "Previous target claim text";
+  reversed.candidates.find(
+    (candidate) => candidate.identity === direction.from_claim_identity,
+  )!.text = "Current outgoing claim text";
+  reversed.candidates.find(
+    (candidate) => candidate.identity === direction.to_claim_identity,
+  )!.text = "Current target claim text";
   const directionChanged = renderDeltaPanel(
-    sourceBacked,
+    validateLocalWatchSnapshot(previousDisplay),
     validateLocalWatchSnapshot(reversed),
   );
   assert.match(
     directionChanged,
     /Source-backed direction differed from the previous check and needs review\./,
   );
-  assert.match(directionChanged, /Previous:/);
-  assert.match(directionChanged, /Current:/);
+  assert.match(
+    directionChanged,
+    /Previous: Previous outgoing claim text → Previous target claim text · Current: Current outgoing claim text → Current target claim text/u,
+  );
+  assert.doesNotMatch(
+    directionChanged,
+    /Previous: Current (?:outgoing|target) claim text/u,
+  );
   assertForbiddenAcceptedTruthTerms(directionChanged);
 });
 
@@ -1075,6 +1146,7 @@ function assertInvalidSnapshot(
 
 function sitePacketV1(packet: SiteReadyCasePacketV2): SiteReadyCasePacketV1 {
   const base: Partial<SiteReadyCasePacketV2> = structuredClone(packet);
+  delete base.source_supported_relation_observation;
   delete base.source_supported_relation_signals;
   const validated = validateSiteReadyCasePacket({
     ...base,
@@ -1139,7 +1211,10 @@ function renderDeltaPanel(
 }
 
 function assertForbiddenAcceptedTruthTerms(html: string): void {
-  assert.doesNotMatch(html, /\b(?:Verified|Confirmed|Proven|Accepted|Canonical)\b/);
+  assert.doesNotMatch(
+    html,
+    /\b(?:evaluated|source_supported_relation_observation|assessment|proof|capture|hash|canonical|verified|confirmed|proven|accepted)\b/i,
+  );
 }
 
 function sourceRecord(url: string, title: string): LocalWatchSource {

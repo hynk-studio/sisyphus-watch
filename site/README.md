@@ -103,8 +103,10 @@ The non-billable capability document has contract
 sends no API-key field. Successful responses must strictly validate as a live
 packet whose `site_ready_case_packet.v1` or `site_ready_case_packet.v2` contract
 exactly matches the Relay capability response. Existing v1 Relays remain
-compatible; the v2 overlay may carry at most one review-pending,
-source-supported supersession signal. Prepared/fallback, mismatched, or
+compatible. The v2 overlay explicitly distinguishes a completed source-supported
+projection (`evaluated`) from a compatibility recovery (`unavailable`), and may
+carry at most one review-pending, source-supported supersession signal only when
+evaluated. Prepared/fallback, mismatched, or
 malformed Relay responses do not replace the displayed investigation or Saved
 Watch baseline.
 
@@ -341,8 +343,12 @@ browser-public variables or `.openai/hosting.json`.
 adapts deterministic fallback and live candidate runs into the same schema-checked
 Site packet family. Existing prepared/fallback responses remain
 `site_ready_case_packet.v1`; eligible live internal runs project to
-`site_ready_case_packet.v2`, with an empty overlay when exact source support is
-not established. `GET /api/lineage/:caseId` serves the deterministic prepared
+`site_ready_case_packet.v2` with
+`source_supported_relation_observation: "evaluated"`, including a valid empty
+signal array when exact source support is not established. Successful live
+compatibility recovery without a completed internal projection remains v2 but
+uses `source_supported_relation_observation: "unavailable"` and an empty signal
+array. `GET /api/lineage/:caseId` serves the deterministic prepared
 packet. Focused prepared-case detail is available at:
 
 ```text
@@ -457,13 +463,14 @@ run, new/exactly absent/changed claim candidates, and new contradiction,
 correction, and supersession signals. A stable candidate is changed only when
 its support-source set, confidence, or explicit assertion/event/publication time
 and precision changes. Packet order, object order, uncertainty wording, and
-run-local IDs do not create noise. When both bounded snapshots expose v2 relation
-evidence, the same raw unresolved relation can additionally be reported as newly
-Source-backed, not re-observed, or directionally different. A legacy or v1-only
-side of the comparison is explicitly non-comparable and cannot create a false
-"became Source-backed" or disappearance claim. Records and relations remain review
-candidates: absence from a bounded recheck is not deletion, retraction, or
-resolution, and no-difference output does not prove that nothing changed.
+run-local IDs do not create noise. When both bounded snapshots record evaluated
+relation evidence, the same raw unresolved relation can additionally be reported
+as newly Source-backed, not re-observed, or directionally different. A legacy or
+v1-only side—or a recovered v2 response—is explicitly non-comparable and cannot
+create a false "became Source-backed" or disappearance claim. Records and
+relations remain review candidates: absence from a bounded recheck is not
+deletion, retraction, or resolution, and no-difference output does not prove that
+nothing changed.
 
 This opt-in value is stored in the current browser profile, not D1 or a
 Sisyphus account. It remains until **Forget** or site-data clearing, and anyone

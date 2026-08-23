@@ -73,7 +73,7 @@ export interface LocalWatchSnapshot {
   sources: LocalWatchSource[];
   candidates: LocalWatchCandidate[];
   relations: LocalWatchRelation[];
-  relation_evidence_observation: "available" | "unavailable";
+  relation_evidence_observation: "evaluated" | "unavailable";
   source_backed_relations: LocalWatchSourceBackedRelation[];
 }
 
@@ -254,7 +254,7 @@ const localWatchSnapshotSchema = z.object({
   sources: z.array(localWatchSourceSchema).max(MAX_SNAPSHOT_SOURCES),
   candidates: z.array(localWatchCandidateSchema).max(MAX_SNAPSHOT_CANDIDATES),
   relations: z.array(localWatchRelationSchema).max(MAX_SNAPSHOT_RELATIONS),
-  relation_evidence_observation: z.enum(["available", "unavailable"]),
+  relation_evidence_observation: z.enum(["evaluated", "unavailable"]),
   source_backed_relations: z.array(localWatchSourceBackedRelationSchema).max(1),
 }).strict().superRefine((snapshot, context) => {
   validateLocalWatchSnapshotReferences(snapshot, context);
@@ -664,6 +664,7 @@ export function buildLocalWatchSnapshot(input: unknown): LocalWatchSnapshot {
 
   const sourceBackedRelations: LocalWatchSourceBackedRelation[] =
     packet.contract_version === "site_ready_case_packet.v2"
+      && packet.source_supported_relation_observation === "evaluated"
       ? packet.source_supported_relation_signals.map((signal) => {
           const rawRelationIdentity = relationIdentityByRunId.get(
             signal.relation_candidate_id,
@@ -697,7 +698,7 @@ export function buildLocalWatchSnapshot(input: unknown): LocalWatchSnapshot {
     ),
     relation_evidence_observation:
       packet.contract_version === "site_ready_case_packet.v2"
-        ? "available"
+        ? packet.source_supported_relation_observation
         : "unavailable",
     source_backed_relations: sourceBackedRelations,
   });

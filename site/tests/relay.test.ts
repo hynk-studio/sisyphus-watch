@@ -404,6 +404,10 @@ test("Relay lineage response must exactly match the negotiated v1 or v2 contract
       : null,
     "site_ready_case_packet.v1",
   );
+  assert.equal(
+    "source_supported_relation_observation" in acceptedV1.payload,
+    false,
+  );
 
   const acceptedV2 = await executeInvestigationTransport(
     { kind: "relay", connection: relayConnection("site_ready_case_packet.v2") },
@@ -415,6 +419,28 @@ test("Relay lineage response must exactly match the negotiated v1 or v2 contract
       ? acceptedV2.payload.contract_version
       : null,
     "site_ready_case_packet.v2",
+  );
+  if (
+    !("contract_version" in acceptedV2.payload)
+    || acceptedV2.payload.contract_version !== "site_ready_case_packet.v2"
+  ) {
+    assert.fail("expected validated Relay Site packet v2");
+  }
+  assert.equal(
+    acceptedV2.payload.source_supported_relation_observation,
+    "evaluated",
+  );
+
+  const missingObservation = structuredClone(v2) as Partial<typeof v2>;
+  delete missingObservation.source_supported_relation_observation;
+  await assert.rejects(
+    executeInvestigationTransport(
+      { kind: "relay", connection: relayConnection("site_ready_case_packet.v2") },
+      REQUEST,
+      (async () => Response.json(missingObservation)) as typeof fetch,
+    ),
+    (error: unknown) => error instanceof ExecutionTransportError
+      && error.code === "relay_response_invalid",
   );
 
   for (const [connection, response] of [

@@ -1128,12 +1128,19 @@ test("reference lineage handler projects Site packet v2 while preserving ordinar
   assert.equal(projected.contract_version, "site_ready_case_packet.v2");
   assert.equal(
     projected.contract_version === "site_ready_case_packet.v2"
+      ? projected.source_supported_relation_observation
+      : null,
+    "evaluated",
+  );
+  assert.equal(
+    projected.contract_version === "site_ready_case_packet.v2"
       ? projected.source_supported_relation_signals.length
       : -1,
     0,
   );
   const {
     contract_version: projectedContract,
+    source_supported_relation_observation: projectedObservation,
     source_supported_relation_signals: projectedSignals,
     ...projectedFields
   } = projected as unknown as Record<string, unknown>;
@@ -1142,12 +1149,48 @@ test("reference lineage handler projects Site packet v2 while preserving ordinar
     ...beforeFields
   } = before as unknown as Record<string, unknown>;
   assert.equal(projectedContract, "site_ready_case_packet.v2");
+  assert.equal(projectedObservation, "evaluated");
   assert.deepEqual(projectedSignals, []);
   assert.equal(beforeContract, "site_ready_case_packet.v1");
   assert.deepEqual(projectedFields, beforeFields);
   assert.ok(fetchCalls <= 2);
   assert.doesNotMatch(JSON.stringify(projected), /capture_id|normalized_text|captured_body/);
   assert.doesNotMatch(JSON.stringify(projected), /fake-key-never-forwarded/);
+});
+
+test("reference lineage handler marks no-internal-envelope v2 recovery unavailable", async () => {
+  const analysisRun = version18RelationAdmissionRun();
+  let legacyLiveRuns = 0;
+  const response = await handleLineageRequest(
+    new Request("https://relay.example/v1/lineage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        question: "How did current official mission guidance change?",
+        sourceLimit: 3,
+        discoveryProfile: "standard",
+      }),
+    }),
+    {
+      apiKey: "fake-key-never-forwarded",
+      runLive: async () => {
+        legacyLiveRuns += 1;
+        return analysisRun;
+      },
+    },
+  );
+  const packet = await response.json() as SiteReadyCasePacket;
+  assert.equal(response.status, 200);
+  assert.equal(legacyLiveRuns, 1);
+  assert.equal(packet.contract_version, "site_ready_case_packet.v2");
+  if (packet.contract_version !== "site_ready_case_packet.v2") {
+    assert.fail("expected Site packet v2 recovery");
+  }
+  assert.equal(packet.source_supported_relation_observation, "unavailable");
+  assert.deepEqual(packet.source_supported_relation_signals, []);
+  assert.equal(packet.mode, "live");
+  assert.equal(packet.status, "live");
+  assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
 });
 
 test("reference Relay recovery returns and accepts v2 without signals after internal lineage failure", async () => {
@@ -1182,6 +1225,12 @@ test("reference Relay recovery returns and accepts v2 without signals after inte
   assert.equal(internalAttempts, 1);
   assert.equal(response.status, 200);
   assert.equal(packet.contract_version, "site_ready_case_packet.v2");
+  assert.equal(
+    packet.contract_version === "site_ready_case_packet.v2"
+      ? packet.source_supported_relation_observation
+      : null,
+    "unavailable",
+  );
   assert.equal(packet.mode, "live");
   assert.equal(packet.status, "live");
   assert.deepEqual(

@@ -458,6 +458,7 @@ test("successful provider work without an internal envelope returns Site v2 and 
   if (body.contract_version !== "site_ready_case_packet.v2") {
     assert.fail("Expected successful live Site v2 response");
   }
+  assert.equal(body.source_supported_relation_observation, "unavailable");
   assert.deepEqual(body.source_supported_relation_signals, []);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
@@ -525,7 +526,7 @@ test("public live internal-envelope success captures bounded pages without chang
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assertSiteV2Projection(body, fixture.expectedPacket, 1);
+  assertSiteV2Projection(body, fixture.expectedPacket, "evaluated", 1);
   assert.equal(internalRuns, 1);
   assert.equal(legacyRunCalls, 0);
   assert.equal(captureCalls, 2);
@@ -627,7 +628,7 @@ test("public live target-identity rejection returns the normal packet and settle
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assertSiteV2Projection(body, fixture.expectedPacket, 0);
+  assertSiteV2Projection(body, fixture.expectedPacket, "evaluated", 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
@@ -724,7 +725,7 @@ test("public live XHTML owner is capture-only while target identity remains inde
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assertSiteV2Projection(body, fixture.expectedPacket, 0);
+  assertSiteV2Projection(body, fixture.expectedPacket, "evaluated", 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
@@ -806,7 +807,7 @@ test("public live internal-envelope capture failure preserves the live investiga
   );
   const body = await response.json() as SiteReadyCasePacket;
   assert.equal(response.status, 200);
-  assertSiteV2Projection(body, fixture.expectedPacket, 0);
+  assertSiteV2Projection(body, fixture.expectedPacket, "evaluated", 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(internalRuns, 1);
@@ -871,7 +872,7 @@ test("public live internal-lineage failure recovers as Site v2 and public eviden
   const publicPayload = await publicResponse.json() as Record<string, unknown>;
 
   assert.equal(response.status, 200);
-  assertSiteV2Projection(body, fixture.expectedPacket, 0);
+  assertSiteV2Projection(body, fixture.expectedPacket, "unavailable", 0);
   assert.equal(body.mode, "live");
   assert.equal(body.status, "live");
   assert.equal(body.relation_candidates[0].relation_type, "unresolved");
@@ -897,7 +898,7 @@ test("public live internal-lineage failure recovers as Site v2 and public eviden
   const serializedPublic = JSON.stringify(publicPayload);
   assert.doesNotMatch(
     serializedPublic,
-    /source_supported_relation_signals|direct_source_support|statement_excerpt/,
+    /source_supported_relation_observation|source_supported_relation_signals|direct_source_support|statement_excerpt/,
   );
   assert.doesNotMatch(
     serializedPublic,
@@ -1133,10 +1134,12 @@ test("mixed day and instant precision is grouped without fabricated intra-day or
 function assertSiteV2Projection(
   body: SiteReadyCasePacket,
   expectedV1: SiteReadyCasePacket,
+  expectedObservation: "evaluated" | "unavailable",
   expectedSignalCount: number,
 ): void {
   const {
     contract_version: bodyContract,
+    source_supported_relation_observation: observation,
     source_supported_relation_signals: signals,
     ...bodyFields
   } = body as unknown as Record<string, unknown>;
@@ -1145,6 +1148,7 @@ function assertSiteV2Projection(
     ...expectedFields
   } = expectedV1 as unknown as Record<string, unknown>;
   assert.equal(bodyContract, "site_ready_case_packet.v2");
+  assert.equal(observation, expectedObservation);
   assert.equal(expectedContract, "site_ready_case_packet.v1");
   assert.equal(Array.isArray(signals) ? signals.length : -1, expectedSignalCount);
   assert.deepEqual(bodyFields, expectedFields);

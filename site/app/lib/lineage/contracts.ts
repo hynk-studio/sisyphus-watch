@@ -349,6 +349,7 @@ export interface SiteReadyCasePacketV1 extends SiteReadyCasePacketFields {
 
 export interface SiteReadyCasePacketV2 extends SiteReadyCasePacketFields {
   contract_version: "site_ready_case_packet.v2";
+  source_supported_relation_observation: "evaluated" | "unavailable";
   source_supported_relation_signals: SourceSupportedRelationSignal[];
 }
 
@@ -944,10 +945,21 @@ export const siteReadyCasePacketV1Schema = z.intersection(
 export const siteReadyCasePacketV2Schema = z.intersection(
   z.object({
     contract_version: z.literal("site_ready_case_packet.v2"),
+    source_supported_relation_observation: z.enum(["evaluated", "unavailable"]),
     source_supported_relation_signals: z.array(sourceSupportedRelationSignalSchema).max(1),
   }),
   siteReadyCasePacketBaseSchema,
 ).superRefine((packet, context) => {
+  if (
+    packet.source_supported_relation_observation === "unavailable"
+    && packet.source_supported_relation_signals.length > 0
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["source_supported_relation_signals"],
+      message: "unavailable source-supported observation cannot contain signals",
+    });
+  }
   packet.source_supported_relation_signals.forEach((signal, signalIndex) => {
     const signalPath = ["source_supported_relation_signals", signalIndex];
     const relations = packet.relation_candidates.filter(
@@ -1081,11 +1093,17 @@ export const siteReadyCasePacketSchema = z.unknown().superRefine((input, context
   const contractVersion = input.contract_version;
   if (
     contractVersion === "site_ready_case_packet.v1"
-    && "source_supported_relation_signals" in input
+    && (
+      "source_supported_relation_observation" in input
+      || "source_supported_relation_signals" in input
+    )
   ) {
+    const path = "source_supported_relation_observation" in input
+      ? "source_supported_relation_observation"
+      : "source_supported_relation_signals";
     context.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ["source_supported_relation_signals"],
+      path: [path],
       message: "Site packet v1 cannot contain the v2 source-supported overlay",
     });
   }

@@ -984,11 +984,21 @@ export const OPENAPI_DOCUMENT = {
       },
       SiteReadyCasePacketV2: {
         type: "object",
-        required: ["contract_version", "source_supported_relation_signals"],
+        required: [
+          "contract_version",
+          "source_supported_relation_observation",
+          "source_supported_relation_signals",
+        ],
         properties: {
           contract_version: {
             type: "string",
             const: "site_ready_case_packet.v2",
+          },
+          source_supported_relation_observation: {
+            type: "string",
+            enum: ["evaluated", "unavailable"],
+            description:
+              "Whether the internal source-supported public projection completed for this response.",
           },
           source_supported_relation_signals: {
             type: "array",
@@ -998,6 +1008,18 @@ export const OPENAPI_DOCUMENT = {
             },
           },
         },
+        allOf: [{
+          if: {
+            properties: {
+              source_supported_relation_observation: { const: "unavailable" },
+            },
+          },
+          then: {
+            properties: {
+              source_supported_relation_signals: { maxItems: 0 },
+            },
+          },
+        }],
         additionalProperties: true,
       },
       SourceSupportedRelationSignal: {
