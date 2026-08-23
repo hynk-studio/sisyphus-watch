@@ -634,7 +634,7 @@ export function CaseExplorer({
     if (decision.kind === "request_execution_transport") {
       setRouteError(null);
       setRelayNotice(
-        "Connect your Relay to run this investigation. Your question will stay here.",
+        "Connect your Relay to run this investigation. Your question will stay here. Your API credentials stay on your Relay and are not entered into this Site.",
       );
       openRelayConnection();
       return;

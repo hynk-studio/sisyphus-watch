@@ -104,7 +104,16 @@ test("fresh public landing is question-first without claiming that execution is 
   assert.match(html, /Build investigation map/);
   assert.match(html, /Try the prepared cooling-center example/);
   assert.match(html, /Connect your Relay/);
-  assert.match(html, /never asks for or stores your OpenAI API key/);
+  assert.match(html, /What is a Relay\?/);
+  assert.match(html, /A Relay is a small backend you control/);
+  assert.match(html, /using your own OpenAI API key/);
+  assert.match(html, /Your API key stays on the Relay/);
+  assert.match(html, /this Site connects only to its URL/);
+  assert.match(
+    html,
+    /href="https:\/\/github\.com\/hynk-studio\/sisyphus-watch#use-your-own-relay"/,
+  );
+  assert.match(html, /How to set up a Relay/);
   assert.doesNotMatch(html, /name="[^"]*(?:api|provider)[^"]*key/i);
   assert.doesNotMatch(html, /Relay ready|Sponsored capacity ready/);
   assert.doesNotMatch(html, /data-live-capability="available"/);
@@ -136,7 +145,10 @@ test("submission decision preserves the exact authored question and settings unt
   const submitEnd = explorerSource.indexOf("function startPreparedExample()", submitStart);
   const submitSource = explorerSource.slice(submitStart, submitEnd);
   assert.match(submitSource, /decision\.kind === "request_execution_transport"/);
-  assert.match(submitSource, /Connect your Relay to run this investigation\. Your question will stay here\./);
+  assert.match(
+    submitSource,
+    /Connect your Relay to run this investigation\. Your question will stay here\. Your API credentials stay on your Relay and are not entered into this Site\./,
+  );
   assert.match(submitSource, /openRelayConnection\(\)/);
   assert.ok(submitSource.indexOf("return;") < submitSource.indexOf("runAnalysis(decision.input)"));
   assert.doesNotMatch(submitSource, /setQuestion|setSourceLimit|setDiscoveryProfile|fetch\(/);
@@ -638,7 +650,7 @@ test("live composer presents concise privacy, review, persistence, and cost-dens
   assert.match(html, /20-second per-request timeout/i);
   assert.match(html, /short cooldown to prevent accidental repeat requests/i);
   assert.doesNotMatch(html, /in-memory|not strong abuse prevention/i);
-  assert.match(html, /never asks for or stores your OpenAI API key/i);
+  assert.match(html, /Your API key stays on the Relay/i);
   assert.doesNotMatch(html, /anonymous|independently verified|fact.checked|no network activity/i);
   assert.doesNotMatch(html, /OPENAI_API_KEY|SISYPHUS_LIVE_ENABLED/);
 });
