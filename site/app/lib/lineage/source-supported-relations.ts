@@ -459,6 +459,11 @@ export function deriveBoundedAssertionContext(
   for (let index = supportEnd; index < normalizedText.length; index += 1) {
     if (isAssertionHardBoundary(normalizedText, index)) {
       end = index + 1;
+      if (normalizedText[index] === ".") {
+        while (end < normalizedText.length && normalizedText[end] === ".") {
+          end += 1;
+        }
+      }
       break;
     }
   }
@@ -793,6 +798,7 @@ function activeDirectionMatch(
           VERB_TO_TARGET_ALLOWED_TOKENS,
           2,
         )) continue;
+        if (!assertionTerminatesAtTarget(assertionContext, target.end)) continue;
         matches.push({ owner, verb, target });
       }
     }
@@ -812,6 +818,13 @@ function activeDirectionMatch(
       cue.target_reference_text ?? cue.target_identifier ?? "",
     ),
   };
+}
+
+function assertionTerminatesAtTarget(text: string, targetEnd: number): boolean {
+  if (!Number.isInteger(targetEnd) || targetEnd < 0 || targetEnd > text.length) {
+    return false;
+  }
+  return /^\s*(?:\.\s*)?$/u.test(text.slice(targetEnd));
 }
 
 function gapContainsOnlyAllowedTokens(

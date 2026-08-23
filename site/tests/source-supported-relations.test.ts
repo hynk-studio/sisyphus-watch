@@ -248,6 +248,7 @@ test("positive control emits one deterministic internal supersedes assessment wi
 
 test("narrow direct-active modifier gaps preserve positive assessment semantics", async () => {
   const assertions = [
+    "This guidance supersedes Guidance G-1",
     "This guidance hereby supersedes Guidance G-1.",
     "This guidance expressly supersedes Guidance G-1.",
     "This guidance expressly supersedes the prior Guidance G-1.",
@@ -670,6 +671,39 @@ test("captured quotation and owner-prefix attribution fail closed", async () => 
     const result = assess(fixture.input);
     assert.equal(result.assessments.length, 0, assertion);
     assert.equal(result.summary.rejected_direction_count, 1, assertion);
+  }
+});
+
+test("the resolved target must terminate the retained assertion", async () => {
+  const cases: Array<{
+    assertion: string;
+    qualifierRejection?: boolean;
+  }> = [
+    { assertion: "This guidance supersedes Guidance G-1, according to Policy X." },
+    { assertion: "This guidance supersedes Guidance G-1 upon approval." },
+    {
+      assertion: "This guidance supersedes Guidance G-1 if approved.",
+      qualifierRejection: true,
+    },
+    { assertion: "This guidance supersedes Guidance G-1 when approved." },
+    { assertion: "This guidance supersedes Guidance G-1, the agency claims." },
+    { assertion: "This guidance supersedes Guidance G-1?" },
+    { assertion: "This guidance supersedes Guidance G-1!" },
+    { assertion: "This guidance supersedes Guidance G-1; effective immediately." },
+    { assertion: "This guidance supersedes Guidance G-1: effective immediately." },
+    { assertion: "This guidance supersedes Guidance G-1 (effective immediately)." },
+    { assertion: "This guidance supersedes Guidance G-1..." },
+  ];
+  assert.equal(cases.length, 11);
+  for (const item of cases) {
+    const fixture = await buildCase({ assertion: item.assertion });
+    const result = assess(fixture.input);
+    assert.equal(result.assessments.length, 0, item.assertion);
+    if (item.qualifierRejection) {
+      assert.equal(result.summary.rejected_qualifier_count, 1, item.assertion);
+    } else {
+      assert.equal(result.summary.rejected_direction_count, 1, item.assertion);
+    }
   }
 });
 
