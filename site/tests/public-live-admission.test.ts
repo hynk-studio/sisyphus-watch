@@ -507,7 +507,7 @@ test("public live internal-envelope success captures bounded pages without chang
           return new Response(
             String(input).includes("source-owner")
               ? "This guidance supersedes Guidance G-1."
-              : "Archived captured text for Guidance G-1.", {
+              : "Guidance G-1\nArchived captured text.", {
             status: 200,
             headers: { "content-type": "text/plain; charset=utf-8" },
           });
@@ -526,6 +526,15 @@ test("public live internal-envelope success captures bounded pages without chang
   assert.equal(
     observedInternals[0].source_supported_relation_assessments.length,
     1,
+  );
+  assert.equal(
+    observedInternals[0].source_supported_target_identity_proofs.length,
+    1,
+  );
+  assert.equal(
+    observedInternals[0].source_supported_relation_assessments[0]
+      .target_identity_proof_id,
+    observedInternals[0].source_supported_target_identity_proofs[0].proof_id,
   );
   assert.equal(
     observedInternals[0].source_supported_relation_work_summary
@@ -552,9 +561,98 @@ test("public live internal-envelope success captures bounded pages without chang
   const serialized = JSON.stringify(body);
   assert.doesNotMatch(
     serialized,
-    /source_supported_relation|assessment_id|owner_capture_id|target_capture_id|captured_live_source_text_span|captured_source_text_containment_only|captured_body_sha256|normalized_text_sha256|normalized_text/,
+    /source_supported_relation|source_supported_target_identity_proofs|target_identity_proof_id|source_supported_target_identity_proof_|document_identity|identity_anchor|internal_target_identity_supported|assessment_id|owner_capture_id|target_capture_id|captured_live_source_text_span|captured_source_text_containment_only|captured_target_document_identity_alignment_only|captured_body_sha256|normalized_text_sha256|normalized_text/,
   );
   assert.doesNotMatch(serialized, /supersedes Guidance G-1/u);
+});
+
+test("public live target-identity rejection returns the normal packet and settles exactly once", async () => {
+  const admission = new FakeAdmissionStore();
+  const fixture = publicLiveInternalFixture();
+  let internalRuns = 0;
+  let providerCalls = 0;
+  let captureCalls = 0;
+  const observedInternals: InternalLineageRunEnvelope[] = [];
+  const response = await handlePublicLiveLineageRequest(
+    publicRequest({
+      question: "How did the agency's current guidance change the earlier guidance?",
+      sourceLimit: 3,
+      discoveryProfile: "standard",
+    }),
+    {
+      getRuntime: async () => runtime(admission),
+      nowMs: () => NOW_MS,
+      nowISO: () => NOW_ISO,
+      runLive: async () => {
+        providerCalls += 1;
+        throw new Error("legacy provider path must not run");
+      },
+      runLiveInternal: async () => {
+        internalRuns += 1;
+        return fixture.envelope;
+      },
+      runLineageInternal: async (analysisEnvelope, captureDependencies) => {
+        const internal = await runLineageInternal(
+          analysisEnvelope,
+          captureDependencies,
+        );
+        observedInternals.push(internal);
+        return internal;
+      },
+      capture: {
+        nowMs: () => NOW_MS,
+        nowISO: () => NOW_ISO,
+        fetcher: (async (input) => {
+          captureCalls += 1;
+          return new Response(
+            String(input).includes("source-owner")
+              ? "This guidance supersedes Guidance G-1."
+              : "Agency archive\nThis archive discusses Guidance G-1.",
+            {
+              status: 200,
+              headers: { "content-type": "text/plain; charset=utf-8" },
+            },
+          );
+        }) as typeof fetch,
+      },
+    },
+  );
+  const body = await response.json() as SiteReadyCasePacket;
+  assert.equal(response.status, 200);
+  assert.deepEqual(body, fixture.expectedPacket);
+  assert.equal(JSON.stringify(body), JSON.stringify(fixture.expectedPacket));
+  assert.equal(body.mode, "live");
+  assert.equal(body.status, "live");
+  assert.equal(internalRuns, 1);
+  assert.equal(providerCalls, 0);
+  assert.equal(captureCalls, 2);
+  assert.equal(observedInternals.length, 1);
+  assert.equal(
+    observedInternals[0].source_supported_target_identity_proofs.length,
+    0,
+  );
+  assert.equal(
+    observedInternals[0].source_supported_relation_assessments.length,
+    0,
+  );
+  assert.equal(
+    observedInternals[0].source_supported_relation_work_summary
+      .rejected_target_identity_capture_count,
+    1,
+  );
+  assert.deepEqual(admission.reserveInputs, [{ workUnits: 6, nowMs: NOW_MS }]);
+  assert.deepEqual(admission.settlements, [{
+    reservationId: "aggregate-reservation-1",
+    outcome: "settled",
+    nowMs: NOW_MS,
+  }]);
+  assert.equal(body.relation_candidates[0].relation_type, "unresolved");
+  assert.equal(body.bounded_work_summary.model_classified_count, 0);
+  assert.equal(body.candidate_canonical_boundary.canonical_mutation, "none");
+  assert.doesNotMatch(
+    JSON.stringify(body),
+    /source_supported_target_identity|target_identity_proof_id|document_identity|identity_anchor|captured_body_sha256|normalized_text_sha256|source_supported_relation_assessment/,
+  );
 });
 
 test("public live internal-envelope capture failure preserves the live investigation and settlement", async () => {

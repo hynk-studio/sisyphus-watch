@@ -16,7 +16,9 @@ import type {
 import { stableLineageId } from "./engine";
 import {
   buildRelationTargetIndex,
+  normalizeExactTargetIdentityText,
   resolveRelationCueTarget,
+  targetSourceTitleAlignsWithCue,
 } from "./relation-targets";
 import {
   findCapturedTextAnchorOccurrences,
@@ -25,6 +27,7 @@ import {
   type AnchorOccurrence,
   type CaptureExecutionResult,
   type CapturePlan,
+  type CapturedDocumentIdentity,
   type CapturedSourceDocument,
   type CapturedSourceSupport,
   type SupportAnchor,
@@ -32,6 +35,7 @@ import {
 import { compareCodePoint, normalizeLineageText } from "./topic-tokens";
 
 export const MAX_SOURCE_SUPPORTED_RELATION_ASSESSMENTS_PER_WORKFLOW = 1;
+export const MAX_SOURCE_SUPPORTED_TARGET_IDENTITY_PROOFS_PER_WORKFLOW = 1;
 export const MAX_CAPTURED_ASSERTION_CONTEXT_CHARS =
   MAX_CAPTURE_SUPPORT_EXCERPT_CHARS;
 
@@ -109,6 +113,13 @@ const ASSERTION_QUALIFIERS: SupportAnchor[] = [
 ].map((value) => ({ value, boundary: value.includes(" ") ? "phrase" : "lexical" }));
 const ASSERTION_HARD_BOUNDARIES = new Set(["\n", ".", "!", "?", ";"]);
 
+export type SourceSupportedTargetIdentityKind =
+  | "notice_identifier"
+  | "guidance_identifier"
+  | "version_identifier"
+  | "dated_document_reference"
+  | "document_title";
+
 export interface SourceSupportedRelationAssessment {
   assessment_id: string;
   relation_candidate_id: string;
@@ -124,6 +135,7 @@ export interface SourceSupportedRelationAssessment {
   cue_snapshot_id: string;
   owner_capture_id: string;
   target_capture_id: string;
+  target_identity_proof_id: string;
   support_id: string;
   support_kind: "captured_live_source_text_span";
   proves: "captured_source_text_containment_only";
@@ -145,16 +157,39 @@ export interface SourceSupportedRelationAssessment {
   canonical_mutation: "none";
 }
 
+export interface SourceSupportedTargetIdentityProof {
+  proof_id: string;
+  relation_candidate_id: string;
+  target_occurrence_id: string;
+  target_source_id: string;
+  target_snapshot_id: string;
+  target_capture_id: string;
+  captured_body_sha256: string;
+  normalized_text_sha256: string;
+  citation_url: string;
+  document_identity_kind: "html_title" | "plain_text_first_line";
+  identity_anchor: string;
+  target_kind: SourceSupportedTargetIdentityKind;
+  proof_basis: "captured_document_self_title_matches_resolved_target_metadata";
+  proves: "captured_target_document_identity_alignment_only";
+  proof_status: "internal_target_identity_supported";
+  generated_by: "deterministic_rule";
+  canonical_mutation: "none";
+}
+
 export interface SourceSupportedRelationWorkSummary {
   considered_relation_count: number;
   eligible_supersession_cue_count: number;
   captured_support_candidate_count: number;
+  target_identity_proof_count: number;
   accepted_assessment_count: number;
   rejected_existing_pair_count: number;
   rejected_ambiguous_capture_plan_count: number;
   rejected_cue_guard_count: number;
   rejected_target_resolution_count: number;
   rejected_capture_completeness_count: number;
+  rejected_target_identity_metadata_count: number;
+  rejected_target_identity_capture_count: number;
   rejected_capture_support_count: number;
   rejected_assertion_context_count: number;
   rejected_qualifier_count: number;
@@ -164,6 +199,7 @@ export interface SourceSupportedRelationWorkSummary {
   rejected_temporal_count: number;
   rejected_competing_semantics_count: number;
   configured_maximum_assessment_count: 1;
+  configured_maximum_target_identity_proof_count: 1;
   configured_bound_reached: boolean;
   model_classifier_calls: 0;
   additional_network_requests: 0;
@@ -172,6 +208,7 @@ export interface SourceSupportedRelationWorkSummary {
 
 export interface SourceSupportedRelationAssessmentResult {
   assessments: SourceSupportedRelationAssessment[];
+  target_identity_proofs: SourceSupportedTargetIdentityProof[];
   summary: SourceSupportedRelationWorkSummary;
 }
 
@@ -200,8 +237,10 @@ type RejectionCounter = Exclude<
   | "considered_relation_count"
   | "eligible_supersession_cue_count"
   | "captured_support_candidate_count"
+  | "target_identity_proof_count"
   | "accepted_assessment_count"
   | "configured_maximum_assessment_count"
+  | "configured_maximum_target_identity_proof_count"
   | "configured_bound_reached"
   | "model_classifier_calls"
   | "additional_network_requests"
@@ -281,7 +320,8 @@ export function assessSourceSupportedRelations(
   }
   const cue = selectedRecord.diagnostic;
   const operativeVerb = normalizeOperativeVerb(cue.operative_verb);
-  if (!operativeVerb) {
+  const targetKind = sourceSupportedTargetIdentityKind(cue.target_kind);
+  if (!operativeVerb || !targetKind) {
     return reject(summary, "rejected_cue_guard_count");
   }
 
@@ -343,6 +383,40 @@ export function assessSourceSupportedRelations(
     return reject(summary, "rejected_capture_completeness_count");
   }
 
+  const targetSources = input.analysisRun.source_snapshot_summaries.filter(
+    (source) => source.source_id === target.source_id
+      && source.snapshot_id === target.snapshot_id,
+  );
+  if (
+    targetSources.length !== 1
+    || !targetSourceTitleAlignsWithCue(targetSources[0].title, cue)
+  ) {
+    return reject(summary, "rejected_target_identity_metadata_count");
+  }
+  const targetIdentity = targetDocument.document_identity;
+  const normalizedIdentity = targetIdentity
+    ? normalizeExactTargetIdentityText(targetIdentity.text)
+    : "";
+  if (
+    !targetIdentity
+    || !normalizedIdentity
+    || normalizedIdentity
+      !== normalizeExactTargetIdentityText(targetSources[0].title)
+    || !capturedDocumentProvenanceIsSelfConsistent(targetDocument)
+  ) {
+    return reject(summary, "rejected_target_identity_capture_count");
+  }
+  const targetIdentityProof = buildTargetIdentityProof({
+    relation,
+    target,
+    targetDocument,
+    documentIdentity: targetIdentity,
+    targetKind,
+    identityAnchor: normalizedIdentity,
+  });
+  const targetIdentityProofs = [targetIdentityProof];
+  summary.target_identity_proof_count = targetIdentityProofs.length;
+
   const supportCandidates = input.captureResult.supports.filter((support) =>
     support.source_id === owner.source_id
     && support.parent_snapshot_id === owner.snapshot_id
@@ -352,7 +426,7 @@ export function assessSourceSupportedRelations(
   );
   summary.captured_support_candidate_count = supportCandidates.length;
   if (supportCandidates.length !== 1) {
-    return reject(summary, "rejected_capture_support_count");
+    return reject(summary, "rejected_capture_support_count", targetIdentityProofs);
   }
   const support = supportCandidates[0];
   const targetAnchors = requiredTargetAnchors(cue);
@@ -365,7 +439,7 @@ export function assessSourceSupportedRelations(
       targetAnchors,
     )
   ) {
-    return reject(summary, "rejected_capture_support_count");
+    return reject(summary, "rejected_capture_support_count", targetIdentityProofs);
   }
 
   const assertionContext = deriveBoundedAssertionContext(
@@ -374,27 +448,27 @@ export function assessSourceSupportedRelations(
     support.normalized_text_end,
   );
   if (!assertionContext) {
-    return reject(summary, "rejected_assertion_context_count");
+    return reject(summary, "rejected_assertion_context_count", targetIdentityProofs);
   }
   if (hasAssertionQualifier(assertionContext.text)) {
-    return reject(summary, "rejected_qualifier_count");
+    return reject(summary, "rejected_qualifier_count", targetIdentityProofs);
   }
   if (ASSERTION_QUOTE_DELIMITERS.test(assertionContext.text)) {
-    return reject(summary, "rejected_direction_count");
+    return reject(summary, "rejected_direction_count", targetIdentityProofs);
   }
 
   const ownerSource = input.analysisRun.source_snapshot_summaries.find(
     (source) => source.source_id === owner.source_id,
   );
   if (!ownerSource || ownerSource.snapshot_id !== owner.snapshot_id) {
-    return reject(summary, "rejected_owner_identity_count");
+    return reject(summary, "rejected_owner_identity_count", targetIdentityProofs);
   }
   const ownerAnchors = buildOwnerAnchors(owner, ownerSource);
   const ownerAnchorPresent = ownerAnchors.some(
     (anchor) => captureAnchorOccurrences(assertionContext.text, anchor).length > 0,
   );
   if (!ownerAnchorPresent) {
-    return reject(summary, "rejected_owner_identity_count");
+    return reject(summary, "rejected_owner_identity_count", targetIdentityProofs);
   }
   const direction = activeDirectionMatch(
     assertionContext.text,
@@ -406,14 +480,14 @@ export function assessSourceSupportedRelations(
     support.normalized_text_end - assertionContext.start,
   );
   if (!direction) {
-    return reject(summary, "rejected_direction_count");
+    return reject(summary, "rejected_direction_count", targetIdentityProofs);
   }
 
   if (!actorsMatchExactly(owner, target, cue)) {
-    return reject(summary, "rejected_actor_count");
+    return reject(summary, "rejected_actor_count", targetIdentityProofs);
   }
   if (!hasStrictPublicationOrdering(owner, target)) {
-    return reject(summary, "rejected_temporal_count");
+    return reject(summary, "rejected_temporal_count", targetIdentityProofs);
   }
 
   const assessment = buildAssessment({
@@ -426,9 +500,14 @@ export function assessSourceSupportedRelations(
     support,
     assertionContext,
     direction,
+    targetIdentityProof,
   });
   summary.accepted_assessment_count = 1;
-  return { assessments: [assessment], summary };
+  return {
+    assessments: [assessment],
+    target_identity_proofs: targetIdentityProofs,
+    summary,
+  };
 }
 
 export function deriveBoundedAssertionContext(
@@ -502,12 +581,15 @@ function emptySourceSupportedRelationWorkSummary(): SourceSupportedRelationWorkS
     considered_relation_count: 0,
     eligible_supersession_cue_count: 0,
     captured_support_candidate_count: 0,
+    target_identity_proof_count: 0,
     accepted_assessment_count: 0,
     rejected_existing_pair_count: 0,
     rejected_ambiguous_capture_plan_count: 0,
     rejected_cue_guard_count: 0,
     rejected_target_resolution_count: 0,
     rejected_capture_completeness_count: 0,
+    rejected_target_identity_metadata_count: 0,
+    rejected_target_identity_capture_count: 0,
     rejected_capture_support_count: 0,
     rejected_assertion_context_count: 0,
     rejected_qualifier_count: 0,
@@ -517,6 +599,7 @@ function emptySourceSupportedRelationWorkSummary(): SourceSupportedRelationWorkS
     rejected_temporal_count: 0,
     rejected_competing_semantics_count: 0,
     configured_maximum_assessment_count: 1,
+    configured_maximum_target_identity_proof_count: 1,
     configured_bound_reached: false,
     model_classifier_calls: 0,
     additional_network_requests: 0,
@@ -527,9 +610,14 @@ function emptySourceSupportedRelationWorkSummary(): SourceSupportedRelationWorkS
 function reject(
   summary: SourceSupportedRelationWorkSummary,
   counter: RejectionCounter,
+  targetIdentityProofs: SourceSupportedTargetIdentityProof[] = [],
 ): SourceSupportedRelationAssessmentResult {
   summary[counter] += 1;
-  return { assessments: [], summary };
+  return {
+    assessments: [],
+    target_identity_proofs: targetIdentityProofs,
+    summary,
+  };
 }
 
 function isAdmittedUnresolvedPair(relation: RelationCandidate): boolean {
@@ -616,6 +704,21 @@ function normalizeOperativeVerb(
     : null;
 }
 
+function sourceSupportedTargetIdentityKind(
+  value: RelationCueDiagnostic["target_kind"],
+): SourceSupportedTargetIdentityKind | null {
+  switch (value) {
+    case "notice_identifier":
+    case "guidance_identifier":
+    case "version_identifier":
+    case "dated_document_reference":
+    case "document_title":
+      return value;
+    default:
+      return null;
+  }
+}
+
 function capturePlanEntryMatches(
   entry: CapturePlan["entries"][number],
   owner: ClaimOccurrence,
@@ -643,6 +746,73 @@ function exactCompleteDocument(
     && matches[0].capture_completeness === "complete"
     ? matches[0]
     : null;
+}
+
+function capturedDocumentProvenanceIsSelfConsistent(
+  document: CapturedSourceDocument,
+): boolean {
+  return document.capture_id === stableLineageId(
+    "captured_source_document_",
+    document.source_id,
+    document.parent_snapshot_id,
+    document.final_url,
+    document.captured_body_sha256,
+    document.normalized_text_sha256,
+  )
+    && /^[a-f\d]{64}$/u.test(document.captured_body_sha256)
+    && /^[a-f\d]{64}$/u.test(document.normalized_text_sha256)
+    && document.normalized_text_chars === document.normalized_text.length
+    && Boolean(document.final_url);
+}
+
+function buildTargetIdentityProof(input: {
+  relation: RelationCandidate;
+  target: ClaimOccurrence;
+  targetDocument: CapturedSourceDocument;
+  documentIdentity: CapturedDocumentIdentity;
+  targetKind: SourceSupportedTargetIdentityKind;
+  identityAnchor: string;
+}): SourceSupportedTargetIdentityProof {
+  const {
+    relation,
+    target,
+    targetDocument,
+    documentIdentity,
+    targetKind,
+    identityAnchor,
+  } = input;
+  return {
+    proof_id: stableLineageId(
+      "source_supported_target_identity_proof_",
+      relation.relation_id,
+      target.occurrence_id,
+      target.source_id,
+      target.snapshot_id,
+      targetDocument.capture_id,
+      targetDocument.captured_body_sha256,
+      targetDocument.normalized_text_sha256,
+      documentIdentity.kind,
+      identityAnchor,
+      targetKind,
+    ),
+    relation_candidate_id: relation.relation_id,
+    target_occurrence_id: target.occurrence_id,
+    target_source_id: target.source_id,
+    target_snapshot_id: target.snapshot_id,
+    target_capture_id: targetDocument.capture_id,
+    captured_body_sha256: targetDocument.captured_body_sha256,
+    normalized_text_sha256: targetDocument.normalized_text_sha256,
+    citation_url: targetDocument.final_url,
+    document_identity_kind: documentIdentity.kind,
+    identity_anchor: identityAnchor,
+    target_kind: targetKind,
+    proof_basis:
+      "captured_document_self_title_matches_resolved_target_metadata",
+    proves: "captured_target_document_identity_alignment_only",
+    proof_status: "internal_target_identity_supported",
+    generated_by: "deterministic_rule",
+    canonical_mutation: "none",
+  };
 }
 
 function supportMatchesCapturedDocument(
@@ -930,6 +1100,7 @@ function buildAssessment(input: {
   support: CapturedSourceSupport;
   assertionContext: AssertionContext;
   direction: DirectionMatch;
+  targetIdentityProof: SourceSupportedTargetIdentityProof;
 }): SourceSupportedRelationAssessment {
   const {
     relation,
@@ -941,6 +1112,7 @@ function buildAssessment(input: {
     support,
     assertionContext,
     direction,
+    targetIdentityProof,
   } = input;
   return {
     assessment_id: stableLineageId(
@@ -975,6 +1147,7 @@ function buildAssessment(input: {
     cue_snapshot_id: cueRecord.snapshot_id,
     owner_capture_id: ownerDocument.capture_id,
     target_capture_id: targetDocument.capture_id,
+    target_identity_proof_id: targetIdentityProof.proof_id,
     support_id: support.support_id,
     support_kind: "captured_live_source_text_span",
     proves: "captured_source_text_containment_only",

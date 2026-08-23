@@ -20,7 +20,9 @@ import { runLineageInternal } from "../app/lib/lineage/internal";
 import {
   CAPTURE_REQUEST_TIMEOUT_MS,
   executeCapturedSourcePlan,
+  extractCapturedDocumentIdentity,
   MAX_CAPTURE_BODY_BYTES,
+  MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS,
   MAX_CAPTURE_REDIRECTS,
   MAX_CAPTURE_SUPPORT_EXCERPT_CHARS,
   MAX_CAPTURED_SOURCE_PAGES_PER_WORKFLOW,
@@ -167,6 +169,7 @@ function document(
     normalized_text_chars: text.length,
     normalized_text_sha256: "b".repeat(64),
     normalized_text: text,
+    document_identity: null,
     status: "captured",
     ...overrides,
   };
@@ -389,6 +392,93 @@ test("HTML normalization is deterministic, ignores inert elements, and separates
     result.documents[0].normalized_text_sha256,
     again.documents[0].normalized_text_sha256,
   );
+  assert.equal(result.documents[0].document_identity, null);
+});
+
+test("HTML document identity uses one bounded text-only title from captured bytes", async () => {
+  const html = [
+    "<html><head>",
+    "<title>  Ｇuidance&nbsp;  &#xFF27;-1  </title>",
+    "</head><body>Body text may mention Guidance G-9.</body></html>",
+  ].join("");
+  assert.deepEqual(extractCapturedDocumentIdentity(html, "html"), {
+    kind: "html_title",
+    text: "Guidance G-1",
+  });
+
+  const result = await capture((async () => response(html)) as typeof fetch);
+  assert.deepEqual(result.documents[0].document_identity, {
+    kind: "html_title",
+    text: "Guidance G-1",
+  });
+  assert.match(result.documents[0].normalized_text, /Body text may mention Guidance G-9/u);
+  assert.equal(MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS, 240);
+});
+
+test("HTML document identity fails closed on absent, duplicate, malformed, nested, fake, or overlong titles", () => {
+  const cases: Array<[string, string]> = [
+    ["absent", "<html><body>Guidance G-1</body></html>"],
+    ["duplicate", "<title>Guidance G-1</title><title>Guidance G-1</title>"],
+    ["unclosed", "<html><head><title>Guidance G-1</head></html>"],
+    ["malformed close", "<title>Guidance G-1</title extra>"],
+    ["nested markup", "<title>Guidance <b>G-1</b></title>"],
+    [
+      "script and comment fake title",
+      "<script>const fake = '<title>Guidance G-1</title>';</script><!-- <title>Guidance G-1</title> -->",
+    ],
+    [
+      "template fake title",
+      "<template><title>Guidance G-1</title></template><body>Guidance G-1</body>",
+    ],
+    [
+      "attribute fake title",
+      "<meta data-fake=\"<title>Guidance G-1</title>\"><body>Guidance G-1</body>",
+    ],
+    [
+      "overlong",
+      `<title>${"x".repeat(MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS + 1)}</title>`,
+    ],
+  ];
+  for (const [label, html] of cases) {
+    assert.equal(extractCapturedDocumentIdentity(html, "html"), null, label);
+  }
+
+  assert.deepEqual(extractCapturedDocumentIdentity(
+    "<script>const fake = '<title>Guidance G-1</title>';</script><title>Guidance G-9</title>",
+    "html",
+  ), {
+    kind: "html_title",
+    text: "Guidance G-9",
+  });
+});
+
+test("plain-text document identity uses only the first non-empty bounded normalized line", async () => {
+  assert.deepEqual(extractCapturedDocumentIdentity(
+    "\r\n  \n Ｇuidance   G-1 \r\nGuidance G-9",
+    "plain_text",
+  ), {
+    kind: "plain_text_first_line",
+    text: "Guidance G-1",
+  });
+  assert.deepEqual(extractCapturedDocumentIdentity(
+    "Agency archive\nGuidance G-1",
+    "plain_text",
+  ), {
+    kind: "plain_text_first_line",
+    text: "Agency archive",
+  });
+  assert.equal(extractCapturedDocumentIdentity("\n \t\n", "plain_text"), null);
+  assert.equal(extractCapturedDocumentIdentity(
+    `${"x".repeat(MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS + 1)}\nGuidance G-1`,
+    "plain_text",
+  ), null);
+
+  const result = await capture((async () =>
+    response("\n Guidance G-1 \nBody text", "text/plain")) as typeof fetch);
+  assert.deepEqual(result.documents[0].document_identity, {
+    kind: "plain_text_first_line",
+    text: "Guidance G-1",
+  });
 });
 
 test("numeric HTML entities are decoded before NFKC normalization and hashing", async () => {

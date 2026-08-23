@@ -12,14 +12,17 @@ import type {
   RelationCandidate,
 } from "../app/lib/lineage/contracts";
 import { runLineageInternal } from "../app/lib/lineage/internal";
+import { targetSourceTitleAlignsWithCue } from "../app/lib/lineage/relation-targets";
 import {
   assessSourceSupportedRelations,
   MAX_CAPTURED_ASSERTION_CONTEXT_CHARS,
   MAX_SOURCE_SUPPORTED_RELATION_ASSESSMENTS_PER_WORKFLOW,
+  MAX_SOURCE_SUPPORTED_TARGET_IDENTITY_PROOFS_PER_WORKFLOW,
   type SourceSupportedRelationAssessmentInput,
 } from "../app/lib/lineage/source-supported-relations";
 import {
   executeCapturedSourcePlan,
+  MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS,
   planCapturedSourcePages,
   type CaptureFailure,
 } from "../app/lib/lineage/source-capture";
@@ -33,6 +36,8 @@ interface CaseOptions {
   ownerTitle?: string;
   targetTitle?: string;
   cue?: Partial<RelationCueDiagnostic>;
+  targetBody?: string;
+  targetContentType?: string;
 }
 
 interface PositiveCase {
@@ -101,10 +106,14 @@ async function buildCase(options: CaseOptions = {}): Promise<PositiveCase> {
         const url = String(input);
         const text = url.includes("source-owner")
           ? options.assertion ?? "This guidance supersedes Guidance G-1."
-          : `Archived captured text for ${options.targetTitle ?? "Guidance G-1"}.`;
+          : options.targetBody
+            ?? `${options.targetTitle ?? "Guidance G-1"}\nArchived captured text.`;
         return new Response(text, {
           status: 200,
-          headers: { "content-type": "text/plain; charset=utf-8" },
+          headers: {
+            "content-type": options.targetContentType
+              ?? "text/plain; charset=utf-8",
+          },
         });
       }) as typeof fetch,
     },
@@ -157,7 +166,7 @@ test("positive control emits one deterministic internal supersedes assessment wi
   const target = occurrence(fixture.input.lineagePacket.claim_occurrences, "candidate_target");
   assert.equal(
     assessment.assessment_id,
-    "source_supported_relation_assessment_3be2325ad836d44f",
+    "source_supported_relation_assessment_03ec9d6aafd0f511",
   );
   assert.deepEqual(Object.keys(assessment), [
     "assessment_id",
@@ -174,6 +183,7 @@ test("positive control emits one deterministic internal supersedes assessment wi
     "cue_snapshot_id",
     "owner_capture_id",
     "target_capture_id",
+    "target_identity_proof_id",
     "support_id",
     "support_kind",
     "proves",
@@ -194,6 +204,46 @@ test("positive control emits one deterministic internal supersedes assessment wi
     "generated_by",
     "canonical_mutation",
   ]);
+  assert.equal(first.target_identity_proofs.length, 1);
+  const proof = first.target_identity_proofs[0];
+  assert.equal(
+    proof.proof_id,
+    "source_supported_target_identity_proof_a898ee2240d1cc12",
+  );
+  assert.equal(assessment.target_identity_proof_id, proof.proof_id);
+  assert.deepEqual(Object.keys(proof), [
+    "proof_id",
+    "relation_candidate_id",
+    "target_occurrence_id",
+    "target_source_id",
+    "target_snapshot_id",
+    "target_capture_id",
+    "captured_body_sha256",
+    "normalized_text_sha256",
+    "citation_url",
+    "document_identity_kind",
+    "identity_anchor",
+    "target_kind",
+    "proof_basis",
+    "proves",
+    "proof_status",
+    "generated_by",
+    "canonical_mutation",
+  ]);
+  assert.equal(proof.target_occurrence_id, target.occurrence_id);
+  assert.equal(proof.target_source_id, target.source_id);
+  assert.equal(proof.target_snapshot_id, target.snapshot_id);
+  assert.equal(proof.target_capture_id, assessment.target_capture_id);
+  assert.equal(proof.document_identity_kind, "plain_text_first_line");
+  assert.equal(proof.identity_anchor, "guidance g-1");
+  assert.equal(
+    proof.proof_basis,
+    "captured_document_self_title_matches_resolved_target_metadata",
+  );
+  assert.equal(proof.proves, "captured_target_document_identity_alignment_only");
+  assert.equal(proof.proof_status, "internal_target_identity_supported");
+  assert.equal(proof.generated_by, "deterministic_rule");
+  assert.equal(proof.canonical_mutation, "none");
   assert.equal(assessment.relation_type, "supersedes");
   assert.equal(assessment.from_occurrence_id, owner.occurrence_id);
   assert.equal(assessment.to_occurrence_id, target.occurrence_id);
@@ -217,12 +267,15 @@ test("positive control emits one deterministic internal supersedes assessment wi
     considered_relation_count: 1,
     eligible_supersession_cue_count: 1,
     captured_support_candidate_count: 1,
+    target_identity_proof_count: 1,
     accepted_assessment_count: 1,
     rejected_existing_pair_count: 0,
     rejected_ambiguous_capture_plan_count: 0,
     rejected_cue_guard_count: 0,
     rejected_target_resolution_count: 0,
     rejected_capture_completeness_count: 0,
+    rejected_target_identity_metadata_count: 0,
+    rejected_target_identity_capture_count: 0,
     rejected_capture_support_count: 0,
     rejected_assertion_context_count: 0,
     rejected_qualifier_count: 0,
@@ -232,6 +285,7 @@ test("positive control emits one deterministic internal supersedes assessment wi
     rejected_temporal_count: 0,
     rejected_competing_semantics_count: 0,
     configured_maximum_assessment_count: 1,
+    configured_maximum_target_identity_proof_count: 1,
     configured_bound_reached: false,
     model_classifier_calls: 0,
     additional_network_requests: 0,
@@ -243,7 +297,300 @@ test("positive control emits one deterministic internal supersedes assessment wi
   assert.equal(relation.insufficient_evidence, true);
   assert.equal(fixture.input.lineagePacket.bounded_work_summary.model_classified_count, 0);
   assert.equal(MAX_SOURCE_SUPPORTED_RELATION_ASSESSMENTS_PER_WORKFLOW, 1);
+  assert.equal(MAX_SOURCE_SUPPORTED_TARGET_IDENTITY_PROOFS_PER_WORKFLOW, 1);
   assert.equal(MAX_CAPTURED_ASSERTION_CONTEXT_CHARS, 560);
+});
+
+test("captured target self-identity admits the required HTML and plain-text positives", async () => {
+  const cases: Array<{
+    label: string;
+    options: CaseOptions;
+    identityKind: "html_title" | "plain_text_first_line";
+  }> = [
+    {
+      label: "HTML exact title",
+      options: {
+        targetBody: "<html><head><title>Guidance G-1</title></head><body>Archive text.</body></html>",
+        targetContentType: "text/html; charset=utf-8",
+      },
+      identityKind: "html_title",
+    },
+    {
+      label: "HTML normalized case and spacing",
+      options: {
+        targetBody: "<title>  GUIDANCE   G-1  </title><p>Archive text.</p>",
+        targetContentType: "text/html",
+      },
+      identityKind: "html_title",
+    },
+    {
+      label: "HTML publisher suffix",
+      options: {
+        targetTitle: "Guidance G-1 | Agency",
+        targetBody: "<title>Guidance G-1 | Agency</title><p>Archive text.</p>",
+        targetContentType: "application/xhtml+xml",
+      },
+      identityKind: "html_title",
+    },
+    {
+      label: "plain text first line",
+      options: {},
+      identityKind: "plain_text_first_line",
+    },
+    {
+      label: "Notice N-17",
+      options: {
+        ownerTitle: "Notice N-18",
+        targetTitle: "Notice N-17",
+        assertion: "This notice supersedes Notice N-17.",
+        cue: {
+          target_kind: "notice_identifier",
+          target_identifier: "N-17",
+          target_reference_text: "Notice N-17",
+        },
+      },
+      identityKind: "plain_text_first_line",
+    },
+    {
+      label: "Guidance No. G-1",
+      options: { targetTitle: "Guidance No. G-1" },
+      identityKind: "plain_text_first_line",
+    },
+  ];
+  for (const item of cases) {
+    const fixture = await buildCase(item.options);
+    const result = assess(fixture.input);
+    assert.equal(result.target_identity_proofs.length, 1, item.label);
+    assert.equal(result.assessments.length, 1, item.label);
+    assert.equal(
+      result.target_identity_proofs[0].document_identity_kind,
+      item.identityKind,
+      item.label,
+    );
+    assert.equal(
+      result.assessments[0].target_identity_proof_id,
+      result.target_identity_proofs[0].proof_id,
+      item.label,
+    );
+  }
+});
+
+test("identifier, document-title, and dated target-title alignment stays exact and conservative", async () => {
+  const documentTitle = await buildCase({
+    targetTitle: "Exact National Guidance Title",
+    assertion: "This guidance supersedes Exact National Guidance Title.",
+    cue: {
+      target_kind: "document_title",
+      target_identifier: "Exact National Guidance Title",
+      target_reference_text: "Exact National Guidance Title",
+    },
+  });
+  assert.equal(assess(documentTitle.input).target_identity_proofs.length, 1);
+  assert.equal(assess(documentTitle.input).assessments.length, 1);
+  assert.equal(targetSourceTitleAlignsWithCue(
+    "Exact National Guidance Title | Agency",
+    defaultCue({
+      target_kind: "document_title",
+      target_identifier: "Exact National Guidance Title",
+      target_reference_text: "Exact National Guidance Title",
+    }),
+  ), false);
+
+  const noticeCue = defaultCue({
+    target_kind: "notice_identifier",
+    target_identifier: "N-17",
+    target_reference_text: "Notice N-17",
+  });
+  assert.equal(targetSourceTitleAlignsWithCue("Agency — Notice N-17", noticeCue), true);
+  assert.equal(
+    targetSourceTitleAlignsWithCue("Notice N-17 and Notice N-18", noticeCue),
+    false,
+  );
+  const versionCue = defaultCue({
+    target_kind: "version_identifier",
+    target_identifier: "4.2",
+    target_reference_text: "Version 4.2",
+  });
+  assert.equal(targetSourceTitleAlignsWithCue("Release Version 4.2", versionCue), true);
+  assert.equal(
+    targetSourceTitleAlignsWithCue("Version 4.2 and Version 5.0", versionCue),
+    false,
+  );
+
+  const dated = await buildCase({
+    targetTitle: "Policy 2025-01-01",
+    assertion: "This guidance supersedes the 2025-01-01 policy.",
+    cue: {
+      target_kind: "dated_document_reference",
+      target_identifier: "2025-01-01 policy",
+      target_reference_text: "the 2025-01-01 policy",
+    },
+  });
+  assert.equal(assess(dated.input).target_identity_proofs.length, 1);
+  assert.equal(assess(dated.input).assessments.length, 1);
+
+  const datedCue = defaultCue({
+    target_kind: "dated_document_reference",
+    target_identifier: "2025-01-01 policy",
+    target_reference_text: "the 2025-01-01 policy",
+  });
+  assert.equal(targetSourceTitleAlignsWithCue("Policy 2025-01-01", datedCue), true);
+  assert.equal(
+    targetSourceTitleAlignsWithCue(
+      "Policy 2025-01-01 and 2024-12-31",
+      datedCue,
+    ),
+    false,
+  );
+  assert.equal(
+    targetSourceTitleAlignsWithCue("Policy Guidance 2025-01-01", datedCue),
+    false,
+  );
+});
+
+test("BODY CONTAINMENT IS NOT TARGET IDENTITY", async () => {
+  const fixture = await buildCase({
+    targetBody: [
+      "Agency archive",
+      "This archive contains Guidance G-1.",
+      "Guidance G-1 is prior policy material.",
+    ].join("\n"),
+  });
+  const result = assess(fixture.input);
+  assert.equal(result.target_identity_proofs.length, 0);
+  assert.equal(result.assessments.length, 0);
+  assert.equal(result.summary.rejected_target_identity_capture_count, 1);
+});
+
+test("HTML target identity failures emit zero proofs and zero assessments despite body mentions", async () => {
+  const cases: Array<[string, string]> = [
+    [
+      "wrong title",
+      "<title>Guidance G-9</title><body>Guidance G-1 was the prior policy.</body>",
+    ],
+    [
+      "generic archive title",
+      "<title>Agency archive</title><body>Guidance G-1 was the prior policy.</body>",
+    ],
+    [
+      "punctuation changed",
+      "<title>Guidance G1</title><body>Guidance G-1 was the prior policy.</body>",
+    ],
+    ["absent title", "<body>Guidance G-1 was the prior policy.</body>"],
+    [
+      "duplicate title",
+      "<title>Guidance G-1</title><title>Guidance G-1</title><body>Guidance G-1.</body>",
+    ],
+    [
+      "malformed title",
+      "<title>Guidance G-1<body>Guidance G-1 was the prior policy.</body>",
+    ],
+    [
+      "overlong title",
+      `<title>${"x".repeat(MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS + 1)}</title><body>Guidance G-1.</body>`,
+    ],
+    [
+      "script and comment fake title",
+      "<script>const fake = '<title>Guidance G-1</title>';</script><!-- <title>Guidance G-1</title> --><body>Guidance G-1.</body>",
+    ],
+  ];
+  for (const [label, targetBody] of cases) {
+    const fixture = await buildCase({
+      targetBody,
+      targetContentType: "text/html; charset=utf-8",
+    });
+    const result = assess(fixture.input);
+    assert.equal(result.target_identity_proofs.length, 0, label);
+    assert.equal(result.assessments.length, 0, label);
+    assert.equal(result.summary.rejected_target_identity_capture_count, 1, label);
+  }
+  assert.equal(cases.length, 8);
+});
+
+test("plain-text later-line identity mentions are ignored", async () => {
+  const fixture = await buildCase({
+    targetBody: "Agency archive\nGuidance G-1\nMore about Guidance G-1.",
+  });
+  const result = assess(fixture.input);
+  assert.equal(result.target_identity_proofs.length, 0);
+  assert.equal(result.assessments.length, 0);
+  assert.equal(result.summary.rejected_target_identity_capture_count, 1);
+});
+
+test("cue-title mismatch and conflicting target identifiers fail metadata alignment", async () => {
+  const cueMismatch = await buildCase({
+    assertion: "This guidance supersedes Guidance G-2.",
+    cue: {
+      target_identifier: "G-2",
+      target_reference_text: "Guidance G-2",
+    },
+  });
+  assert.equal(assess(cueMismatch.input).target_identity_proofs.length, 0);
+  assert.equal(assess(cueMismatch.input).assessments.length, 0);
+
+  const conflicting = await buildCase({
+    targetTitle: "Guidance G-1 and Guidance G-2",
+  });
+  const result = assess(conflicting.input);
+  assert.equal(result.target_identity_proofs.length, 0);
+  assert.equal(result.assessments.length, 0);
+  assert.equal(result.summary.rejected_target_identity_metadata_count, 1);
+});
+
+test("null identity and altered target capture provenance fail closed", async () => {
+  const fixture = await buildCase();
+  const mutations: Array<{
+    label: string;
+    mutate: (input: SourceSupportedRelationAssessmentInput) => void;
+  }> = [
+    {
+      label: "document identity null",
+      mutate: (input) => { targetDocument(input).document_identity = null; },
+    },
+    {
+      label: "capture id altered",
+      mutate: (input) => { targetDocument(input).capture_id = "altered_capture"; },
+    },
+    {
+      label: "captured body hash altered",
+      mutate: (input) => { targetDocument(input).captured_body_sha256 = "f".repeat(64); },
+    },
+    {
+      label: "normalized text hash altered",
+      mutate: (input) => { targetDocument(input).normalized_text_sha256 = "e".repeat(64); },
+    },
+    {
+      label: "final citation URL altered",
+      mutate: (input) => { targetDocument(input).final_url = "https://altered.example/document"; },
+    },
+    {
+      label: "source provenance altered",
+      mutate: (input) => { targetDocument(input).source_id = "altered_source"; },
+    },
+    {
+      label: "snapshot provenance altered",
+      mutate: (input) => { targetDocument(input).parent_snapshot_id = "altered_snapshot"; },
+    },
+  ];
+  for (const item of mutations) {
+    const input = clonedInput(fixture.input);
+    item.mutate(input);
+    const result = assess(input);
+    assert.equal(result.target_identity_proofs.length, 0, item.label);
+    assert.equal(result.assessments.length, 0, item.label);
+  }
+  assert.equal(mutations.length, 7);
+});
+
+test("a valid target identity proof remains independent when a later BFG8Y1A gate rejects", async () => {
+  const fixture = await buildCase({
+    assertion: "This guidance may supersede Guidance G-1.",
+    cue: { operative_verb: "supersede" },
+  });
+  const result = assess(fixture.input);
+  assert.equal(result.target_identity_proofs.length, 1);
+  assert.equal(result.assessments.length, 0);
+  assert.equal(result.summary.rejected_qualifier_count, 1);
 });
 
 test("narrow direct-active modifier gaps preserve positive assessment semantics", async () => {
@@ -781,6 +1128,10 @@ test("repeated inputs are byte-deterministic and input arrays are never mutated"
   const second = assess(fixture.input);
   assert.equal(JSON.stringify(first), JSON.stringify(second));
   assert.equal(first.assessments[0].assessment_id, second.assessments[0].assessment_id);
+  assert.equal(
+    first.target_identity_proofs[0].proof_id,
+    second.target_identity_proofs[0].proof_id,
+  );
   assert.equal(JSON.stringify({
     diagnostics: fixture.input.relationCueDiagnostics,
     entries: fixture.input.capturePlan.entries,
@@ -805,13 +1156,18 @@ test("runLineageInternal adds only internal sidecars and never rebuilds public s
       return new Response(
         String(input).includes("source-owner")
           ? "This guidance supersedes Guidance G-1."
-          : "Archived captured text for Guidance G-1.",
+          : "Guidance G-1\nArchived captured text.",
         { status: 200, headers: { "content-type": "text/plain; charset=utf-8" } },
       );
     }) as typeof fetch,
   });
   assert.equal(captureCalls, 2);
   assert.equal(internal.source_supported_relation_assessments.length, 1);
+  assert.equal(internal.source_supported_target_identity_proofs.length, 1);
+  assert.equal(
+    internal.source_supported_relation_assessments[0].target_identity_proof_id,
+    internal.source_supported_target_identity_proofs[0].proof_id,
+  );
   assert.equal(
     internal.source_supported_relation_work_summary.additional_network_requests,
     0,
@@ -820,6 +1176,17 @@ test("runLineageInternal adds only internal sidecars and never rebuilds public s
   assert.equal(internal.site_ready_case_packet.relation_candidates[0].relation_type, "unresolved");
   assert.equal(internal.site_ready_case_packet.bounded_work_summary.model_classified_count, 0);
 });
+
+function targetDocument(input: SourceSupportedRelationAssessmentInput) {
+  const target = occurrence(
+    input.lineagePacket.claim_occurrences,
+    "candidate_target",
+  );
+  return input.captureResult.documents.find(
+    (document) => document.source_id === target.source_id
+      && document.parent_snapshot_id === target.snapshot_id,
+  )!;
+}
 
 function removeDocument(
   input: SourceSupportedRelationAssessmentInput,

@@ -23,6 +23,7 @@ export const MINIMUM_CAPTURE_START_BUDGET_MS = 9_000;
 export const MAX_CAPTURE_BODY_BYTES = 1_048_576;
 export const MAX_NORMALIZED_CAPTURE_TEXT_CHARS = 98_304;
 export const MAX_CAPTURE_SUPPORT_EXCERPT_CHARS = 560;
+export const MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS = 240;
 export const MAX_CAPTURE_REDIRECTS = 2;
 export const MAX_CAPTURE_NETWORK_CONCURRENCY = 2;
 
@@ -55,6 +56,11 @@ export type CaptureCompleteness =
   | "byte_limited"
   | "text_limited";
 
+export interface CapturedDocumentIdentity {
+  kind: "html_title" | "plain_text_first_line";
+  text: string;
+}
+
 export interface CapturedSourceDocument {
   capture_id: string;
   source_id: string;
@@ -71,6 +77,7 @@ export interface CapturedSourceDocument {
   normalized_text_chars: number;
   normalized_text_sha256: string;
   normalized_text: string;
+  document_identity: CapturedDocumentIdentity | null;
   status: "captured";
 }
 
@@ -173,6 +180,12 @@ export interface SupportAnchor {
 export interface AnchorOccurrence {
   start: number;
   end: number;
+}
+
+interface HTMLMarkupTag {
+  start: number;
+  end: number;
+  text: string;
 }
 
 export function validateDirectCaptureURL(value: string): URL | null {
@@ -447,6 +460,47 @@ export function normalizeCapturedDocumentText(
   return { text: value, textLimited };
 }
 
+export function extractCapturedDocumentIdentity(
+  input: string,
+  mediaKind: "html" | "plain_text",
+): CapturedDocumentIdentity | null {
+  if (mediaKind === "plain_text") {
+    const lines = input.normalize("NFKC").replace(/\r\n?/gu, "\n").split("\n");
+    for (const line of lines) {
+      const text = normalizeCapturedDocumentIdentityText(line);
+      if (!text) continue;
+      return text.length <= MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS
+        ? { kind: "plain_text_first_line", text }
+        : null;
+    }
+    return null;
+  }
+
+  const html = stripIgnoredHTMLRegions(input);
+  const markupTags = scanHTMLMarkupTags(html);
+  if (!markupTags) return null;
+  const titleTags = markupTags.filter((tag) => /^<\/?title\b/iu.test(tag.text));
+  if (titleTags.length !== 2) return null;
+
+  const opening = titleTags[0];
+  const closing = titleTags[1];
+  if (
+    !/^<title(?:\s[^<>]*?)?\s*>$/iu.test(opening.text)
+    || /\/\s*>$/u.test(opening.text)
+    || !/^<\/title\s*>$/iu.test(closing.text)
+  ) return null;
+
+  if (closing.start < opening.end) return null;
+  const rawTitle = html.slice(opening.end, closing.start);
+  if (/[<>]/u.test(rawTitle)) return null;
+  const text = normalizeCapturedDocumentIdentityText(
+    decodeBasicHTMLEntities(rawTitle),
+  );
+  return text && text.length <= MAX_CAPTURED_DOCUMENT_IDENTITY_CHARS
+    ? { kind: "html_title", text }
+    : null;
+}
+
 async function captureOneSource(
   entry: CapturePlanEntry,
   workflowDeadlineAtMs: number,
@@ -592,6 +646,7 @@ async function captureOneSource(
         networkAttempted: true,
       });
     }
+    const documentIdentity = extractCapturedDocumentIdentity(decoded, content);
     const normalized = normalizeCapturedDocumentText(decoded, content);
     if (!normalized.text) {
       return captureFailure({
@@ -643,6 +698,7 @@ async function captureOneSource(
       normalized_text_chars: normalized.text.length,
       normalized_text_sha256: textHash,
       normalized_text: normalized.text,
+      document_identity: documentIdentity,
       status: "captured",
     };
   } finally {
@@ -716,17 +772,53 @@ function parseSupportedContentType(
 }
 
 function htmlToVisibleText(html: string): string {
-  const withoutIgnored = html
-    .replace(/<!--([\s\S]*?)-->/gu, " ")
-    .replace(/<!--[\s\S]*$/gu, " ")
-    .replace(/<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, "\n")
-    .replace(/<(script|style|noscript|template|svg)\b[^>]*\/\s*>/giu, "\n")
-    .replace(/<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*$/giu, "\n");
+  const withoutIgnored = stripIgnoredHTMLRegions(html);
   const withBlocks = withoutIgnored.replace(
     /<\/?(?:address|article|aside|blockquote|br|dd|div|dl|dt|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>/giu,
     "\n",
   );
   return decodeBasicHTMLEntities(withBlocks.replace(/<[^>]*>/gu, " "));
+}
+
+function stripIgnoredHTMLRegions(html: string): string {
+  return html
+    .replace(/<!--([\s\S]*?)-->/gu, " ")
+    .replace(/<!--[\s\S]*$/gu, " ")
+    .replace(/<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, "\n")
+    .replace(/<(script|style|noscript|template|svg)\b[^>]*\/\s*>/giu, "\n")
+    .replace(/<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*$/giu, "\n");
+}
+
+function scanHTMLMarkupTags(html: string): HTMLMarkupTag[] | null {
+  const tags: HTMLMarkupTag[] = [];
+  let searchFrom = 0;
+  while (searchFrom < html.length) {
+    const start = html.indexOf("<", searchFrom);
+    if (start < 0) break;
+    let quote: "\"" | "'" | null = null;
+    let end = -1;
+    for (let index = start + 1; index < html.length; index += 1) {
+      const value = html[index];
+      if (quote) {
+        if (value === quote) quote = null;
+        continue;
+      }
+      if (value === "\"" || value === "'") {
+        quote = value;
+      } else if (value === ">") {
+        end = index + 1;
+        break;
+      }
+    }
+    if (end < 0) return null;
+    tags.push({ start, end, text: html.slice(start, end) });
+    searchFrom = end;
+  }
+  return tags;
+}
+
+function normalizeCapturedDocumentIdentityText(value: string): string {
+  return value.normalize("NFKC").replace(/\s+/gu, " ").trim();
 }
 
 function decodeBasicHTMLEntities(value: string): string {

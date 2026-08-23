@@ -11,11 +11,13 @@ import {
   assessSourceSupportedRelations,
   type SourceSupportedRelationAssessment,
   type SourceSupportedRelationWorkSummary,
+  type SourceSupportedTargetIdentityProof,
 } from "./source-supported-relations";
 
 export interface InternalLineageRunEnvelope extends CaptureExecutionResult {
   site_ready_case_packet: SiteReadyCasePacket;
   source_supported_relation_assessments: SourceSupportedRelationAssessment[];
+  source_supported_target_identity_proofs: SourceSupportedTargetIdentityProof[];
   source_supported_relation_work_summary: SourceSupportedRelationWorkSummary;
 }
 
@@ -47,6 +49,8 @@ export async function runLineageInternal(
     site_ready_case_packet: siteReadyCasePacket,
     ...capture,
     source_supported_relation_assessments: sourceSupportedRelations.assessments,
+    source_supported_target_identity_proofs:
+      sourceSupportedRelations.target_identity_proofs,
     source_supported_relation_work_summary: sourceSupportedRelations.summary,
   };
 }
