@@ -197,6 +197,125 @@ test("projector fails closed across ambiguous and mismatched internal sidecars",
   }
 });
 
+test("public projector re-binds complete captures, exact support spans, assertion context, and raw endpoint provenance", async () => {
+  const positive = await buildPositiveInternal();
+  const cases: Array<{
+    name: string;
+    mutate: (input: InternalLineageRunEnvelope) => void;
+  }> = [
+    {
+      name: "owner capture is byte limited",
+      mutate: (input) => {
+        input.documents.find((document) =>
+          document.capture_id === input.source_supported_relation_assessments[0].owner_capture_id
+        )!.capture_completeness = "byte_limited";
+      },
+    },
+    {
+      name: "owner capture is text limited",
+      mutate: (input) => {
+        input.documents.find((document) =>
+          document.capture_id === input.source_supported_relation_assessments[0].owner_capture_id
+        )!.capture_completeness = "text_limited";
+      },
+    },
+    {
+      name: "target capture is byte limited",
+      mutate: (input) => {
+        input.documents.find((document) =>
+          document.capture_id === input.source_supported_relation_assessments[0].target_capture_id
+        )!.capture_completeness = "byte_limited";
+      },
+    },
+    {
+      name: "target capture is text limited",
+      mutate: (input) => {
+        input.documents.find((document) =>
+          document.capture_id === input.source_supported_relation_assessments[0].target_capture_id
+        )!.capture_completeness = "text_limited";
+      },
+    },
+    {
+      name: "bounded excerpt no longer matches the captured document",
+      mutate: (input) => {
+        const excerpt = input.supports[0].bounded_excerpt;
+        input.supports[0].bounded_excerpt = `${excerpt[0] === "X" ? "Y" : "X"}${excerpt.slice(1)}`;
+      },
+    },
+    { name: "support start is negative", mutate: (input) => { input.supports[0].normalized_text_start = -1; } },
+    {
+      name: "support end exceeds normalized text",
+      mutate: (input) => {
+        const assessment = input.source_supported_relation_assessments[0];
+        const owner = input.documents.find((document) =>
+          document.capture_id === assessment.owner_capture_id
+        )!;
+        input.supports[0].normalized_text_end = owner.normalized_text.length + 1;
+      },
+    },
+    {
+      name: "support start equals support end",
+      mutate: (input) => {
+        input.supports[0].normalized_text_start = input.supports[0].normalized_text_end;
+      },
+    },
+    {
+      name: "support offsets point to different valid text",
+      mutate: (input) => {
+        input.supports[0].normalized_text_end -= 1;
+      },
+    },
+    {
+      name: "assertion context starts after support",
+      mutate: (input) => {
+        input.source_supported_relation_assessments[0].assertion_context_start =
+          input.supports[0].normalized_text_start + 1;
+      },
+    },
+    {
+      name: "assertion context ends before support",
+      mutate: (input) => {
+        input.source_supported_relation_assessments[0].assertion_context_end =
+          input.supports[0].normalized_text_end - 1;
+      },
+    },
+    {
+      name: "assertion context extends outside normalized text",
+      mutate: (input) => {
+        const assessment = input.source_supported_relation_assessments[0];
+        const owner = input.documents.find((document) =>
+          document.capture_id === assessment.owner_capture_id
+        )!;
+        assessment.assertion_context_end = owner.normalized_text.length + 1;
+      },
+    },
+    { name: "raw left source provenance mismatch", mutate: (input) => { input.site_ready_case_packet.relation_candidates[0].left_source_id = "source_wrong"; } },
+    { name: "raw right source provenance mismatch", mutate: (input) => { input.site_ready_case_packet.relation_candidates[0].right_source_id = "source_wrong"; } },
+    { name: "raw left snapshot provenance mismatch", mutate: (input) => { input.site_ready_case_packet.relation_candidates[0].left_snapshot_id = "snapshot_wrong"; } },
+    { name: "raw right snapshot provenance mismatch", mutate: (input) => { input.site_ready_case_packet.relation_candidates[0].right_snapshot_id = "snapshot_wrong"; } },
+  ];
+
+  assert.equal(cases.length, 16);
+  for (const item of cases) {
+    const input = structuredClone(positive);
+    item.mutate(input);
+    const before = JSON.stringify(input);
+    assert.deepEqual(projectSourceSupportedRelationSignals(input), [], item.name);
+    const projected = projectSiteReadyCasePacketV2(input);
+    assert.equal(projected.contract_version, "site_ready_case_packet.v2", item.name);
+    assert.deepEqual(projected.source_supported_relation_signals, [], item.name);
+    assert.deepEqual(
+      projected.relation_candidates,
+      input.site_ready_case_packet.relation_candidates,
+      item.name,
+    );
+    assert.equal(projected.relation_candidates[0].relation_type, "unresolved", item.name);
+    assert.equal(projected.candidate_canonical_boundary.canonical_mutation, "none", item.name);
+    assert.doesNotThrow(() => validateSiteReadyCasePacket(projected), item.name);
+    assert.equal(JSON.stringify(input), before, `${item.name} must not mutate the internal envelope`);
+  }
+});
+
 test("a valid internal run with unavailable admission still returns v2 with an empty overlay", async () => {
   const internal = await buildPositiveInternal();
   internal.source_supported_relation_assessments = [];

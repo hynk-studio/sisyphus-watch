@@ -3,6 +3,7 @@ import {
   validateSiteReadyCasePacket,
   type ClaimOccurrence,
   type RelationCandidate,
+  type SiteReadyCasePacket,
   type SiteReadyCasePacketV2,
   type SourceSupportedRelationSignal,
 } from "./contracts";
@@ -32,7 +33,11 @@ export function projectSourceSupportedRelationSignals(
     (relation) => relation.relation_id === assessment.relation_candidate_id,
   );
   const relation = relations[0];
-  if (relations.length !== 1 || !isUnchangedUnresolvedRelation(relation)) return [];
+  if (
+    relations.length !== 1
+    || !isUnchangedUnresolvedRelation(relation)
+    || !relationEndpointProvenanceAligns(packet.claim_occurrences, relation)
+  ) return [];
 
   const fromOccurrences = packet.claim_occurrences.filter(
     (occurrence) => occurrence.occurrence_id === assessment.from_occurrence_id,
@@ -68,7 +73,9 @@ export function projectSourceSupportedRelationSignals(
   const ownerDocument = ownerDocuments[0];
   const targetDocument = targetDocuments[0];
   if (
-    ownerDocument.source_id !== assessment.from_source_id
+    ownerDocument.capture_completeness !== "complete"
+    || targetDocument.capture_completeness !== "complete"
+    || ownerDocument.source_id !== assessment.from_source_id
     || ownerDocument.parent_snapshot_id !== assessment.from_snapshot_id
     || ownerDocument.captured_body_sha256 !== assessment.captured_body_sha256
     || ownerDocument.normalized_text_sha256 !== assessment.normalized_text_sha256
@@ -97,6 +104,23 @@ export function projectSourceSupportedRelationSignals(
     || support.proves !== "captured_source_text_containment_only"
     || support.bounded_excerpt.trim().length === 0
     || support.bounded_excerpt.length > 560
+    || !Number.isInteger(support.normalized_text_start)
+    || !Number.isInteger(support.normalized_text_end)
+    || support.normalized_text_start < 0
+    || support.normalized_text_end <= support.normalized_text_start
+    || support.normalized_text_end > ownerDocument.normalized_text.length
+    || support.normalized_text_end - support.normalized_text_start
+      !== support.bounded_excerpt.length
+    || ownerDocument.normalized_text.slice(
+      support.normalized_text_start,
+      support.normalized_text_end,
+    ) !== support.bounded_excerpt
+    || !Number.isInteger(assessment.assertion_context_start)
+    || !Number.isInteger(assessment.assertion_context_end)
+    || assessment.assertion_context_start < 0
+    || assessment.assertion_context_start > support.normalized_text_start
+    || assessment.assertion_context_end < support.normalized_text_end
+    || assessment.assertion_context_end > ownerDocument.normalized_text.length
   ) return [];
 
   return [{
@@ -134,12 +158,41 @@ export function projectSiteReadyCasePacketV2(
   }
 }
 
+export function projectSiteReadyCasePacketV2WithoutSignals(
+  packet: SiteReadyCasePacket,
+): SiteReadyCasePacketV2 {
+  return validateSiteReadyCasePacket({
+    ...packet,
+    contract_version: "site_ready_case_packet.v2",
+    source_supported_relation_signals: [],
+  }) as SiteReadyCasePacketV2;
+}
+
 function isUnchangedUnresolvedRelation(relation: RelationCandidate): boolean {
   return relation.relation_type === "unresolved"
     && relation.review_status === "pending_review"
     && relation.status === "candidate"
     && relation.insufficient_evidence === true
     && relation.generated_by === "deterministic_rule";
+}
+
+function relationEndpointProvenanceAligns(
+  occurrences: ClaimOccurrence[],
+  relation: RelationCandidate,
+): boolean {
+  const leftOccurrences = occurrences.filter(
+    (occurrence) => occurrence.occurrence_id === relation.left_occurrence_id,
+  );
+  const rightOccurrences = occurrences.filter(
+    (occurrence) => occurrence.occurrence_id === relation.right_occurrence_id,
+  );
+  if (leftOccurrences.length !== 1 || rightOccurrences.length !== 1) return false;
+  const left = leftOccurrences[0];
+  const right = rightOccurrences[0];
+  return left.source_id === relation.left_source_id
+    && left.snapshot_id === relation.left_snapshot_id
+    && right.source_id === relation.right_source_id
+    && right.snapshot_id === relation.right_snapshot_id;
 }
 
 function assessmentEndpointsAlign(

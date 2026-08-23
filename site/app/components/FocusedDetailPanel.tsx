@@ -1042,7 +1042,30 @@ function RelationDetail({
     ? publicRelationPresentation(packet, relation)
     : null;
   const signal = presentation?.signal ?? null;
-  if (packet && relation && presentation?.sourceBacked && signal) {
+  const candidateLeftSupport = relation
+    ? asRecord(relation.left_support_reference)
+    : left;
+  const candidateRightSupport = relation
+    ? asRecord(relation.right_support_reference)
+    : right;
+  const directedSupports = relation && presentation
+    ? presentation.fromOccurrenceId === relation.left_occurrence_id
+      && presentation.toOccurrenceId === relation.right_occurrence_id
+      ? { from: candidateLeftSupport, to: candidateRightSupport }
+      : presentation.fromOccurrenceId === relation.right_occurrence_id
+        && presentation.toOccurrenceId === relation.left_occurrence_id
+        ? { from: candidateRightSupport, to: candidateLeftSupport }
+        : null
+    : null;
+  if (
+    packet
+    && relation
+    && presentation?.sourceBacked
+    && signal
+    && directedSupports
+  ) {
+    const fromSupport = directedSupports.from;
+    const toSupport = directedSupports.to;
     const statementSource = packet.source_snapshot_summaries.find(
       (source) => source.source_id === signal.statement_source_id
         && source.snapshot_id === signal.statement_snapshot_id,
@@ -1102,14 +1125,14 @@ function RelationDetail({
           <div className="detail-disclosure-body">
             <DetailField label="Reason" value={item.reason} />
             <div className="support-box">
-              <strong>First relation support</strong>
-              <p>{stringValue(left.bounded_excerpt)}</p>
-              <small>{stringValue(left.proves)}</small>
+              <strong>From-side candidate support</strong>
+              <p>{stringValue(fromSupport.bounded_excerpt)}</p>
+              <small>{stringValue(fromSupport.proves)}</small>
             </div>
             <div className="support-box">
-              <strong>Second relation support</strong>
-              <p>{stringValue(right.bounded_excerpt)}</p>
-              <small>{stringValue(right.proves)}</small>
+              <strong>To-side candidate support</strong>
+              <p>{stringValue(toSupport.bounded_excerpt)}</p>
+              <small>{stringValue(toSupport.proves)}</small>
             </div>
             <p className="detail-note">
               These additional references are inspection aids. This relationship still
@@ -1121,10 +1144,14 @@ function RelationDetail({
           <summary>Exact relation and support references</summary>
           <div className="detail-disclosure-body">
             <DetailField label="Relation ID" value={selection.id} />
-            <DetailField label="First occurrence ID" value={presentation.fromOccurrenceId} />
-            <DetailField label="Second occurrence ID" value={presentation.toOccurrenceId} />
-            <DetailField label="First support reference" value={left.evidence_reference} />
-            <DetailField label="Second support reference" value={right.evidence_reference} />
+            <DetailField label="From occurrence ID" value={presentation.fromOccurrenceId} />
+            <DetailField label="To occurrence ID" value={presentation.toOccurrenceId} />
+            <DetailField label="From support source ID" value={fromSupport.source_id} />
+            <DetailField label="From support snapshot ID" value={fromSupport.snapshot_id} />
+            <DetailField label="From support reference" value={fromSupport.evidence_reference} />
+            <DetailField label="To support source ID" value={toSupport.source_id} />
+            <DetailField label="To support snapshot ID" value={toSupport.snapshot_id} />
+            <DetailField label="To support reference" value={toSupport.evidence_reference} />
             <DetailField label="Review status" value="Needs review" />
           </div>
         </details>

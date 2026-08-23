@@ -1246,6 +1246,20 @@ test("source-backed v2 reuses one relation across Map, ledger, inspector, and so
   assert.equal(entry.sourceBacked, true);
   assert.equal(entry.fromNodeId, signal.from_occurrence_id);
   assert.equal(entry.toNodeId, signal.to_occurrence_id);
+  assert.equal(relation.left_occurrence_id, signal.to_occurrence_id);
+  assert.equal(relation.right_occurrence_id, signal.from_occurrence_id);
+  const fromOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === signal.from_occurrence_id,
+  )!;
+  const toOccurrence = packet.claim_occurrences.find(
+    (occurrence) => occurrence.occurrence_id === signal.to_occurrence_id,
+  )!;
+  const fromSupport = relation.right_support_reference;
+  const toSupport = relation.left_support_reference;
+  assert.equal(fromSupport.source_id, fromOccurrence.source_id);
+  assert.equal(fromSupport.snapshot_id, fromOccurrence.snapshot_id);
+  assert.equal(toSupport.source_id, toOccurrence.source_id);
+  assert.equal(toSupport.snapshot_id, toOccurrence.snapshot_id);
   assert.equal(relationSpatialLabel(entry), "Replaces");
   assert.match(html, /Supersession/);
   assert.match(html, /Source-backed/);
@@ -1280,6 +1294,41 @@ test("source-backed v2 reuses one relation across Map, ledger, inspector, and so
   assert.match(relationHtml, /Open statement source/);
   assert.match(relationHtml, /Open referenced document/);
   assert.match(relationHtml, /Other relation review context/);
+  assert.match(relationHtml, /From-side candidate support/);
+  assert.match(relationHtml, /To-side candidate support/);
+  assert.match(
+    relationHtml,
+    new RegExp(`From occurrence ID[\\s\\S]*?${escapeRegex(fromOccurrence.occurrence_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`To occurrence ID[\\s\\S]*?${escapeRegex(toOccurrence.occurrence_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`From support source ID[\\s\\S]*?${escapeRegex(fromSupport.source_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`From support snapshot ID[\\s\\S]*?${escapeRegex(fromSupport.snapshot_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`From support reference[\\s\\S]*?${escapeRegex(fromSupport.evidence_reference)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`To support source ID[\\s\\S]*?${escapeRegex(toSupport.source_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`To support snapshot ID[\\s\\S]*?${escapeRegex(toSupport.snapshot_id)}`),
+  );
+  assert.match(
+    relationHtml,
+    new RegExp(`To support reference[\\s\\S]*?${escapeRegex(toSupport.evidence_reference)}`),
+  );
+  assert.doesNotMatch(relationHtml, /First occurrence ID|Second occurrence ID|First relation support|Second relation support/);
   assert.ok(
     relationHtml.indexOf("Why this is shown")
       < relationHtml.indexOf("Other relation review context"),
