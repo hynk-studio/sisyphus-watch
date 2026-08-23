@@ -36,6 +36,20 @@ const STRONG_SUPERSESSION_SCOPES = new Set([
   "whole_version",
   "withdrawal_or_rescission",
 ]);
+const HTML_RAW_TEXT_IDENTITY_CONTAINERS = new Set([
+  "script",
+  "style",
+  "textarea",
+  "xmp",
+  "iframe",
+  "noembed",
+  "noframes",
+]);
+const HTML_INERT_IDENTITY_CONTAINERS = new Set([
+  "noscript",
+  "template",
+  "svg",
+]);
 
 export type CaptureFailureReason =
   | "ineligible_source"
@@ -182,10 +196,12 @@ export interface AnchorOccurrence {
   end: number;
 }
 
-interface HTMLMarkupTag {
+interface RawHTMLTag {
   start: number;
   end: number;
-  text: string;
+  name: string;
+  closing: boolean;
+  selfClosing: boolean;
 }
 
 export function validateDirectCaptureURL(value: string): URL | null {
@@ -476,23 +492,8 @@ export function extractCapturedDocumentIdentity(
     return null;
   }
 
-  const html = stripIgnoredHTMLRegions(input);
-  const markupTags = scanHTMLMarkupTags(html);
-  if (!markupTags) return null;
-  const titleTags = markupTags.filter((tag) => /^<\/?title\b/iu.test(tag.text));
-  if (titleTags.length !== 2) return null;
-
-  const opening = titleTags[0];
-  const closing = titleTags[1];
-  if (
-    !/^<title(?:\s[^<>]*?)?\s*>$/iu.test(opening.text)
-    || /\/\s*>$/u.test(opening.text)
-    || !/^<\/title\s*>$/iu.test(closing.text)
-  ) return null;
-
-  if (closing.start < opening.end) return null;
-  const rawTitle = html.slice(opening.end, closing.start);
-  if (/[<>]/u.test(rawTitle)) return null;
+  const rawTitle = scanDocumentTitleFromRawHTML(input);
+  if (rawTitle === null || /[<>]/u.test(rawTitle)) return null;
   const text = normalizeCapturedDocumentIdentityText(
     decodeBasicHTMLEntities(rawTitle),
   );
@@ -789,32 +790,148 @@ function stripIgnoredHTMLRegions(html: string): string {
     .replace(/<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*$/giu, "\n");
 }
 
-function scanHTMLMarkupTags(html: string): HTMLMarkupTag[] | null {
-  const tags: HTMLMarkupTag[] = [];
+function scanDocumentTitleFromRawHTML(html: string): string | null {
+  const inertContextStack: string[] = [];
+  const titleContents: string[] = [];
   let searchFrom = 0;
   while (searchFrom < html.length) {
     const start = html.indexOf("<", searchFrom);
     if (start < 0) break;
-    let quote: "\"" | "'" | null = null;
-    let end = -1;
-    for (let index = start + 1; index < html.length; index += 1) {
-      const value = html[index];
-      if (quote) {
-        if (value === quote) quote = null;
+
+    if (html.startsWith("<!--", start)) {
+      const commentEnd = html.indexOf("-->", start + 4);
+      if (commentEnd < 0) return null;
+      searchFrom = commentEnd + 3;
+      continue;
+    }
+
+    if (html.startsWith("<!", start)) {
+      const declaration = scanRawHTMLTagBoundary(html, start);
+      if (
+        !declaration
+        || !/^<!doctype(?:\s|>)/iu.test(declaration.text)
+        || declaration.text.slice(1).includes("<")
+      ) return null;
+      searchFrom = declaration.end;
+      continue;
+    }
+    if (html.startsWith("<?", start)) return null;
+
+    const tag = scanRawHTMLTag(html, start);
+    if (!tag) return null;
+
+    if (HTML_RAW_TEXT_IDENTITY_CONTAINERS.has(tag.name)) {
+      if (tag.closing || tag.selfClosing) return null;
+      const containerEnd = skipRawHTMLIdentityContainer(html, tag);
+      if (containerEnd === null) return null;
+      searchFrom = containerEnd;
+      continue;
+    }
+
+    if (tag.name === "plaintext") {
+      if (tag.closing || tag.selfClosing) return null;
+      searchFrom = html.length;
+      break;
+    }
+
+    if (HTML_INERT_IDENTITY_CONTAINERS.has(tag.name)) {
+      if (tag.selfClosing) return null;
+      if (tag.closing) {
+        if (inertContextStack.at(-1) !== tag.name) return null;
+        inertContextStack.pop();
+      } else {
+        inertContextStack.push(tag.name);
+      }
+      searchFrom = tag.end;
+      continue;
+    }
+
+    if (tag.name === "title") {
+      if (inertContextStack.length > 0) {
+        searchFrom = tag.end;
         continue;
       }
-      if (value === "\"" || value === "'") {
-        quote = value;
-      } else if (value === ">") {
-        end = index + 1;
-        break;
-      }
+      if (tag.closing || tag.selfClosing) return null;
+      const closeStart = html.indexOf("<", tag.end);
+      if (closeStart < 0) return null;
+      const rawTitle = html.slice(tag.end, closeStart);
+      if (/[<>]/u.test(rawTitle)) return null;
+      const close = scanRawHTMLTag(html, closeStart);
+      if (!close || !close.closing || close.name !== "title") return null;
+      titleContents.push(rawTitle);
+      if (titleContents.length > 1) return null;
+      searchFrom = close.end;
+      continue;
     }
-    if (end < 0) return null;
-    tags.push({ start, end, text: html.slice(start, end) });
-    searchFrom = end;
+
+    searchFrom = tag.end;
   }
-  return tags;
+
+  return inertContextStack.length === 0 && titleContents.length === 1
+    ? titleContents[0]
+    : null;
+}
+
+function scanRawHTMLTagBoundary(
+  html: string,
+  start: number,
+): { end: number; text: string } | null {
+  if (html[start] !== "<") return null;
+  let quote: "\"" | "'" | null = null;
+  for (let index = start + 1; index < html.length; index += 1) {
+    const value = html[index];
+    if (quote) {
+      if (value === quote) quote = null;
+      continue;
+    }
+    if (value === "\"" || value === "'") {
+      quote = value;
+    } else if (value === ">") {
+      const end = index + 1;
+      return { end, text: html.slice(start, end) };
+    }
+  }
+  return null;
+}
+
+function scanRawHTMLTag(html: string, start: number): RawHTMLTag | null {
+  const boundary = scanRawHTMLTagBoundary(html, start);
+  if (!boundary) return null;
+  const closing = /^<\/([a-z][a-z\d:-]*)\s*>$/iu.exec(boundary.text);
+  if (closing) {
+    return {
+      start,
+      end: boundary.end,
+      name: closing[1].toLowerCase(),
+      closing: true,
+      selfClosing: false,
+    };
+  }
+  const opening = /^<([a-z][a-z\d:-]*)(?:\s+[^\s"'<>/=]+(?:\s*=\s*(?:"[^"<>]*"|'[^'<>]*'|[^\s"'`=<>/]+))?)*\s*(\/?)>$/iu.exec(
+    boundary.text,
+  );
+  if (!opening) return null;
+  return {
+    start,
+    end: boundary.end,
+    name: opening[1].toLowerCase(),
+    closing: false,
+    selfClosing: opening[2] === "/",
+  };
+}
+
+function skipRawHTMLIdentityContainer(
+  html: string,
+  opening: RawHTMLTag,
+): number | null {
+  const closingPrefix = new RegExp(`</${opening.name}(?=>|\\s)`, "giu");
+  closingPrefix.lastIndex = opening.end;
+  const match = closingPrefix.exec(html);
+  if (!match) return null;
+  const closing = scanRawHTMLTag(html, match.index);
+  return closing?.closing && closing.name === opening.name
+    ? closing.end
+    : null;
 }
 
 function normalizeCapturedDocumentIdentityText(value: string): string {

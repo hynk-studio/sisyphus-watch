@@ -507,6 +507,46 @@ test("HTML target identity failures emit zero proofs and zero assessments despit
   assert.equal(cases.length, 8);
 });
 
+test("raw HTML title context safety propagates to target proof admission", async () => {
+  const falseTitles: Array<[string, string]> = [
+    [
+      "textarea fake title",
+      "<textarea><title>Guidance G-1</title></textarea><body>Guidance G-1</body>",
+    ],
+    [
+      "title-internal comment",
+      "<title>Guidance G-1<!--x--></title><body>Guidance G-1</body>",
+    ],
+  ];
+  for (const [label, targetBody] of falseTitles) {
+    const fixture = await buildCase({
+      targetBody,
+      targetContentType: "text/html; charset=utf-8",
+    });
+    const result = assess(fixture.input);
+    assert.equal(result.target_identity_proofs.length, 0, label);
+    assert.equal(result.assessments.length, 0, label);
+    assert.equal(result.summary.rejected_target_identity_capture_count, 1, label);
+  }
+  assert.equal(falseTitles.length, 2);
+
+  const realTitle = await buildCase({
+    targetBody: [
+      "<script>const fake = \"<title>Guidance G-9</title>\"</script>",
+      "<title>Guidance G-1</title>",
+      "<body>Archived text.</body>",
+    ].join(""),
+    targetContentType: "text/html; charset=utf-8",
+  });
+  const admitted = assess(realTitle.input);
+  assert.equal(admitted.target_identity_proofs.length, 1);
+  assert.equal(admitted.assessments.length, 1);
+  assert.equal(
+    admitted.assessments[0].target_identity_proof_id,
+    admitted.target_identity_proofs[0].proof_id,
+  );
+});
+
 test("plain-text later-line identity mentions are ignored", async () => {
   const fixture = await buildCase({
     targetBody: "Agency archive\nGuidance G-1\nMore about Guidance G-1.",

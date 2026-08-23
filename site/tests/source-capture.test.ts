@@ -421,7 +421,9 @@ test("HTML document identity fails closed on absent, duplicate, malformed, neste
     ["duplicate", "<title>Guidance G-1</title><title>Guidance G-1</title>"],
     ["unclosed", "<html><head><title>Guidance G-1</head></html>"],
     ["malformed close", "<title>Guidance G-1</title extra>"],
-    ["nested markup", "<title>Guidance <b>G-1</b></title>"],
+    ["malformed opening", "<title ==bad>Guidance G-1</title>"],
+    ["self closing", "<title/><body>Guidance G-1</body>"],
+    ["stray close", "</title><title>Guidance G-1</title>"],
     [
       "script and comment fake title",
       "<script>const fake = '<title>Guidance G-1</title>';</script><!-- <title>Guidance G-1</title> -->",
@@ -450,6 +452,59 @@ test("HTML document identity fails closed on absent, duplicate, malformed, neste
     kind: "html_title",
     text: "Guidance G-9",
   });
+});
+
+test("RAW HTML TITLE CONTEXT SAFETY rejects false titles and raw title markup", () => {
+  const falseTitles: Array<[string, string]> = [
+    ["textarea", "<textarea><title>Guidance G-1</title></textarea>"],
+    ["xmp", "<xmp><title>Guidance G-1</title></xmp>"],
+    ["iframe", "<iframe><title>Guidance G-1</title></iframe>"],
+    ["noembed", "<noembed><title>Guidance G-1</title></noembed>"],
+    ["noframes", "<noframes><title>Guidance G-1</title></noframes>"],
+    ["plaintext", "<plaintext><title>Guidance G-1</title>"],
+    ["style", "<style><title>Guidance G-1</title></style>"],
+    ["noscript", "<noscript><title>Guidance G-1</title></noscript>"],
+    ["svg", "<svg><title>Guidance G-1</title></svg>"],
+    ["title comment", "<title>Guidance G-1<!--x--></title>"],
+    ["title script", "<title>Guidance G-1<script>x</script></title>"],
+    ["title markup", "<title>Guidance <b>G-1</b></title>"],
+  ];
+  for (const [label, html] of falseTitles) {
+    assert.equal(extractCapturedDocumentIdentity(html, "html"), null, label);
+  }
+  assert.equal(falseTitles.length, 12);
+  assert.equal(
+    normalizeCapturedDocumentText(
+      "<title>Guidance G-1<!--x--></title>",
+      "html",
+    ).text,
+    "Guidance G-1",
+  );
+});
+
+test("raw HTML title scanning skips completed false-title contexts before one real title", () => {
+  const cases: Array<[string, string]> = [
+    [
+      "completed textarea",
+      "<textarea>fake <title>Guidance G-9</title></textarea><title>Guidance G-1</title>",
+    ],
+    [
+      "script fake title",
+      "<script>const x = \"<title>Guidance G-9</title>\"</script><title>Guidance G-1</title>",
+    ],
+    [
+      "comment fake title",
+      "<!-- <title>Guidance G-9</title> --><title>Guidance G-1</title>",
+    ],
+    ["uppercase title", "<TITLE>Guidance G-1</TITLE>"],
+    ["title attributes", "<title class=\"x\">Guidance G-1</title>"],
+  ];
+  for (const [label, html] of cases) {
+    assert.deepEqual(extractCapturedDocumentIdentity(html, "html"), {
+      kind: "html_title",
+      text: "Guidance G-1",
+    }, label);
+  }
 });
 
 test("plain-text document identity uses only the first non-empty bounded normalized line", async () => {
