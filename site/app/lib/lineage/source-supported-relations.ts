@@ -47,6 +47,18 @@ const ALLOWED_SCOPES = new Set<RelationCueDiagnostic["scope"]>([
   "whole_version",
 ]);
 const ALLOWED_OPERATIVE_VERBS = new Set(["supersede", "supersedes"]);
+const OWNER_TO_VERB_ALLOWED_TOKENS = new Set([
+  "explicitly",
+  "expressly",
+  "hereby",
+]);
+const VERB_TO_TARGET_ALLOWED_TOKENS = new Set([
+  "earlier",
+  "former",
+  "previous",
+  "prior",
+  "the",
+]);
 const ASSERTION_QUALIFIERS: SupportAnchor[] = [
   "not",
   "never",
@@ -62,6 +74,26 @@ const ASSERTION_QUALIFIERS: SupportAnchor[] = [
   "does not",
   "do not",
   "did not",
+  "cannot",
+  "can't",
+  "doesn't",
+  "don't",
+  "didn't",
+  "won't",
+  "wouldn't",
+  "shouldn't",
+  "couldn't",
+  "mightn't",
+  "mustn't",
+  "isn't",
+  "aren't",
+  "wasn't",
+  "weren't",
+  "hasn't",
+  "haven't",
+  "hadn't",
+  "fails to",
+  "failed to",
   "no longer",
   "plans to",
   "plan to",
@@ -622,8 +654,9 @@ function supportMatchesCapturedDocument(
 }
 
 function hasAssertionQualifier(assertionContext: string): boolean {
+  const qualifierText = assertionContext.normalize("NFKC").replaceAll("’", "'");
   return ASSERTION_QUALIFIERS.some(
-    (anchor) => captureAnchorOccurrences(assertionContext, anchor).length > 0,
+    (anchor) => captureAnchorOccurrences(qualifierText, anchor).length > 0,
   );
 }
 
@@ -686,10 +719,18 @@ function activeDirectionMatch(
       anchor,
     }))
   );
+  const allowedVerbOccurrences = [...ALLOWED_OPERATIVE_VERBS].flatMap((value) =>
+    captureAnchorOccurrences(assertionContext, {
+      value,
+      boundary: "lexical",
+    })
+  );
+  if (allowedVerbOccurrences.length !== 1) return null;
   const verbOccurrences = captureAnchorOccurrences(assertionContext, {
     value: operativeVerb,
     boundary: "lexical",
   });
+  if (verbOccurrences.length !== 1) return null;
   const targetExtents = orderedTargetExtents(assertionContext, targetAnchors);
   const matches: Array<{
     owner: AnchorOccurrence & { anchor: SupportAnchor };
@@ -700,12 +741,26 @@ function activeDirectionMatch(
     if (verb.start < supportStart || verb.end > supportEnd) continue;
     for (const owner of ownerOccurrences) {
       if (owner.end > verb.start) continue;
+      if (!gapContainsOnlyAllowedTokens(
+        assertionContext,
+        owner.end,
+        verb.start,
+        OWNER_TO_VERB_ALLOWED_TOKENS,
+        2,
+      )) continue;
       for (const target of targetExtents) {
         if (
           target.start < verb.end
           || target.start < supportStart
           || target.end > supportEnd
         ) continue;
+        if (!gapContainsOnlyAllowedTokens(
+          assertionContext,
+          verb.end,
+          target.start,
+          VERB_TO_TARGET_ALLOWED_TOKENS,
+          2,
+        )) continue;
         matches.push({ owner, verb, target });
       }
     }
@@ -725,6 +780,22 @@ function activeDirectionMatch(
       cue.target_reference_text ?? cue.target_identifier ?? "",
     ),
   };
+}
+
+function gapContainsOnlyAllowedTokens(
+  text: string,
+  start: number,
+  end: number,
+  allowedTokens: Set<string>,
+  maximumTokenCount: number,
+): boolean {
+  const gap = text.slice(start, end).normalize("NFKC").toLowerCase();
+  const tokens = gap.match(/[\p{L}\p{M}\p{N}_]+/gu) ?? [];
+  const nonLexical = gap.replace(/[\p{L}\p{M}\p{N}_]+/gu, "");
+  return /^[\s,.:;!?()[\]{}'"‘’“”–—-]*$/u.test(nonLexical)
+    && tokens.length <= maximumTokenCount
+    && new Set(tokens).size === tokens.length
+    && tokens.every((token) => allowedTokens.has(token));
 }
 
 function orderedTargetExtents(

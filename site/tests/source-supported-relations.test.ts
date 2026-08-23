@@ -246,6 +246,21 @@ test("positive control emits one deterministic internal supersedes assessment wi
   assert.equal(MAX_CAPTURED_ASSERTION_CONTEXT_CHARS, 560);
 });
 
+test("narrow direct-active modifier gaps preserve positive assessment semantics", async () => {
+  const assertions = [
+    "This guidance hereby supersedes Guidance G-1.",
+    "This guidance expressly supersedes Guidance G-1.",
+    "This guidance expressly supersedes the prior Guidance G-1.",
+  ];
+  for (const assertion of assertions) {
+    const fixture = await buildCase({ assertion });
+    const result = assess(fixture.input);
+    assert.equal(result.assessments.length, 1, assertion);
+    assert.equal(result.summary.accepted_assessment_count, 1, assertion);
+    assert.equal(result.assessments[0].relation_type, "supersedes", assertion);
+  }
+});
+
 test("verb and semantic alternatives never produce a strong assessment", async () => {
   const cases: Array<{ assertion: string; operativeVerb: string }> = [
     { assertion: "This guidance replaces Guidance G-1.", operativeVerb: "replaces" },
@@ -293,6 +308,41 @@ test("captured assertion qualifiers outside the old smallest span fail closed", 
     const result = assess(fixture.input);
     assert.equal(result.assessments.length, 0, assertion);
     assert.equal(result.summary.rejected_qualifier_count, 1, assertion);
+  }
+});
+
+test("captured negative contractions and fused negative forms fail closed", async () => {
+  const cases: Array<{
+    assertion: string;
+    operativeVerb: string;
+    qualifierRejection: boolean;
+  }> = [
+    { assertion: "This guidance doesn't supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance doesn’t supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance cannot supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance can't supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance can’t supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance won't supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance wouldn’t supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance shouldn't supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance couldn't supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance mightn't supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance isn't intended to supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance hasn't superseded Guidance G-1.", operativeVerb: "superseded", qualifierRejection: false },
+    { assertion: "This guidance fails to supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+    { assertion: "This guidance failed to supersede Guidance G-1.", operativeVerb: "supersede", qualifierRejection: true },
+  ];
+  assert.equal(cases.length, 14);
+  for (const item of cases) {
+    const fixture = await buildCase({
+      assertion: item.assertion,
+      cue: { operative_verb: item.operativeVerb },
+    });
+    const result = assess(fixture.input);
+    assert.equal(result.assessments.length, 0, item.assertion);
+    if (item.qualifierRejection) {
+      assert.equal(result.summary.rejected_qualifier_count, 1, item.assertion);
+    }
   }
 });
 
@@ -529,6 +579,24 @@ test("owner identity and active owner-verb-target direction fail closed", async 
     const operativeVerb = assertion.includes("superseded") ? "superseded" : "supersedes";
     const fixture = await buildCase({ assertion, cue: { operative_verb: operativeVerb } });
     assert.equal(assess(fixture.input).assessments.length, 0, assertion);
+  }
+});
+
+test("direct active grammar rejects intervening subjects and nested verbs", async () => {
+  const assertions = [
+    "This guidance explains why Policy X supersedes Guidance G-1.",
+    "This guidance states that Policy X supersedes Guidance G-1.",
+    "This document notes that Policy X supersedes Guidance G-1.",
+    "This guidance supersedes the claim that Policy X supersedes Guidance G-1.",
+    "This guidance says another document supersedes Guidance G-1.",
+    "This guidance, according to Policy X, supersedes Guidance G-1.",
+  ];
+  assert.equal(assertions.length, 6);
+  for (const assertion of assertions) {
+    const fixture = await buildCase({ assertion });
+    const result = assess(fixture.input);
+    assert.equal(result.assessments.length, 0, assertion);
+    assert.equal(result.summary.rejected_direction_count, 1, assertion);
   }
 });
 
