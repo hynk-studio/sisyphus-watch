@@ -1,3 +1,4 @@
+import { normalizePublicQuestion } from "./contracts";
 import {
   NormalizedPublicAnalysisRequestSchema,
   PublicAnalysisRequestSchema,
@@ -34,7 +35,7 @@ export function parseAnalysisRequest(value: unknown): NormalizedAnalysisRequest 
   }
 
   const normalized = NormalizedPublicAnalysisRequestSchema.safeParse({
-    question: request.data.question.trim().replace(/\s+/g, " "),
+    question: normalizePublicQuestion(request.data.question),
     sourceLimit: request.data.sourceLimit,
     discoveryProfile: request.data.discoveryProfile,
   });

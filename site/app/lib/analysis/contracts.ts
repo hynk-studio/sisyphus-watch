@@ -15,6 +15,10 @@ export const PUBLIC_MAX_SOURCE_LIMIT = 5;
 export const MAX_SOURCE_LIMIT = 8;
 export const MIN_QUESTION_LENGTH = 12;
 export const MAX_QUESTION_LENGTH = 500;
+
+export function normalizePublicQuestion(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
 export const MAX_CANDIDATES_PER_SOURCE = 8;
 
 export type AnalysisMode = "deterministic" | "live" | "fallback";

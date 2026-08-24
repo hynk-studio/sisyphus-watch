@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   actorLabel,
+  projectPublicLimitations,
   recordBoundaryLabel,
   relationDisplayLabel,
   sourceRoleLabel,
@@ -191,11 +192,6 @@ export function FocusedDetailPanel({
             detail={payload.detail}
           />
         ) : null}
-        <details className="technical-details">
-          <summary>Stable record identifier</summary>
-          <p className="detail-kind">{selection.kind.replaceAll("_", " ")}</p>
-          <code className="stable-id">{selection.id}</code>
-        </details>
       </div>
     </>
   );
@@ -473,19 +469,6 @@ function ClaimOccurrenceDetail({
         selectedKind="claim_occurrence"
         selectedId={selection.id}
       />
-      <details className="technical-details">
-        <summary>Record status enum and exact references</summary>
-        <div className="detail-disclosure-body">
-          <DetailField label="Status enum" value={item.status} />
-          <DetailField label="Origin enum" value={item.origin} />
-          <DetailField label="Claim ID" value={item.claim_id} />
-          <DetailField label="Source ID" value={item.source_id} />
-          <DetailField label="Snapshot ID" value={item.snapshot_id} />
-          <DetailField label="Candidate family ID" value={familyId} />
-          <DetailField label="Support kind enum" value={item.support_kind} />
-          <DetailField label="Validation status" value={item.validation_status} />
-        </div>
-      </details>
     </div>
   );
 }
@@ -566,20 +549,6 @@ function EvidenceRecordDetail({
       />
       <DetailField label="Record status" value={focusedRecordStatusLabel(item.status)} />
       <DetailField label="Record origin" value={lineageOriginLabel(item.origin)} />
-      <details className="technical-details">
-        <summary>Exact record and support references</summary>
-        <div className="detail-disclosure-body">
-          <DetailField
-            label={kind === "finding" ? "Finding ID" : "Action ID"}
-            value={selection.id}
-          />
-          <DetailField label="Source IDs" value={sourceIds.join(" · ")} />
-          <DetailField label="Support kind enum" value={support?.support_kind} />
-          <DetailField label="Evidence reference" value={support?.evidence_reference} />
-          <DetailField label="Status enum" value={item.status} />
-          <DetailField label="Origin enum" value={item.origin} />
-        </div>
-      </details>
     </div>
   );
 }
@@ -608,7 +577,7 @@ function ReviewTogetherSection({
       <p>
         These candidate links only indicate that bounded records may be worth
         reviewing together. They do not imply support, contradiction,
-        correction, causality, truth, or acceptance.
+        correction, causality, truth, or a review outcome.
       </p>
       <ul>
         {links.map((link) => {
@@ -713,18 +682,8 @@ function ClaimFamilyDetail({
       <DetailField label="Review status" value="Needs review" />
       <DetailField label="Family origin" value={lineageOriginLabel(item.origin)} />
       <p className="detail-note">
-        Candidate family membership organizes review. It is not an accepted taxonomy or truth judgment.
+        Candidate family membership organizes review. It is not an established taxonomy or truth judgment.
       </p>
-      <details className="technical-details">
-        <summary>Exact family membership and status enums</summary>
-        <div className="detail-disclosure-body">
-          <DetailField label="Family ID" value={selection.id} />
-          <DetailField label="Occurrence IDs" value={occurrenceIds.join(" · ")} />
-          <DetailField label="Review status enum" value={item.review_status} />
-          <DetailField label="Status enum" value={item.status} />
-          <DetailField label="Origin enum" value={item.origin} />
-        </div>
-      </details>
     </div>
   );
 }
@@ -742,20 +701,20 @@ function timestampWithPrecision(
 
 function supportKindLabel(value: unknown): string {
   if (value === "captured_fixture_source_evidence_excerpt") {
-    return "Captured fixture evidence excerpt";
+    return "Direct excerpt from prepared source";
   }
   if (value === "model_generated_web_search_summary_span") {
-    return "Model-generated web-search summary span · not captured page text";
+    return "Excerpt from a model-generated search summary · not captured page text";
   }
-  return "Support kind unavailable";
+  return "Evidence boundary unavailable";
 }
 
 function supportBoundaryLabel(value: unknown): string {
-  if (value === "captured_fixture_support") return "Captured fixture support";
+  if (value === "captured_fixture_support") return "Direct excerpt from prepared source";
   if (value === "model_summary_containment_only") {
-    return "Model-generated summary containment only · not captured page text";
+    return "Excerpt from a model-generated search summary · not captured page text";
   }
-  return "Support boundary unavailable";
+  return "Evidence boundary unavailable";
 }
 
 function sourceRecordBoundaryLabel(value: unknown): string {
@@ -765,8 +724,8 @@ function sourceRecordBoundaryLabel(value: unknown): string {
 }
 
 function lineageOriginLabel(value: unknown): string {
-  if (value === "deterministic_fixture") return "Prepared fixture";
-  if (value === "live_api") return "Live review candidate";
+  if (value === "deterministic_fixture") return "Prepared example";
+  if (value === "live_api") return "Live review result";
   return "Origin unavailable";
 }
 
@@ -857,9 +816,7 @@ function SourceDetail({
   const sourceSummary = packet?.source_snapshot_summaries.find(
     (source) => source.source_id === selection.id,
   );
-  const selectionMetadata = asRecord(item.source_selection);
-  const provenance = asRecord(item.api_provenance);
-  const limitations = arrayValue(item.limitations);
+  const limitations = projectPublicLimitations(arrayValue(item.limitations));
   const sourceText = typeof item.source_text === "string" ? item.source_text : null;
   const evidenceExcerpt = typeof item.evidence_excerpt === "string"
     ? item.evidence_excerpt
@@ -917,20 +874,19 @@ function SourceDetail({
             ?? null,
         )}
       />
-      <DetailField label="Why this source matters" value={selectionMetadata.why_included} />
       {sourceText ? (
         <div className="captured-text">
-          <strong>Captured deterministic fixture evidence</strong>
+          <strong>Prepared source evidence</strong>
           <p>{sourceText}</p>
         </div>
       ) : evidenceExcerpt ? (
         <div className="captured-text">
-          <strong>Captured evidence excerpt from the prepared record</strong>
+          <strong>Captured evidence excerpt</strong>
           <p>{evidenceExcerpt}</p>
         </div>
       ) : (
         <div className="captured-text">
-          <strong>Model-generated web-search candidate summary · not captured page text</strong>
+          <strong>Model-generated search summary · not captured page text</strong>
           <p>
             {candidateSummary
               ?? "Unavailable. This record preserves only bounded search provenance."}
@@ -969,7 +925,7 @@ function SourceDetail({
           Open cited source <span aria-hidden="true">↗</span>
         </a>
       ) : (
-        <p className="detail-note">Prepared fixture: no external citation URL is available.</p>
+        <p className="detail-note">Prepared example: no external citation URL is available.</p>
       )}
       <details className="detail-disclosure">
         <summary>Findings, actions, context, and limitations</summary>
@@ -984,11 +940,6 @@ function SourceDetail({
             items={actions.map((action) => `${actorLabel(action.actor)}: ${action.action_text}`)}
             empty="No action record is attached."
           />
-          <DetailField label="Source context" value={humanize(selectionMetadata.source_context)} />
-          <DetailField label="Information proximity" value={humanize(selectionMetadata.information_proximity)} />
-          <DetailField label="Classification basis" value={humanize(selectionMetadata.classification_basis)} />
-          <DetailField label="Classification status" value={humanize(selectionMetadata.classification_status)} />
-          <DetailField label="Retrieval method" value={humanize(item.retrieval_mode)} />
           <DetailField
             label="Retrieved by Sisyphus"
             value={formatReviewTimestamp(asNullableString(item.retrieved_at), "instant")}
@@ -1000,24 +951,6 @@ function SourceDetail({
           {limitations.length ? (
             <InspectorList title="Limitations" items={limitations} empty="" />
           ) : null}
-        </div>
-      </details>
-      <details className="technical-details source-technical-details">
-        <summary>Hashes and provider identifiers</summary>
-        <div className="detail-disclosure-body">
-          <DetailField label="Source ID" value={selection.id} />
-          <DetailField label="Snapshot ID" value={item.snapshot_id} />
-          <DetailField label="Content hash" value={item.content_sha256} />
-          <DetailField label="Candidate summary hash" value={item.candidate_summary_sha256} />
-          <DetailField
-            label="Record status enum"
-            value={item.record_status ?? sourceSummary?.record_status}
-          />
-          <DetailField
-            label="Comparison target source IDs"
-            value={arrayValue(selectionMetadata.comparison_target_source_ids).join(" · ")}
-          />
-          <DetailField label="Provider search call ID" value={provenance.search_call_id} />
         </div>
       </details>
     </div>
@@ -1127,32 +1060,17 @@ function RelationDetail({
             <div className="support-box">
               <strong>From-side candidate support</strong>
               <p>{stringValue(fromSupport.bounded_excerpt)}</p>
-              <small>{stringValue(fromSupport.proves)}</small>
+              <small>{supportBoundaryLabel(fromSupport.proves)}</small>
             </div>
             <div className="support-box">
               <strong>To-side candidate support</strong>
               <p>{stringValue(toSupport.bounded_excerpt)}</p>
-              <small>{stringValue(toSupport.proves)}</small>
+              <small>{supportBoundaryLabel(toSupport.proves)}</small>
             </div>
             <p className="detail-note">
               These additional references are inspection aids. This relationship still
-              needs review and is not an accepted record.
+              needs review and remains a review candidate.
             </p>
-          </div>
-        </details>
-        <details className="technical-details">
-          <summary>Exact relation and support references</summary>
-          <div className="detail-disclosure-body">
-            <DetailField label="Relation ID" value={selection.id} />
-            <DetailField label="From occurrence ID" value={presentation.fromOccurrenceId} />
-            <DetailField label="To occurrence ID" value={presentation.toOccurrenceId} />
-            <DetailField label="From support source ID" value={fromSupport.source_id} />
-            <DetailField label="From support snapshot ID" value={fromSupport.snapshot_id} />
-            <DetailField label="From support reference" value={fromSupport.evidence_reference} />
-            <DetailField label="To support source ID" value={toSupport.source_id} />
-            <DetailField label="To support snapshot ID" value={toSupport.snapshot_id} />
-            <DetailField label="To support reference" value={toSupport.evidence_reference} />
-            <DetailField label="Review status" value="Needs review" />
           </div>
         </details>
       </div>
@@ -1169,32 +1087,17 @@ function RelationDetail({
       <div className="support-box">
         <strong>Left support</strong>
         <p>{stringValue(left.bounded_excerpt)}</p>
-        <small>{stringValue(left.proves)}</small>
+        <small>{supportBoundaryLabel(left.proves)}</small>
       </div>
       <div className="support-box">
         <strong>Right support</strong>
         <p>{stringValue(right.bounded_excerpt)}</p>
-        <small>{stringValue(right.proves)}</small>
+        <small>{supportBoundaryLabel(right.proves)}</small>
       </div>
       <p className="detail-note">
         Both support references are inspection aids. A confidence score cannot
-        turn this review candidate into an accepted record.
+        change this review candidate&apos;s status.
       </p>
-      <details className="technical-details">
-        <summary>Exact relation and support references</summary>
-        <div className="detail-disclosure-body">
-          <DetailField label="Relation ID" value={selection.id} />
-          <DetailField label="Left occurrence ID" value={item.left_occurrence_id} />
-          <DetailField label="Right occurrence ID" value={item.right_occurrence_id} />
-          <DetailField label="Left source ID" value={item.left_source_id} />
-          <DetailField label="Right source ID" value={item.right_source_id} />
-          <DetailField label="Left support reference" value={left.evidence_reference} />
-          <DetailField label="Right support reference" value={right.evidence_reference} />
-          <DetailField label="Relation enum" value={item.relation_type} />
-          <DetailField label="Review status enum" value={item.review_status} />
-          <DetailField label="Confidence score" value={item.confidence_score} />
-        </div>
-      </details>
     </div>
   );
 }
@@ -1248,21 +1151,6 @@ function QuestionDetail({
         The connection does not itself establish causation, contradiction, or
         truth/falsity.
       </p>
-      {arrayValue(item.related_ids).length ? (
-        <details className="technical-details">
-          <summary>Conservative resolution details</summary>
-          <DetailField
-            label="Related IDs"
-            value={arrayValue(item.related_ids).join(" · ")}
-          />
-          <DetailField
-            label="Resolution types"
-            value={origins.map((origin) => origin.originType).join(" · ")}
-          />
-          <DetailField label="Record status enum" value={item.record_status} />
-          <DetailField label="Question status enum" value={item.status} />
-        </details>
-      ) : null}
     </div>
   );
 }

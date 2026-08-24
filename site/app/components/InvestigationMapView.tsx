@@ -396,7 +396,7 @@ export function InvestigationMapView({
         <div className="view-intro map-intro">
           <div>
             <p className="eyebrow">Temporal claim-lineage matrix</p>
-            <h3 id="map-grammar-title">What changed in the public claims?</h3>
+            <h2 id="map-grammar-title">Map</h2>
             <p>
               Follow each public claim as it appeared in its source and see what came
               next. Connections need review; open questions remain unresolved.
@@ -657,8 +657,6 @@ export function InvestigationMapView({
 
           <CompleteRelationLedger
             entries={map.relationLedger}
-            occurrenceById={occurrenceById}
-            selectedTimeAxisLabel={map.selectedTimeAxisLabel}
             selectedEdgeId={selectedEdgeId}
             activeRelationIds={activeRelationIds}
             onFocus={onFocus}
@@ -698,7 +696,7 @@ export function InvestigationMapView({
       </div>
 
       <p className="map-boundary-note">
-        Connections shown here are suggestions for review, not accepted facts. Source
+        Connections shown here are suggestions for review, not established facts. Source
         inclusion is not endorsement or truth verification. Viewing and filtering never
         changes the displayed investigation.
       </p>
@@ -706,7 +704,7 @@ export function InvestigationMapView({
       {liveEnabled ? (
         <section className="map-provider-action" aria-labelledby="broader-investigation-title">
           <div>
-            <h4 id="broader-investigation-title">Run a broader investigation</h4>
+            <h3 id="broader-investigation-title">Run a broader investigation</h3>
             <p>
               Broader coverage starts a new bounded provider request. The current
               investigation stays visible until a new result is ready.
@@ -1171,7 +1169,7 @@ function UnplacedBand({
     <section className="unplaced-occurrence-band" aria-labelledby="unplaced-occurrences-title">
       <header>
         <p className="eyebrow">Non-chronological region</p>
-        <h4 id="unplaced-occurrences-title">{map.unplacedRegionLabel}</h4>
+        <h3 id="unplaced-occurrences-title">{map.unplacedRegionLabel}</h3>
         <p>
           This is not a later chronological column. Other timestamps remain inspectable,
           and no arrow direction is inferred through this region.
@@ -1242,7 +1240,7 @@ function UnresolvedRegion({
     >
       <header>
         <p className="eyebrow">Evidence endpoint</p>
-        <h4 id="unresolved-evidence-title">Unresolved evidence questions</h4>
+        <h3 id="unresolved-evidence-title">Unresolved evidence questions</h3>
         <p>Not conclusions · Not chronological records</p>
       </header>
       <div className="unresolved-question-list">
@@ -1310,7 +1308,7 @@ function NonClaimSourceSection({
     >
       <header>
         <p className="eyebrow">Annotations and supporting records</p>
-        <h4 id="non-claim-source-title">Non-claim source records</h4>
+        <h3 id="non-claim-source-title">Non-claim source records</h3>
         <p>
           These records remain outside claim rows. Without a claim occurrence,
           they are never claim-relation endpoints.
@@ -1359,7 +1357,7 @@ function NonClaimGroup({
   const recordByNodeId = new Map(records.map((record) => [record.nodeId, record]));
   return (
     <section className="non-claim-subgroup">
-      <h5>{title}</h5>
+      <h4>{title}</h4>
       {records.length ? (
         groups.length ? (
           <div className="non-claim-date-group-list">
@@ -1453,15 +1451,11 @@ function NonClaimRecordCard({
 
 function CompleteRelationLedger({
   entries,
-  occurrenceById,
-  selectedTimeAxisLabel,
   selectedEdgeId,
   activeRelationIds,
   onFocus,
 }: {
   entries: readonly InvestigationRelationLedgerEntry[];
-  occurrenceById: ReadonlyMap<string, InvestigationOccurrenceNode>;
-  selectedTimeAxisLabel: string;
   selectedEdgeId: string | null;
   activeRelationIds: ReadonlySet<string>;
   onFocus: FocusHandler;
@@ -1474,9 +1468,8 @@ function CompleteRelationLedger({
         tabIndex={-1}
         aria-labelledby="relation-empty-title"
       >
-        <p id="relation-empty-title">
-          No candidate relations found in this bounded investigation.
-        </p>
+        <h3 id="relation-empty-title">Candidate connections</h3>
+        <p>No candidate relations found in this bounded investigation.</p>
       </section>
     );
   }
@@ -1490,17 +1483,13 @@ function CompleteRelationLedger({
     >
       <header>
         <p className="eyebrow">Candidate connections</p>
-        <h4 id="relation-ledger-title">Complete relation review ledger</h4>
+        <h3 id="relation-ledger-title">
+          Review all {entries.length} relation{entries.length === 1 ? "" : "s"}
+        </h3>
         <p>
-          Every candidate relation is listed once below. Open a relation for full
-          claims, sources, times, evidence, and reasoning.
+          Every relation appears once in this compact index. Open one for its
+          evidence and review context.
         </p>
-        {entries.some((entry) => entry.sourceBacked) ? (
-          <p className="source-backed-ledger-explanation">
-            Source-backed means captured source text directly states the displayed
-            relationship; it still needs review.
-          </p>
-        ) : null}
       </header>
       <ol>
         {entries.map((entry) => {
@@ -1517,7 +1506,7 @@ function CompleteRelationLedger({
               <button
                 className="relation-ledger-summary"
                 type="button"
-                aria-label={relationAccessibleName(entry, selectedTimeAxisLabel)}
+                aria-label={relationLedgerAccessibleName(entry)}
                 data-focus-kind={selection.kind}
                 data-focus-id={selection.id}
                 {...{ [FOCUS_TRIGGER_ATTRIBUTE]: focusTriggerId("relation-ledger", selection) }}
@@ -1530,73 +1519,18 @@ function CompleteRelationLedger({
                     <b aria-hidden="true">{entry.directionAsserted ? "→" : "↔"}</b>
                     <span>{compactRelationEndpoint(entry.rightEndpoint)}</span>
                   </span>
-                  <strong>{relationLedgerSentence(entry)}</strong>
+                  <strong>{relationDisplayLabel(entry.relationType)}</strong>
                   <span className="relation-ledger-meta">
                     {entry.sourceBacked ? <span className="source-backed-state">Source-backed</span> : null}
                     <span className="review-state">{entry.publicReviewLabel}</span>
-                    <span>{relationDirectionState(entry, selectedTimeAxisLabel)}</span>
-                    {entry.parallelCount > 1 ? (
-                      <span>Parallel relation {entry.parallelIndex + 1} of {entry.parallelCount}</span>
-                    ) : null}
-                    {entry.leftSourceId === entry.rightSourceId ? (
-                      <span>Same-source occurrences</span>
-                    ) : null}
                   </span>
                 </span>
               </button>
-              <details>
-                <summary>Full claims, sources, times, and reasoning</summary>
-                <div className="relation-ledger-detail-grid">
-                  <RelationLedgerEndpointDetail
-                    endpoint={entry.leftEndpoint}
-                    fullClaim={occurrenceById.get(entry.leftOccurrenceId)?.originalClaimText}
-                    label="First occurrence"
-                  />
-                  <div className="relation-ledger-reason">
-                    <strong>
-                      {relationDisplayLabel(entry.relationType)} · {entry.sourceBacked
-                        ? `Source-backed · ${entry.publicReviewLabel}`
-                        : entry.publicReviewLabel}
-                    </strong>
-                    <p>{entry.reason}</p>
-                    <small>
-                      {entry.integrityState === "valid"
-                        ? "One candidate relation record"
-                        : `${entry.recordCount} conflicting records share this relation ID; geometry is suppressed`}
-                    </small>
-                  </div>
-                  <RelationLedgerEndpointDetail
-                    endpoint={entry.rightEndpoint}
-                    fullClaim={occurrenceById.get(entry.rightOccurrenceId)?.originalClaimText}
-                    label="Second occurrence"
-                  />
-                </div>
-              </details>
             </li>
           );
         })}
       </ol>
     </section>
-  );
-}
-
-function RelationLedgerEndpointDetail({
-  endpoint,
-  fullClaim,
-  label,
-}: {
-  endpoint: InvestigationRelationLedgerEntry["leftEndpoint"];
-  fullClaim?: string;
-  label: string;
-}) {
-  return (
-    <div className="ledger-endpoint">
-      <small>{label}</small>
-      <strong>{endpoint.actor}</strong>
-      <span>{fullClaim ?? endpoint.conciseClaim}</span>
-      <small>{endpoint.sourceIdentity}</small>
-      <time>{endpoint.selectedTimeState}</time>
-    </div>
   );
 }
 
@@ -1713,6 +1647,12 @@ function relationAccessibleName(
       : `; earlier-to-later connector ${relationSpatialLabel(entry)}`
     : "";
   return `${entry.publicNumber}, candidate relation ${relationDisplayLabel(entry.relationType)}, ${entry.sourceBacked ? "Source-backed, " : ""}${entry.publicReviewLabel}${connector}; ${relationLedgerSentence(entry)}; first occurrence: ${relationEndpointAccessibleName(entry.leftEndpoint)}; second occurrence: ${relationEndpointAccessibleName(entry.rightEndpoint)}; ${relationDirectionState(entry, selectedTimeAxisLabel)}; opens the same relation detail as the Complete relation review ledger`;
+}
+
+function relationLedgerAccessibleName(
+  entry: InvestigationRelationLedgerEntry,
+): string {
+  return `${entry.publicNumber}, ${relationDisplayLabel(entry.relationType)}, ${entry.sourceBacked ? "Source-backed, " : ""}${entry.publicReviewLabel}. ${compactRelationEndpoint(entry.leftEndpoint)} ${entry.directionAsserted ? "to" : "and"} ${compactRelationEndpoint(entry.rightEndpoint)}. Inspect relation.`;
 }
 
 function relationEndpointAccessibleName(

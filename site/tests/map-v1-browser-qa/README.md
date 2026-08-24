@@ -42,6 +42,22 @@ http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-storage-unavailable
 ```
 
+For deterministic hierarchy and migration fixtures, use:
+
+```text
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=no-watch
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-landing-legacy
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-landing-v2
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-prepared-unrelated
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-prepared-same
+```
+
+These surfaces seed only the owned Watch key before the production component
+mounts. The legacy fixture records its initial bytes on the document element so
+browser QA can prove hydration performs no write. On the prepared hierarchy
+surfaces, activate the normal Prepared control to inspect unrelated- and
+same-topic Watch behavior below the active workspace.
+
 For deterministic production Since-last-check relation-evidence states, use:
 
 ```text

@@ -26,8 +26,12 @@ import {
 } from "../../app/lib/lineage/contracts";
 import { getSiteReadyCaseDetail } from "../../app/lib/lineage/details";
 import {
+  LOCAL_WATCH_LEGACY_CONTRACT_VERSION,
+  LOCAL_WATCH_STORAGE_KEY,
   buildLocalWatchSnapshot,
+  createLocalWatch,
   readLocalWatch,
+  serializeLocalWatch,
   validateLocalWatchSnapshot,
   type LocalWatchSnapshot,
   type LocalWatchStorage,
@@ -47,6 +51,13 @@ import { buildSourceSupportedSitePacketV2Fixture } from "../fixtures/source-supp
 
 const REQUESTED_SURFACE = new URLSearchParams(window.location.search).get("surface");
 const STORAGE_UNAVAILABLE_SURFACE = "watch-storage-unavailable";
+const WATCH_FIXTURE_SURFACES = new Set([
+  "no-watch",
+  "watch-landing-legacy",
+  "watch-landing-v2",
+  "watch-prepared-unrelated",
+  "watch-prepared-same",
+]);
 const EXECUTION_BOUNDARY_SURFACE_NAMES = [
   "public-default",
   "relay",
@@ -61,6 +72,9 @@ const EXECUTION_BOUNDARY_SURFACES = new Set<string>(
 
 if (REQUESTED_SURFACE && EXECUTION_BOUNDARY_SURFACES.has(REQUESTED_SURFACE)) {
   installExecutionBoundaryFetchMock(REQUESTED_SURFACE as ExecutionBoundarySurface);
+} else if (REQUESTED_SURFACE && WATCH_FIXTURE_SURFACES.has(REQUESTED_SURFACE)) {
+  installNoRequestFetchGuard();
+  seedWatchFixture(REQUESTED_SURFACE);
 } else if (REQUESTED_SURFACE === STORAGE_UNAVAILABLE_SURFACE) {
   installSavedWatchFetchMock(true);
 } else if (
@@ -152,6 +166,21 @@ function MapQaApp() {
   }
 
   if (
+    surface === "no-watch"
+    || surface === "watch-landing-legacy"
+    || surface === "watch-landing-v2"
+    || surface === "watch-prepared-unrelated"
+    || surface === "watch-prepared-same"
+  ) {
+    return (
+      <CaseExplorer
+        preparedCase={buildPreparedSiteReadyCasePacket()}
+        operatorSponsoredReady={false}
+      />
+    );
+  }
+
+  if (
     surface === "public-default"
     || surface === "relay"
     || surface === "relay-failure"
@@ -222,6 +251,37 @@ function MapQaApp() {
       <MountedMap key={fixtureName} packet={packet} fixtureName={fixtureName} />
     </main>
   );
+}
+
+function seedWatchFixture(surface: string) {
+  if (surface === "no-watch") {
+    window.localStorage.removeItem(LOCAL_WATCH_STORAGE_KEY);
+    document.documentElement.dataset.qaWatchSeed = "none";
+    return;
+  }
+  const sameTopic = surface === "watch-prepared-same";
+  const watch = createLocalWatch(
+    sameTopic ? buildPreparedSiteReadyCasePacket() : buildTemporalAcceptanceFixture(),
+    "2026-08-24T00:00:00.000Z",
+  );
+  const serialized = surface === "watch-landing-legacy"
+    ? JSON.stringify({
+        contract_version: LOCAL_WATCH_LEGACY_CONTRACT_VERSION,
+        normalized_public_interest_question: watch.normalized_public_interest_question,
+        saved_source_limit: watch.saved_source_limit,
+        saved_discovery_profile: watch.saved_discovery_profile,
+        saved_at: watch.saved_at,
+        last_checked_at: watch.last_checked_at,
+        snapshot: {
+          sources: watch.snapshot.sources,
+          candidates: watch.snapshot.candidates,
+          relations: watch.snapshot.relations,
+        },
+      })
+    : serializeLocalWatch(watch);
+  window.localStorage.setItem(LOCAL_WATCH_STORAGE_KEY, serialized);
+  document.documentElement.dataset.qaWatchSeed = surface;
+  document.documentElement.dataset.qaWatchSeedBytes = serialized;
 }
 
 function WatchDeltaHarness({ scenario }: { scenario: string }) {

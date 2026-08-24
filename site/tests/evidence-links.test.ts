@@ -311,7 +311,7 @@ test("focused finding, action, and claim inspectors disclose review-only semanti
       modelOverride: "nonmodal",
     }));
     assert.match(html, /Review together/);
-    assert.match(html, /do not imply support, contradiction, correction, causality, truth, or acceptance/);
+    assert.match(html, /do not imply support, contradiction, correction, causality, truth, or a review outcome/);
     assert.match(html, /review together only/);
     assert.doesNotMatch(html, /Truth confidence|confidence score/i);
   }

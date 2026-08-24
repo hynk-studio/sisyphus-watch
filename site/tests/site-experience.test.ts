@@ -282,6 +282,60 @@ test("live composer exposes the existing bounded request controls without claimi
   assert.ok(html.indexOf("Build investigation map") < html.indexOf("Try the prepared cooling-center example"));
 });
 
+test("composer presentation disables blank and normalized-short questions without submitting", () => {
+  const renderQuestion = (question: string) => renderToStaticMarkup(createElement(SearchComposer, {
+    question,
+    sourceLimit: 3,
+    discoveryProfile: "standard",
+    liveEnabled: false,
+    isLoading: false,
+    cooldownRemainingSeconds: 0,
+    routeError: null,
+    investigationStarted: false,
+    onQuestionChange: noop,
+    onSourceLimitChange: noop,
+    onDiscoveryProfileChange: noop,
+    onSubmit: noop,
+    onPreparedExample: noop,
+  }));
+
+  const blank = renderQuestion("   ");
+  assert.match(blank, /build-map-button" type="submit" disabled=""/);
+  assert.doesNotMatch(blank, /question-input-hint|aria-invalid/);
+
+  const short = renderQuestion("  too    short  ");
+  assert.match(short, /build-map-button" type="submit" disabled=""/);
+  assert.match(short, /aria-invalid="true"/);
+  assert.match(short, /aria-describedby="[^"]*question-input-hint"/);
+  assert.match(short, /Use at least 12 characters after spaces are normalized/);
+
+  const valid = renderQuestion("  twelve chars  ");
+  assert.doesNotMatch(valid, /build-map-button" type="submit" disabled/);
+  assert.doesNotMatch(valid, /question-input-hint|aria-invalid/);
+});
+
+test("page hierarchy emits the primary composer or current workspace before Saved Watch", () => {
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  const landingComposer = explorerSource.indexOf("{!investigationStarted ? composer : null}");
+  const landingWatch = explorerSource.indexOf("{!investigationStarted ? savedWatchSurface : null}");
+  const workspace = explorerSource.indexOf("{investigationStarted ? (", landingWatch);
+  const activeComposer = explorerSource.indexOf("{investigationStarted ? composer : null}", workspace);
+  const activeWatch = explorerSource.indexOf("{investigationStarted ? savedWatchSurface : null}", activeComposer);
+  assert.ok(landingComposer > 0 && landingComposer < landingWatch);
+  assert.ok(workspace > landingWatch && workspace < activeComposer);
+  assert.ok(activeComposer < activeWatch);
+  const activeRegion = explorerSource.slice(workspace, activeComposer);
+  assert.ok(activeRegion.indexOf("<h1 id=\"case-title\">") < activeRegion.indexOf("<InvestigationMapView"));
+
+  const landing = renderToStaticMarkup(createElement(CaseExplorer, {
+    preparedCase: buildPreparedSiteReadyCasePacket(),
+  }));
+  assert.ok(landing.indexOf("<h1 id=\"composer-title\">") < landing.indexOf("<h2 id=\"execution-support-title\">"));
+});
+
 test("loading and cooldown retain their distinct availability treatments", () => {
   const renderState = (isLoading: boolean, cooldownRemainingSeconds: number) =>
     renderToStaticMarkup(createElement(SearchComposer, {
@@ -763,7 +817,7 @@ test("prepared focused detail is immediate and same-key source supplements are c
     state: "idle",
     onClose: noop,
   }));
-  assert.match(html, /Captured evidence excerpt from the prepared record/);
+  assert.match(html, /Captured evidence excerpt/);
   assert.doesNotMatch(html, /Loading bounded focused detail/);
   assert.equal(needsPreparedDetailSupplement(packet, "source"), true);
   assert.equal(needsPreparedDetailSupplement(packet, "relation"), false);
@@ -882,7 +936,6 @@ test("timeline, map, and detail expose mixed day/instant groups without losing e
     onExpandCoverage: noop,
   }));
   assert.match(mapHtml, /Mixed precision · no artificial order/);
-  assert.match(mapHtml, /Direction not established on Publication time/);
   assert.match(mapHtml, /data-direction-asserted="false"/);
   assert.doesNotMatch(`${timeline}${sources}${mapHtml}`, /Jul 14/);
 });
@@ -1131,15 +1184,15 @@ test("map uses occurrence-primary claim rows with complete candidate relations a
     "Method",
   ]);
   assert.match(html, /Temporal claim-lineage matrix/);
-  assert.match(html, /What changed in the public claims/);
+  assert.match(html, /<h2 id="map-grammar-title">Map<\/h2>/);
   assert.match(html, /claim-matrix-stage/);
   assert.match(html, /claim-relation-layer/);
   assert.match(html, /Candidate thread · 2 occurrences · needs review/);
   assert.match(html, /<strong>Standalone claim<\/strong>/);
   assert.doesNotMatch(html, /<small>No grouping asserted<\/small>/);
   assert.match(html, /Candidate connections/);
-  assert.match(html, /Complete relation review ledger/);
-  assert.match(html, /Full claims, sources, times, and reasoning/);
+  assert.match(html, /Review all 3 relations/);
+  assert.doesNotMatch(html, /Full claims, sources, times, and reasoning/);
   assert.match(html, /Unresolved evidence questions/);
   assert.match(html, /Not conclusions · Not chronological records/);
   assert.match(html, /Non-claim source records/);
@@ -1213,8 +1266,9 @@ test("Map relation language reads earlier to later without changing candidate se
     );
   }
   assert.doesNotMatch(eventHtml, />Response follows</);
-  assert.match(eventHtml, /Later Fictional City Emergency Management Office claim supersedes the earlier/);
-  assert.match(eventHtml, /These claim occurrences challenge one another/);
+  assert.match(eventHtml, /relation-ledger-summary/);
+  assert.match(eventHtml, />Supersession</);
+  assert.match(eventHtml, />Challenge</);
   assert.doesNotMatch(eventHtml, />Replaces</);
   assert.doesNotMatch(eventHtml, />Responds</);
 
@@ -1225,8 +1279,7 @@ test("Map relation language reads earlier to later without changing candidate se
   );
 
   const retrievalHtml = renderMapMarkup(packet, "retrieval_time");
-  assert.match(retrievalHtml, /Possible supersession between these claim occurrences/);
-  assert.match(retrievalHtml, /Direction not established on Sisyphus retrieval time/);
+  assert.match(retrievalHtml, /data-direction-asserted="false"/);
   assert.match(retrievalHtml, /Supersession/);
   assert.doesNotMatch(retrievalHtml, /Superseded by/);
   assert.doesNotMatch(retrievalHtml, /Response follows/);
@@ -1264,12 +1317,8 @@ test("source-backed v2 reuses one relation across Map, ledger, inspector, and so
   assert.match(html, /Supersession/);
   assert.match(html, /Source-backed/);
   assert.match(html, /Needs review/);
-  assert.match(html, /Direction follows the source-backed statement/);
   assert.doesNotMatch(html, /source-backed connector Replaces;[\s\S]*?Earlier-to-later direction/);
-  assert.match(
-    html,
-    /Source-backed means captured source text directly states the displayed relationship; it still needs review\./,
-  );
+  assert.doesNotMatch(html, /Source-backed means captured source text directly states/);
   assert.doesNotMatch(html, /Source-backed visual family|Signal tab|Proof tab/);
 
   const relationPayload = getSiteReadyCaseDetail(
@@ -1296,38 +1345,9 @@ test("source-backed v2 reuses one relation across Map, ledger, inspector, and so
   assert.match(relationHtml, /Other relation review context/);
   assert.match(relationHtml, /From-side candidate support/);
   assert.match(relationHtml, /To-side candidate support/);
-  assert.match(
-    relationHtml,
-    new RegExp(`From occurrence ID[\\s\\S]*?${escapeRegex(fromOccurrence.occurrence_id)}`),
-  );
-  assert.match(
-    relationHtml,
-    new RegExp(`To occurrence ID[\\s\\S]*?${escapeRegex(toOccurrence.occurrence_id)}`),
-  );
-  assert.match(
-    relationHtml,
-    new RegExp(`From support source ID[\\s\\S]*?${escapeRegex(fromSupport.source_id)}`),
-  );
-  assert.match(
-    relationHtml,
-    new RegExp(`From support snapshot ID[\\s\\S]*?${escapeRegex(fromSupport.snapshot_id)}`),
-  );
-  assert.match(
-    relationHtml,
-    new RegExp(`From support reference[\\s\\S]*?${escapeRegex(fromSupport.evidence_reference)}`),
-  );
-  assert.match(
-    relationHtml,
-    new RegExp(`To support source ID[\\s\\S]*?${escapeRegex(toSupport.source_id)}`),
-  );
-  assert.match(
-    relationHtml,
-    new RegExp(`To support snapshot ID[\\s\\S]*?${escapeRegex(toSupport.snapshot_id)}`),
-  );
-  assert.match(
-    relationHtml,
-    new RegExp(`To support reference[\\s\\S]*?${escapeRegex(toSupport.evidence_reference)}`),
-  );
+  assert.doesNotMatch(relationHtml, /occurrence ID|support source ID|support snapshot ID|support reference/i);
+  assert.doesNotMatch(relationHtml, new RegExp(escapeRegex(fromOccurrence.occurrence_id)));
+  assert.doesNotMatch(relationHtml, new RegExp(escapeRegex(toOccurrence.occurrence_id)));
   assert.doesNotMatch(relationHtml, /First occurrence ID|Second occurrence ID|First relation support|Second relation support/);
   assert.ok(
     relationHtml.indexOf("Why this is shown")
@@ -1465,9 +1485,9 @@ test("compact relation ledger remains complete, inspectable, and public-facing",
       assert.match(html, new RegExp(`>${escapeRegex(relation.publicNumber)}<`));
     }
     assert.match(html, /Needs review/);
-    assert.match(html, /Full claims, sources, times, and reasoning/);
-    assert.match(html, /First occurrence/);
-    assert.match(html, /Second occurrence/);
+    assert.match(html, new RegExp(`Review all ${map.relationLedger.length} relation`));
+    assert.doesNotMatch(html, /Full claims, sources, times, and reasoning/);
+    assert.doesNotMatch(html, /First occurrence|Second occurrence/);
   }
 
   const longClaimPacket = structuredClone(buildPreparedSiteReadyCasePacket());
@@ -1479,8 +1499,9 @@ test("compact relation ledger remains complete, inspectable, and public-facing",
   const fullLongClaim = `Full ledger claim ${"remains inspectable after compact summary ".repeat(6)}end.`;
   relatedOccurrence.original_claim_text = fullLongClaim;
   const longClaimHtml = renderMapMarkup(longClaimPacket, "event_time");
-  assert.ok(
-    (longClaimHtml.match(new RegExp(escapeRegex(fullLongClaim), "g")) ?? []).length >= 2,
+  assert.equal(
+    (longClaimHtml.match(new RegExp(escapeRegex(fullLongClaim), "g")) ?? []).length,
+    1,
   );
 });
 
@@ -1504,7 +1525,7 @@ test("relation simplification is announced only when the spatial overview is sim
 test("default Map copy presents product boundaries without implementation language", () => {
   const html = renderMapMarkup(buildPreparedSiteReadyCasePacket(), "event_time");
   assert.match(html, /claims as they appeared in each source|public claim as it appeared in its source/);
-  assert.match(html, /Every candidate relation is listed once below/);
+  assert.match(html, /Every relation appears once in this compact index/);
   assert.match(html, /See why this question remains open/);
   assert.match(html, /Viewing and filtering never changes the displayed investigation/);
   assert.doesNotMatch(html, /saved investigation/i);
@@ -1543,7 +1564,7 @@ test("same-source relations remain occurrence-to-occurrence in spatial eligibili
     onExpandCoverage: noop,
   }));
 
-  assert.match(html, /Every candidate relation is listed once below/);
+  assert.match(html, /Every relation appears once in this compact index/);
   assert.match(html, new RegExp(`relation-ledger:relation:${relationId}`));
   assert.equal((html.match(new RegExp(`data-relation-id="${relationId}"`, "g")) ?? []).length, 1);
   assert.equal(spatialRelationEdges(map).some(
@@ -1580,7 +1601,7 @@ test("same-source relations remain occurrence-to-occurrence in spatial eligibili
   assert.equal(packet.candidate_canonical_boundary.canonical_mutation, "none");
 });
 
-test("occurrence trace and relation inspection expose typed text states and exact support affordances", () => {
+test("occurrence trace and relation inspection expose typed text states without internal references", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const map = deriveInvestigationMap(packet, "event_time");
   const selectedOccurrenceId = map.occurrences[0].occurrenceId;
@@ -1630,11 +1651,12 @@ test("occurrence trace and relation inspection expose typed text states and exac
   }));
   assert.match(detailHtml, /Left support/);
   assert.match(detailHtml, /Right support/);
-  assert.match(detailHtml, /Exact relation and support references/);
-  assert.match(detailHtml, new RegExp(relation.left_occurrence_id));
-  assert.match(detailHtml, new RegExp(relation.right_occurrence_id));
-  assert.match(detailHtml, new RegExp(escapeRegex(relation.left_support_reference.evidence_reference)));
-  assert.match(detailHtml, new RegExp(escapeRegex(relation.right_support_reference.evidence_reference)));
+  assert.match(detailHtml, /Direct excerpt from prepared source/);
+  assert.doesNotMatch(detailHtml, /Exact relation and support references/);
+  assert.doesNotMatch(detailHtml, new RegExp(relation.left_occurrence_id));
+  assert.doesNotMatch(detailHtml, new RegExp(relation.right_occurrence_id));
+  assert.doesNotMatch(detailHtml, new RegExp(escapeRegex(relation.left_support_reference.evidence_reference)));
+  assert.doesNotMatch(detailHtml, new RegExp(escapeRegex(relation.right_support_reference.evidence_reference)));
 });
 
 test("relation, question, and family selection preserve exact Map entity ownership", () => {
@@ -1787,7 +1809,7 @@ test("typed Map selection prevents packet-valid cross-kind ID collisions", () =>
   assert.doesNotMatch(familySelection, /unresolved-question-card is-selected/);
 });
 
-test("source inspector prioritizes role, evidence, claims, changes, questions, and progressive provenance", () => {
+test("source inspector owns evidence without repeating source-selection or implementation detail", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const sourceId = packet.source_snapshot_summaries[0].source_id;
   const sourceDetail = getPreparedCaseDetail(packet.case_id, "source", sourceId);
@@ -1810,14 +1832,14 @@ test("source inspector prioritizes role, evidence, claims, changes, questions, a
   assert.match(html, /Record status<\/strong><p>Prepared case record/);
   assert.doesNotMatch(html, /Record status<\/strong><p>canonical/);
   assert.match(html, /Publisher \/ domain/);
-  assert.match(html, /Why this source matters/);
-  assert.match(html, /Captured deterministic fixture evidence/);
+  assert.doesNotMatch(html, /Why this source matters/);
+  assert.match(html, /Prepared source evidence|Captured evidence excerpt/);
   assert.match(html, /Claims found in this source/);
   assert.match(html, /Connected changes/);
   assert.match(html, /Related open questions/);
   assert.match(html, /Findings, actions, context, and limitations/);
-  assert.match(html, /Hashes and provider identifiers/);
-  assert.match(html, /Prepared fixture: no external citation URL/);
+  assert.doesNotMatch(html, /Hashes and provider identifiers|Provider search call ID|Stable record identifier/);
+  assert.match(html, /Prepared example: no external citation URL/);
 });
 
 test("timeline keeps all four axes explicit and isolates missing selected-axis times", () => {
@@ -1902,13 +1924,19 @@ test("null actor language describes the unfilled structured field without inferr
   assert.doesNotMatch(actorLabel(null), /Unknown actor/);
 });
 
-test("sources and method preserve provenance labels, coverage, and plain-language record separation", () => {
+test("Sources remains an index and Method subordinates coverage detail", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const sourcesHtml = renderToStaticMarkup(createElement(SourcesView, {
     packet,
     onFocus: noop,
   }));
-  assert.match(sourcesHtml, /Captured deterministic fixture evidence/);
+  assert.match(sourcesHtml, /Captured source evidence/);
+  assert.match(sourcesHtml, /Bounded source evidence is available in the Inspector/);
+  for (const source of packet.source_snapshot_summaries) {
+    if (source.evidence_excerpt) {
+      assert.doesNotMatch(sourcesHtml, new RegExp(escapeRegex(source.evidence_excerpt)));
+    }
+  }
   assert.match(sourcesHtml, /Official notice/);
   assert.match(sourcesHtml, /Community report/);
   assert.match(sourcesHtml, /Official update/);
@@ -1933,14 +1961,84 @@ test("sources and method preserve provenance labels, coverage, and plain-languag
   assert.match(liveHtml, /href="https:\/\/public\.example\.org\/changing-notice"/);
 
   const methodHtml = renderToStaticMarkup(createElement(MethodView, { packet }));
-  assert.match(methodHtml, /Findings, actions, and claims stay separate/);
+  assert.match(methodHtml, /How to read this investigation/);
+  assert.match(methodHtml, /Coverage details/);
   assert.match(methodHtml, /Only statements attributed to an actor become claim records/);
   assert.doesNotMatch(methodHtml, /#43/);
-  assert.match(methodHtml, /How relationships are treated/);
   assert.match(methodHtml, /Source inclusion is not endorsement or truth verification/);
-  assert.match(methodHtml, /Browsing and focus controls cannot accept or canonically change candidate records/);
+  assert.match(methodHtml, /Browsing and focus controls do not change review records/);
   assert.doesNotMatch(methodHtml, /Standalone time candidates|Theoretical pairs|Prefilter candidates|Hard pair limit|Model-classified pairs/);
-  assert.match(methodHtml, /Prepared fixture coverage/);
+  assert.match(methodHtml, /Prepared example coverage/);
+});
+
+test("ordinary rendered review surfaces do not expose internal identifiers, enums, or status jargon", () => {
+  const packet = buildSourceSupportedSitePacketV2Fixture();
+  const relation = packet.relation_candidates[0];
+  const relationPayload = getSiteReadyCaseDetail(packet, "relation", relation.relation_id);
+  const source = packet.source_snapshot_summaries[0];
+  const sourcePayload = getSiteReadyCaseDetail(packet, "source", source.source_id);
+  assert.ok(relationPayload);
+  assert.ok(sourcePayload);
+  const rendered = [
+    renderMapMarkup(packet, "publication_time"),
+    renderToStaticMarkup(createElement(SourcesView, { packet, onFocus: noop })),
+    renderToStaticMarkup(createElement(MethodView, { packet })),
+    renderToStaticMarkup(createElement(FocusedDetailPanel, {
+      packet,
+      selection: { kind: "relation", id: relation.relation_id, label: "Candidate relation" },
+      payload: relationPayload,
+      state: "idle",
+      onClose: noop,
+    })),
+    renderToStaticMarkup(createElement(FocusedDetailPanel, {
+      packet,
+      selection: { kind: "source", id: source.source_id, label: source.title },
+      payload: sourcePayload,
+      state: "idle",
+      onClose: noop,
+    })),
+  ].join(" ");
+  const visibleText = rendered.replace(/<[^>]+>/g, " ");
+  for (const phrase of [
+    "captured_fixture_support",
+    "deterministic_fixture",
+    "model_summary_containment_only",
+    "deterministic_rule",
+    "source_supported_relation_observation",
+    "assessment_id",
+    "proof_id",
+    "capture_id",
+    "normalized_text_sha256",
+    "captured_body_sha256",
+    "canonical_mutation",
+    "Provider search call ID",
+    "Hashes and provider identifiers",
+    "Stable record identifier",
+  ]) {
+    assert.doesNotMatch(visibleText, new RegExp(escapeRegex(phrase), "i"));
+  }
+  assert.doesNotMatch(visibleText, /\b(?:Verified|Confirmed|Proven|Accepted|Canonical)\b/);
+});
+
+test("each investigation view starts with one semantic H2 before its subsections", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const views = [
+    renderMapMarkup(packet, "event_time"),
+    renderToStaticMarkup(createElement(TimelineView, {
+      packet,
+      timeAxis: "event_time",
+      onTimeAxisChange: noop,
+      onFocus: noop,
+    })),
+    renderToStaticMarkup(createElement(SourcesView, { packet, onFocus: noop })),
+    renderToStaticMarkup(createElement(MethodView, { packet })),
+  ];
+  for (const html of views) {
+    const headings = [...html.matchAll(/<h([2-6])(?:\s[^>]*)?>/g)].map((match) => Number(match[1]));
+    assert.equal(headings[0], 2);
+    assert.equal(headings.filter((level) => level === 2).length, 1);
+    assert.ok(headings.slice(1).every((level) => level >= 3));
+  }
 });
 
 test("Method does not turn event-only missing time into an assertion-time limitation", () => {
@@ -2019,12 +2117,12 @@ test("Method narrowly humanizes known time-candidate validation without raw IDs 
   assert.match(text, /Source coverage is bounded and nonexhaustive/i);
   assert.match(text, /Source inclusion is not endorsement or truth verification/);
   assert.match(text, /Candidate relationships organize review/);
-  assert.match(text, /cannot accept or canonically change candidate records/);
+  assert.match(text, /Browsing and focus controls do not change review records/);
   assert.doesNotMatch(text, /src_candidate_live_|time_candidate|candidate_id|validation_path|YYYY-MM-DD|timezone-qualified/);
 
   const html = renderToStaticMarkup(createElement(MethodView, { packet }));
   assert.doesNotMatch(html, /src_candidate_live_|time_candidate|candidate_id|validation_path|YYYY-MM-DD|timezone-qualified/);
-  assert.match(html, /What this investigation cannot establish/);
+  assert.match(html, /Keep these limits in view/);
 });
 
 test("Method conservatively collapses known summary-capture and cross-source wording families", () => {
@@ -2102,7 +2200,12 @@ test("inspection actions have distinguishable accessible names on every repeated
   assert.match(mapHtml, /data-focus-trigger="occurrence-source-[^"]+:source:/);
   assert.match(mapHtml, /data-focus-trigger="relation-ledger:relation:/);
   assert.match(mapHtml, /data-focus-trigger="unresolved-question:unresolved_question:/);
-  assert.match(mapHtml, /aria-label="R1, candidate relation/);
+  assert.match(mapHtml, /aria-label="R1, Supersession, Needs review\./);
+  const ledgerRelationLabel = mapHtml.match(
+    /<button class="relation-ledger-summary"[^>]*aria-label="([^"]+)"/,
+  )?.[1];
+  assert.ok(ledgerRelationLabel);
+  assert.doesNotMatch(ledgerRelationLabel, /first occurrence:|source |selected-axis time|reason/i);
   assert.match(mapHtml, new RegExp(escapeRegex(packet.claim_occurrences[0].original_claim_text)));
   const occurrenceButtonTag = mapHtml.match(/<button class="occurrence-body"[^>]*>/)?.[0];
   assert.ok(occurrenceButtonTag);
@@ -2132,7 +2235,7 @@ test("unresolved-question inspector exposes typed conservative origins and topic
   assert.match(html, /actor claim resolves to every matching source-local occurrence/);
   assert.match(html, /Record status<\/strong><p>Prepared case record/);
   assert.doesNotMatch(html, /Record status<\/strong><p>canonical/);
-  assert.match(html, /Conservative resolution details[\s\S]*Record status enum[\s\S]*canonical/);
+  assert.doesNotMatch(html, /Conservative resolution details|Record status enum|question status enum/i);
   assert.match(html, /This record is related to the evidence gap, but the available evidence does not answer the question/);
   assert.match(html, /does not itself establish causation, contradiction, or truth\/falsity/);
 
@@ -2153,10 +2256,10 @@ test("unresolved-question inspector exposes typed conservative origins and topic
   }));
   assert.match(unknownHtml, /Topic-level evidence gap/);
   assert.match(unknownHtml, /No claim-occurrence tether is added/);
-  assert.match(unknownHtml, /topic_unknown/);
+  assert.doesNotMatch(unknownHtml, /topic_unknown/);
 });
 
-test("focused record statuses use public boundary labels while exact enums stay in technical disclosure", () => {
+test("focused record statuses use public labels and do not expose exact enums", () => {
   const packet = buildPreparedSiteReadyCasePacket();
   const question = packet.unresolved_questions[0];
   const candidatePacket = structuredClone(packet);
@@ -2180,7 +2283,7 @@ test("focused record statuses use public boundary labels while exact enums stay 
   }));
   assert.match(candidateQuestionHtml, /Record status<\/strong><p>Needs review/);
   assert.doesNotMatch(candidateQuestionHtml, /Record status<\/strong><p>candidate/);
-  assert.match(candidateQuestionHtml, /Conservative resolution details[\s\S]*Record status enum[\s\S]*candidate/);
+  assert.doesNotMatch(candidateQuestionHtml, /Conservative resolution details|Record status enum|candidate<\/p>/);
 
   const occurrence = packet.claim_occurrences[0];
   const occurrencePayload = getSiteReadyCaseDetail(
@@ -2202,7 +2305,7 @@ test("focused record statuses use public boundary labels while exact enums stay 
   }));
   assert.match(occurrenceHtml, /Record status<\/strong><p>Prepared case record|Record status<\/strong><p>Needs review/);
   assert.doesNotMatch(occurrenceHtml, /Record status<\/strong><p>(canonical|candidate)/);
-  assert.match(occurrenceHtml, /Record status enum[\s\S]*Status enum[\s\S]*(canonical|candidate)/);
+  assert.doesNotMatch(occurrenceHtml, /Record status enum|Status enum|Origin enum/);
 
   assert.equal(focusedRecordStatusLabel("canonical"), "Prepared case record");
   assert.equal(focusedRecordStatusLabel("candidate"), "Needs review");
@@ -2302,14 +2405,14 @@ test("live primary presentation keeps one global review boundary without repeati
   const notice = getRunNotice(live, false, null);
   const primaryPresentation = [
     modeLabel(live),
-    "Viewing does not accept candidate records",
+    "Viewing does not change review status",
     notice.title,
     notice.message,
     payoffHtml,
   ].join(" ");
 
   assert.match(primaryPresentation, /Live · review only/);
-  assert.match(primaryPresentation, /Viewing does not accept candidate records/);
+  assert.match(primaryPresentation, /Viewing does not change review status/);
   assert.match(primaryPresentation, /Source inclusion is not endorsement or truth verification/);
   assert.doesNotMatch(primaryPresentation, /Relations need review/);
   assert.doesNotMatch(primaryPresentation, /This live result is a review draft/);
@@ -2320,7 +2423,7 @@ test("live primary presentation keeps one global review boundary without repeati
     new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(explorerSource, /Viewing does not accept candidate records/);
+  assert.match(explorerSource, /Viewing does not change review status/);
   assert.doesNotMatch(explorerSource, /Relations need review · Browsing never changes the record/);
 });
 
@@ -2382,11 +2485,12 @@ test("920px CSS transforms the same matrix into typed claim chapters with a comp
   assert.match(tabletRules, /\.claim-row \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(tabletRules, /\.claim-relation-layer,[\s\S]*?\.spatial-relation-shortcuts \{ display: none; \}/);
   assert.match(tabletRules, /\.relation-port-list \{/);
-  assert.match(tabletRules, /\.relation-ledger-detail-grid \{ grid-template-columns: minmax\(0, 1fr\)/);
+  assert.doesNotMatch(tabletRules, /\.relation-ledger-detail-grid/);
   assert.match(tabletRules, /\.non-claim-source-section\.has-1-subgroups,[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
 
   const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
-  assert.match(mobileRules, /\.relation-ledger-summary \{ grid-template-columns: 36px minmax\(0, 1fr\)/);
+  assert.match(mobileRules, /\.relation-ledger-summary \{ min-height: 82px; grid-template-columns: 34px minmax\(0, 1fr\)/);
+  assert.match(mobileRules, /\.detail-button \{[^}]*min-height: 44px/);
   assert.match(mobileRules, /\.relation-port-list \{ display: grid/);
   assert.match(mobileRules, /\.focus-toolbar \{ min-height: 0/);
   assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto; height: calc\(100dvh - 16px\)/);
@@ -2427,9 +2531,8 @@ test("Map analytical typography preserves a readable primary and important hiera
   assert.match(mapRules, /\.relation-shortcut span \{[^}]*font-size: var\(--map-font-important\)/);
   assert.match(mapRules, /\.relation-port-list span \{[^}]*font-size: var\(--map-font-supporting\)/);
   assert.match(mapRules, /\.question-origin-chip b \{[^}]*font-size: var\(--map-font-important\)/);
-  assert.match(mapRules, /\.ledger-endpoint strong \{[^}]*font-size: var\(--map-font-prominent\)/);
-  assert.match(mapRules, /\.ledger-endpoint span \{[^}]*font-size: var\(--map-font-important\)/);
-  assert.match(mapRules, /\.ledger-endpoint time \{[^}]*font-size: var\(--map-font-supporting\)/);
+  assert.doesNotMatch(mapRules, /\.ledger-endpoint/);
+  assert.match(mapRules, /\.relation-ledger-route \{[^}]*font-size: var\(--map-font-important\)/);
   assert.match(mapRules, /\.relation-ledger-summary-body > strong \{[^}]*font-size: var\(--map-font-important\)/);
   assert.match(mapRules, /\.non-claim-source-card span:not\(\.source-role-badge\) \{[^}]*font-size: var\(--map-font-prominent\)/);
   assert.match(mapRules, /\.non-claim-source-card time,[\s\S]*?font-size: var\(--map-font-supporting\)/);
