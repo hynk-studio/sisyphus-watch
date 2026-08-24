@@ -86,6 +86,7 @@ import {
 } from "./InvestigationResultViews";
 import { SearchComposer } from "./SearchComposer";
 import { SavedWatchCard } from "./SavedWatchCard";
+import { SisyphusLoadingStatus, SisyphusMark } from "./SisyphusMark";
 import {
   FOCUS_TRIGGER_ATTRIBUTE,
   type FocusHandler,
@@ -101,19 +102,7 @@ export function SisyphusWordmark({
 }) {
   const content = (
     <>
-      <span className="wordmark-mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32" focusable="false">
-          <rect width="32" height="32" rx="7" fill="#14213d" />
-          <path
-            d="M8 22c3.2-7.7 7.7-11.7 15-12M9 23h14"
-            fill="none"
-            stroke="#f6c453"
-            strokeWidth="3"
-            strokeLinecap="round"
-          />
-          <circle cx="23" cy="10" r="3" fill="#f7f4eb" />
-        </svg>
-      </span>
+      <SisyphusMark className="wordmark-mark" />
       <span className="wordmark-copy">
         <strong className="wordmark-name">Sisyphus Watch</strong>
         <small className="wordmark-descriptor">Public-interest investigation ledger</small>
@@ -825,7 +814,9 @@ export function CaseExplorer({
     isLoading,
     routeError,
     cooldownRemainingSeconds,
+    activeRunKind,
   );
+  const activeLoadingMessage = loadingStatusText(activeRunKind);
   const selectedNodeId = focus?.kind === "claim_occurrence"
     || focus?.kind === "source"
     || focus?.kind === "unresolved_question"
@@ -861,6 +852,7 @@ export function CaseExplorer({
       cooldownRemainingSeconds={cooldownRemainingSeconds}
       routeError={routeError}
       investigationStarted={investigationStarted}
+      loadingMessage={activeLoadingMessage}
       onQuestionChange={setQuestion}
       onSourceLimitChange={setSourceLimit}
       onDiscoveryProfileChange={setDiscoveryProfile}
@@ -937,8 +929,18 @@ export function CaseExplorer({
             role="status"
             aria-live="polite"
           >
-            <strong>{runNotice.title}</strong>
-            <span>{runNotice.message}</span>
+            {isLoading ? (
+              <SisyphusLoadingStatus
+                message={activeLoadingMessage}
+                detail="The current investigation remains visible until this run finishes."
+                liveRegion={false}
+              />
+            ) : (
+              <>
+                <strong>{runNotice.title}</strong>
+                <span>{runNotice.message}</span>
+              </>
+            )}
           </div>
 
           {watchDelta ? (
@@ -1125,6 +1127,7 @@ export function getRunNotice(
   isLoading: boolean,
   error: string | null,
   cooldownRemainingSeconds = 0,
+  runKind: PublicRunKind | null = null,
 ): {
   tone:
     | "prepared"
@@ -1142,8 +1145,8 @@ export function getRunNotice(
   if (isLoading) {
     return {
       tone: "loading",
-      title: "Building a bounded investigation map",
-      message: "The displayed packet stays intact until a new schema-checked response is available.",
+      title: loadingStatusText(runKind),
+      message: "The displayed investigation stays intact until this run finishes.",
     };
   }
   if (error) {
@@ -1248,7 +1251,13 @@ export function AnalysisResult({ run }: { run: AnalysisRunPacket }) {
   );
 }
 
-type PublicRunKind = "normal" | "coverage_expansion" | "watch_recheck";
+export type PublicRunKind = "normal" | "coverage_expansion" | "watch_recheck";
+
+export function loadingStatusText(runKind: PublicRunKind | null): string {
+  if (runKind === "coverage_expansion") return "Expanding source coverage…";
+  if (runKind === "watch_recheck") return "Checking for changes…";
+  return "Building investigation map…";
+}
 
 interface DisplayedWatchDelta {
   delta: InvestigationDelta;

@@ -994,6 +994,20 @@ test("Saved Watch and Since-last-check UI expose manual, bounded, review-only se
   assert.match(card, /Checks run only when you choose Check for changes/);
   assert.doesNotMatch(card, /sponsored live/i);
 
+  const recheckingCard = renderToStaticMarkup(createElement(SavedWatchCard, {
+    watch,
+    liveEnabled: true,
+    isLoading: true,
+    isWatchRechecking: true,
+    cooldownRemainingSeconds: 0,
+    onCheck: noop,
+    onForget: noop,
+  }));
+  assert.match(recheckingCard, /Checking for changes…/);
+  assert.match(recheckingCard, /sisyphus-loading-status/);
+  assert.match(recheckingCard, /displayed investigation and saved baseline stay intact/i);
+  assert.match(recheckingCard, /role="status"/);
+
   const delta = compareInvestigationSnapshots(watch.snapshot, watch.snapshot);
   const panel = renderToStaticMarkup(createElement(InvestigationDeltaPanel, {
     delta,

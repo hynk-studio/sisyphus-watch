@@ -108,7 +108,7 @@ p, li, blockquote { text-wrap: pretty; }
   background: var(--navy);
   box-shadow: 0 0 0 1px rgba(20, 33, 61, .12);
 }
-.wordmark-mark svg { display: block; width: 100%; height: 100%; }
+.sisyphus-mark svg { display: block; width: 100%; height: 100%; }
 .wordmark-copy {
   display: grid;
   gap: 1px;
@@ -326,11 +326,13 @@ p, li, blockquote { text-wrap: pretty; }
 }
 .investigation-form > .composer-actions,
 .investigation-form > .availability-note,
+.investigation-form > .sisyphus-loading-status,
 .investigation-form > .form-error {
   margin-right: clamp(22px, 3vw, 32px);
   margin-left: clamp(22px, 3vw, 32px);
 }
 .investigation-form > .availability-note,
+.investigation-form > .sisyphus-loading-status,
 .investigation-form > .form-error { margin-bottom: 20px; }
 .investigation-form > label,
 .source-limit-control,
@@ -581,6 +583,54 @@ p, li, blockquote { text-wrap: pretty; }
   background: var(--navy-soft);
   color: var(--navy);
 }
+.sisyphus-loading-status {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  color: var(--navy);
+}
+.sisyphus-loading-status-prominent {
+  padding: 18px;
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--gold-ink);
+  background: linear-gradient(110deg, var(--navy-soft), var(--surface-strong));
+}
+.sisyphus-loading-mark {
+  display: block;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  box-shadow: 0 0 0 1px rgba(20, 33, 61, .14);
+}
+.sisyphus-loading-status-prominent .sisyphus-loading-mark {
+  width: 52px;
+  height: 52px;
+}
+.sisyphus-loading-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.sisyphus-loading-copy strong { font-size: .9rem; }
+.sisyphus-loading-copy > span {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.sisyphus-loading-mark .sisyphus-mark-stone {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sisyphus-stone-travel 2.7s ease-in-out infinite alternate;
+}
+@keyframes sisyphus-stone-travel {
+  from { transform: translate(-12px, 10px); }
+  to { transform: translate(0, 0); }
+}
+.run-notice > .sisyphus-loading-status { width: 100%; }
+.saved-watch-card > .sisyphus-loading-status { padding: 6px 0; }
 .form-error { margin: 0; color: var(--red); font-size: .76rem; line-height: 1.5; }
 .question-input-hint { margin: 7px 0 0; color: var(--review); font-size: .76rem; line-height: 1.45; }
 
@@ -2056,6 +2106,7 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
   .composer-config-heading { align-items: flex-start; flex-direction: column; gap: 3px; }
   .investigation-form > .composer-actions,
   .investigation-form > .availability-note,
+  .investigation-form > .sisyphus-loading-status,
   .investigation-form > .form-error { margin-right: 15px; margin-left: 15px; }
   .execution-support { padding: 15px; }
   .composer-options,
@@ -2175,4 +2226,8 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+  .sisyphus-loading-mark .sisyphus-mark-stone {
+    animation: none;
+    transform: none;
+  }
 }

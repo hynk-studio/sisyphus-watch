@@ -26,7 +26,7 @@ POST /v1/lineage
 The current public origin is:
 
 ```text
-https://sisyphus-d1-capability-probe.hynk1240.chatgpt.site
+https://sisyphus-watch.hynk1240.chatgpt.site
 ```
 
 ## 1. Capabilities endpoint
@@ -93,7 +93,7 @@ The public browser contacts the Relay directly, so the Relay must allow the Sisy
 A minimal production policy should allow:
 
 ```text
-Origin: https://sisyphus-d1-capability-probe.hynk1240.chatgpt.site
+Origin: https://sisyphus-watch.hynk1240.chatgpt.site
 Methods: GET, POST, OPTIONS
 Headers: Content-Type
 ```

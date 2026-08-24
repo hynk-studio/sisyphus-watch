@@ -58,6 +58,11 @@ const WATCH_FIXTURE_SURFACES = new Set([
   "watch-prepared-unrelated",
   "watch-prepared-same",
 ]);
+const LOADING_SURFACES = new Set([
+  "loading-initial",
+  "loading-coverage",
+  "loading-watch",
+]);
 const EXECUTION_BOUNDARY_SURFACE_NAMES = [
   "public-default",
   "relay",
@@ -70,7 +75,9 @@ const EXECUTION_BOUNDARY_SURFACES = new Set<string>(
   EXECUTION_BOUNDARY_SURFACE_NAMES,
 );
 
-if (REQUESTED_SURFACE && EXECUTION_BOUNDARY_SURFACES.has(REQUESTED_SURFACE)) {
+if (REQUESTED_SURFACE && LOADING_SURFACES.has(REQUESTED_SURFACE)) {
+  installLoadingFetchMock(REQUESTED_SURFACE);
+} else if (REQUESTED_SURFACE && EXECUTION_BOUNDARY_SURFACES.has(REQUESTED_SURFACE)) {
   installExecutionBoundaryFetchMock(REQUESTED_SURFACE as ExecutionBoundarySurface);
 } else if (REQUESTED_SURFACE && WATCH_FIXTURE_SURFACES.has(REQUESTED_SURFACE)) {
   installNoRequestFetchGuard();
@@ -162,6 +169,15 @@ function MapQaApp() {
   }, []);
 
   if (surface === "loading") return <LoadingComposerHarness />;
+  if (surface && LOADING_SURFACES.has(surface)) {
+    return (
+      <CaseExplorer
+        preparedCase={buildPreparedSiteReadyCasePacket()}
+        operatorSponsoredReady={true}
+        runGuardCooldownMs={0}
+      />
+    );
+  }
   if (surface?.startsWith("watch-delta-")) {
     return <WatchDeltaHarness scenario={surface.slice("watch-delta-".length)} />;
   }
@@ -584,6 +600,37 @@ function installSavedWatchFetchMock(storageUnavailable: boolean) {
       status: 200,
       headers: { "content-type": "application/json" },
     });
+  };
+}
+
+function installLoadingFetchMock(surface: string) {
+  const root = document.documentElement;
+  const responsePacket = surface === "loading-watch"
+    ? buildSavedWatchPacketB()
+    : buildSavedWatchPacketA();
+  root.dataset.qaLoadingSurface = surface;
+  root.dataset.qaMockLineageCalls = "0";
+
+  if (surface === "loading-watch") {
+    const watch = createLocalWatch(buildSavedWatchPacketA(), "2026-08-24T00:00:00.000Z");
+    window.localStorage.setItem(LOCAL_WATCH_STORAGE_KEY, serializeLocalWatch(watch));
+  } else {
+    window.localStorage.removeItem(LOCAL_WATCH_STORAGE_KEY);
+  }
+
+  window.fetch = async (input, init) => {
+    const requestUrl = new URL(
+      typeof input === "string" || input instanceof URL ? String(input) : input.url,
+      window.location.href,
+    );
+    if (requestUrl.pathname !== "/api/lineage" || init?.method !== "POST") {
+      throw new Error(`Browser QA blocks non-mock request: ${requestUrl.toString()}`);
+    }
+    root.dataset.qaMockLineageCalls = String(
+      Number(root.dataset.qaMockLineageCalls ?? "0") + 1,
+    );
+    await new Promise((resolve) => window.setTimeout(resolve, 12_000));
+    return Response.json(responsePacket);
   };
 }
 
