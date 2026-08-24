@@ -8,6 +8,7 @@ import {
 import type { ExecutionTransport } from "../lib/execution-transport";
 import type { RelayConnection } from "../lib/relay";
 import type { DiscoveryProfile } from "../lib/source-profile";
+import { SisyphusLoadingStatus } from "./SisyphusMark";
 
 export function SearchComposer({
   question,
@@ -28,6 +29,7 @@ export function SearchComposer({
   cooldownRemainingSeconds,
   routeError,
   investigationStarted,
+  loadingMessage = "Building investigation map…",
   onQuestionChange,
   onSourceLimitChange,
   onDiscoveryProfileChange,
@@ -59,6 +61,7 @@ export function SearchComposer({
   cooldownRemainingSeconds: number;
   routeError: string | null;
   investigationStarted: boolean;
+  loadingMessage?: string;
   onQuestionChange: (value: string) => void;
   onSourceLimitChange: (value: number) => void;
   onDiscoveryProfileChange: (value: DiscoveryProfile) => void;
@@ -223,7 +226,7 @@ export function SearchComposer({
                   onChange={(event) => onSourceLimitChange(Number(event.target.value))}
                 >
                   <option value={3}>3 sources</option>
-                  <option value={5}>5 sources · broader and slower</option>
+                  <option value={5}>5 sources</option>
                 </select>
               </label>
             </div>
@@ -253,7 +256,15 @@ export function SearchComposer({
             </button>
           </div>
 
-          {liveEnabled ? (
+          {isLoading && !investigationStarted ? (
+            <SisyphusLoadingStatus
+              message={loadingMessage}
+              detail="Your map will appear here when this bounded run finishes."
+              variant="prominent"
+            />
+          ) : null}
+
+          {liveEnabled && (!isLoading || investigationStarted) ? (
             <div
               className={`availability-note availability-${availabilityState}`}
               data-live-capability="available"
@@ -271,12 +282,14 @@ export function SearchComposer({
                 <>
                   <strong>
                     {isLoading
-                      ? "Bounded live investigation running."
+                      ? loadingMessage
                       : `Next live attempt available in ${cooldownRemainingSeconds}s.`}
                   </strong>
                   <span>
                     {isLoading
-                      ? "The displayed investigation stays intact until one schema-checked response is available."
+                      ? investigationStarted
+                        ? "The current investigation stays visible until this run finishes."
+                        : "This status clears when the run finishes."
                       : "The prepared investigation remains usable during this short cooldown."}
                   </span>
                 </>

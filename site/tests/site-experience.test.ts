@@ -10,12 +10,14 @@ import {
   InvestigationMapView,
   MethodView,
   SearchComposer,
+  SisyphusLoadingStatus,
   SisyphusWordmark,
   StartNewInvestigationButton,
   SourcesView,
   TimelineView,
   firstPayoffForPacket,
   getRunNotice,
+  loadingStatusText,
 } from "../app/components/CaseExplorer";
 import { decideInvestigationSubmission } from "../app/components/InvestigationExplorer";
 import {
@@ -261,7 +263,9 @@ test("live composer exposes the existing bounded request controls without claimi
   assert.match(html, /maxLength="500"/);
   assert.match(html, /value="3" selected=""/);
   assert.match(html, /3 sources/);
-  assert.match(html, /5 sources · broader and slower/);
+  assert.match(html, /<option value="3" selected="">3 sources<\/option>/);
+  assert.match(html, /<option value="5">5 sources<\/option>/);
+  assert.doesNotMatch(html, /broader and slower/);
   assert.doesNotMatch(html, /8 sources/);
   assert.match(html, /Sponsored capacity ready/);
   assert.match(html, /Explicitly operator-funded/);
@@ -334,8 +338,12 @@ test("page hierarchy emits the primary composer or current workspace before Save
   assert.ok(landing.indexOf("<h1 id=\"composer-title\">") < landing.indexOf("<h2 id=\"execution-support-title\">"));
 });
 
-test("loading and cooldown retain their distinct availability treatments", () => {
-  const renderState = (isLoading: boolean, cooldownRemainingSeconds: number) =>
+test("initial loading stays singular while rerun loading and cooldown retain distinct availability treatments", () => {
+  const renderState = (
+    isLoading: boolean,
+    cooldownRemainingSeconds: number,
+    investigationStarted = false,
+  ) =>
     renderToStaticMarkup(createElement(SearchComposer, {
       question: "How is public access changing?",
       sourceLimit: 3,
@@ -344,21 +352,99 @@ test("loading and cooldown retain their distinct availability treatments", () =>
       isLoading,
       cooldownRemainingSeconds,
       routeError: null,
-      investigationStarted: false,
+      investigationStarted,
       onQuestionChange: noop,
       onSourceLimitChange: noop,
       onDiscoveryProfileChange: noop,
       onSubmit: noop,
       onPreparedExample: noop,
     }));
-  const loading = renderState(true, 0);
-  assert.match(loading, /availability-note availability-loading/);
-  assert.match(loading, /Bounded live investigation running/);
-  assert.match(loading, /prepared-example-button" type="button" disabled=""/);
+  const initialLoading = renderState(true, 0);
+  assert.match(initialLoading, /Building investigation map…/);
+  assert.match(initialLoading, /sisyphus-loading-status sisyphus-loading-status-prominent/);
+  assert.doesNotMatch(initialLoading, /availability-note availability-loading/);
+  assert.match(initialLoading, /prepared-example-button" type="button" disabled=""/);
+  const rerunLoading = renderState(true, 0, true);
+  assert.match(rerunLoading, /availability-note availability-loading/);
+  assert.match(rerunLoading, /Building investigation map…/);
+  assert.doesNotMatch(rerunLoading, /sisyphus-loading-status-prominent/);
   const cooldown = renderState(false, 12);
   assert.match(cooldown, /availability-note availability-cooldown/);
   assert.match(cooldown, /Next live attempt available in 12s/);
   assert.doesNotMatch(cooldown, /prepared-example-button" type="button" disabled/);
+});
+
+test("branded loading status is contextual, accessible, motion-bounded, and separate from the masthead mark", () => {
+  assert.equal(loadingStatusText(null), "Building investigation map…");
+  assert.equal(loadingStatusText("normal"), "Building investigation map…");
+  assert.equal(loadingStatusText("coverage_expansion"), "Expanding source coverage…");
+  assert.equal(loadingStatusText("watch_recheck"), "Checking for changes…");
+
+  const status = renderToStaticMarkup(createElement(SisyphusLoadingStatus, {
+    message: loadingStatusText("coverage_expansion"),
+    detail: "The current investigation remains visible until this run finishes.",
+  }));
+  assert.match(status, /^<div class="sisyphus-loading-status sisyphus-loading-status-compact" role="status" aria-live="polite" aria-atomic="true">/);
+  assert.match(status, /sisyphus-loading-mark/);
+  assert.match(status, /sisyphus-mark-stone/);
+  assert.match(status, /aria-hidden="true"/);
+  assert.match(status, /Expanding source coverage…/);
+
+  const mastheadMark = renderToStaticMarkup(createElement(SisyphusWordmark, {
+    resultMode: false,
+    onReturnHome: noop,
+  }));
+  assert.match(mastheadMark, /sisyphus-static-mark wordmark-mark/);
+  assert.doesNotMatch(mastheadMark, /sisyphus-loading-mark/);
+
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /@keyframes sisyphus-stone-travel[\s\S]*?translate\(-12px, 10px\)[\s\S]*?translate\(0, 0\)/);
+  assert.match(css, /animation: sisyphus-stone-travel 2\.7s ease-in-out infinite alternate/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.sisyphus-loading-mark \.sisyphus-mark-stone \{[\s\S]*?animation: none;[\s\S]*?transform: none;/);
+});
+
+test("loading marks are mounted only for bounded investigation work and preserve displayed results", () => {
+  const explorerSource = readFileSync(
+    new URL("../app/components/InvestigationExplorer.tsx", import.meta.url),
+    "utf8",
+  );
+  const composerSource = readFileSync(
+    new URL("../app/components/SearchComposer.tsx", import.meta.url),
+    "utf8",
+  );
+  const watchSource = readFileSync(
+    new URL("../app/components/SavedWatchCard.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(composerSource, /isLoading && !investigationStarted[\s\S]*?<SisyphusLoadingStatus/);
+  assert.match(watchSource, /isWatchRechecking \? \([\s\S]*?<SisyphusLoadingStatus/);
+  assert.match(explorerSource, /run-notice-[^\n]+[\s\S]*?\{isLoading \? \([\s\S]*?<SisyphusLoadingStatus/);
+
+  const runStart = explorerSource.indexOf("async function runAnalysis(");
+  const runEnd = explorerSource.indexOf("function submitAnalysis(", runStart);
+  const runSource = explorerSource.slice(runStart, runEnd);
+  assert.ok(runSource.indexOf("setIsLoading(true)") < runSource.indexOf("executeInvestigationTransport"));
+  assert.ok(runSource.indexOf("setPacket(nextPacket)") > runSource.indexOf("decidePublicRunResponse"));
+  assert.match(runSource, /hadDisplayedInvestigation: hadDisplayedInvestigation \|\| runKind === "watch_recheck"/);
+  assert.match(runSource, /finally[\s\S]*?setIsLoading\(false\)[\s\S]*?setActiveRunKind\(null\)/);
+
+  const preparedStart = explorerSource.indexOf("function startPreparedExample()");
+  const preparedEnd = explorerSource.indexOf("function startNewInvestigation()", preparedStart);
+  assert.doesNotMatch(explorerSource.slice(preparedStart, preparedEnd), /setIsLoading|SisyphusLoadingStatus/);
+  const relayStart = explorerSource.indexOf("async function connectRelay()");
+  const relayEnd = explorerSource.indexOf("function cancelRelayConnection()", relayStart);
+  assert.doesNotMatch(explorerSource.slice(relayStart, relayEnd), /setIsLoading|SisyphusLoadingStatus/);
+});
+
+test("current-facing repository links use the canonical public Site origin", () => {
+  const rootReadme = readFileSync(new URL("../../README.md", import.meta.url), "utf8");
+  const relaySetup = readFileSync(new URL("../../docs/relay-setup.md", import.meta.url), "utf8");
+  const currentFacing = `${rootReadme}\n${relaySetup}`;
+  const retiredSlug = ["sisyphus-d1", "capability-probe"].join("-");
+  assert.equal((currentFacing.match(/https:\/\/sisyphus-watch\.hynk1240\.chatgpt\.site\/?/g) ?? []).length, 4);
+  assert.equal(currentFacing.includes(retiredSlug), false);
+  assert.match(relaySetup, /Origin: https:\/\/sisyphus-watch\.hynk1240\.chatgpt\.site/);
 });
 
 test("first payoff resolves one existing source-bound finding without fabricating fallback evidence", () => {
@@ -2445,9 +2531,16 @@ test("fallback, partial, loading, and error notices never mislabel the displayed
   assert.doesNotMatch(getRunNotice(live, false, null).message, /\bvalidated\b/i);
 
   const loading = getRunNotice(prepared, true, null);
-  assert.equal(loading.title, "Building a bounded investigation map");
-  assert.match(loading.message, /displayed packet stays intact/);
-  assert.match(loading.message, /schema-checked response/i);
+  assert.equal(loading.title, "Building investigation map…");
+  assert.match(loading.message, /displayed investigation stays intact/);
+  assert.equal(
+    getRunNotice(prepared, true, null, 0, "coverage_expansion").title,
+    "Expanding source coverage…",
+  );
+  assert.equal(
+    getRunNotice(prepared, true, null, 0, "watch_recheck").title,
+    "Checking for changes…",
+  );
 
   const error = getRunNotice(prepared, false, "The route is unavailable.");
   assert.equal(error.tone, "error");

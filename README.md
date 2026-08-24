@@ -2,7 +2,7 @@
 
 **Version control for changing public information.**
 
-**Live demo:** https://sisyphus-d1-capability-probe.hynk1240.chatgpt.site
+**Live demo:** https://sisyphus-watch.hynk1240.chatgpt.site/
 
 Public information rarely changes in one clean step. A schedule moves, guidance is corrected, an institution changes its explanation, or a later source quietly narrows an earlier claim. A normal summary usually shows the latest state and loses that history.
 
@@ -97,7 +97,7 @@ The project was developed in small reviewed changes, with the hosted build teste
 
 Open the public demo:
 
-**https://sisyphus-d1-capability-probe.hynk1240.chatgpt.site**
+**https://sisyphus-watch.hynk1240.chatgpt.site/**
 
 Choose **Explore the prepared investigation** to use the product without credentials or provider spend. Move between Map, Timeline, Sources, and Method to see the same case from different review angles.
 

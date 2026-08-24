@@ -5,7 +5,9 @@ export {
   SisyphusWordmark,
   StartNewInvestigationButton,
   getRunNotice,
+  loadingStatusText,
 } from "./InvestigationExplorer";
+export { SisyphusLoadingStatus, SisyphusMark } from "./SisyphusMark";
 export { FocusedDetailPanel } from "./FocusedDetailPanel";
 export {
   FirstPayoff,

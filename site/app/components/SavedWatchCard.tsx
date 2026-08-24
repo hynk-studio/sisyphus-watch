@@ -1,4 +1,5 @@
 import type { LocalWatch } from "../lib/local-watch";
+import { SisyphusLoadingStatus } from "./SisyphusMark";
 
 export function SavedWatchCard({
   watch,
@@ -65,17 +66,22 @@ export function SavedWatchCard({
           </button>
         </div>
       </div>
-      <p className="saved-watch-status" role="status" aria-live="polite">
-        {!canExecute
-          ? "Browser-local. Connect your Relay to check this Watch again. Checks run only when you choose Check for changes."
-          : isWatchRechecking
-            ? "Running one manual bounded recheck. The displayed investigation and saved baseline stay intact until a valid live result is available."
+      {isWatchRechecking ? (
+        <SisyphusLoadingStatus
+          message="Checking for changes…"
+          detail="The displayed investigation and saved baseline stay intact until this check finishes."
+        />
+      ) : (
+        <p className="saved-watch-status" role="status" aria-live="polite">
+          {!canExecute
+            ? "Browser-local. Connect your Relay to check this Watch again. Checks run only when you choose Check for changes."
             : isLoading
               ? "Another bounded investigation is running. Check for changes will be available when it finishes."
               : cooldownRemainingSeconds > 0
                 ? `The existing in-memory cooldown has ${cooldownRemainingSeconds}s remaining.`
                 : "Browser-local. Checks run only when you select Check for changes; no background monitoring occurs."}
-      </p>
+        </p>
+      )}
       <details className="saved-watch-details">
         <summary>Watch details</summary>
         <dl>
