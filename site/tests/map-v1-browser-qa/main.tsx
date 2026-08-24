@@ -82,6 +82,7 @@ if (REQUESTED_SURFACE && EXECUTION_BOUNDARY_SURFACES.has(REQUESTED_SURFACE)) {
   || REQUESTED_SURFACE === "temporal"
   || REQUESTED_SURFACE === "live-relations"
   || REQUESTED_SURFACE === "source-backed"
+  || REQUESTED_SURFACE === "source-rationale"
   || REQUESTED_SURFACE === "loading"
   || REQUESTED_SURFACE?.startsWith("watch-delta-")
 ) {
@@ -205,6 +206,7 @@ function MapQaApp() {
     || surface === "temporal"
     || surface === "live-relations"
     || surface === "source-backed"
+    || surface === "source-rationale"
   ) {
     return (
       <CaseExplorer
@@ -212,6 +214,8 @@ function MapQaApp() {
           ? buildTemporalAcceptanceFixture()
           : surface === "source-backed"
             ? buildSourceSupportedSitePacketV2Fixture()
+          : surface === "source-rationale"
+            ? buildSourceRationalePreservationFixture()
           : surface === "live-relations"
             ? buildLiveRelationPresentationFixture()
             : buildPreparedSiteReadyCasePacket()}
@@ -251,6 +255,13 @@ function MapQaApp() {
       <MountedMap key={fixtureName} packet={packet} fixtureName={fixtureName} />
     </main>
   );
+}
+
+function buildSourceRationalePreservationFixture() {
+  const packet = buildPreparedSiteReadyCasePacket();
+  packet.source_snapshot_summaries[0].source_selection.why_included =
+    "This is a widely accepted public-health standard; the canonical text is publicly available.";
+  return packet;
 }
 
 function seedWatchFixture(surface: string) {

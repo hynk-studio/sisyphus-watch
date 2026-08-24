@@ -194,7 +194,7 @@ p, li, blockquote { text-wrap: pretty; }
 .saved-watch-actions button:disabled { cursor: not-allowed; opacity: .58; }
 .saved-watch-status { margin: 0; color: var(--muted); font-size: .76rem; line-height: 1.45; }
 .saved-watch-details { border-top: 1px solid var(--line); }
-.saved-watch-details > summary { width: fit-content; min-height: 32px; padding-top: 8px; color: var(--navy); cursor: pointer; font-size: .76rem; font-weight: 720; }
+.saved-watch-details > summary { display: inline-flex; align-items: center; width: fit-content; min-height: 44px; color: var(--navy); cursor: pointer; font-size: .76rem; font-weight: 720; }
 .saved-watch-details > dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 8px 0 2px; }
 .saved-watch-details > dl div { display: grid; gap: 3px; }
 .saved-watch-details dt { color: var(--muted); font-size: .7rem; font-weight: 720; text-transform: uppercase; letter-spacing: .035em; }
@@ -2023,7 +2023,7 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
   .composer-section { gap: 26px; padding: 34px 0 42px; }
   .composer-section-compact { gap: 24px; padding: 24px 0 32px; }
   .composer-heading h1 { font-size: clamp(2.35rem, 10.5vw, 2.75rem); }
-  .saved-watch-card { gap: 6px; margin: 14px 0 28px; padding: 10px; }
+  .saved-watch-card { gap: 4px; margin: 14px 0 28px; padding: 8px; }
   .saved-watch-heading { align-items: flex-start; }
   .saved-watch-primary-row { display: grid; grid-template-columns: minmax(108px, 1fr) auto; gap: 10px; }
   .saved-watch-actions { min-width: 0; }

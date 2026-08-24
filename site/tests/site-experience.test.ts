@@ -1971,8 +1971,53 @@ test("Sources remains an index and Method subordinates coverage detail", () => {
   assert.match(methodHtml, /Prepared example coverage/);
 });
 
+test("Sources preserves bounded dynamic source-selection rationale verbatim", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const rationale = "This is a widely accepted public-health standard; the canonical text is publicly available.";
+  packet.source_snapshot_summaries[0].source_selection.why_included = rationale;
+  const packetBeforeRender = JSON.stringify(packet);
+
+  const html = renderToStaticMarkup(createElement(SourcesView, {
+    packet,
+    onFocus: noop,
+  }));
+  const visibleText = html.replace(/<[^>]+>/g, " ");
+
+  assert.match(visibleText, new RegExp(escapeRegex(rationale)));
+  assert.doesNotMatch(visibleText, /widely selected|established text/i);
+  assert.equal(packet.source_snapshot_summaries[0].source_selection.why_included, rationale);
+  assert.equal(JSON.stringify(packet), packetBeforeRender);
+  for (const phrase of [
+    "captured_fixture_support",
+    "deterministic_fixture",
+    "model_summary_containment_only",
+    "deterministic_rule",
+    "source_supported_relation_observation",
+    "assessment_id",
+    "proof_id",
+    "capture_id",
+    "normalized_text_sha256",
+    "captured_body_sha256",
+    "canonical_mutation",
+    "Provider search call ID",
+    "Hashes and provider identifiers",
+    "Stable record identifier",
+  ]) {
+    assert.doesNotMatch(visibleText, new RegExp(escapeRegex(phrase), "i"));
+  }
+
+  const experienceSource = readFileSync(
+    new URL("../app/lib/experience.ts", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(experienceSource, /publicSourceSelectionRationale/);
+});
+
 test("ordinary rendered review surfaces do not expose internal identifiers, enums, or status jargon", () => {
-  const packet = buildSourceSupportedSitePacketV2Fixture();
+  const packet = structuredClone(buildSourceSupportedSitePacketV2Fixture());
+  for (const source of packet.source_snapshot_summaries) {
+    source.source_selection.why_included = "This bounded source was included for review.";
+  }
   const relation = packet.relation_candidates[0];
   const relationPayload = getSiteReadyCaseDetail(packet, "relation", relation.relation_id);
   const source = packet.source_snapshot_summaries[0];
@@ -2491,6 +2536,7 @@ test("920px CSS transforms the same matrix into typed claim chapters with a comp
   const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
   assert.match(mobileRules, /\.relation-ledger-summary \{ min-height: 82px; grid-template-columns: 34px minmax\(0, 1fr\)/);
   assert.match(mobileRules, /\.detail-button \{[^}]*min-height: 44px/);
+  assert.match(mobileRules, /\.saved-watch-card \{ gap: 4px;[^}]*padding: 8px/);
   assert.match(mobileRules, /\.relation-port-list \{ display: grid/);
   assert.match(mobileRules, /\.focus-toolbar \{ min-height: 0/);
   assert.match(mobileRules, /\.detail-panel \{ inset: 8px; width: auto; height: calc\(100dvh - 16px\)/);
@@ -2500,6 +2546,7 @@ test("920px CSS transforms the same matrix into typed claim chapters with a comp
 test("result actions and Map lens controls preserve practical target sizes", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
+  assert.match(css, /\.saved-watch-details > summary \{[^}]*display: inline-flex;[^}]*align-items: center;[^}]*min-height: 44px/);
   assert.match(css, /\.start-new-investigation-button \{[\s\S]*?min-height: 44px/);
   assert.match(css, /\.export-toggle \{[\s\S]*?min-height: 44px/);
   assert.match(css, /\.export-actions button \{[\s\S]*?min-height: 44px/);

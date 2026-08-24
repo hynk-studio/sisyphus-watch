@@ -7,7 +7,6 @@ import {
   groupTimelineRowsByPrecision,
   orderTimelineRows,
   publicMethodLimitations,
-  publicSourceSelectionRationale,
   recordBoundaryLabel,
   supportingDatedEvidenceRows,
   sourceContentLabel,
@@ -423,7 +422,7 @@ export function SourcesView({
                   </div>
                   <div className="source-why">
                     <strong>Why this source matters</strong>
-                    <p>{publicSourceSelectionRationale(source.source_selection.why_included)}</p>
+                    <p>{source.source_selection.why_included}</p>
                   </div>
                   <button
                     className="detail-button"

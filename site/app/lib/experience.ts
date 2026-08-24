@@ -143,14 +143,6 @@ export function publicMethodLimitations(packet: SiteReadyCasePacket): string[] {
   return deduplicateLimitations([...publicBoundaries, ...packetSpecific]);
 }
 
-export function publicSourceSelectionRationale(value: string): string {
-  return value
-    .replace(/\bAccepted\b/g, "Selected")
-    .replace(/\baccepted\b/g, "selected")
-    .replace(/\bCanonical\b/g, "Established")
-    .replace(/\bcanonical\b/g, "established");
-}
-
 export function projectPublicLimitations(
   limitations: readonly string[],
 ): string[] {
