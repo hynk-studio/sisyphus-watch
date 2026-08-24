@@ -32,6 +32,7 @@ composer, use:
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=temporal
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=live-relations
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=source-backed
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=source-rationale
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=loading
 ```
 
@@ -41,6 +42,22 @@ For the browser-local Saved Watch loop and the storage-unavailable state, use:
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch
 http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-storage-unavailable
 ```
+
+For deterministic hierarchy and migration fixtures, use:
+
+```text
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=no-watch
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-landing-legacy
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-landing-v2
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-prepared-unrelated
+http://127.0.0.1:4179/tests/map-v1-browser-qa/index.html?surface=watch-prepared-same
+```
+
+These surfaces seed only the owned Watch key before the production component
+mounts. The legacy fixture records its initial bytes on the document element so
+browser QA can prove hydration performs no write. On the prepared hierarchy
+surfaces, activate the normal Prepared control to inspect unrelated- and
+same-topic Watch behavior below the active workspace.
 
 For deterministic production Since-last-check relation-evidence states, use:
 
@@ -91,6 +108,10 @@ with one unresolved candidate relation and one directed source-supported
 supersession signal. The loading surface passes `isLoading=true` directly to the
 production composer. A test-page fetch guard records attempted calls and blocks
 them before traffic; these surfaces do not submit `/api/lineage`.
+
+The source-rationale surface renders a valid bounded reviewer rationale containing
+ordinary-language uses of `accepted` and `canonical` so presentation preservation
+can be checked without permitting those words in product-authored status labels.
 
 That surface mounts the production `CaseExplorer` with local live capability
 presentation enabled. It does not submit the composer, call `/api/lineage`, or

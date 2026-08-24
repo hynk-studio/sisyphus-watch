@@ -136,7 +136,7 @@ export function publicMethodLimitations(packet: SiteReadyCasePacket): string[] {
     "Source inclusion is not endorsement or truth verification.",
     "Candidate relationships organize review; they do not establish truth or causation.",
     "Missing dates remain unavailable; Sisyphus does not substitute another date type.",
-    "Browsing and focus controls cannot accept or canonically change candidate records.",
+    "Browsing and focus controls do not change review records.",
   ];
   const packetSpecific = projectPublicLimitations(packet.limitations);
 
@@ -166,6 +166,15 @@ function humanizeMethodLimitation(limitation: string): string | null {
   }
   if (/clearly_incomplete_structured_candidates_skipped|incomplete structured candidate/i.test(normalized)) {
     return "Some incomplete extraction candidates were left out; the available source summary remains review material.";
+  }
+  if (/deterministic.*(?:assessment )?fixture/i.test(normalized)) {
+    return "This is a prepared example, not a live investigation.";
+  }
+  if (/evidence-to-claim links?.*acceptance/i.test(normalized)) {
+    return "Evidence-to-claim links only identify bounded records worth reviewing together; they do not imply support, contradiction, causality, truth, or a review outcome.";
+  }
+  if (/distilled from the accepted.*raw provider response/i.test(normalized)) {
+    return "Based on a bounded earlier review record; the full original response is not included.";
   }
   if (/missing_coverage_lanes/i.test(normalized)) {
     return "Some intended source roles were not represented in the bounded discovery results.";
@@ -233,7 +242,7 @@ export function modeLabel(packet: SiteReadyCasePacket): string {
 }
 
 export function sourceCoverageLabel(packet: SiteReadyCasePacket): string {
-  if (packet.mode === "deterministic") return "Prepared fixture coverage";
+  if (packet.mode === "deterministic") return "Prepared example coverage";
   if (packet.mode === "fallback") return "Prepared fallback coverage";
   return packet.discovery_profile === "coverage_expansion"
     ? "Live coverage expansion"
@@ -405,14 +414,14 @@ export function sourceContentLabel(
   source: SiteReadyCasePacket["source_snapshot_summaries"][number],
 ): string {
   return source.content_kind === "model_generated_web_search_summary"
-    ? "Model-generated web-search candidate summary · not captured page text"
-    : "Captured deterministic fixture evidence";
+    ? "Model-generated search summary · not captured page text"
+    : "Captured source evidence";
 }
 
 export function sourceSnapshotLabel(
   source: SiteReadyCasePacket["source_snapshot_summaries"][number],
 ): string {
-  if (source.snapshot_status === "full") return "Full fixture snapshot";
+  if (source.snapshot_status === "full") return "Prepared source snapshot";
   if (source.snapshot_status === "partial") return "Partial provenance record";
   return "Snapshot failed";
 }

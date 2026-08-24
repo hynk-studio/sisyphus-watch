@@ -54,7 +54,7 @@ export function TimelineView({
       <div className="view-intro">
         <div>
           <p className="eyebrow">Temporal view</p>
-          <h3>Claims and supporting evidence over time</h3>
+          <h2>Timeline</h2>
           <p className="timeline-axis-note">{timeAxisSemanticNote(timeAxis)}</p>
           <p>
             Same-day mixed precision is grouped: exact instants keep clock
@@ -369,7 +369,7 @@ export function SourcesView({
       <div className="view-intro">
         <div>
           <p className="eyebrow">Provenance</p>
-          <h3>Sources and snapshot boundaries</h3>
+          <h2>Sources</h2>
           <p>
             Each source says what was captured, what was only summarized, and what
             its record cannot prove.
@@ -378,8 +378,6 @@ export function SourcesView({
       </div>
       <ol className="source-grid">
         {packet.source_snapshot_summaries.map((source, index) => {
-          const candidateSummary = source.web_search_grounded_candidate_summary;
-          const evidence = candidateSummary ?? source.evidence_excerpt;
           const selection = {
             kind: "source" as const,
             id: source.source_id,
@@ -398,13 +396,13 @@ export function SourcesView({
                       {recordBoundaryLabel(source.record_status)}
                     </span>
                   </div>
-                  <h4>
+                  <h3>
                     {source.url ? (
                       <a href={source.url} target="_blank" rel="noopener noreferrer">
                         {source.title} <span className="external-mark" aria-label="opens in a new tab">↗</span>
                       </a>
                     ) : source.title}
-                  </h4>
+                  </h3>
                   <p className="source-publisher">{source.publisher} · {source.domain}</p>
                   <dl className="source-times">
                     <div>
@@ -414,9 +412,13 @@ export function SourcesView({
                   </dl>
                 </div>
                 <div className="source-evidence">
-                  <div className={`provenance-note ${candidateSummary ? "provenance-partial" : ""}`}>
+                  <div className={`provenance-note ${source.source_text_captured ? "" : "provenance-partial"}`}>
                     <strong>{sourceContentLabel(source)}</strong>
-                    <p>{evidence ?? "No bounded evidence or candidate summary is available."}</p>
+                    <p>
+                      {source.source_text_captured
+                        ? "Bounded source evidence is available in the Inspector."
+                        : "Only a model-generated search summary is available; captured page text is not."}
+                    </p>
                   </div>
                   <div className="source-why">
                     <strong>Why this source matters</strong>
@@ -448,76 +450,24 @@ export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
     <div className="method-view view-stack">
       <div className="view-intro">
         <div>
-          <p className="eyebrow">Method and coverage</p>
-          <h3>What this map contains—and what it cannot establish</h3>
+          <p className="eyebrow">Interpretation guide</p>
+          <h2>How to read this investigation</h2>
           <p>
-            Coverage metadata, record boundaries, and workload limits remain
-            inspectable without crowding the map.
+            Use the Map for current relationships, Timeline for sequence, Sources
+            for selection context, and Inspector for evidence detail.
           </p>
         </div>
-        <span className="review-label">{sourceCoverageLabel(packet)}</span>
       </div>
       <section className="metric-grid" aria-label="Packet counts">
         <Metric value={packet.actual_source_count} label="Sources" />
-        <Metric value={packet.claim_occurrences.length} label="Actor-claim occurrences" />
-        <Metric value={packet.relation_candidates.length} label="Candidate relations" />
+        <Metric value={packet.claim_occurrences.length} label="Claims" />
+        <Metric value={packet.relation_candidates.length} label="Relations" />
         <Metric value={packet.unresolved_questions.length} label="Open questions" />
       </section>
-      <section className="standard-card coverage-card" aria-labelledby="source-coverage-title">
-        <p className="eyebrow">Source coverage</p>
-        <h3 id="source-coverage-title">Represented source roles</h3>
-        <dl className="coverage-lanes">
-          {DISCOVERY_LANES.map((lane) => (
-            <div key={lane}>
-              <dt>{discoveryLaneLabel(lane)}</dt>
-              <dd>{packet.coverage_summary.lane_counts[lane]}</dd>
-            </div>
-          ))}
-        </dl>
-        {packet.coverage_summary.coverage_basis === "live_discovery" ? (
-          <div className="coverage-summary-line">
-            <span>{packet.coverage_summary.baseline_returned}/{packet.coverage_summary.baseline_requested} baseline results</span>
-            <span>{packet.coverage_summary.expansion_returned}/{packet.coverage_summary.expansion_requested} expansion results</span>
-            <span>{packet.coverage_summary.unique_domain_count} unique domains</span>
-            <span>{packet.coverage_summary.duplicate_url_count} duplicate URLs removed</span>
-          </div>
-        ) : (
-          <div className="coverage-summary-line">
-            <span>{packet.coverage_summary.fixture_source_count} curated prepared sources</span>
-          </div>
-        )}
-        <p className="card-note">{sourceCoverageNote(packet)}</p>
-      </section>
-      <div className="method-grid">
-        <section className="standard-card">
-          <p className="eyebrow">Separate records</p>
-          <h3>Findings, actions, and claims stay separate</h3>
-          <dl className="lane-list">
-            <div><dt>Source-bound findings</dt><dd>{packet.source_bound_findings.length}</dd></div>
-            <div><dt>Actor claims</dt><dd>{packet.actor_claims.length}</dd></div>
-            <div><dt>Actions</dt><dd>{packet.actions.length}</dd></div>
-          </dl>
-          <p className="card-note">
-            Only statements attributed to an actor become claim records. Findings
-            and actions stay attached to their sources and do not automatically
-            create claim relationships.
-          </p>
-        </section>
-        <section className="standard-card">
-          <p className="eyebrow">Review boundaries</p>
-          <h3>How relationships are treated</h3>
-          <p className="card-note">
-            Candidate relationships organize possible connections between
-            source-local claims. Each relationship still needs review; it does
-            not establish truth, causation, or source endorsement. Browsing and
-            coverage controls cannot accept or change candidate records.
-          </p>
-        </section>
-      </div>
       <section className="limitations-card" aria-labelledby="limitations-title">
         <div>
-          <p className="eyebrow">Limits</p>
-          <h3 id="limitations-title">What this investigation cannot establish</h3>
+          <p className="eyebrow">Review boundaries</p>
+          <h3 id="limitations-title">Keep these limits in view</h3>
         </div>
         <ul>
           {limitations.map((limitation, index) => (
@@ -525,6 +475,50 @@ export function MethodView({ packet }: { packet: SiteReadyCasePacket }) {
           ))}
         </ul>
       </section>
+      <details className="coverage-details">
+        <summary>
+          <span>Coverage details</span>
+          <strong>{sourceCoverageLabel(packet)}</strong>
+        </summary>
+        <div className="coverage-details-body">
+          <section aria-labelledby="source-coverage-title">
+            <h3 id="source-coverage-title">Represented source roles</h3>
+            <dl className="coverage-lanes">
+              {DISCOVERY_LANES.map((lane) => (
+                <div key={lane}>
+                  <dt>{discoveryLaneLabel(lane)}</dt>
+                  <dd>{packet.coverage_summary.lane_counts[lane]}</dd>
+                </div>
+              ))}
+            </dl>
+            {packet.coverage_summary.coverage_basis === "live_discovery" ? (
+              <div className="coverage-summary-line">
+                <span>{packet.coverage_summary.baseline_returned}/{packet.coverage_summary.baseline_requested} baseline results</span>
+                <span>{packet.coverage_summary.expansion_returned}/{packet.coverage_summary.expansion_requested} expansion results</span>
+                <span>{packet.coverage_summary.unique_domain_count} unique domains</span>
+                <span>{packet.coverage_summary.duplicate_url_count} duplicate URLs removed</span>
+              </div>
+            ) : (
+              <div className="coverage-summary-line">
+                <span>{packet.coverage_summary.fixture_source_count} curated prepared sources</span>
+              </div>
+            )}
+            <p className="card-note">{sourceCoverageNote(packet)}</p>
+          </section>
+          <section aria-labelledby="record-boundaries-title">
+            <h3 id="record-boundaries-title">Separate review records</h3>
+            <dl className="lane-list">
+              <div><dt>Source-bound findings</dt><dd>{packet.source_bound_findings.length}</dd></div>
+              <div><dt>Actor claims</dt><dd>{packet.actor_claims.length}</dd></div>
+              <div><dt>Actions</dt><dd>{packet.actions.length}</dd></div>
+            </dl>
+            <p className="card-note">
+              Only statements attributed to an actor become claim records. Findings
+              and actions stay attached to their sources.
+            </p>
+          </section>
+        </div>
+      </details>
     </div>
   );
 }

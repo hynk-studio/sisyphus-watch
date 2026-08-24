@@ -1,5 +1,10 @@
 import type { FormEvent } from "react";
 
+import {
+  MAX_QUESTION_LENGTH,
+  MIN_QUESTION_LENGTH,
+  normalizePublicQuestion,
+} from "../lib/analysis/contracts";
 import type { ExecutionTransport } from "../lib/execution-transport";
 import type { RelayConnection } from "../lib/relay";
 import type { DiscoveryProfile } from "../lib/source-profile";
@@ -68,6 +73,15 @@ export function SearchComposer({
   onLeaveOperatorSponsored?: () => void;
 }) {
   const ComposerHeading = investigationStarted ? "h2" : "h1";
+  const ExecutionHeading = investigationStarted ? "h3" : "h2";
+  const SponsoredHeading = investigationStarted ? "h4" : "h3";
+  const WorkflowContainer = investigationStarted ? "details" : "div";
+  const normalizedQuestion = normalizePublicQuestion(question);
+  const questionStarted = normalizedQuestion.length > 0;
+  const questionTooShort = questionStarted
+    && normalizedQuestion.length < MIN_QUESTION_LENGTH;
+  const questionReady = normalizedQuestion.length >= MIN_QUESTION_LENGTH
+    && normalizedQuestion.length <= MAX_QUESTION_LENGTH;
   const availabilityState = isLoading
     ? "loading"
     : cooldownRemainingSeconds > 0
@@ -89,16 +103,19 @@ export function SearchComposer({
       <div className="composer-heading">
         <p className="eyebrow">Build a source-bound version map</p>
         <ComposerHeading id="composer-title">
-          What do you want to investigate?
+          {investigationStarted
+            ? "Start another investigation"
+            : "What do you want to investigate?"}
         </ComposerHeading>
         <p>
-          Start with a public-interest topic or question. Sisyphus Watch organizes
-          bounded sources, candidate claim relations, and unanswered questions
-          without turning them into accepted truth.
+          {investigationStarted
+            ? "Your current investigation remains above. Expand the question and execution controls only when you want to begin another."
+            : "Start with a public-interest topic or question. Sisyphus Watch organizes bounded sources, candidate claim relations, and unanswered questions without treating them as established truth."}
         </p>
       </div>
 
-      <div className="composer-workflow">
+      <WorkflowContainer className={`composer-workflow${investigationStarted ? " composer-workflow-compact" : ""}`}>
+        {investigationStarted ? <summary>Question and execution setup</summary> : null}
         <form className="investigation-form" onSubmit={onSubmit}>
           <section
             className="investigation-brief"
@@ -113,12 +130,18 @@ export function SearchComposer({
               id="investigation-question"
               value={question}
               onChange={(event) => onQuestionChange(event.target.value)}
-              minLength={12}
-              maxLength={500}
+              minLength={MIN_QUESTION_LENGTH}
+              maxLength={MAX_QUESTION_LENGTH}
               placeholder="How has access to cooling centers changed during the current heatwave?"
               required
-              aria-describedby="question-input-privacy execution-status-note"
+              aria-invalid={questionTooShort || undefined}
+              aria-describedby={`question-input-privacy execution-status-note${questionTooShort ? " question-input-hint" : ""}`}
             />
+            {questionTooShort ? (
+              <p id="question-input-hint" className="question-input-hint">
+                Use at least {MIN_QUESTION_LENGTH} characters after spaces are normalized.
+              </p>
+            ) : null}
             <div className="investigation-privacy-region">
               <p id="question-input-privacy" className="live-input-privacy">
                 {questionPrivacy} Do not enter personal, confidential, sensitive, or
@@ -211,7 +234,7 @@ export function SearchComposer({
               id="build-investigation-map"
               className="build-map-button"
               type="submit"
-              disabled={isLoading || cooldownRemainingSeconds > 0}
+              disabled={!questionReady || isLoading || cooldownRemainingSeconds > 0}
             >
               {isLoading
                 ? "Building investigation map…"
@@ -294,7 +317,7 @@ export function SearchComposer({
             <div className="execution-setup-intro">
               <div>
                 <p className="execution-mode-kicker">Execution setup</p>
-                <h2 id="execution-support-title">Run your question when you are ready</h2>
+                <ExecutionHeading id="execution-support-title">Run your question when you are ready</ExecutionHeading>
                 <p id="execution-status-note">
                   Connect a Relay you control before starting a personal live investigation.
                   Your authored question and settings stay in the composer.
@@ -395,7 +418,7 @@ export function SearchComposer({
             <section className="sponsored-option" aria-labelledby="sponsored-option-title">
               <div>
                 <p>Optional lower-priority path</p>
-                <h3 id="sponsored-option-title">Sponsored live investigation</h3>
+                <SponsoredHeading id="sponsored-option-title">Sponsored live investigation</SponsoredHeading>
                 <span>
                   Explicitly select operator-funded execution, subject to strict
                   capacity limits.
@@ -407,7 +430,7 @@ export function SearchComposer({
             </section>
           ) : null}
         </section>
-      </div>
+      </WorkflowContainer>
     </section>
   );
 }

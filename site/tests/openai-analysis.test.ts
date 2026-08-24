@@ -811,10 +811,9 @@ test("recovered Version 16 source-selection rationale is bounded once for packet
     state: "idle",
     onClose: () => undefined,
   }));
-  for (const html of [sourcesHtml, inspectorHtml]) {
-    assert.ok(html.includes(RETAINED_VERSION_16_WHY_INCLUDED));
-    assert.doesNotMatch(html, /administrative and test/u);
-  }
+  assert.ok(sourcesHtml.includes(RETAINED_VERSION_16_WHY_INCLUDED));
+  assert.doesNotMatch(inspectorHtml, new RegExp(RETAINED_VERSION_16_WHY_INCLUDED, "u"));
+  assert.doesNotMatch(`${sourcesHtml}${inspectorHtml}`, /administrative and test/u);
   assert.match(inspectorHtml, /model-generated selection metadata was bounded without repair or completion/i);
 });
 

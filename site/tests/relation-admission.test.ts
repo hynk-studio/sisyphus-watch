@@ -295,7 +295,7 @@ test("Version 18 admits exactly one unresolved pair through the strict evidence 
     modelOverride: "nonmodal",
   }));
   assert.match(inspectorHtml, /<strong>Connection<\/strong><p>Unclear connection<\/p>/);
-  assert.match(inspectorHtml, /<strong>Relation enum<\/strong><p>unresolved<\/p>/);
+  assert.doesNotMatch(inspectorHtml, /Relation enum|<p>unresolved<\/p>/);
   assert.match(inspectorHtml, /strict bidirectional topic/);
   assert.match(inspectorHtml, /does not establish corroboration, contradiction, correction, supersession, follow-up, the same event, truth, or falsity/);
 });

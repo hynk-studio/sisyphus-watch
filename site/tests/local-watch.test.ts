@@ -983,12 +983,16 @@ test("Saved Watch and Since-last-check UI expose manual, bounded, review-only se
     onForget: noop,
   }));
   assert.match(card, /Saved watch/);
-  assert.match(card, /This device/);
+  assert.match(card, /Browser-local continuity/);
+  assert.match(card, /Last checked/);
+  assert.match(card, /Watch details/);
   assert.match(card, /Check for changes/);
   assert.match(card, /Check for changes<\/button>/);
   assert.match(card, /disabled=""/);
   assert.match(card, />Forget<\/button>/);
-  assert.match(card, /Connect your relay or explicitly select sponsored live/);
+  assert.match(card, /Connect your Relay to check this Watch again/);
+  assert.match(card, /Checks run only when you choose Check for changes/);
+  assert.doesNotMatch(card, /sponsored live/i);
 
   const delta = compareInvestigationSnapshots(watch.snapshot, watch.snapshot);
   const panel = renderToStaticMarkup(createElement(InvestigationDeltaPanel, {

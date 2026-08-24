@@ -430,7 +430,7 @@ export function CaseExplorer({
       setRelayFormOpen(false);
       setRelayNotice(
         writeResult.ok
-          ? "Connected to your relay. The verified endpoint was saved in this browser."
+          ? "Connected to your relay. The connected endpoint was saved in this browser."
           : "Connected to your relay for this page, but the endpoint could not be saved in this browser.",
       );
       requestAnimationFrame(() => {
@@ -841,6 +841,56 @@ export function CaseExplorer({
       || row.familyId === selectedNodeId
     )
     : null;
+  const composer = (
+    <SearchComposer
+      question={question}
+      sourceLimit={sourceLimit}
+      discoveryProfile={discoveryProfile}
+      liveEnabled={liveEnabled}
+      executionMode={executionTransport?.kind ?? null}
+      operatorSponsoredReady={operatorSponsoredReady}
+      relayHydrated={relayHydrated}
+      activeRelay={activeRelay}
+      storedRelay={storedRelay}
+      relayUrlInput={relayUrlInput}
+      relayFormOpen={relayFormOpen}
+      relayConnecting={relayConnecting}
+      relayNotice={relayNotice}
+      relayError={relayError}
+      isLoading={isLoading}
+      cooldownRemainingSeconds={cooldownRemainingSeconds}
+      routeError={routeError}
+      investigationStarted={investigationStarted}
+      onQuestionChange={setQuestion}
+      onSourceLimitChange={setSourceLimit}
+      onDiscoveryProfileChange={setDiscoveryProfile}
+      onSubmit={submitAnalysis}
+      onPreparedExample={startPreparedExample}
+      onRelayUrlChange={setRelayUrlInput}
+      onOpenRelay={openRelayConnection}
+      onCancelRelay={cancelRelayConnection}
+      onConnectRelay={() => void connectRelay()}
+      onDisconnectRelay={disconnectRelay}
+      onSelectOperatorSponsored={selectOperatorSponsored}
+      onLeaveOperatorSponsored={leaveOperatorSponsored}
+    />
+  );
+  const savedWatchSurface = watchHydrated && savedWatch ? (
+    <SavedWatchCard
+      watch={savedWatch}
+      executionAvailable={liveEnabled}
+      isLoading={isLoading}
+      isWatchRechecking={isLoading && activeRunKind === "watch_recheck"}
+      cooldownRemainingSeconds={cooldownRemainingSeconds}
+      onCheck={checkSavedWatch}
+      onForget={forgetSavedWatchFromDevice}
+    />
+  ) : null;
+  const savedWatchNotice = watchHydrated && watchNotice ? (
+    <p className="local-watch-notice" role="status" aria-live="polite">
+      {watchNotice}
+    </p>
+  ) : null;
 
   return (
     <main className="site-shell" id="top">
@@ -852,56 +902,9 @@ export function CaseExplorer({
         <span className="header-note">A version map for changing public information</span>
       </header>
 
-      {watchHydrated && savedWatch ? (
-        <SavedWatchCard
-          watch={savedWatch}
-          executionAvailable={liveEnabled}
-          isLoading={isLoading}
-          isWatchRechecking={isLoading && activeRunKind === "watch_recheck"}
-          cooldownRemainingSeconds={cooldownRemainingSeconds}
-          onCheck={checkSavedWatch}
-          onForget={forgetSavedWatchFromDevice}
-        />
-      ) : null}
-
-      {watchHydrated && watchNotice ? (
-        <p className="local-watch-notice" role="status" aria-live="polite">
-          {watchNotice}
-        </p>
-      ) : null}
-
-      <SearchComposer
-        question={question}
-        sourceLimit={sourceLimit}
-        discoveryProfile={discoveryProfile}
-        liveEnabled={liveEnabled}
-        executionMode={executionTransport?.kind ?? null}
-        operatorSponsoredReady={operatorSponsoredReady}
-        relayHydrated={relayHydrated}
-        activeRelay={activeRelay}
-        storedRelay={storedRelay}
-        relayUrlInput={relayUrlInput}
-        relayFormOpen={relayFormOpen}
-        relayConnecting={relayConnecting}
-        relayNotice={relayNotice}
-        relayError={relayError}
-        isLoading={isLoading}
-        cooldownRemainingSeconds={cooldownRemainingSeconds}
-        routeError={routeError}
-        investigationStarted={investigationStarted}
-        onQuestionChange={setQuestion}
-        onSourceLimitChange={setSourceLimit}
-        onDiscoveryProfileChange={setDiscoveryProfile}
-        onSubmit={submitAnalysis}
-        onPreparedExample={startPreparedExample}
-        onRelayUrlChange={setRelayUrlInput}
-        onOpenRelay={openRelayConnection}
-        onCancelRelay={cancelRelayConnection}
-        onConnectRelay={() => void connectRelay()}
-        onDisconnectRelay={disconnectRelay}
-        onSelectOperatorSponsored={selectOperatorSponsored}
-        onLeaveOperatorSponsored={leaveOperatorSponsored}
-      />
+      {!investigationStarted ? composer : null}
+      {!investigationStarted ? savedWatchSurface : null}
+      {!investigationStarted ? savedWatchNotice : null}
 
       {investigationStarted ? (
         <section
@@ -916,7 +919,7 @@ export function CaseExplorer({
                   {modeLabel(packet)}
                 </span>
                 <span className="boundary-badge">
-                  Viewing does not accept candidate records
+                  Viewing does not change review status
                 </span>
               </div>
               <p className="eyebrow">Investigation map</p>
@@ -954,8 +957,7 @@ export function CaseExplorer({
                 <div className="track-watch-status">
                   <strong>Tracked on this device</strong>
                   <span>
-                    Ordinary runs do not reset the baseline. Use Check for changes from
-                    Saved watch to compare and advance it.
+                    Check or forget it from Saved watch below this investigation.
                   </span>
                 </div>
               ) : (
@@ -1093,6 +1095,10 @@ export function CaseExplorer({
         </section>
       ) : null}
 
+      {investigationStarted ? composer : null}
+      {investigationStarted ? savedWatchSurface : null}
+      {investigationStarted ? savedWatchNotice : null}
+
       <footer className="site-footer">
         <p>Sources, findings, actor claims, actions, and open questions stay distinct.</p>
         <p>Candidate relations organize review; they never decide what is true.</p>
@@ -1208,7 +1214,7 @@ export function LineageResult({ run }: { run: SiteReadyCasePacket }) {
       <p>
         {run.actual_source_count} sources · {run.claim_occurrences.length} occurrences · {run.relation_candidates.length} relation candidates
       </p>
-      <p>All inferred records remain review candidates. Browsing does not change the accepted prepared record.</p>
+      <p>All inferred records remain review candidates. Browsing does not change review records.</p>
     </section>
   );
 }

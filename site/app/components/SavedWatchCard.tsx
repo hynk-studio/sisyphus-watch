@@ -34,56 +34,69 @@ export function SavedWatchCard({
           <p className="eyebrow">Browser-local continuity</p>
           <h2 id="saved-watch-title">Saved watch</h2>
         </div>
-        <span className="saved-watch-device-badge">This device</span>
       </div>
       <p className="saved-watch-question">{watch.normalized_public_interest_question}</p>
-      <dl className="saved-watch-facts">
-        <div>
-          <dt>Last checked</dt>
-          <dd>
-            <time dateTime={watch.last_checked_at}>
-              {formatWatchTimestamp(watch.last_checked_at)}
-            </time>
-          </dd>
+      <div className="saved-watch-primary-row">
+        <dl className="saved-watch-facts">
+          <div>
+            <dt>Last checked</dt>
+            <dd>
+              <time dateTime={watch.last_checked_at}>
+                {formatWatchTimestamp(watch.last_checked_at)}
+              </time>
+            </dd>
+          </div>
+        </dl>
+        <div className="saved-watch-actions">
+          <button
+            className="saved-watch-check-button"
+            type="button"
+            disabled={checkDisabled}
+            onClick={onCheck}
+          >
+            {checkLabel}
+          </button>
+          <button
+            className="saved-watch-forget-button"
+            type="button"
+            onClick={onForget}
+          >
+            Forget
+          </button>
         </div>
-        <div>
-          <dt>Review approach</dt>
-          <dd>
-            {watch.saved_discovery_profile === "coverage_expansion"
-              ? "Expand source coverage"
-              : "Standard review"}
-            {` · ${watch.saved_source_limit}-source bound`}
-          </dd>
-        </div>
-      </dl>
-      <div className="saved-watch-actions">
-        <button
-          className="saved-watch-check-button"
-          type="button"
-          disabled={checkDisabled}
-          onClick={onCheck}
-        >
-          {checkLabel}
-        </button>
-        <button
-          className="saved-watch-forget-button"
-          type="button"
-          onClick={onForget}
-        >
-          Forget
-        </button>
       </div>
       <p className="saved-watch-status" role="status" aria-live="polite">
         {!canExecute
-          ? "Connect your relay or explicitly select sponsored live to check this Watch again. Forget remains available."
+          ? "Browser-local. Connect your Relay to check this Watch again. Checks run only when you choose Check for changes."
           : isWatchRechecking
             ? "Running one manual bounded recheck. The displayed investigation and saved baseline stay intact until a valid live result is available."
             : isLoading
               ? "Another bounded investigation is running. Check for changes will be available when it finishes."
               : cooldownRemainingSeconds > 0
                 ? `The existing in-memory cooldown has ${cooldownRemainingSeconds}s remaining.`
-                : "Checks run only when you select Check for changes; no background monitoring occurs."}
+                : "Browser-local. Checks run only when you select Check for changes; no background monitoring occurs."}
       </p>
+      <details className="saved-watch-details">
+        <summary>Watch details</summary>
+        <dl>
+          <div>
+            <dt>Review approach</dt>
+            <dd>
+              {watch.saved_discovery_profile === "coverage_expansion"
+                ? "Expand source coverage"
+                : "Standard review"}
+            </dd>
+          </div>
+          <div>
+            <dt>Source bound</dt>
+            <dd>{watch.saved_source_limit} sources</dd>
+          </div>
+          <div>
+            <dt>Storage</dt>
+            <dd>This browser profile only</dd>
+          </div>
+        </dl>
+      </details>
     </section>
   );
 }
