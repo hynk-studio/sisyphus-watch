@@ -751,25 +751,27 @@ p, li, blockquote { text-wrap: pretty; }
 .delta-boundary-copy { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.55; }
 .export-investigation {
   position: relative;
-  min-width: 180px;
+  width: max-content;
+  min-width: 0;
+  justify-self: end;
 }
 .export-toggle {
   display: flex;
-  width: 100%;
+  width: auto;
   min-height: 44px;
   align-items: center;
   justify-content: center;
   padding: 0 13px;
-  border: 1px solid var(--navy);
+  border: 1px solid var(--line-strong);
   border-radius: 3px;
-  box-shadow: inset 3px 0 0 var(--gold);
-  background: var(--surface-strong);
-  color: var(--navy);
+  background: transparent;
+  color: var(--muted);
   cursor: pointer;
   font-size: .82rem;
   font-weight: 680;
 }
 .export-toggle span { margin-left: 8px; color: currentcolor; font-size: .88rem; }
+.export-toggle:hover { border-color: var(--navy); background: var(--surface-inset); color: var(--navy); }
 .export-toggle:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .export-panel {
   position: absolute;
@@ -885,6 +887,7 @@ p, li, blockquote { text-wrap: pretty; }
   background: var(--surface);
 }
 .map-command-deck .map-intro {
+  align-self: start;
   align-items: stretch;
   gap: 18px;
   padding: 14px 16px;
@@ -893,20 +896,29 @@ p, li, blockquote { text-wrap: pretty; }
 .map-command-deck .map-intro .axis-control { align-self: end; }
 .map-toolbar {
   display: grid;
-  border-left: 1px solid var(--line);
-  background: var(--surface-inset);
+  width: calc(100% - 14px);
+  max-width: 286px;
+  align-self: start;
+  justify-self: end;
+  margin: 10px 14px 10px 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface-strong);
 }
+.map-toolbar:not([open]) { width: max-content; align-self: end; }
 .map-toolbar > summary {
-  display: grid;
-  min-height: 100%;
-  gap: 3px;
-  align-content: center;
-  padding: 12px 15px;
+  display: flex;
+  min-height: 44px;
+  gap: 4px;
+  align-items: center;
+  padding: 0 11px;
   color: var(--navy);
   cursor: pointer;
   list-style-position: inside;
+  white-space: nowrap;
 }
 .map-toolbar > summary span { color: var(--muted); font-size: .78rem; font-weight: 700; }
+.map-toolbar > summary .map-lens-separator { color: var(--line-strong); font-weight: 500; }
 .map-toolbar > summary strong { font-size: .88rem; }
 .map-lens-panel-body { display: grid; gap: 10px; padding: 13px 15px 15px; border-top: 1px solid var(--line); }
 .map-orientation-mobile { display: none; }
@@ -1551,23 +1563,24 @@ p, li, blockquote { text-wrap: pretty; }
   z-index: 3;
   display: grid;
   grid-area: unresolved;
-  gap: 9px;
-  padding: 13px;
-  border: 1px solid var(--line-strong);
-  border-top: 3px solid var(--gold-ink);
-  background: var(--surface-inset);
+  gap: 7px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--line-strong);
+  background: var(--surface);
 }
 .unresolved-evidence-region > header h3 { margin: 0 0 5px; font-size: .98rem; }
-.unresolved-evidence-region > header p:last-child { margin: 0; color: var(--gold-ink); font-family: var(--font-ledger); font-size: var(--map-font-supporting); }
-.unresolved-question-list { display: grid; gap: 7px; }
+.unresolved-evidence-region > header p:last-child { margin: 0; color: var(--muted); font-family: var(--font-ledger); font-size: var(--map-font-supporting); }
+.unresolved-question-list { display: grid; gap: 5px; }
 .unresolved-question-card { transition: opacity .15s ease; }
 .unresolved-question-card > button {
   display: grid;
   width: 100%;
-  gap: 6px;
-  padding: 10px 11px;
+  min-height: 44px;
+  gap: 5px;
+  padding: 9px 10px;
   border: 1px solid var(--line);
-  border-left: 3px solid var(--gold-ink);
+  border-left: 2px solid var(--line-strong);
   border-radius: 2px;
   background: var(--surface-strong);
   color: var(--ink);
@@ -1575,7 +1588,7 @@ p, li, blockquote { text-wrap: pretty; }
   text-align: left;
 }
 .unresolved-question-card.is-selected > button { border-style: solid; border-color: var(--navy); box-shadow: inset 4px 0 0 var(--navy); }
-.question-boundary { color: var(--gold-ink); font-family: var(--font-ledger); font-size: var(--map-font-supporting); font-weight: 760; }
+.question-boundary { color: var(--muted); font-family: var(--font-ledger); font-size: var(--map-font-supporting); font-weight: 760; }
 .unresolved-question-card strong { font-size: var(--map-font-primary-question); line-height: 1.45; }
 .question-origin-list { display: flex; flex-wrap: wrap; gap: 5px; }
 .question-origin-chip { display: inline-flex; padding: 4px 6px; border-left: 2px solid var(--line-strong); background: var(--surface-inset); }
@@ -1893,6 +1906,21 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
   .claim-matrix-stage { --claim-time-cell-width: 210px; }
 }
 
+@media (min-width: 921px) {
+  .map-lens-panel { position: relative; z-index: 10; }
+  .map-lens-panel[open] .map-lens-panel-body {
+    position: absolute;
+    z-index: 12;
+    top: calc(100% - 1px);
+    right: -1px;
+    width: 286px;
+    box-sizing: border-box;
+    border: 1px solid var(--line-strong);
+    background: var(--surface-strong);
+    box-shadow: var(--shadow-float);
+  }
+}
+
 @media (max-width: 1200px) {
   .map-primary-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -1924,7 +1952,7 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
 
 @media (max-width: 920px) {
   .map-command-deck { grid-template-columns: 1fr; }
-  .map-toolbar { border-top: 1px solid var(--line); border-left: 0; }
+  .map-toolbar { max-width: none; }
   .map-orientation-desktop { display: none; }
   .map-orientation-mobile { display: inline; }
   .desktop-map { display: none; }
@@ -2045,7 +2073,7 @@ dialog.detail-panel::backdrop { background: rgba(20, 33, 61, .52); }
   .workspace { margin: 24px -1px 44px; border-radius: 0; }
   .case-heading { align-items: stretch; flex-direction: column; gap: 18px; padding: 20px 18px 18px; }
   .case-heading h1 { font-size: 1.55rem; line-height: 1.12; }
-  .case-actions, .start-new-investigation-button, .export-investigation { width: 100%; }
+  .case-actions, .start-new-investigation-button, .export-investigation, .export-toggle { width: 100%; }
   .export-panel { right: auto; left: 0; width: 100%; max-width: 100%; }
   .export-actions { grid-template-columns: minmax(0, 1fr); }
   .export-actions button { width: 100%; }

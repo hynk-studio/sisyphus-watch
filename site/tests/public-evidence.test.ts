@@ -615,7 +615,8 @@ test("export UI is available for selected prepared/live evidence and absent for 
   const html = renderToStaticMarkup(createElement(ExportInvestigation, { packet: prepared }));
   assert.match(html, /^<div class="export-investigation">/);
   assert.match(html, /<button[^>]*aria-expanded="false"[^>]*aria-controls="export-investigation-panel"/);
-  assert.match(html, /Export investigation/);
+  assert.match(html, /aria-label="Export investigation"/);
+  assert.match(html, />Export<span aria-hidden="true">\+<\/span>/);
   assert.doesNotMatch(html, /Copy shareable brief/);
   assert.doesNotMatch(html, /id="export-investigation-panel"/);
 

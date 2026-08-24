@@ -384,7 +384,7 @@ test("first payoff resolves one existing source-bound finding without fabricatin
   }));
   assert.match(html, /Start here/);
   assert.match(html, /Finding/);
-  assert.match(html, /Prepared example/);
+  assert.doesNotMatch(html, /Prepared example/);
   assert.match(html, /One existing source-bound finding/);
   assert.match(html, /<p class="first-payoff-text">One existing source-bound finding\.<\/p>/);
   assert.doesNotMatch(html, /<blockquote/);
@@ -398,6 +398,9 @@ test("first payoff resolves one existing source-bound finding without fabricatin
       id: intendedSource.source_id,
     }))),
   );
+  assert.equal(modeLabel(packet), "Prepared case");
+  assert.equal(getRunNotice(packet, false, null).title, "Prepared demonstration");
+  assert.match(renderMapMarkup(packet, "event_time"), /class="occurrence-state">Prepared case record</);
 
   const live = structuredClone(packet);
   live.mode = "live";
@@ -1524,7 +1527,10 @@ test("default Map copy presents product boundaries without implementation langua
   const html = renderMapMarkup(buildPreparedSiteReadyCasePacket(), "event_time");
   assert.match(html, /claims as they appeared in each source|public claim as it appeared in its source/);
   assert.match(html, /Every relation appears once in this compact index/);
-  assert.match(html, /See why this question remains open/);
+  assert.match(html, /aria-hidden="true">Inspect claim →/);
+  assert.match(html, /Open the inspector for the full claim and all timestamp details/);
+  assert.match(html, /aria-hidden="true">Inspect question →/);
+  assert.match(html, /Open the inspector to learn why this evidence question remains unresolved/);
   assert.match(html, /Viewing and filtering never changes the displayed investigation/);
   assert.doesNotMatch(html, /saved investigation/i);
   for (const phrase of [
@@ -2573,10 +2579,14 @@ test("result actions and Map lens controls preserve practical target sizes", () 
   assert.match(css, /\.saved-watch-details > summary \{[^}]*display: inline-flex;[^}]*align-items: center;[^}]*min-height: 44px/);
   assert.match(css, /\.start-new-investigation-button \{[\s\S]*?min-height: 44px/);
   assert.match(css, /\.export-toggle \{[\s\S]*?min-height: 44px/);
+  assert.match(css, /\.export-investigation \{[\s\S]*?width: max-content/);
   assert.match(css, /\.export-actions button \{[\s\S]*?min-height: 44px/);
   assert.match(css, /\.export-actions \{[^}]*grid-template-columns: repeat\(3, max-content\)/);
   assert.match(css, /\.lens-list \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.lens-list button \{[^}]*min-height: 44px/);
+  assert.match(css, /\.map-toolbar:not\(\[open\]\) \{[^}]*width: max-content/);
+  assert.match(css, /\.map-toolbar > summary \{[\s\S]*?min-height: 44px/);
+  assert.match(css, /\.unresolved-question-card > button \{[\s\S]*?min-height: 44px/);
   const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
   assert.match(mobileRules, /\.export-actions \{ grid-template-columns: minmax\(0, 1fr\); \}/);
 });

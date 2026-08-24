@@ -418,6 +418,7 @@ export function InvestigationMapView({
         <details className="map-toolbar map-lens-panel">
           <summary>
             <span>Coverage lens</span>
+            <span className="map-lens-separator" aria-hidden="true">·</span>
             <strong>{COVERAGE_LENS_LABELS[coverageLens]}</strong>
           </summary>
           <div className="map-lens-panel-body">
@@ -1084,7 +1085,10 @@ function OccurrenceCard({
         <span className="a11y-only">
           Concise source provenance: {occurrence.source.sourceRole}; {occurrence.source.title}; {occurrence.source.publisher}; {occurrence.source.sourceBoundaryLabel}.
         </span>
-        <span className="inspect-affordance">Inspect full claim and all timestamps</span>
+        <span className="inspect-affordance" aria-hidden="true">Inspect claim →</span>
+        <span className="a11y-only">
+          Open the inspector for the full claim and all timestamp details.
+        </span>
       </button>
       <button
         className={`occurrence-provenance${sourceSelected ? " is-selected" : ""}`}
@@ -1276,7 +1280,10 @@ function UnresolvedRegion({
                     </span>
                   ))}
                 </span>
-                <span className="inspect-affordance">See why this question remains open</span>
+                <span className="inspect-affordance" aria-hidden="true">Inspect question →</span>
+                <span className="a11y-only">
+                  Open the inspector to learn why this evidence question remains unresolved.
+                </span>
               </button>
             </article>
           );
