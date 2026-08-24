@@ -42,11 +42,9 @@ test("renders the question-first public default without claiming execution is re
   assert.match(html, /Try the prepared cooling-center example/);
   assert.match(html, /Connect your Relay/);
   assert.match(html, /Run your question when you are ready/);
-  assert.match(html, /What is a Relay\?/);
-  assert.match(html, /A Relay is a small backend you control/i);
-  assert.match(html, /using your own OpenAI API key/i);
-  assert.match(html, /Your API key stays on the Relay/i);
-  assert.match(html, /this Site connects only to its URL/i);
+  assert.match(html, /Your API key stays on your Relay/);
+  assert.match(html, /How to set one up/i);
+  assert.doesNotMatch(html, /What is a Relay\?|A Relay is a small backend/i);
   assert.match(
     html,
     /href="https:\/\/github\.com\/hynk-studio\/sisyphus-watch#use-your-own-relay"/,

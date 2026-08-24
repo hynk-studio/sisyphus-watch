@@ -635,6 +635,7 @@ test("export UI is available for selected prepared/live evidence and absent for 
   assert.match(source, /Download Markdown/);
   assert.match(source, /Download JSON/);
   assert.match(source, /no new investigation, provider work,[\s\S]*persistence, or detail fetch/i);
+  assert.match(source, /copyState !== "idle"/);
   assert.match(source, /event\.key !== "Escape"/);
   assert.match(source, /URL\.createObjectURL/);
   assert.match(source, /navigator\.clipboard/);

@@ -109,16 +109,14 @@ test("fresh public landing is question-first without claiming that execution is 
   assert.match(html, /Build investigation map/);
   assert.match(html, /Try the prepared cooling-center example/);
   assert.match(html, /Connect your Relay/);
-  assert.match(html, /What is a Relay\?/);
-  assert.match(html, /A Relay is a small backend you control/);
-  assert.match(html, /using your own OpenAI API key/);
-  assert.match(html, /Your API key stays on the Relay/);
-  assert.match(html, /this Site connects only to its URL/);
+  assert.match(html, /aria-label="Relay credential and setup"/);
+  assert.match(html, /Your API key stays on your Relay/);
   assert.match(
     html,
     /href="https:\/\/github\.com\/hynk-studio\/sisyphus-watch#use-your-own-relay"/,
   );
-  assert.match(html, /How to set up a Relay/);
+  assert.match(html, /How to set one up/);
+  assert.doesNotMatch(html, /What is a Relay\?|A Relay is a small backend/);
   assert.doesNotMatch(html, /name="[^"]*(?:api|provider)[^"]*key/i);
   assert.doesNotMatch(html, /Relay ready|Sponsored capacity ready/);
   assert.doesNotMatch(html, /data-live-capability="available"/);
@@ -709,7 +707,7 @@ test("live composer presents concise privacy, review, persistence, and cost-dens
   assert.match(html, /20-second per-request timeout/i);
   assert.match(html, /short cooldown to prevent accidental repeat requests/i);
   assert.doesNotMatch(html, /in-memory|not strong abuse prevention/i);
-  assert.match(html, /Your API key stays on the Relay/i);
+  assert.match(html, /Your API key stays on your Relay/i);
   assert.doesNotMatch(html, /anonymous|independently verified|fact.checked|no network activity/i);
   assert.doesNotMatch(html, /OPENAI_API_KEY|SISYPHUS_LIVE_ENABLED/);
 });
@@ -1857,6 +1855,30 @@ test("timeline keeps all four axes explicit and isolates missing selected-axis t
   assert.match(html, /View all four timestamps/);
 });
 
+test("prepared Timeline keeps three unavailable supporting records in a wide review list", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const supportingRows = supportingDatedEvidenceRows(packet, "event_time");
+  const unavailableRows = supportingRows.filter((row) => !row.selectedTime);
+  assert.equal(unavailableRows.length, 3);
+  assert.ok(unavailableRows.every((row) => row.selectedTimeLabel === "Event time"));
+
+  const html = renderToStaticMarkup(createElement(TimelineView, {
+    packet,
+    timeAxis: "event_time",
+    onTimeAxisChange: noop,
+    onFocus: noop,
+  }));
+  assert.match(html, /class="supporting-evidence-unavailable-summary"/);
+  assert.match(html, /3 supporting records have no explicit event time value/);
+  assert.match(html, /No publication or retrieval time is substituted/);
+  assert.equal((html.match(/Inspect source-bound finding:/g) ?? []).length, 3);
+
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.supporting-evidence-time-group, \.supporting-evidence-unavailable \{[^}]*grid-template-columns: minmax\(130px, \.28fr\) minmax\(0, 1fr\)/);
+  const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
+  assert.match(mobileRules, /\.supporting-evidence-heading, \.supporting-evidence-time-group, \.supporting-evidence-unavailable \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+});
+
 test("timeline renders a live candidate claim as claim content rather than a quotation", () => {
   const packet = structuredClone(buildPreparedSiteReadyCasePacket());
   const candidateClaim = "Candidate live claim from a model-generated web-search summary.";
@@ -2546,12 +2568,17 @@ test("920px CSS transforms the same matrix into typed claim chapters with a comp
 test("result actions and Map lens controls preserve practical target sizes", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
+  assert.match(css, /\.source-limit-control select \{[^}]*width: 100%;[^}]*min-height: 48px/);
+  assert.match(css, /\.relay-explanation a \{[^}]*min-height: 44px/);
   assert.match(css, /\.saved-watch-details > summary \{[^}]*display: inline-flex;[^}]*align-items: center;[^}]*min-height: 44px/);
   assert.match(css, /\.start-new-investigation-button \{[\s\S]*?min-height: 44px/);
   assert.match(css, /\.export-toggle \{[\s\S]*?min-height: 44px/);
   assert.match(css, /\.export-actions button \{[\s\S]*?min-height: 44px/);
+  assert.match(css, /\.export-actions \{[^}]*grid-template-columns: repeat\(3, max-content\)/);
   assert.match(css, /\.lens-list \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.lens-list button \{[^}]*min-height: 44px/);
+  const mobileRules = css.slice(css.indexOf("@media (max-width: 720px)"));
+  assert.match(mobileRules, /\.export-actions \{ grid-template-columns: minmax\(0, 1fr\); \}/);
 });
 
 test("Map analytical typography preserves a readable primary and important hierarchy", () => {

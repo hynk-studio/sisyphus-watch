@@ -123,12 +123,10 @@ test("the public connection UI has one URL field and no provider-key input", () 
   assert.match(urlInputs[0], /name="relay-url"/);
   assert.doesNotMatch(urlInputs[0], /api.?key|provider.?key|authorization|bearer/i);
   assert.doesNotMatch(html, /sk-(?:proj-)?/i);
-  assert.match(html, /What is a Relay\?/i);
-  assert.match(html, /A Relay is a small backend you control/i);
-  assert.match(html, /using your own OpenAI API key/i);
-  assert.match(html, /Your API key stays on the Relay/i);
-  assert.match(html, /this Site connects only to its URL/i);
-  assert.match(html, /How to set up a Relay/i);
+  assert.match(html, /aria-label="Relay credential and setup"/i);
+  assert.match(html, /Your API key stays on your Relay/i);
+  assert.match(html, /How to set one up/i);
+  assert.doesNotMatch(html, /What is a Relay\?|A Relay is a small backend/i);
 
   const connectingHtml = renderToStaticMarkup(createElement(SearchComposer, {
     question: "",
