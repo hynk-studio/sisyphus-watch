@@ -248,7 +248,6 @@ export function FirstPayoff({
     id: payoff.source.source_id,
     label: payoff.source.title,
   };
-  const synthetic = packet.mode === "deterministic";
   const modelGeneratedLiveSummary = packet.mode === "live"
     && payoff.source.content_kind === "model_generated_web_search_summary"
     && !payoff.source.source_text_captured;
@@ -263,7 +262,6 @@ export function FirstPayoff({
       <div className="first-payoff-heading">
         <p className="eyebrow">Start here</p>
         <strong id="first-payoff-title">{typeLabel}</strong>
-        {synthetic ? <small>Prepared example</small> : null}
       </div>
       <p className="first-payoff-text">{payoff.text}</p>
       <p className="first-payoff-source">

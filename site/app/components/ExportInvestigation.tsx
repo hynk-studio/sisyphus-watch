@@ -38,18 +38,18 @@ export function ExportInvestigation({
         ref={toggleRef}
         className="export-toggle"
         type="button"
+        aria-label="Export investigation"
         aria-expanded={open}
         aria-controls="export-investigation-panel"
         onClick={() => setOpen((current) => !current)}
         onKeyDown={handleKeyDown}
       >
-        Export investigation
+        Export
         <span aria-hidden="true">{open ? "−" : "+"}</span>
       </button>
       {open ? <div className="export-panel" id="export-investigation-panel">
         <span>
-          Choose a local export. No new investigation, provider work,
-          persistence, or detail fetch.
+          Local only. No new investigation, provider work, persistence, or detail fetch.
         </span>
         <div className="export-actions">
           <button type="button" onClick={() => void copyBrief()} onKeyDown={handleKeyDown}>
@@ -78,10 +78,13 @@ export function ExportInvestigation({
             Download JSON
           </button>
         </div>
-        <p className="export-status" aria-live="polite">
-          {copyState === "copied" ? "Shareable brief copied." : null}
-          {copyState === "error" ? "Copy was unavailable in this browser." : null}
-        </p>
+        {copyState !== "idle" ? (
+          <p className="export-status" aria-live="polite">
+            {copyState === "copied"
+              ? "Shareable brief copied."
+              : "Copy was unavailable in this browser."}
+          </p>
+        ) : null}
       </div> : null}
     </div>
   );

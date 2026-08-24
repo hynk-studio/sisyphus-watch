@@ -166,11 +166,13 @@ function SupportingEvidenceRegion({
       ))}
       {unavailableRows.length ? (
         <section className="supporting-evidence-unavailable" aria-labelledby="supporting-time-unavailable-title">
-          <h4 id="supporting-time-unavailable-title">Supporting evidence time unavailable</h4>
-          <p>
-            {unavailableRows.length} supporting record{unavailableRows.length === 1 ? " has" : "s have"}
-            {" "}no explicit {TIME_AXIS_LABELS[timeAxis].toLowerCase()} value. No publication or retrieval time is substituted.
-          </p>
+          <div className="supporting-evidence-unavailable-summary">
+            <h4 id="supporting-time-unavailable-title">Supporting evidence time unavailable</h4>
+            <p>
+              {unavailableRows.length} supporting record{unavailableRows.length === 1 ? " has" : "s have"}
+              {" "}no explicit {TIME_AXIS_LABELS[timeAxis].toLowerCase()} value. No publication or retrieval time is substituted.
+            </p>
+          </div>
           <SupportingEvidenceRows rows={unavailableRows} onFocus={onFocus} />
         </section>
       ) : null}
