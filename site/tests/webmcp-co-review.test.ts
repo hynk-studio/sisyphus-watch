@@ -103,7 +103,7 @@ test("WebMCP bridge registers only bounded prepared Co-Review tools", () => {
     "sisyphus_focus_review_item",
     "sisyphus_set_review_view",
   ]) {
-    assert.match(source, new RegExp(`name: \\"${tool}\\"`));
+    assert.match(source, new RegExp(`name: "${tool}"`));
   }
 
   assert.match(source, /registerTool\(tool, \{ signal: registration\.signal \}\)/);
