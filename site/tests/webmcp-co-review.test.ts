@@ -4,6 +4,7 @@ import test from "node:test";
 import { buildPreparedSiteReadyCasePacket } from "../app/lib/lineage/builder";
 import {
   buildWebMcpInvestigationOverview,
+  buildWebMcpRelationComparison,
   buildWebMcpReviewItems,
   validateWebMcpEvidenceWalk,
 } from "../app/lib/webmcp/co-review";
@@ -86,9 +87,30 @@ test("Evidence walk validation is bounded, duplicate-free, and non-authoritative
   }, available));
 });
 
-test("WebMCP bridge registers only bounded prepared Co-Review tools", () => {
+test("Relation comparison is bounded to one existing candidate pair", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const before = JSON.stringify(packet);
+  const relation = packet.relation_candidates[0];
+  assert.ok(relation);
+
+  const comparison = buildWebMcpRelationComparison(packet, relation.relation_id);
+  assert.ok(comparison);
+  assert.equal(comparison.relation_id, relation.relation_id);
+  assert.equal(comparison.left.occurrence_id, relation.left_occurrence_id);
+  assert.equal(comparison.right.occurrence_id, relation.right_occurrence_id);
+  assert.equal(comparison.review_status, "pending_review");
+  assert.equal(comparison.canonical_mutation, "none");
+  assert.ok(comparison.left.claim_text.length > 0);
+  assert.ok(comparison.right.claim_text.length > 0);
+  assert.ok(comparison.left.support.bounded_excerpt.length > 0);
+  assert.ok(comparison.right.support.bounded_excerpt.length > 0);
+  assert.equal(buildWebMcpRelationComparison(packet, "relation_missing"), null);
+  assert.equal(JSON.stringify(packet), before);
+});
+
+test("WebMCP bridge follows the current single-input execute callback contract", () => {
   const source = readFileSync(
-    new URL("../app/components/WebMcpCoReviewBridge.tsx", import.meta.url),
+    new URL("../app/components/WebMcpChallengeBridge.tsx", import.meta.url),
     "utf8",
   );
   const wrapper = readFileSync(
@@ -101,12 +123,15 @@ test("WebMCP bridge registers only bounded prepared Co-Review tools", () => {
     "sisyphus_list_review_items",
     "sisyphus_stage_evidence_walk",
     "sisyphus_focus_review_item",
+    "sisyphus_open_relation_comparison",
     "sisyphus_set_review_view",
   ]) {
     assert.match(source, new RegExp(`name: "${tool}"`));
   }
 
-  assert.match(source, /registerTool\(tool, \{ signal: registration\.signal \}\)/);
+  assert.match(source, /execute: \(input: Record<string, unknown>\) => unknown \| Promise<unknown>/);
+  assert.doesNotMatch(source, /execute: async \(input,\s*\{/);
+  assert.match(source, /context\.registerTool\(tool, \{ signal \}\)/);
   assert.match(source, /untrustedContentHint: true/);
   assert.match(source, /readOnlyHint: true/);
   assert.match(source, /canonical_mutation: "none"/);
@@ -115,5 +140,5 @@ test("WebMCP bridge registers only bounded prepared Co-Review tools", () => {
     source,
     /executeInvestigationTransport|runAnalysis\(|writeLocalWatch|advanceLocalWatch|negotiateRelayConnection|OPENAI_API_KEY/,
   );
-  assert.match(wrapper, /<WebMcpCoReviewBridge preparedCase=\{props\.preparedCase\} \/>/);
+  assert.match(wrapper, /<WebMcpChallengeBridge preparedCase=\{props\.preparedCase\} \/>/);
 });
