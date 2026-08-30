@@ -1,0 +1,77 @@
+name: WebMCP Challenge validation
+
+on:
+  push:
+    branches:
+      - codex/webmcp-challenge-co-review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webmcp-challenge-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 22.13
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+          package-manager-cache: false
+
+      - name: Install site dependencies
+        working-directory: site
+        run: npm ci
+
+      - name: Build
+        working-directory: site
+        run: npm run build
+
+      - name: Typecheck
+        working-directory: site
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: site
+        run: npm run lint
+
+      - name: WebMCP focused regressions
+        working-directory: site
+        run: node --import tsx --test tests/webmcp-co-review.test.ts
+
+      - name: Full test suite
+        working-directory: site
+        run: npm test
+
+      - name: Deterministic smoke
+        working-directory: site
+        run: npm run smoke:deterministic
+
+      - name: Secret checks
+        working-directory: site
+        run: |
+          npm run check:secrets
+          npm run check:client-secrets
+
+      - name: Production dependency audit
+        working-directory: site
+        run: npm audit --omit=dev
+
+      - name: Python deterministic smoke
+        run: |
+          PYTHONPYCACHEPREFIX=/tmp/sisyphus-pycache python3 -m py_compile src/sisyphus_watch_demo.py src/sisyphus_watch_adk_demo.py src/sisyphus_watch_mcp_server.py
+          PYTHONPYCACHEPREFIX=/tmp/sisyphus-pycache python3 scripts/smoke_course_concepts.py
+
+      - name: Diff hygiene
+        run: git diff --check
