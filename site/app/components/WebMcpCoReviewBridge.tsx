@@ -4,6 +4,8 @@ import {
   useEffect,
   useMemo,
   useState,
+  type Dispatch,
+  type SetStateAction,
 } from "react";
 import { createPortal } from "react-dom";
 import type { SiteReadyCasePacket } from "../lib/lineage/contracts";
@@ -422,7 +424,7 @@ function reviewKindLabel(kind: WebMcpReviewKind): string {
 function setWalkItemState(
   key: string,
   state: WalkItemState,
-  setter: React.Dispatch<React.SetStateAction<Record<string, WalkItemState>>>,
+  setter: Dispatch<SetStateAction<Record<string, WalkItemState>>>,
 ) {
   setter((current) => ({ ...current, [key]: state }));
 }
