@@ -2,6 +2,7 @@ import type {
   SiteDetailKind,
   SiteReadyCasePacket,
 } from "../lineage/contracts";
+import { publicRelationPresentation } from "../relation-presentation";
 
 export const WEBMCP_REVIEW_KINDS = [
   "source",
@@ -45,6 +46,55 @@ export interface WebMcpInvestigationOverview {
   canonical_mutation: "none";
 }
 
+export interface WebMcpRelationComparisonSide {
+  side: "left" | "right";
+  occurrence_id: string;
+  actor: string | null;
+  claim_text: string;
+  confidence: string;
+  uncertainty: string;
+  source: {
+    source_id: string;
+    title: string;
+    publisher: string;
+    domain: string;
+    publication_time: string | null;
+    publication_time_precision: "day" | "instant" | null;
+  };
+  time: {
+    event_time: string | null;
+    event_time_precision: "day" | "instant" | null;
+    assertion_time: string | null;
+    assertion_time_precision: "day" | "instant" | null;
+  };
+  support: {
+    bounded_excerpt: string;
+    support_kind: string;
+    proves: string;
+  };
+}
+
+export interface WebMcpRelationComparison {
+  surface_version: "sisyphus_webmcp_relation_comparison.v1";
+  scope: "prepared_demo";
+  relation_id: string;
+  candidate_relation_type: string;
+  presentation_relation_type: string;
+  reason: string;
+  review_status: "pending_review";
+  source_backed: boolean;
+  left: WebMcpRelationComparisonSide;
+  right: WebMcpRelationComparisonSide;
+  source_backed_statement: {
+    statement_excerpt: string;
+    statement_source_id: string;
+    target_source_id: string;
+    from_occurrence_id: string;
+    to_occurrence_id: string;
+  } | null;
+  canonical_mutation: "none";
+}
+
 const MAX_LABEL_LENGTH = 240;
 const MAX_SUMMARY_LENGTH = 360;
 const MAX_WALK_ITEMS = 5;
@@ -83,7 +133,7 @@ export function buildWebMcpReviewItems(
       id: source.source_id,
       label: compact(source.title, MAX_LABEL_LENGTH),
       summary: compact(
-        `${source.publisher} · ${source.domain} · ${source.web_search_grounded_candidate_summary ?? "No bounded source summary available."}`,
+        `${source.publisher} · ${source.domain} · ${source.web_search_grounded_candidate_summary ?? source.evidence_excerpt ?? "No bounded source summary available."}`,
         MAX_SUMMARY_LENGTH,
       ),
       review_status: "reviewable",
@@ -92,6 +142,9 @@ export function buildWebMcpReviewItems(
 
   for (const occurrence of packet.claim_occurrences) {
     if (!lookup.has(`claim_occurrence:${occurrence.occurrence_id}`)) continue;
+    const source = packet.source_snapshot_summaries.find(
+      (candidate) => candidate.source_id === occurrence.source_id,
+    );
     items.push({
       kind: "claim_occurrence",
       id: occurrence.occurrence_id,
@@ -100,7 +153,7 @@ export function buildWebMcpReviewItems(
         MAX_LABEL_LENGTH,
       ),
       summary: compact(
-        `Source ${occurrence.source_id}; confidence ${occurrence.confidence}; support ${occurrence.support_reference.proves}.`,
+        `${source?.title ?? occurrence.source_id}; confidence ${occurrence.confidence}; support ${occurrence.support_reference.proves}.`,
         MAX_SUMMARY_LENGTH,
       ),
       review_status: "reviewable",
@@ -109,14 +162,24 @@ export function buildWebMcpReviewItems(
 
   for (const relation of packet.relation_candidates) {
     if (!lookup.has(`relation:${relation.relation_id}`)) continue;
+    const left = packet.claim_occurrences.find(
+      (occurrence) => occurrence.occurrence_id === relation.left_occurrence_id,
+    );
+    const right = packet.claim_occurrences.find(
+      (occurrence) => occurrence.occurrence_id === relation.right_occurrence_id,
+    );
+    const presentation = publicRelationPresentation(packet, relation);
     items.push({
       kind: "relation",
       id: relation.relation_id,
       label: compact(
-        `${relation.relation_type}: ${relation.left_occurrence_id} ↔ ${relation.right_occurrence_id}`,
+        `${presentation.presentationRelationType}: ${left?.original_claim_text ?? relation.left_occurrence_id} ↔ ${right?.original_claim_text ?? relation.right_occurrence_id}`,
         MAX_LABEL_LENGTH,
       ),
-      summary: compact(relation.reason, MAX_SUMMARY_LENGTH),
+      summary: compact(
+        `${relation.reason}${presentation.sourceBacked ? " Direct source support is available, but the relationship still needs review." : ""}`,
+        MAX_SUMMARY_LENGTH,
+      ),
       review_status: "pending_review",
     });
   }
@@ -138,6 +201,68 @@ export function buildWebMcpReviewItems(
   }
 
   return items;
+}
+
+export function buildWebMcpRelationComparison(
+  packet: SiteReadyCasePacket,
+  relationId: string,
+): WebMcpRelationComparison | null {
+  const relation = packet.relation_candidates.find(
+    (candidate) => candidate.relation_id === relationId,
+  );
+  if (!relation) return null;
+
+  const leftOccurrence = packet.claim_occurrences.find(
+    (candidate) => candidate.occurrence_id === relation.left_occurrence_id,
+  );
+  const rightOccurrence = packet.claim_occurrences.find(
+    (candidate) => candidate.occurrence_id === relation.right_occurrence_id,
+  );
+  if (!leftOccurrence || !rightOccurrence) return null;
+
+  const leftSource = packet.source_snapshot_summaries.find(
+    (candidate) => candidate.source_id === leftOccurrence.source_id,
+  );
+  const rightSource = packet.source_snapshot_summaries.find(
+    (candidate) => candidate.source_id === rightOccurrence.source_id,
+  );
+  if (!leftSource || !rightSource) return null;
+
+  const presentation = publicRelationPresentation(packet, relation);
+  const signal = presentation.signal;
+
+  return {
+    surface_version: "sisyphus_webmcp_relation_comparison.v1",
+    scope: "prepared_demo",
+    relation_id: relation.relation_id,
+    candidate_relation_type: relation.relation_type,
+    presentation_relation_type: presentation.presentationRelationType,
+    reason: compact(relation.reason, MAX_SUMMARY_LENGTH),
+    review_status: "pending_review",
+    source_backed: presentation.sourceBacked,
+    left: relationSide(
+      "left",
+      leftOccurrence,
+      leftSource,
+      relation.left_support_reference,
+    ),
+    right: relationSide(
+      "right",
+      rightOccurrence,
+      rightSource,
+      relation.right_support_reference,
+    ),
+    source_backed_statement: signal
+      ? {
+          statement_excerpt: compact(signal.statement_excerpt, MAX_SUMMARY_LENGTH),
+          statement_source_id: signal.statement_source_id,
+          target_source_id: signal.target_source_id,
+          from_occurrence_id: signal.from_occurrence_id,
+          to_occurrence_id: signal.to_occurrence_id,
+        }
+      : null,
+    canonical_mutation: "none",
+  };
 }
 
 export function validateWebMcpEvidenceWalk(
@@ -201,6 +326,41 @@ export function validateWebMcpEvidenceWalk(
 export function isWebMcpReviewKind(value: unknown): value is WebMcpReviewKind {
   return typeof value === "string"
     && (WEBMCP_REVIEW_KINDS as readonly string[]).includes(value);
+}
+
+function relationSide(
+  side: "left" | "right",
+  occurrence: SiteReadyCasePacket["claim_occurrences"][number],
+  source: SiteReadyCasePacket["source_snapshot_summaries"][number],
+  support: SiteReadyCasePacket["relation_candidates"][number]["left_support_reference"],
+): WebMcpRelationComparisonSide {
+  return {
+    side,
+    occurrence_id: occurrence.occurrence_id,
+    actor: occurrence.actor,
+    claim_text: compact(occurrence.original_claim_text, MAX_SUMMARY_LENGTH),
+    confidence: occurrence.confidence,
+    uncertainty: compact(occurrence.uncertainty, MAX_SUMMARY_LENGTH),
+    source: {
+      source_id: source.source_id,
+      title: compact(source.title, MAX_LABEL_LENGTH),
+      publisher: compact(source.publisher, MAX_LABEL_LENGTH),
+      domain: compact(source.domain, MAX_LABEL_LENGTH),
+      publication_time: source.published_at,
+      publication_time_precision: source.published_at_precision,
+    },
+    time: {
+      event_time: occurrence.event_time_candidate,
+      event_time_precision: occurrence.event_time_candidate_precision,
+      assertion_time: occurrence.assertion_time_candidate,
+      assertion_time_precision: occurrence.assertion_time_candidate_precision,
+    },
+    support: {
+      bounded_excerpt: compact(support.bounded_excerpt, MAX_SUMMARY_LENGTH),
+      support_kind: support.support_kind,
+      proves: support.proves,
+    },
+  };
 }
 
 function compact(value: string, maximum: number): string {
