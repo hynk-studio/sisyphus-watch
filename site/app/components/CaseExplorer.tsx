@@ -9,6 +9,7 @@ import {
   loadingStatusText,
 } from "./InvestigationExplorer";
 import { WebMcpChallengeBridge } from "./WebMcpChallengeBridge";
+import { WebMcpInspectionBridge } from "./WebMcpInspectionBridge";
 
 export function CaseExplorer(
   props: ComponentProps<typeof InvestigationExplorerCaseExplorer>,
@@ -17,6 +18,7 @@ export function CaseExplorer(
     <>
       <InvestigationExplorerCaseExplorer {...props} />
       <WebMcpChallengeBridge preparedCase={props.preparedCase} />
+      <WebMcpInspectionBridge preparedCase={props.preparedCase} />
     </>
   );
 }
