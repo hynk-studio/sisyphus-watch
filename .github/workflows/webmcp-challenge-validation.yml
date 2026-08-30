@@ -15,7 +15,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@v7
@@ -49,6 +49,41 @@ jobs:
       - name: WebMCP focused regressions
         working-directory: site
         run: node --import tsx --test tests/webmcp-co-review.test.ts
+
+      - name: WebMCP browser integration smoke
+        working-directory: site
+        env:
+          HOST: 127.0.0.1
+          PORT: 3000
+          SISYPHUS_BROWSER_SMOKE_URL: http://127.0.0.1:3000/
+        run: |
+          set -euo pipefail
+          npm run start > /tmp/sisyphus-webmcp-site.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat /tmp/sisyphus-webmcp-site.log >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/sisyphus-webmcp-site.log >&2
+            exit 1
+          fi
+
+          node scripts/webmcp-browser-smoke.mjs
 
       - name: Full test suite
         working-directory: site
