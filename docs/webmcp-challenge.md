@@ -13,7 +13,7 @@ The WebMCP Challenge work starts after the August 25 challenge opening and is de
 
 ## Challenge product direction
 
-The challenge upgrade is **Sisyphus Co-Review**: an agent can inspect the bounded evidence model, stage a short Evidence Walk, focus the same review records a person sees, and open a side-by-side relation comparison inside the Sisyphus interface.
+The challenge upgrade is **Sisyphus Co-Review**: an agent can scan the bounded investigation, inspect individual evidence records, stage a short Evidence Walk, focus the same review records a person sees, and open a side-by-side relation comparison inside the Sisyphus interface.
 
 The current challenge slice deliberately uses the deterministic prepared investigation so judges can exercise the WebMCP surface without a Relay, provider credential, billable request, or browser-local Watch setup.
 
@@ -21,10 +21,24 @@ Current tools:
 
 - `sisyphus_get_overview`
 - `sisyphus_list_review_items`
+- `sisyphus_inspect_review_item`
 - `sisyphus_stage_evidence_walk`
 - `sisyphus_focus_review_item`
 - `sisyphus_open_relation_comparison`
 - `sisyphus_set_review_view`
+
+The intended collaboration sequence is:
+
+```text
+Overview
+→ list bounded review records
+→ inspect selected evidence
+→ stage a short Evidence Walk
+→ focus the same records in the human UI
+→ optionally compare one candidate relation side by side
+```
+
+`inspect_review_item` is read-only. It returns bounded source, claim, relation, or unresolved-question detail with explicit evidence/trust boundaries so the agent can choose a review path without scraping the DOM or inventing authority.
 
 The relation comparison reuses the existing candidate relation, claim occurrence, source, time, bounded-support, and source-backed presentation semantics. It is a visual inspection aid only; it does not create a new relation or upgrade review status.
 
@@ -34,17 +48,19 @@ The imperative surface follows the current WebMCP draft shape at `https://webmac
 
 - tools are registered through `document.modelContext.registerTool(...)`;
 - `ToolExecuteCallback` receives the structured input object as its single callback argument;
-- the registration `AbortSignal` controls tool lifetime and is also reused internally to cancel pending UI frame work when the bridge unmounts;
+- registration `AbortSignal`s scope tool lifetime; the UI bridge also reuses its registration signal to cancel pending frame work when unmounted;
 - read tools declare `readOnlyHint`;
 - evidence-bearing outputs declare `untrustedContentHint`.
 
-The bridge feature-detects `document.modelContext`, so ordinary browsers without WebMCP retain the existing Sisyphus path.
+The bridges feature-detect `document.modelContext`, so ordinary browsers without WebMCP retain the existing Sisyphus path.
 
 ## Authority boundary
 
 The current WebMCP slice may:
 
-- read a bounded projection of the prepared packet;
+- read a bounded overview of the prepared packet;
+- list stable prepared review records;
+- read bounded detail for one already-listed source, claim occurrence, relation, or unresolved question;
 - stage at most five already-listed review items in temporary page state;
 - switch Map / Timeline / Sources / Method;
 - open an existing source, claim occurrence, relation, or unresolved-question inspector;
@@ -65,7 +81,7 @@ Returned source, claim, relation, and question content remains untrusted evidenc
 
 ## Current scope limitation
 
-This implementation intentionally projects the prepared deterministic packet only. If a different live/fallback workspace is already open, mutating Co-Review tools fail closed rather than applying prepared IDs to that workspace.
+This implementation intentionally projects the prepared deterministic packet only. If a different live/fallback workspace is already open, mutating Co-Review tools fail closed rather than applying prepared IDs to that workspace. Read-only prepared projection tools remain explicitly labeled `scope: prepared_demo`.
 
 A later challenge slice may generalize the adapter to the current live packet and expose the existing deterministic Watch delta as a read-only tool, but only after the prepared Co-Review path and browser-level WebMCP interoperability are independently validated.
 
