@@ -8,6 +8,7 @@ import {
   buildWebMcpReviewItems,
   validateWebMcpEvidenceWalk,
 } from "../app/lib/webmcp/co-review";
+import { buildWebMcpReviewInspection } from "../app/lib/webmcp/inspection";
 
 test("WebMCP prepared overview preserves the review authority boundary", () => {
   const packet = buildPreparedSiteReadyCasePacket();
@@ -108,9 +109,42 @@ test("Relation comparison is bounded to one existing candidate pair", () => {
   assert.equal(JSON.stringify(packet), before);
 });
 
-test("WebMCP bridge follows the current single-input execute callback contract", () => {
+test("Read-only inspection returns bounded detail for every exposed review kind", () => {
+  const packet = buildPreparedSiteReadyCasePacket();
+  const before = JSON.stringify(packet);
+  const items = buildWebMcpReviewItems(packet);
+
+  for (const kind of [
+    "source",
+    "claim_occurrence",
+    "relation",
+    "unresolved_question",
+  ] as const) {
+    const item = items.find((candidate) => candidate.kind === kind);
+    assert.ok(item, `expected one ${kind} review item`);
+    const inspection = buildWebMcpReviewInspection(packet, kind, item.id);
+    assert.ok(inspection);
+    assert.equal(inspection.kind, kind);
+    assert.equal(inspection.id, item.id);
+    assert.equal(inspection.returned_content_trust, "untrusted_evidence_data");
+    assert.equal(inspection.canonical_mutation, "none");
+    assert.ok(Object.keys(inspection.detail).length > 0);
+  }
+
+  assert.equal(
+    buildWebMcpReviewInspection(packet, "source", "source_missing"),
+    null,
+  );
+  assert.equal(JSON.stringify(packet), before);
+});
+
+test("WebMCP bridges follow the current single-input execute callback contract", () => {
   const source = readFileSync(
     new URL("../app/components/WebMcpChallengeBridge.tsx", import.meta.url),
+    "utf8",
+  );
+  const inspectionSource = readFileSync(
+    new URL("../app/components/WebMcpInspectionBridge.tsx", import.meta.url),
     "utf8",
   );
   const wrapper = readFileSync(
@@ -128,17 +162,23 @@ test("WebMCP bridge follows the current single-input execute callback contract",
   ]) {
     assert.match(source, new RegExp(`name: "${tool}"`));
   }
+  assert.match(inspectionSource, /name: "sisyphus_inspect_review_item"/);
 
   assert.match(source, /execute: \(input: Record<string, unknown>\) => unknown \| Promise<unknown>/);
+  assert.match(inspectionSource, /execute: \(input: Record<string, unknown>\) => unknown \| Promise<unknown>/);
   assert.doesNotMatch(source, /execute: async \(input,\s*\{/);
+  assert.doesNotMatch(inspectionSource, /execute: async \(input,\s*\{/);
   assert.match(source, /context\.registerTool\(tool, \{ signal \}\)/);
+  assert.match(inspectionSource, /context\.registerTool\(tool, \{ signal: registration\.signal \}\)/);
   assert.match(source, /untrustedContentHint: true/);
-  assert.match(source, /readOnlyHint: true/);
+  assert.match(inspectionSource, /readOnlyHint: true/);
+  assert.match(inspectionSource, /untrustedContentHint: true/);
   assert.match(source, /canonical_mutation: "none"/);
   assert.match(source, /session UI only|session_ui_only/);
   assert.doesNotMatch(
-    source,
+    `${source}\n${inspectionSource}`,
     /executeInvestigationTransport|runAnalysis\(|writeLocalWatch|advanceLocalWatch|negotiateRelayConnection|OPENAI_API_KEY/,
   );
   assert.match(wrapper, /<WebMcpChallengeBridge preparedCase=\{props\.preparedCase\} \/>/);
+  assert.match(wrapper, /<WebMcpInspectionBridge preparedCase=\{props\.preparedCase\} \/>/);
 });
