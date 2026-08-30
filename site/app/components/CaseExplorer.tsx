@@ -1,12 +1,34 @@
-export {
+import type { ComponentProps } from "react";
+import {
   AnalysisResult,
-  CaseExplorer,
+  CaseExplorer as InvestigationExplorerCaseExplorer,
   LineageResult,
   SisyphusWordmark,
   StartNewInvestigationButton,
   getRunNotice,
   loadingStatusText,
 } from "./InvestigationExplorer";
+import { WebMcpCoReviewBridge } from "./WebMcpCoReviewBridge";
+
+export function CaseExplorer(
+  props: ComponentProps<typeof InvestigationExplorerCaseExplorer>,
+) {
+  return (
+    <>
+      <InvestigationExplorerCaseExplorer {...props} />
+      <WebMcpCoReviewBridge preparedCase={props.preparedCase} />
+    </>
+  );
+}
+
+export {
+  AnalysisResult,
+  LineageResult,
+  SisyphusWordmark,
+  StartNewInvestigationButton,
+  getRunNotice,
+  loadingStatusText,
+};
 export { SisyphusLoadingStatus, SisyphusMark } from "./SisyphusMark";
 export { FocusedDetailPanel } from "./FocusedDetailPanel";
 export {
